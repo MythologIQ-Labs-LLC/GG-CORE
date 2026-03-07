@@ -1,0 +1,3 @@
+## 2025-03-06 - Prompt Injection Scan String Allocation
+**Learning:** Found O(N) string allocations inside a pattern matching loop in `core-runtime/src/security/prompt_injection.rs` because `cleaned.to_lowercase()` was called on every iteration. Also, the original code used byte offsets found in the lowercase string to slice the original mixed-case string, which could cause panics if character byte lengths differed between cases.
+**Action:** Always check loop bodies for operations that can be hoisted, especially expensive ones like `.to_lowercase()`. Ensure string slicing byte indices are applied to the same string they were derived from to prevent multi-byte character panics.
