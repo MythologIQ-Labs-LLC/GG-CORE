@@ -22,8 +22,7 @@ impl TokenEncoder for V1Encoder {
     }
 
     fn decode(&self, bytes: &[u8]) -> Result<Vec<u32>, ProtocolError> {
-        serde_json::from_slice(bytes)
-            .map_err(|e| ProtocolError::InvalidFormat(e.to_string()))
+        serde_json::from_slice(bytes).map_err(|e| ProtocolError::InvalidFormat(e.to_string()))
     }
 }
 
@@ -50,15 +49,20 @@ impl TokenEncoder for V2Encoder {
         let count = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize;
         let expected_len = 4 + count * 4;
         if bytes.len() != expected_len {
-            return Err(ProtocolError::InvalidFormat(
-                format!("V2: expected {} bytes, got {}", expected_len, bytes.len())
-            ));
+            return Err(ProtocolError::InvalidFormat(format!(
+                "V2: expected {} bytes, got {}",
+                expected_len,
+                bytes.len()
+            )));
         }
         let mut tokens = Vec::with_capacity(count);
         for i in 0..count {
             let offset = 4 + i * 4;
             let token = u32::from_le_bytes([
-                bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+                bytes[offset],
+                bytes[offset + 1],
+                bytes[offset + 2],
+                bytes[offset + 3],
             ]);
             tokens.push(token);
         }
@@ -67,7 +71,9 @@ impl TokenEncoder for V2Encoder {
 }
 
 /// Get encoder for a given protocol version.
-pub fn get_encoder(version: super::protocol::ProtocolVersion) -> Box<dyn TokenEncoder + Send + Sync> {
+pub fn get_encoder(
+    version: super::protocol::ProtocolVersion,
+) -> Box<dyn TokenEncoder + Send + Sync> {
     match version {
         super::protocol::ProtocolVersion::V1 => Box::new(V1Encoder),
         super::protocol::ProtocolVersion::V2 => Box::new(V2Encoder),

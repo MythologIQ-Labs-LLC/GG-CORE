@@ -52,8 +52,8 @@ pub enum LogError {
 ///
 /// This should be called once at application startup.
 pub fn init_logging(config: &LogConfig) -> Result<(), LogError> {
-    let filter = EnvFilter::try_new(&config.level)
-        .map_err(|e| LogError::InvalidFilter(e.to_string()))?;
+    let filter =
+        EnvFilter::try_new(&config.level).map_err(|e| LogError::InvalidFilter(e.to_string()))?;
 
     match config.format {
         LogFormat::Json => init_json_subscriber(filter, &config.output_path),
@@ -65,8 +65,7 @@ fn init_json_subscriber(filter: EnvFilter, path: &Option<PathBuf>) -> Result<(),
     let registry = tracing_subscriber::registry().with(filter);
 
     if let Some(path) = path {
-        let file = std::fs::File::create(path)
-            .map_err(|e| LogError::FileOpen(e.to_string()))?;
+        let file = std::fs::File::create(path).map_err(|e| LogError::FileOpen(e.to_string()))?;
         registry
             .with(fmt::layer().json().with_writer(std::sync::Mutex::new(file)))
             .try_init()

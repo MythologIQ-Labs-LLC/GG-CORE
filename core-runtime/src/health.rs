@@ -101,7 +101,12 @@ impl HealthChecker {
         }
     }
 
-    fn compute_state(&self, shutdown_state: ShutdownState, models: usize, queue: usize) -> HealthState {
+    fn compute_state(
+        &self,
+        shutdown_state: ShutdownState,
+        models: usize,
+        queue: usize,
+    ) -> HealthState {
         if shutdown_state != ShutdownState::Running {
             return HealthState::Unhealthy;
         }

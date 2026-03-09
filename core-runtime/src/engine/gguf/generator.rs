@@ -5,8 +5,8 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::engine::{
-    GenerationResult, InferenceCapability, InferenceConfig,
-    InferenceError, InferenceInput, InferenceOutput,
+    GenerationResult, InferenceCapability, InferenceConfig, InferenceError, InferenceInput,
+    InferenceOutput,
 };
 
 /// GGUF text generation model using llama-cpp-2.
@@ -67,7 +67,7 @@ impl GgufGenerator {
         }
         #[cfg(not(feature = "gguf"))]
         let _ = config; // silence unused warning when gguf disabled
-        // No model loaded - fail rather than return mock data
+                        // No model loaded - fail rather than return mock data
         Err(InferenceError::ModelError(format!(
             "model '{}' not loaded - cannot generate",
             self.model_id
@@ -173,11 +173,9 @@ impl super::GgufModel for GgufGenerator {
                 let result = self.generate_text(&prompt, config)?;
                 Ok(InferenceOutput::Generation(result))
             }
-            InferenceInput::TextBatch(_) => {
-                Err(InferenceError::CapabilityNotSupported(
-                    "batch generation not supported".into(),
-                ))
-            }
+            InferenceInput::TextBatch(_) => Err(InferenceError::CapabilityNotSupported(
+                "batch generation not supported".into(),
+            )),
         }
     }
 

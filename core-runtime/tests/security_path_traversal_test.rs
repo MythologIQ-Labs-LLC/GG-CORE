@@ -23,7 +23,8 @@ fn reject_relative_path_escape() {
     let err_str = result.unwrap_err().to_string();
     assert!(
         err_str.contains("not allowed") || err_str.contains("not found"),
-        "Expected path rejection, got: {}", err_str
+        "Expected path rejection, got: {}",
+        err_str
     );
 }
 

@@ -45,7 +45,7 @@ fn sandbox_usage_returns_none_when_inactive() {
 fn sandbox_config_custom_limits() {
     let config = SandboxConfig {
         max_memory_bytes: 512 * 1024 * 1024, // 512MB
-        max_cpu_time_ms: 5000,                // 5 seconds
+        max_cpu_time_ms: 5000,               // 5 seconds
         enabled: true,
     };
 

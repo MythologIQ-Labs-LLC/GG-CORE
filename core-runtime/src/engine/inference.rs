@@ -55,13 +55,19 @@ impl Default for InferenceParams {
 impl InferenceParams {
     pub fn validate(&self) -> Result<(), InferenceError> {
         if self.max_tokens == 0 {
-            return Err(InferenceError::InvalidParams("max_tokens must be > 0".into()));
+            return Err(InferenceError::InvalidParams(
+                "max_tokens must be > 0".into(),
+            ));
         }
         if self.temperature < 0.0 {
-            return Err(InferenceError::InvalidParams("temperature must be >= 0".into()));
+            return Err(InferenceError::InvalidParams(
+                "temperature must be >= 0".into(),
+            ));
         }
         if self.top_p <= 0.0 || self.top_p > 1.0 {
-            return Err(InferenceError::InvalidParams("top_p must be in (0, 1]".into()));
+            return Err(InferenceError::InvalidParams(
+                "top_p must be in (0, 1]".into(),
+            ));
         }
         Ok(())
     }
@@ -115,7 +121,10 @@ impl InferenceEngine {
         model: Arc<dyn GgufModel>,
     ) {
         self.models.write().await.insert(model_id.clone(), model);
-        self.handle_to_id.write().await.insert(handle.id(), model_id);
+        self.handle_to_id
+            .write()
+            .await
+            .insert(handle.id(), model_id);
     }
 
     /// Unregister a model.
@@ -136,9 +145,9 @@ impl InferenceEngine {
 
         // Look up model by ID
         let models = self.models.read().await;
-        let model = models.get(model_id).ok_or_else(|| {
-            InferenceError::ModelNotLoaded(model_id.to_string())
-        })?;
+        let model = models
+            .get(model_id)
+            .ok_or_else(|| InferenceError::ModelNotLoaded(model_id.to_string()))?;
 
         // Check context length (approximate by bytes)
         if prompt.len() > self.max_context_length {
@@ -153,9 +162,10 @@ impl InferenceEngine {
         let input = InferenceInput::Text(prompt.to_string());
 
         // Delegate to actual model
-        let output = model.infer(&input, &config).await.map_err(|e| {
-            InferenceError::ExecutionFailed(e.to_string())
-        })?;
+        let output = model
+            .infer(&input, &config)
+            .await
+            .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))?;
 
         // Extract generation result
         match output {
@@ -178,9 +188,9 @@ impl InferenceEngine {
         params: &InferenceParams,
     ) -> Result<InferenceResult, InferenceError> {
         let handles = self.handle_to_id.read().await;
-        let model_id = handles.get(&handle.id()).ok_or_else(|| {
-            InferenceError::ModelNotLoaded(format!("handle {}", handle.id()))
-        })?;
+        let model_id = handles
+            .get(&handle.id())
+            .ok_or_else(|| InferenceError::ModelNotLoaded(format!("handle {}", handle.id())))?;
         self.run(model_id, prompt, params).await
     }
 
@@ -221,16 +231,20 @@ impl InferenceEngine {
         // Get runtime handle for async model lookup
         let rt = tokio::runtime::Handle::current();
         let models = rt.block_on(self.models.read());
-        let model = models.get(model_id).ok_or_else(|| {
-            InferenceError::ModelNotLoaded(model_id.to_string())
-        })?;
+        let model = models
+            .get(model_id)
+            .ok_or_else(|| InferenceError::ModelNotLoaded(model_id.to_string()))?;
 
         // Downcast to GgufGenerator for streaming access
-        let generator = model.as_any().downcast_ref::<GgufGenerator>().ok_or_else(|| {
-            InferenceError::ExecutionFailed("model does not support streaming".into())
-        })?;
+        let generator = model
+            .as_any()
+            .downcast_ref::<GgufGenerator>()
+            .ok_or_else(|| {
+                InferenceError::ExecutionFailed("model does not support streaming".into())
+            })?;
 
-        generator.generate_stream(prompt, config, sender)
+        generator
+            .generate_stream(prompt, config, sender)
             .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))
     }
 }

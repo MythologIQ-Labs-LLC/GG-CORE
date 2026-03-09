@@ -56,9 +56,15 @@ impl Page {
         &self.values[offset..offset + self.hidden_dim]
     }
 
-    pub fn id(&self) -> PageId { self.id }
-    pub fn used_slots(&self) -> usize { self.used_slots }
-    pub fn is_full(&self) -> bool { self.used_slots >= PAGE_TOKENS }
+    pub fn id(&self) -> PageId {
+        self.id
+    }
+    pub fn used_slots(&self) -> usize {
+        self.used_slots
+    }
+    pub fn is_full(&self) -> bool {
+        self.used_slots >= PAGE_TOKENS
+    }
 
     /// Reset page for reuse.
     pub fn reset(&mut self) {
@@ -114,7 +120,9 @@ impl PageTable {
         }
         self.entries.iter_mut().for_each(|e| {
             if let Some(id) = e {
-                if page_ids.contains(id) { *e = None; }
+                if page_ids.contains(id) {
+                    *e = None;
+                }
             }
         });
     }
@@ -156,6 +164,10 @@ impl PageTable {
         Some(id)
     }
 
-    pub fn page_count(&self) -> usize { self.pages.len() }
-    pub fn free_count(&self) -> usize { self.free_pages.len() }
+    pub fn page_count(&self) -> usize {
+        self.pages.len()
+    }
+    pub fn free_count(&self) -> usize {
+        self.free_pages.len()
+    }
 }

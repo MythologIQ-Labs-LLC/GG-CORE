@@ -13,8 +13,7 @@ pub struct ThreadPoolConfig {
 
 impl Default for ThreadPoolConfig {
     fn default() -> Self {
-        let threads = std::thread::available_parallelism()
-            .unwrap_or(NonZeroUsize::new(4).unwrap());
+        let threads = std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(4).unwrap());
         Self {
             worker_threads: threads,
             stack_size: 2 * 1024 * 1024, // 2MB

@@ -177,9 +177,7 @@ impl SmartLoader {
             LoadHint::BatchIncoming { count } if count > 10 => {
                 self.find_model_by_tier(ModelTier::Quality).await
             }
-            LoadHint::BatchIncoming { .. } => {
-                self.find_model_by_tier(ModelTier::Balanced).await
-            }
+            LoadHint::BatchIncoming { .. } => self.find_model_by_tier(ModelTier::Balanced).await,
             LoadHint::UserIdle => {
                 // Preload the most likely next model
                 self.predict_next().await
@@ -465,7 +463,11 @@ mod tests {
         let file = create_test_model(1_000_000);
 
         loader
-            .register("test".to_string(), file.path().to_path_buf(), ModelTier::Light)
+            .register(
+                "test".to_string(),
+                file.path().to_path_buf(),
+                ModelTier::Light,
+            )
             .await
             .unwrap();
 
@@ -483,11 +485,21 @@ mod tests {
         let quality = create_test_model(200_000);
 
         loader
-            .register("light".to_string(), light.path().to_path_buf(), ModelTier::Light)
-            .await.unwrap();
+            .register(
+                "light".to_string(),
+                light.path().to_path_buf(),
+                ModelTier::Light,
+            )
+            .await
+            .unwrap();
         loader
-            .register("quality".to_string(), quality.path().to_path_buf(), ModelTier::Quality)
-            .await.unwrap();
+            .register(
+                "quality".to_string(),
+                quality.path().to_path_buf(),
+                ModelTier::Quality,
+            )
+            .await
+            .unwrap();
 
         // Hint: quick query
         loader.hint(LoadHint::QuickQuery).await;
@@ -503,8 +515,13 @@ mod tests {
         let file = create_test_model(100_000);
 
         loader
-            .register("test".to_string(), file.path().to_path_buf(), ModelTier::Balanced)
-            .await.unwrap();
+            .register(
+                "test".to_string(),
+                file.path().to_path_buf(),
+                ModelTier::Balanced,
+            )
+            .await
+            .unwrap();
 
         // First load (cold)
         let start = Instant::now();
@@ -531,9 +548,30 @@ mod tests {
         let balanced = create_test_model(100);
         let quality = create_test_model(100);
 
-        loader.register("l".to_string(), light.path().to_path_buf(), ModelTier::Light).await.unwrap();
-        loader.register("b".to_string(), balanced.path().to_path_buf(), ModelTier::Balanced).await.unwrap();
-        loader.register("q".to_string(), quality.path().to_path_buf(), ModelTier::Quality).await.unwrap();
+        loader
+            .register(
+                "l".to_string(),
+                light.path().to_path_buf(),
+                ModelTier::Light,
+            )
+            .await
+            .unwrap();
+        loader
+            .register(
+                "b".to_string(),
+                balanced.path().to_path_buf(),
+                ModelTier::Balanced,
+            )
+            .await
+            .unwrap();
+        loader
+            .register(
+                "q".to_string(),
+                quality.path().to_path_buf(),
+                ModelTier::Quality,
+            )
+            .await
+            .unwrap();
 
         // Different hints should predict different models
         loader.hint(LoadHint::QuickQuery).await;
@@ -542,7 +580,11 @@ mod tests {
         loader.hint(LoadHint::ComplexTask).await;
         assert_eq!(loader.status().await.predicted_next, Some("q".to_string()));
 
-        loader.hint(LoadHint::PreferModel { tier: ModelTier::Balanced }).await;
+        loader
+            .hint(LoadHint::PreferModel {
+                tier: ModelTier::Balanced,
+            })
+            .await;
         assert_eq!(loader.status().await.predicted_next, Some("b".to_string()));
     }
 }

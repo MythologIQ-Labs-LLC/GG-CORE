@@ -92,7 +92,10 @@ mod tests {
     fn test_exit_code_values_are_standard() {
         // Standard Unix convention: 0 = success, non-zero = failure
         assert!(EXIT_HEALTHY == 0, "Healthy exit code should be 0");
-        assert!(EXIT_UNHEALTHY != 0, "Unhealthy exit code should be non-zero");
+        assert!(
+            EXIT_UNHEALTHY != 0,
+            "Unhealthy exit code should be non-zero"
+        );
     }
 
     #[tokio::test]

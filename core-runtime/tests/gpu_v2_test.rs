@@ -3,10 +3,10 @@
 
 //! GPU Support Tests v2 - Tests for CUDA and Metal backends
 
-use std::sync::Arc;
 use gg_core::engine::FlashAttnGpuConfig;
 use gg_core::engine::{GpuBackend, GpuConfig, GpuDevice, GpuError, GpuManager};
 use gg_core::engine::{MultiGpuConfig, MultiGpuManager, MultiGpuStrategy};
+use std::sync::Arc;
 
 // ============= Base GPU Tests =============
 

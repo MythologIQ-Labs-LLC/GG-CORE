@@ -45,14 +45,9 @@ use crate::scheduler::Priority;
 #[derive(Debug, Clone)]
 pub enum InterceptError {
     /// Request rejected due to rate limiting.
-    RateLimited {
-        retry_after_ms: u64,
-    },
+    RateLimited { retry_after_ms: u64 },
     /// Session not authorized for this tier.
-    TierNotAllowed {
-        requested: String,
-        allowed: String,
-    },
+    TierNotAllowed { requested: String, allowed: String },
     /// Internal interceptor error.
     Internal(String),
 }
@@ -177,7 +172,9 @@ mod tests {
 
     #[test]
     fn test_intercept_error_display() {
-        let err = InterceptError::RateLimited { retry_after_ms: 1000 };
+        let err = InterceptError::RateLimited {
+            retry_after_ms: 1000,
+        };
         assert!(err.to_string().contains("1000"));
 
         let err = InterceptError::TierNotAllowed {

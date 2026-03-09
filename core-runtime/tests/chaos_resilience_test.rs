@@ -6,12 +6,12 @@
 //! Malformed IPC messages, type confusion, extreme payloads,
 //! binary protocol chaos, and token encoding edge cases.
 
+use gg_core::engine::InferenceParams;
 use gg_core::ipc::{
-    decode_message, encode_message, InferenceRequest, IpcMessage, RequestId,
-    TokenEncoder, V1Encoder, V2Encoder,
+    decode_message, encode_message, InferenceRequest, IpcMessage, RequestId, TokenEncoder,
+    V1Encoder, V2Encoder,
 };
 use gg_core::ipc::{decode_message_binary, encode_message_binary};
-use gg_core::engine::InferenceParams;
 
 #[test]
 fn chaos_ipc_random_bytes() {
@@ -96,10 +96,22 @@ fn chaos_ipc_massive_prompt() {
 #[test]
 fn chaos_ipc_invalid_inference_params() {
     let bad = vec![
-        InferenceParams { max_tokens: 0, ..Default::default() },
-        InferenceParams { temperature: -1.0, ..Default::default() },
-        InferenceParams { top_p: 0.0, ..Default::default() },
-        InferenceParams { top_p: 1.5, ..Default::default() },
+        InferenceParams {
+            max_tokens: 0,
+            ..Default::default()
+        },
+        InferenceParams {
+            temperature: -1.0,
+            ..Default::default()
+        },
+        InferenceParams {
+            top_p: 0.0,
+            ..Default::default()
+        },
+        InferenceParams {
+            top_p: 1.5,
+            ..Default::default()
+        },
     ];
     for (i, p) in bad.iter().enumerate() {
         assert!(p.validate().is_err(), "Bad params {} should be rejected", i);
@@ -109,9 +121,11 @@ fn chaos_ipc_invalid_inference_params() {
 #[test]
 fn chaos_binary_random_bytes() {
     let patterns: Vec<&[u8]> = vec![
-        &[0xFF, 0xFE], &[0x00],
+        &[0xFF, 0xFE],
+        &[0x00],
         b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff",
-        b"not bincode at all", &[],
+        b"not bincode at all",
+        &[],
     ];
     for p in &patterns {
         assert!(decode_message_binary(p).is_err());
@@ -121,7 +135,9 @@ fn chaos_binary_random_bytes() {
 #[test]
 fn chaos_binary_encode_tagged_enums() {
     use gg_core::ipc::HealthCheckType;
-    let msg = IpcMessage::HealthCheck { check_type: HealthCheckType::Liveness };
+    let msg = IpcMessage::HealthCheck {
+        check_type: HealthCheckType::Liveness,
+    };
     if let Ok(bytes) = encode_message_binary(&msg) {
         let _ = decode_message_binary(&bytes);
     }
@@ -130,9 +146,7 @@ fn chaos_binary_encode_tagged_enums() {
 #[test]
 fn chaos_v1_encoder_malformed_input() {
     let encoder = V1Encoder;
-    let bad: Vec<&[u8]> = vec![
-        b"not json", b"[1, 2, \"x\"]", b"[1.5]", b"{}", b"null", b"",
-    ];
+    let bad: Vec<&[u8]> = vec![b"not json", b"[1, 2, \"x\"]", b"[1.5]", b"{}", b"null", b""];
     for input in bad {
         assert!(encoder.decode(input).is_err());
     }
@@ -159,7 +173,9 @@ fn chaos_encoder_roundtrip_stress() {
     let v1 = V1Encoder;
     let v2 = V2Encoder;
     let cases: Vec<Vec<u32>> = vec![
-        vec![], vec![0], vec![u32::MAX],
+        vec![],
+        vec![0],
+        vec![u32::MAX],
         vec![0, u32::MAX, 42, 1000],
         (0..1000).collect(),
     ];

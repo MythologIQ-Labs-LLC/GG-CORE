@@ -49,14 +49,11 @@ impl Clone for QueuedRequest {
 
 impl QueuedRequest {
     /// Create a new queued request. Used for testing and batch processing.
-    pub fn new(
-        id: u64,
-        model_id: String,
-        prompt: String,
-        params: InferenceParams,
-    ) -> Self {
+    pub fn new(id: u64, model_id: String, prompt: String, params: InferenceParams) -> Self {
         let enqueued_at = Instant::now();
-        let deadline = params.timeout_ms.map(|ms| enqueued_at + Duration::from_millis(ms));
+        let deadline = params
+            .timeout_ms
+            .map(|ms| enqueued_at + Duration::from_millis(ms));
         Self {
             id,
             model_id,
@@ -116,7 +113,9 @@ impl RequestQueue {
 
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let enqueued_at = Instant::now();
-        let deadline = params.timeout_ms.map(|ms| enqueued_at + Duration::from_millis(ms));
+        let deadline = params
+            .timeout_ms
+            .map(|ms| enqueued_at + Duration::from_millis(ms));
         let request = QueuedRequest {
             id,
             model_id,

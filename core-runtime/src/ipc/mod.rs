@@ -16,12 +16,12 @@ pub use auth::{AuthError, SessionAuth, SessionToken};
 pub use connections::{ConnectionConfig, ConnectionGuard, ConnectionPool, OwnedConnectionGuard};
 pub use encoding::{get_encoder, TokenEncoder, V1Encoder, V2Encoder};
 pub use handler::{HandlerError, IpcHandler, IpcHandlerConfig, StreamSender};
-pub use stream_bridge::IpcStreamBridge;
 pub use protocol::{
     decode_message, decode_message_binary, encode_message, encode_message_binary,
     HealthCheckResponse, HealthCheckType, InferenceRequest, InferenceResponse, IpcMessage,
     ModelInfo, ModelsListResponse, ProtocolError, ProtocolVersion, RequestId, StreamChunk,
     WarmupRequest, WarmupResponse,
 };
+pub use stream_bridge::IpcStreamBridge;
 // Re-export MetricsSnapshot for IPC consumers
 pub use crate::telemetry::MetricsSnapshot;

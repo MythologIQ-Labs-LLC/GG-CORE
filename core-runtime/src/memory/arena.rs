@@ -23,9 +23,7 @@ unsafe impl Sync for Arena {}
 impl Arena {
     /// Create a new arena with given capacity in bytes.
     pub fn new(capacity: usize) -> Self {
-        let buffer: Vec<UnsafeCell<u8>> = (0..capacity)
-            .map(|_| UnsafeCell::new(0))
-            .collect();
+        let buffer: Vec<UnsafeCell<u8>> = (0..capacity).map(|_| UnsafeCell::new(0)).collect();
         Self {
             buffer: buffer.into_boxed_slice(),
             offset: AtomicUsize::new(0),
@@ -43,7 +41,8 @@ impl Arena {
             if new_offset > self.capacity {
                 return None;
             }
-            if self.offset
+            if self
+                .offset
                 .compare_exchange_weak(current, new_offset, Ordering::AcqRel, Ordering::Relaxed)
                 .is_ok()
             {
@@ -132,7 +131,9 @@ impl ArenaPool {
     /// Acquire an arena from the pool, or create a new one.
     pub fn acquire(&self) -> Arena {
         let mut guard = self.arenas.lock().unwrap();
-        guard.pop_front().unwrap_or_else(|| Arena::new(self.arena_size))
+        guard
+            .pop_front()
+            .unwrap_or_else(|| Arena::new(self.arena_size))
     }
 
     /// Return arena to pool after resetting.

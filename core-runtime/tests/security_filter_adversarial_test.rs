@@ -3,7 +3,7 @@
 //! Tests that the output filter cannot be bypassed through common techniques
 //! like case variation, unicode homoglyphs, whitespace insertion, etc.
 
-use gg_core::engine::filter::{OutputFilter, FilterConfig};
+use gg_core::engine::filter::{FilterConfig, OutputFilter};
 
 fn create_filter_with_blocklist(words: Vec<&str>) -> OutputFilter {
     let config = FilterConfig {
@@ -166,8 +166,10 @@ fn unicode_nfc_blocks_decomposed_form() {
 
     // Input uses decomposed form: "cafe\u{0301}" (e + combining accent)
     let decomposed = "cafe\u{0301}";
-    assert!(filter.contains_blocked(decomposed),
-        "NFC normalization should match decomposed é to composed é in blocklist");
+    assert!(
+        filter.contains_blocked(decomposed),
+        "NFC normalization should match decomposed é to composed é in blocklist"
+    );
 }
 
 #[test]
@@ -177,8 +179,10 @@ fn unicode_nfc_blocks_composed_form() {
 
     // Input uses composed form: "café" (precomposed é U+00E9)
     let composed = "caf\u{00E9}";
-    assert!(filter.contains_blocked(composed),
-        "NFC normalization should match composed é to decomposed é in blocklist");
+    assert!(
+        filter.contains_blocked(composed),
+        "NFC normalization should match composed é to decomposed é in blocklist"
+    );
 }
 
 #[test]
@@ -196,7 +200,7 @@ fn precomputed_blocklist_no_per_call_allocation() {
 fn filter_mixed_unicode_normalization() {
     // Test with multiple blocklist entries using mixed normalization forms
     let filter = create_filter_with_blocklist(vec![
-        "résumé",      // composed
+        "résumé",       // composed
         "cafe\u{0301}", // decomposed
     ]);
 

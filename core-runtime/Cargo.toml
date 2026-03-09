@@ -161,9 +161,6 @@ harness = false
 name = "concurrent_load"
 harness = false
 
-[[bench]]
-name = "llama_cpp_comparison"
-harness = false
 
 [profile.release]
 opt-level = 3

@@ -27,7 +27,10 @@ impl CanaryPhase {
     }
 
     pub fn allows_traffic(&self) -> bool {
-        matches!(self, CanaryPhase::Progressing { .. } | CanaryPhase::Analyzing)
+        matches!(
+            self,
+            CanaryPhase::Progressing { .. } | CanaryPhase::Analyzing
+        )
     }
 }
 
@@ -107,8 +110,12 @@ impl CanaryController {
         }
     }
 
-    pub fn state(&self) -> &CanaryState { &self.state }
-    pub fn traffic_weight(&self) -> u8 { self.state.traffic_weight }
+    pub fn state(&self) -> &CanaryState {
+        &self.state
+    }
+    pub fn traffic_weight(&self) -> u8 {
+        self.state.traffic_weight
+    }
 
     pub fn record_canary(&mut self, latency: Duration, success: bool) {
         if success {
@@ -147,7 +154,11 @@ impl CanaryController {
             return CanaryDecision::InsufficientData;
         }
 
-        let comparison = compare_metrics(&canary_snap, &stable_snap, self.config.thresholds.confidence_level);
+        let comparison = compare_metrics(
+            &canary_snap,
+            &stable_snap,
+            self.config.thresholds.confidence_level,
+        );
         let result = analyze_thresholds(&comparison, &self.config.thresholds);
         self.state.last_result = Some(result.clone());
         self.state.analysis_cycles += 1;
@@ -226,6 +237,12 @@ pub enum CanaryDecision {
 
 impl CanaryDecision {
     pub fn is_terminal(&self) -> bool {
-        matches!(self, CanaryDecision::Promote | CanaryDecision::Rollback(_) | CanaryDecision::Complete | CanaryDecision::Timeout)
+        matches!(
+            self,
+            CanaryDecision::Promote
+                | CanaryDecision::Rollback(_)
+                | CanaryDecision::Complete
+                | CanaryDecision::Timeout
+        )
     }
 }

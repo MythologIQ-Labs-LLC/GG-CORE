@@ -5,8 +5,8 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::engine::{
-    EmbeddingResult, InferenceCapability, InferenceConfig, InferenceError,
-    InferenceInput, InferenceOutput,
+    EmbeddingResult, InferenceCapability, InferenceConfig, InferenceError, InferenceInput,
+    InferenceOutput,
 };
 
 /// ONNX embedding model using Candle.

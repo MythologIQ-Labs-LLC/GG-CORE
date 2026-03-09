@@ -43,12 +43,9 @@ pub unsafe extern "C" fn core_model_load(
     };
 
     // Register model
-    let handle = rt.tokio.block_on(async {
-        rt.inner
-            .model_registry
-            .register(metadata, 0)
-            .await
-    });
+    let handle = rt
+        .tokio
+        .block_on(async { rt.inner.model_registry.register(metadata, 0).await });
 
     *out_handle_id = handle.id();
     CoreErrorCode::Ok
@@ -68,9 +65,9 @@ pub unsafe extern "C" fn core_model_unload(
     let rt = &*runtime;
     let handle = crate::models::ModelHandle::new(handle_id);
 
-    let result = rt.tokio.block_on(async {
-        rt.inner.model_registry.unregister(handle).await
-    });
+    let result = rt
+        .tokio
+        .block_on(async { rt.inner.model_registry.unregister(handle).await });
 
     match result {
         Some(_) => CoreErrorCode::Ok,
@@ -96,9 +93,9 @@ pub unsafe extern "C" fn core_model_info(
     let rt = &*runtime;
     let handle = crate::models::ModelHandle::new(handle_id);
 
-    let metadata = rt.tokio.block_on(async {
-        rt.inner.model_registry.get_metadata(handle).await
-    });
+    let metadata = rt
+        .tokio
+        .block_on(async { rt.inner.model_registry.get_metadata(handle).await });
 
     match metadata {
         Some(m) => {
@@ -142,9 +139,9 @@ pub unsafe extern "C" fn core_model_list(
 
     let rt = &*runtime;
 
-    let count = rt.tokio.block_on(async {
-        rt.inner.model_registry.count().await
-    });
+    let count = rt
+        .tokio
+        .block_on(async { rt.inner.model_registry.count().await });
 
     // For now, return count but don't fill handles (registry doesn't expose list)
     *out_count = count.min(max_count as usize) as u32;
@@ -165,9 +162,9 @@ pub unsafe extern "C" fn core_model_count(
 
     let rt = &*runtime;
 
-    let count = rt.tokio.block_on(async {
-        rt.inner.model_registry.count().await
-    });
+    let count = rt
+        .tokio
+        .block_on(async { rt.inner.model_registry.count().await });
 
     *out_count = count as u32;
     CoreErrorCode::Ok

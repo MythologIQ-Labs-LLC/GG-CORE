@@ -74,7 +74,11 @@ impl BucketedHistogram {
     pub fn snapshot(&self) -> BucketedHistogramSnapshot {
         BucketedHistogramSnapshot {
             boundaries: self.boundaries.clone(),
-            bucket_counts: self.buckets.iter().map(|b| b.load(Ordering::Relaxed)).collect(),
+            bucket_counts: self
+                .buckets
+                .iter()
+                .map(|b| b.load(Ordering::Relaxed))
+                .collect(),
             count: self.count.load(Ordering::Relaxed),
             sum: f64::from_bits(self.sum.load(Ordering::Relaxed)),
         }
@@ -114,9 +118,9 @@ mod tests {
     fn test_histogram_buckets() {
         let h = BucketedHistogram::new(&[1.0, 5.0, 10.0]);
 
-        h.observe(0.5);  // bucket 0 (<=1.0)
-        h.observe(3.0);  // bucket 1 (<=5.0)
-        h.observe(7.0);  // bucket 2 (<=10.0)
+        h.observe(0.5); // bucket 0 (<=1.0)
+        h.observe(3.0); // bucket 1 (<=5.0)
+        h.observe(7.0); // bucket 2 (<=10.0)
         h.observe(15.0); // bucket 3 (+Inf)
 
         let snap = h.snapshot();

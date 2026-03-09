@@ -3,9 +3,7 @@
 //! Tests boundary conditions, malformed inputs, and edge cases that could
 //! bypass input validation or cause security issues.
 
-use gg_core::engine::{
-    InferenceInput, ChatMessage, ChatRole, MAX_TEXT_BYTES, MAX_BATCH_SIZE,
-};
+use gg_core::engine::{ChatMessage, ChatRole, InferenceInput, MAX_BATCH_SIZE, MAX_TEXT_BYTES};
 
 #[test]
 fn reject_text_exceeding_64kb() {
@@ -48,9 +46,7 @@ fn reject_batch_exceeding_32_items() {
 #[test]
 fn accept_batch_at_exactly_32_items() {
     // Batch at exactly MAX_BATCH_SIZE should be accepted
-    let max_batch: Vec<String> = (0..MAX_BATCH_SIZE)
-        .map(|i| format!("item {}", i))
-        .collect();
+    let max_batch: Vec<String> = (0..MAX_BATCH_SIZE).map(|i| format!("item {}", i)).collect();
     let input = InferenceInput::TextBatch(max_batch);
 
     let result = input.validate();
@@ -94,7 +90,10 @@ fn reject_empty_message_content() {
 
     let result = input.validate();
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("content cannot be empty"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("content cannot be empty"));
 }
 
 #[test]
@@ -137,8 +136,9 @@ fn byte_size_calculation_correct() {
     let batch = InferenceInput::TextBatch(vec!["abc".into(), "defgh".into()]);
     assert_eq!(batch.byte_size(), 8);
 
-    let messages = InferenceInput::ChatMessages(vec![
-        ChatMessage { role: ChatRole::User, content: "test".into() },
-    ]);
+    let messages = InferenceInput::ChatMessages(vec![ChatMessage {
+        role: ChatRole::User,
+        content: "test".into(),
+    }]);
     assert_eq!(messages.byte_size(), 4);
 }

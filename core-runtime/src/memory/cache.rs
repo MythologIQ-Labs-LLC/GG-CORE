@@ -2,8 +2,8 @@
 //!
 //! Uses DashMap for lock-free concurrent access.
 
-use std::time::{Duration, Instant};
 use dashmap::DashMap;
+use std::time::{Duration, Instant};
 
 /// Configuration for context cache.
 #[derive(Debug, Clone)]
@@ -51,7 +51,13 @@ impl ContextCache {
         if self.entries.len() >= self.config.max_entries {
             self.evict_oldest();
         }
-        self.entries.insert(key, CacheEntry { data, created_at: Instant::now() });
+        self.entries.insert(
+            key,
+            CacheEntry {
+                data,
+                created_at: Instant::now(),
+            },
+        );
     }
 
     /// Retrieve cached context data if valid.
@@ -75,11 +81,14 @@ impl ContextCache {
 
     /// Synchronous cleanup.
     pub fn cleanup_sync(&self) {
-        self.entries.retain(|_, entry| entry.created_at.elapsed() <= self.config.ttl);
+        self.entries
+            .retain(|_, entry| entry.created_at.elapsed() <= self.config.ttl);
     }
 
     fn evict_oldest(&self) {
-        let oldest = self.entries.iter()
+        let oldest = self
+            .entries
+            .iter()
             .min_by_key(|e| e.created_at)
             .map(|e| e.key().clone());
         if let Some(key) = oldest {

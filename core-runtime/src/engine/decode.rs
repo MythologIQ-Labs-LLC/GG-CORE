@@ -2,7 +2,7 @@
 //!
 //! Generates tokens sequentially with minimal latency per step.
 
-use crate::engine::{FinishReason, InferenceError, SpeculativeConfig};
+use crate::engine::{FinishReason, InferenceError};
 use crate::memory::paged::{PageTable, PAGE_TOKENS};
 
 /// Result from a single decode step.
@@ -23,8 +23,6 @@ pub struct DecodeConfig {
     pub hidden_dim: usize,
     /// End-of-sequence token ID.
     pub eos_token: u32,
-    /// Enable speculative decoding.
-    pub speculative: Option<SpeculativeConfig>,
 }
 
 impl Default for DecodeConfig {
@@ -32,7 +30,6 @@ impl Default for DecodeConfig {
         Self {
             hidden_dim: 768,
             eos_token: 2, // Common EOS token ID
-            speculative: None,
         }
     }
 }
@@ -76,9 +73,12 @@ impl DecodeExecutor {
         }
 
         // Allocate page for new position
-        page_table.allocate(self.current_pos).ok_or_else(|| {
-            InferenceError::MemoryExceeded { used: self.current_pos, limit: self.current_pos }
-        })?;
+        page_table
+            .allocate(self.current_pos)
+            .ok_or_else(|| InferenceError::MemoryExceeded {
+                used: self.current_pos,
+                limit: self.current_pos,
+            })?;
 
         // Simulate token generation (actual model would sample here)
         let token = self.sample_token()?;
@@ -129,7 +129,13 @@ impl DecodeExecutor {
         (end_pos + PAGE_TOKENS - 1) / PAGE_TOKENS
     }
 
-    pub fn config(&self) -> &DecodeConfig { &self.config }
-    pub fn tokens_generated(&self) -> usize { self.tokens_generated }
-    pub fn current_pos(&self) -> usize { self.current_pos }
+    pub fn config(&self) -> &DecodeConfig {
+        &self.config
+    }
+    pub fn tokens_generated(&self) -> usize {
+        self.tokens_generated
+    }
+    pub fn current_pos(&self) -> usize {
+        self.current_pos
+    }
 }

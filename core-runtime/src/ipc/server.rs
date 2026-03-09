@@ -10,10 +10,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{watch, Mutex};
 use tokio_util::sync::CancellationToken;
-use thiserror::Error;
 
 use super::connections::{ConnectionPool, OwnedConnectionGuard};
 use super::handler::IpcHandler;
@@ -33,9 +33,7 @@ pub enum ServerError {
 }
 
 /// Read a length-prefixed frame from an async reader.
-async fn read_frame<R: AsyncReadExt + Unpin>(
-    reader: &mut R,
-) -> Result<Vec<u8>, ServerError> {
+async fn read_frame<R: AsyncReadExt + Unpin>(reader: &mut R) -> Result<Vec<u8>, ServerError> {
     let mut len_buf = [0u8; 4];
     reader.read_exact(&mut len_buf).await?;
 
@@ -88,9 +86,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
     loop {
         let request_bytes = match read_frame(&mut read_half).await {
             Ok(bytes) => bytes,
-            Err(ServerError::Io(ref e))
-                if e.kind() == std::io::ErrorKind::UnexpectedEof =>
-            {
+            Err(ServerError::Io(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
                 break;
             }
             Err(e) => {
@@ -138,31 +134,32 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                 } else {
                     false
                 };
-                let response = IpcMessage::CancelResponse { request_id, cancelled };
+                let response = IpcMessage::CancelResponse {
+                    request_id,
+                    cancelled,
+                };
                 if let Ok(bytes) = encode_message(&response) {
                     let _ = write_frame_locked(&write_half, &bytes).await;
                 }
             }
 
             // Non-streaming: use standard request/response processing
-            _ => {
-                match handler.process(&request_bytes, session.as_ref()).await {
-                    Ok((response_bytes, new_session)) => {
-                        if new_session.is_some() {
-                            session = new_session;
-                        }
-                        if let Err(e) = write_frame_locked(&write_half, &response_bytes).await {
-                            eprintln!("Connection write error: {}", e);
-                            break;
-                        }
+            _ => match handler.process(&request_bytes, session.as_ref()).await {
+                Ok((response_bytes, new_session)) => {
+                    if new_session.is_some() {
+                        session = new_session;
                     }
-                    Err(e) => {
-                        let err = format!(r#"{{"type":"error","code":500,"message":"{}"}}"#, e);
-                        let _ = write_frame_locked(&write_half, err.as_bytes()).await;
+                    if let Err(e) = write_frame_locked(&write_half, &response_bytes).await {
+                        eprintln!("Connection write error: {}", e);
                         break;
                     }
                 }
-            }
+                Err(e) => {
+                    let err = format!(r#"{{"type":"error","code":500,"message":"{}"}}"#, e);
+                    let _ = write_frame_locked(&write_half, err.as_bytes()).await;
+                    break;
+                }
+            },
         }
     }
 }

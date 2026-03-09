@@ -2,8 +2,6 @@
 //!
 //! Stores keys and values in Q8 format for 4x memory bandwidth reduction.
 
-use crate::engine::simd_matmul;
-
 /// Quantized KV storage with per-position scales.
 #[derive(Debug)]
 pub struct Q8KvStore {
@@ -39,8 +37,16 @@ impl Q8KvStore {
         let k_scale = compute_scale(keys);
         let v_scale = compute_scale(values);
 
-        quantize_to(&mut self.keys[offset..offset + self.hidden_dim], keys, k_scale);
-        quantize_to(&mut self.values[offset..offset + self.hidden_dim], values, v_scale);
+        quantize_to(
+            &mut self.keys[offset..offset + self.hidden_dim],
+            keys,
+            k_scale,
+        );
+        quantize_to(
+            &mut self.values[offset..offset + self.hidden_dim],
+            values,
+            v_scale,
+        );
 
         self.key_scales[self.seq_len] = k_scale;
         self.value_scales[self.seq_len] = v_scale;
@@ -53,11 +59,12 @@ impl Q8KvStore {
         for pos in 0..self.seq_len {
             let offset = pos * self.hidden_dim;
             let scale = self.key_scales[pos];
-            output[pos] = simd_matmul::dot_q8(
-                &self.keys[offset..offset + self.hidden_dim],
-                query,
-                scale,
-            );
+            let q_slice = &self.keys[offset..offset + self.hidden_dim];
+            let mut sum = 0.0;
+            for (i, &q) in q_slice.iter().enumerate() {
+                sum += (q as i8 as f32) * scale * query[i];
+            }
+            output[pos] = sum;
         }
     }
 
@@ -93,15 +100,24 @@ impl Q8KvStore {
         for pos in 0..self.seq_len.min(weights.len()) {
             let offset = pos * self.hidden_dim;
             let scale = self.value_scales[pos] * weights[pos];
-            for (i, &q) in self.values[offset..offset + self.hidden_dim].iter().enumerate() {
+            for (i, &q) in self.values[offset..offset + self.hidden_dim]
+                .iter()
+                .enumerate()
+            {
                 output[i] += (q as i8 as f32) * scale;
             }
         }
     }
 
-    pub fn seq_len(&self) -> usize { self.seq_len }
-    pub fn hidden_dim(&self) -> usize { self.hidden_dim }
-    pub fn memory_bytes(&self) -> usize { self.keys.len() + self.values.len() }
+    pub fn seq_len(&self) -> usize {
+        self.seq_len
+    }
+    pub fn hidden_dim(&self) -> usize {
+        self.hidden_dim
+    }
+    pub fn memory_bytes(&self) -> usize {
+        self.keys.len() + self.values.len()
+    }
 
     /// Reset for reuse without reallocation.
     pub fn reset(&mut self) {
@@ -112,7 +128,11 @@ impl Q8KvStore {
 /// Compute Q8 scale for a data slice.
 pub fn compute_scale(data: &[f32]) -> f32 {
     let max_abs = data.iter().map(|x| x.abs()).fold(0.0f32, f32::max);
-    if max_abs > 0.0 { max_abs / 127.0 } else { 1.0 }
+    if max_abs > 0.0 {
+        max_abs / 127.0
+    } else {
+        1.0
+    }
 }
 
 /// Quantize f32 data to Q8.

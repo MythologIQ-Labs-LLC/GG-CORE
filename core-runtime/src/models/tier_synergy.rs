@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use super::smart_loader::{LoadHint, ModelTier, SmartLoader, SmartLoaderError};
-use crate::engine::speculative_v2::{SpeculativeConfig, SpeculativeStats};
+
 use crate::models::registry::ModelHandle;
 
 /// Synergy mode for tiered model usage.
@@ -46,8 +46,7 @@ pub struct SynergyResult {
 pub struct TierSynergy {
     loader: Arc<SmartLoader>,
     mode: Arc<RwLock<SynergyMode>>,
-    spec_config: SpeculativeConfig,
-    stats: Arc<RwLock<SpeculativeStats>>,
+
     /// Model IDs by tier
     tier_models: Arc<RwLock<TierModels>>,
 }
@@ -65,17 +64,11 @@ impl TierSynergy {
         Self {
             loader,
             mode: Arc::new(RwLock::new(SynergyMode::Single)),
-            spec_config: SpeculativeConfig::default(),
-            stats: Arc::new(RwLock::new(SpeculativeStats::default())),
             tier_models: Arc::new(RwLock::new(TierModels::default())),
         }
     }
 
     /// Set custom speculative config.
-    pub fn with_spec_config(mut self, config: SpeculativeConfig) -> Self {
-        self.spec_config = config;
-        self
-    }
 
     /// Register a model with its tier for synergy tracking.
     pub async fn register_tier(&self, model_id: &str, tier: ModelTier) {
@@ -133,14 +126,15 @@ impl TierSynergy {
 
                 // Load quality first (target), hint light (draft)
                 let primary = self.loader.get(quality_id).await?;
-                self.loader.hint(LoadHint::PreferModel { tier: ModelTier::Light }).await;
+                self.loader
+                    .hint(LoadHint::PreferModel {
+                        tier: ModelTier::Light,
+                    })
+                    .await;
 
                 // Check if light is already loaded
                 let status = self.loader.status().await;
-                let draft_ready = status
-                    .loaded_models
-                    .iter()
-                    .any(|(id, _)| id == light_id);
+                let draft_ready = status.loaded_models.iter().any(|(id, _)| id == light_id);
 
                 let draft_handle = if draft_ready {
                     Some(self.loader.get(light_id).await?)
@@ -244,9 +238,6 @@ impl TierSynergy {
     }
 
     /// Get speculative stats.
-    pub async fn stats(&self) -> SpeculativeStats {
-        self.stats.read().await.clone()
-    }
 
     /// Get synergy status.
     pub async fn status(&self) -> SynergyStatus {
@@ -266,7 +257,6 @@ impl TierSynergy {
                 .iter()
                 .map(|(_, tier)| *tier)
                 .collect(),
-            spec_config: self.spec_config.clone(),
         }
     }
 }
@@ -278,7 +268,6 @@ pub struct SynergyStatus {
     /// [light, balanced, quality] availability
     pub available_tiers: Vec<bool>,
     pub loaded_tiers: Vec<ModelTier>,
-    pub spec_config: SpeculativeConfig,
 }
 
 #[cfg(test)]
@@ -309,7 +298,11 @@ mod tests {
             .await
             .unwrap();
         loader
-            .register("quality".into(), quality.path().to_path_buf(), ModelTier::Quality)
+            .register(
+                "quality".into(),
+                quality.path().to_path_buf(),
+                ModelTier::Quality,
+            )
             .await
             .unwrap();
 
@@ -317,10 +310,7 @@ mod tests {
         synergy.register_tier("quality", ModelTier::Quality).await;
 
         // Should auto-detect speculative mode
-        assert_eq!(
-            synergy.mode().await,
-            SynergyMode::SpeculativeLightQuality
-        );
+        assert_eq!(synergy.mode().await, SynergyMode::SpeculativeLightQuality);
     }
 
     #[tokio::test]
@@ -353,7 +343,11 @@ mod tests {
             .await
             .unwrap();
         loader
-            .register("quality".into(), quality.path().to_path_buf(), ModelTier::Quality)
+            .register(
+                "quality".into(),
+                quality.path().to_path_buf(),
+                ModelTier::Quality,
+            )
             .await
             .unwrap();
 
@@ -371,7 +365,11 @@ mod tests {
 
         let balanced = create_test_model(150);
         loader
-            .register("balanced".into(), balanced.path().to_path_buf(), ModelTier::Balanced)
+            .register(
+                "balanced".into(),
+                balanced.path().to_path_buf(),
+                ModelTier::Balanced,
+            )
             .await
             .unwrap();
         synergy.register_tier("balanced", ModelTier::Balanced).await;

@@ -26,7 +26,12 @@ impl HealthHandler {
         model_registry: Arc<ModelRegistry>,
         queue: Arc<RequestQueue>,
     ) -> Self {
-        Self { health, shutdown, model_registry, queue }
+        Self {
+            health,
+            shutdown,
+            model_registry,
+            queue,
+        }
     }
 
     /// Handle a health check request. Returns appropriate response.
@@ -40,9 +45,7 @@ impl HealthHandler {
             HealthCheckType::Readiness => {
                 self.readiness_response(shutdown_state, models, queue_len)
             }
-            HealthCheckType::Full => {
-                self.full_response(shutdown_state, models, queue_len).await
-            }
+            HealthCheckType::Full => self.full_response(shutdown_state, models, queue_len).await,
         }
     }
 
@@ -74,7 +77,9 @@ impl HealthHandler {
         queue_len: usize,
     ) -> HealthCheckResponse {
         let memory = self.model_registry.total_memory().await;
-        let report = self.health.report(shutdown_state, models, memory, queue_len);
+        let report = self
+            .health
+            .report(shutdown_state, models, memory, queue_len);
         HealthCheckResponse {
             check_type: HealthCheckType::Full,
             ok: report.ready,

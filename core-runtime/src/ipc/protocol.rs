@@ -136,7 +136,12 @@ pub struct InferenceResponse {
 }
 
 impl InferenceResponse {
-    pub fn success(request_id: RequestId, output: String, tokens_generated: usize, finished: bool) -> Self {
+    pub fn success(
+        request_id: RequestId,
+        output: String,
+        tokens_generated: usize,
+        finished: bool,
+    ) -> Self {
         Self {
             request_id,
             output,
@@ -555,7 +560,8 @@ mod tests {
 
     #[test]
     fn test_inference_response_success() {
-        let response = InferenceResponse::success(RequestId(1), "Generated text".to_string(), 5, true);
+        let response =
+            InferenceResponse::success(RequestId(1), "Generated text".to_string(), 5, true);
         assert_eq!(response.request_id.0, 1);
         assert_eq!(response.output, "Generated text");
         assert_eq!(response.tokens_generated, 5);

@@ -3,9 +3,9 @@
 //! Uses parking_lot::Mutex for fast synchronous locking.
 //! No async overhead or tokio runtime requirement.
 
+use parking_lot::Mutex;
 use std::collections::VecDeque;
 use std::sync::Arc;
-use parking_lot::Mutex;
 
 /// Configuration for memory pool.
 #[derive(Debug, Clone)]
@@ -73,9 +73,11 @@ impl MemoryPool {
     /// Acquire a buffer from the pool, or allocate a new one.
     /// Synchronous - no async overhead.
     pub fn acquire(&self) -> PooledBuffer {
-        let data = self.buffers.lock().pop_front().unwrap_or_else(|| {
-            vec![0u8; self.config.buffer_size]
-        });
+        let data = self
+            .buffers
+            .lock()
+            .pop_front()
+            .unwrap_or_else(|| vec![0u8; self.config.buffer_size]);
 
         PooledBuffer {
             data,

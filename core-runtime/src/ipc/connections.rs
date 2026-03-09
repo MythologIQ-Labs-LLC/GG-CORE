@@ -13,7 +13,9 @@ pub struct ConnectionConfig {
 
 impl Default for ConnectionConfig {
     fn default() -> Self {
-        Self { max_connections: 64 }
+        Self {
+            max_connections: 64,
+        }
     }
 }
 

@@ -39,9 +39,9 @@ pub unsafe extern "C" fn core_authenticate(
         }
     };
 
-    let result = rt.tokio.block_on(async {
-        rt.inner.ipc_handler.auth.authenticate(token_str).await
-    });
+    let result = rt
+        .tokio
+        .block_on(async { rt.inner.ipc_handler.auth.authenticate(token_str).await });
 
     match result {
         Ok(session_token) => {
@@ -80,9 +80,9 @@ pub unsafe extern "C" fn core_session_validate(
     let rt = &*runtime;
     let sess = &*session;
 
-    let result = rt.tokio.block_on(async {
-        rt.inner.ipc_handler.auth.validate(&sess.token).await
-    });
+    let result = rt
+        .tokio
+        .block_on(async { rt.inner.ipc_handler.auth.validate(&sess.token).await });
 
     match result {
         Ok(()) => CoreErrorCode::Ok,

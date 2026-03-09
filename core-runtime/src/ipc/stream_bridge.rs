@@ -24,11 +24,7 @@ pub struct IpcStreamBridge<W> {
 
 impl<W> IpcStreamBridge<W> {
     /// Create a new stream bridge.
-    pub fn new(
-        writer: Arc<Mutex<W>>,
-        request_id: RequestId,
-        cancel: CancellationToken,
-    ) -> Self {
+    pub fn new(writer: Arc<Mutex<W>>, request_id: RequestId, cancel: CancellationToken) -> Self {
         Self {
             writer,
             request_id,

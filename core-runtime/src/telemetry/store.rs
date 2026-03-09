@@ -34,9 +34,9 @@ pub struct HistogramSummary {
 /// Internal histogram data with atomic fields.
 struct HistogramData {
     count: AtomicU64,
-    sum: AtomicU64,   // f64 bits stored as u64
-    min: AtomicU64,   // f64 bits stored as u64
-    max: AtomicU64,   // f64 bits stored as u64
+    sum: AtomicU64, // f64 bits stored as u64
+    min: AtomicU64, // f64 bits stored as u64
+    max: AtomicU64, // f64 bits stored as u64
 }
 
 impl HistogramData {
@@ -60,7 +60,15 @@ impl HistogramData {
         loop {
             let current = atomic.load(Ordering::Relaxed);
             let new = f64::from_bits(current) + value;
-            if atomic.compare_exchange_weak(current, f64::to_bits(new), Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+            if atomic
+                .compare_exchange_weak(
+                    current,
+                    f64::to_bits(new),
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
+                .is_ok()
+            {
                 break;
             }
         }
@@ -73,7 +81,15 @@ impl HistogramData {
             if value >= current_f64 {
                 break;
             }
-            if atomic.compare_exchange_weak(current, f64::to_bits(value), Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+            if atomic
+                .compare_exchange_weak(
+                    current,
+                    f64::to_bits(value),
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
+                .is_ok()
+            {
                 break;
             }
         }
@@ -86,7 +102,15 @@ impl HistogramData {
             if value <= current_f64 {
                 break;
             }
-            if atomic.compare_exchange_weak(current, f64::to_bits(value), Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+            if atomic
+                .compare_exchange_weak(
+                    current,
+                    f64::to_bits(value),
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
+                .is_ok()
+            {
                 break;
             }
         }

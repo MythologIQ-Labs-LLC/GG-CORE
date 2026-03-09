@@ -195,8 +195,9 @@ impl ModelPool {
         metrics.pool_hits += 1;
         // Running average
         let total = metrics.pool_hits;
-        metrics.avg_switch_latency_ns =
-            (metrics.avg_switch_latency_ns * (total - 1) + switch_latency.as_nanos() as u64) / total;
+        metrics.avg_switch_latency_ns = (metrics.avg_switch_latency_ns * (total - 1)
+            + switch_latency.as_nanos() as u64)
+            / total;
 
         Ok(SwitchResult {
             handle,
@@ -239,7 +240,13 @@ impl ModelPool {
     /// Evict models until we have enough memory.
     async fn evict_for_memory(&self, needed_bytes: usize) -> Result<(), PoolError> {
         loop {
-            let current: usize = self.models.read().await.values().map(|m| m.memory_bytes).sum();
+            let current: usize = self
+                .models
+                .read()
+                .await
+                .values()
+                .map(|m| m.memory_bytes)
+                .sum();
             if current + needed_bytes <= self.config.max_memory_bytes {
                 return Ok(());
             }
@@ -323,7 +330,9 @@ mod tests {
             handle,
             ModelTier::Testing,
             500_000_000,
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         assert!(pool.contains("qwen-0.5b").await);
 
@@ -343,12 +352,33 @@ mod tests {
         let pool = ModelPool::new(config, registry.clone());
 
         // Preload testing tier
-        pool.preload("ci".to_string(), ModelHandle::new(1), ModelTier::Testing, 100).await.unwrap();
+        pool.preload(
+            "ci".to_string(),
+            ModelHandle::new(1),
+            ModelTier::Testing,
+            100,
+        )
+        .await
+        .unwrap();
         // Preload quality tier
-        pool.preload("prod".to_string(), ModelHandle::new(2), ModelTier::Quality, 100).await.unwrap();
+        pool.preload(
+            "prod".to_string(),
+            ModelHandle::new(2),
+            ModelTier::Quality,
+            100,
+        )
+        .await
+        .unwrap();
 
         // Third model should evict testing tier
-        pool.preload("default".to_string(), ModelHandle::new(3), ModelTier::Default, 100).await.unwrap();
+        pool.preload(
+            "default".to_string(),
+            ModelHandle::new(3),
+            ModelTier::Default,
+            100,
+        )
+        .await
+        .unwrap();
 
         assert!(!pool.contains("ci").await);
         assert!(pool.contains("prod").await);
@@ -360,7 +390,14 @@ mod tests {
         let registry = Arc::new(ModelRegistry::new());
         let pool = ModelPool::new(PoolConfig::default(), registry.clone());
 
-        pool.preload("test".to_string(), ModelHandle::new(1), ModelTier::Default, 100).await.unwrap();
+        pool.preload(
+            "test".to_string(),
+            ModelHandle::new(1),
+            ModelTier::Default,
+            100,
+        )
+        .await
+        .unwrap();
 
         // Multiple switches should all be fast
         for _ in 0..100 {
@@ -374,7 +411,14 @@ mod tests {
         let registry = Arc::new(ModelRegistry::new());
         let pool = ModelPool::new(PoolConfig::default(), registry.clone());
 
-        pool.preload("test".to_string(), ModelHandle::new(1), ModelTier::Default, 100).await.unwrap();
+        pool.preload(
+            "test".to_string(),
+            ModelHandle::new(1),
+            ModelTier::Default,
+            100,
+        )
+        .await
+        .unwrap();
 
         let result = pool.switch_to("test").await.unwrap();
         assert!(!result.was_warmed);

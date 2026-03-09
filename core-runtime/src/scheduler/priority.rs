@@ -77,7 +77,11 @@ impl<T> PriorityQueue<T> {
     pub fn push(&mut self, item: T, priority: Priority) {
         let sequence = self.next_sequence;
         self.next_sequence += 1;
-        self.heap.push(PrioritizedItem { priority, sequence, item });
+        self.heap.push(PrioritizedItem {
+            priority,
+            sequence,
+            item,
+        });
     }
 
     pub fn pop(&mut self) -> Option<T> {

@@ -247,7 +247,13 @@ async fn fetch_status(socket_path: &str) -> Result<SystemStatus, CliError> {
         .as_ref()
         .and_then(|m| m.histograms.get("core_inference_latency_ms"));
     let avg_latency_ms = latency_hist
-        .map(|h| if h.count > 0 { h.sum / h.count as f64 } else { 0.0 })
+        .map(|h| {
+            if h.count > 0 {
+                h.sum / h.count as f64
+            } else {
+                0.0
+            }
+        })
         .unwrap_or(0.0);
 
     // Calculate uptime and rates
@@ -264,9 +270,15 @@ async fn fetch_status(socket_path: &str) -> Result<SystemStatus, CliError> {
         uptime_secs,
         version: VersionInfo {
             version: env!("CARGO_PKG_VERSION").to_string(),
-            commit: option_env!("VERGEN_GIT_SHA").unwrap_or("unknown").to_string(),
-            build_date: option_env!("VERGEN_BUILD_DATE").unwrap_or("unknown").to_string(),
-            rust_version: option_env!("VERGEN_RUSTC_SEMVER").unwrap_or("unknown").to_string(),
+            commit: option_env!("VERGEN_GIT_SHA")
+                .unwrap_or("unknown")
+                .to_string(),
+            build_date: option_env!("VERGEN_BUILD_DATE")
+                .unwrap_or("unknown")
+                .to_string(),
+            rust_version: option_env!("VERGEN_RUSTC_SEMVER")
+                .unwrap_or("unknown")
+                .to_string(),
         },
         models: models_response
             .as_ref()
@@ -339,7 +351,7 @@ async fn fetch_status(socket_path: &str) -> Result<SystemStatus, CliError> {
         // DEFERRED v0.7.0: GPU metrics require cuda/metal feature
         gpus: None,
         // DEFERRED v0.7.0: Event log requires telemetry event buffer
-        recent_events: vec![]
+        recent_events: vec![],
     };
 
     Ok(status)

@@ -48,14 +48,15 @@ impl ModelLoader {
     /// Validate and create a ModelPath if within allowed directories.
     pub fn validate_path(&self, relative_path: &str) -> Result<ModelPath, LoadError> {
         let full_path = self.base_path.join(relative_path);
-        let canonical = full_path.canonicalize().map_err(|_| {
-            LoadError::NotFound(full_path.clone())
-        })?;
+        let canonical = full_path
+            .canonicalize()
+            .map_err(|_| LoadError::NotFound(full_path.clone()))?;
 
         let is_allowed = ALLOWED_DIRS.iter().any(|dir| {
             let allowed = self.base_path.join(dir);
             // Canonicalize the allowed path to match format of canonical path
-            allowed.canonicalize()
+            allowed
+                .canonicalize()
                 .map(|allowed_canonical| canonical.starts_with(&allowed_canonical))
                 .unwrap_or(false)
         });
@@ -82,7 +83,10 @@ impl ModelLoader {
             .unwrap_or("unknown")
             .to_string();
 
-        Ok(ModelMetadata { name, size_bytes: size })
+        Ok(ModelMetadata {
+            name,
+            size_bytes: size,
+        })
     }
 
     /// Load model using memory-mapping (zero-copy).
