@@ -107,7 +107,7 @@ impl PageTable {
     /// Free pages associated with given IDs.
     pub fn free(&mut self, page_ids: &[PageId]) {
         for &id in page_ids {
-            if let Some(page) = self.pages.iter_mut().find(|p| p.id == id) {
+            if let Some(page) = self.pages.get_mut(id.0) {
                 page.reset();
                 self.free_pages.push_back(id);
             }
@@ -123,14 +123,14 @@ impl PageTable {
     pub fn get(&self, seq_pos: usize) -> Option<&Page> {
         let page_idx = seq_pos / PAGE_TOKENS;
         let page_id = self.entries.get(page_idx)?.as_ref()?;
-        self.pages.iter().find(|p| p.id == *page_id)
+        self.pages.get(page_id.0)
     }
 
     /// Get mutable page for writing.
     pub fn get_mut(&mut self, seq_pos: usize) -> Option<&mut Page> {
         let page_idx = seq_pos / PAGE_TOKENS;
         let page_id = self.entries.get(page_idx)?.as_ref()?;
-        self.pages.iter_mut().find(|p| p.id == *page_id)
+        self.pages.get_mut(page_id.0)
     }
 
     /// Calculate slot within page for sequence position.

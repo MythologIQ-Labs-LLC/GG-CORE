@@ -1,0 +1,3 @@
+## 2024-05-24 - O(N) to O(1) Lookups in PageTable Allocation
+**Learning:** In the `PageTable` implementation, `PageId` is strictly assigned using an atomic counter (`next_id`) which aligns perfectly with the append-only `Vec<Page>` index. Doing an `O(N)` scan (`self.pages.iter().find(|p| p.id == *page_id)`) is completely unnecessary overhead in the hottest code path. The structure invariants guarantee that `id.0` strictly corresponds to the exact vector index of the page.
+**Action:** When designing or refactoring high-frequency allocators that use strictly monotonic IDs, always map the ID directly to the backing array's index for `O(1)` operations instead of doing linear scans.
