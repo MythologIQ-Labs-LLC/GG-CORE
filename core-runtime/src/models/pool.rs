@@ -41,14 +41,8 @@ pub enum ModelTier {
 #[derive(Debug)]
 struct PooledModel {
     handle: ModelHandle,
-    /// Stored for debugging/logging
-    #[allow(dead_code)]
-    model_id: String,
     tier: ModelTier,
     memory_bytes: usize,
-    /// Stored for pool age tracking
-    #[allow(dead_code)]
-    loaded_at: Instant,
     last_used: Instant,
     use_count: u64,
     warmup_complete: bool,
@@ -152,13 +146,11 @@ impl ModelPool {
 
         let now = Instant::now();
         models.insert(
-            model_id.clone(),
+            model_id,
             PooledModel {
                 handle,
-                model_id,
                 tier,
                 memory_bytes,
-                loaded_at: now,
                 last_used: now,
                 use_count: 0,
                 warmup_complete: false,
