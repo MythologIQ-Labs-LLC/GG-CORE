@@ -159,3 +159,72 @@ impl PageTable {
     pub fn page_count(&self) -> usize { self.pages.len() }
     pub fn free_count(&self) -> usize { self.free_pages.len() }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_page_table_basic_allocation() {
+        let mut pt = PageTable::new(128, 10);
+        let id = pt.allocate(0);
+        assert!(id.is_some());
+        assert_eq!(pt.page_count(), 1);
+        assert_eq!(pt.free_count(), 0);
+    }
+
+    #[test]
+    fn test_page_table_free() {
+        let mut pt = PageTable::new(128, 10);
+        let seq_pos = 0;
+        let id = pt.allocate(seq_pos).unwrap();
+
+        // Write some data to the page to change its state
+        {
+            let page = pt.get_mut(seq_pos).unwrap();
+            let data = vec![1.0; 128];
+            page.write(0, &data, &data);
+            assert_eq!(page.used_slots(), 1);
+        }
+
+        // Free the page
+        pt.free(&[id]);
+
+        // Check state after free
+        assert_eq!(pt.free_count(), 1);
+        assert!(pt.get(seq_pos).is_none());
+
+        // Verify page was reset
+        let page = pt.pages.iter().find(|p| p.id == id).unwrap();
+        assert_eq!(page.used_slots(), 0);
+    }
+
+    #[test]
+    fn test_page_table_reuse() {
+        let mut pt = PageTable::new(128, 10);
+        let id1 = pt.allocate(0).unwrap();
+        pt.free(&[id1]);
+        assert_eq!(pt.free_count(), 1);
+
+        // Subsequent allocation should reuse the freed page
+        let id2 = pt.allocate(PAGE_TOKENS).unwrap();
+        assert_eq!(id1, id2);
+        assert_eq!(pt.free_count(), 0);
+        assert_eq!(pt.page_count(), 1);
+    }
+
+    #[test]
+    fn test_page_table_free_multiple() {
+        let mut pt = PageTable::new(128, 10);
+        let id1 = pt.allocate(0).unwrap();
+        let id2 = pt.allocate(PAGE_TOKENS).unwrap();
+
+        assert_eq!(pt.page_count(), 2);
+
+        pt.free(&[id1, id2]);
+
+        assert_eq!(pt.free_count(), 2);
+        assert!(pt.get(0).is_none());
+        assert!(pt.get(PAGE_TOKENS).is_none());
+    }
+}
