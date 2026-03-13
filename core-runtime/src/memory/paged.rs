@@ -159,3 +159,32 @@ impl PageTable {
     pub fn page_count(&self) -> usize { self.pages.len() }
     pub fn free_count(&self) -> usize { self.free_pages.len() }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_page_table_allocate() {
+        let mut table = PageTable::new(128, 2);
+
+        // Test allocation for first sequence position
+        let page_id = table.allocate(0);
+        assert!(page_id.is_some());
+        let page_id_0 = page_id.unwrap();
+
+        // Test allocation within the same page
+        let page_id_same = table.allocate(PAGE_TOKENS - 1);
+        assert_eq!(page_id_same, Some(page_id_0));
+
+        // Test allocation on a new page
+        let page_id_next = table.allocate(PAGE_TOKENS);
+        assert!(page_id_next.is_some());
+        let page_id_1 = page_id_next.unwrap();
+        assert_ne!(page_id_0, page_id_1);
+
+        // Test max pages limit
+        let page_id_full = table.allocate(PAGE_TOKENS * 2);
+        assert!(page_id_full.is_none());
+    }
+}
