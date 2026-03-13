@@ -487,7 +487,7 @@ mod tests {
         // this should return an error (not silently succeed)
         if !result.success {
             assert!(
-                result.error.unwrap().contains("Failed")
+                result.error.clone().unwrap().contains("Failed")
                     || result.error.unwrap().contains("not available")
             );
         }
