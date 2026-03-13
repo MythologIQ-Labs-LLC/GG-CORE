@@ -10,9 +10,8 @@ use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 
 use gg_core::ffi::{
-    core_clear_last_error, core_config_default, core_get_last_error,
-    core_runtime_create, core_runtime_destroy,
-    CoreConfig, CoreErrorCode, CoreHealthReport, CoreHealthState,
+    core_clear_last_error, core_config_default, core_get_last_error, core_runtime_create,
+    core_runtime_destroy, CoreConfig, CoreErrorCode, CoreHealthReport, CoreHealthState,
     CoreInferenceParams, CoreInferenceResult, CoreModelMetadata,
 };
 

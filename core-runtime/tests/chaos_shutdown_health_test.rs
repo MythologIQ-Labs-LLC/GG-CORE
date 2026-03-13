@@ -24,9 +24,7 @@ use gg_core::shutdown::{ShutdownCoordinator, ShutdownResult, ShutdownState};
 async fn chaos_shutdown_rejects_new_requests() {
     let shutdown = Arc::new(ShutdownCoordinator::new());
     let sc = Arc::clone(&shutdown);
-    let handle = tokio::spawn(async move {
-        sc.initiate(Duration::from_millis(100)).await
-    });
+    let handle = tokio::spawn(async move { sc.initiate(Duration::from_millis(100)).await });
     tokio::time::sleep(Duration::from_millis(10)).await;
     assert!(shutdown.track().is_none());
     let _ = handle.await;
@@ -39,9 +37,7 @@ async fn chaos_shutdown_drains_in_flight() {
     let g2 = shutdown.track().unwrap();
     assert_eq!(shutdown.in_flight_count(), 2);
     let sc = Arc::clone(&shutdown);
-    let handle = tokio::spawn(async move {
-        sc.initiate(Duration::from_millis(500)).await
-    });
+    let handle = tokio::spawn(async move { sc.initiate(Duration::from_millis(500)).await });
     tokio::time::sleep(Duration::from_millis(20)).await;
     drop(g1);
     tokio::time::sleep(Duration::from_millis(20)).await;
@@ -63,7 +59,9 @@ async fn chaos_shutdown_timeout_with_stuck_requests() {
 async fn chaos_shutdown_concurrent_track_during_drain() {
     let shutdown = Arc::new(ShutdownCoordinator::new());
     let sc = Arc::clone(&shutdown);
-    tokio::spawn(async move { sc.initiate(Duration::from_millis(200)).await; });
+    tokio::spawn(async move {
+        sc.initiate(Duration::from_millis(200)).await;
+    });
     tokio::time::sleep(Duration::from_millis(10)).await;
     let mut handles = vec![];
     for _ in 0..10 {
@@ -71,7 +69,10 @@ async fn chaos_shutdown_concurrent_track_during_drain() {
         handles.push(tokio::spawn(async move { s.track().is_none() }));
     }
     let results: Vec<bool> = futures::future::join_all(handles)
-        .await.into_iter().map(|r| r.unwrap()).collect();
+        .await
+        .into_iter()
+        .map(|r| r.unwrap())
+        .collect();
     assert!(results.iter().all(|&r| r));
 }
 
@@ -81,7 +82,10 @@ async fn chaos_shutdown_concurrent_track_during_drain() {
 
 #[test]
 fn chaos_health_degraded_no_models() {
-    let cfg = HealthConfig { require_model_loaded: true, max_queue_depth: 100 };
+    let cfg = HealthConfig {
+        require_model_loaded: true,
+        max_queue_depth: 100,
+    };
     let report = HealthChecker::new(cfg).report(ShutdownState::Running, 0, 0, 0);
     assert_eq!(report.state, HealthState::Degraded);
     assert!(!report.ready);
@@ -89,7 +93,10 @@ fn chaos_health_degraded_no_models() {
 
 #[test]
 fn chaos_health_degraded_queue_full() {
-    let cfg = HealthConfig { require_model_loaded: false, max_queue_depth: 100 };
+    let cfg = HealthConfig {
+        require_model_loaded: false,
+        max_queue_depth: 100,
+    };
     let report = HealthChecker::new(cfg).report(ShutdownState::Running, 1, 1024, 100);
     assert_eq!(report.state, HealthState::Degraded);
     assert!(!report.ready);
@@ -116,7 +123,9 @@ fn chaos_health_unhealthy_when_stopped() {
 #[test]
 fn chaos_resource_exceed_per_call_memory() {
     let limits = ResourceLimits::new(ResourceLimitsConfig {
-        max_memory_per_call: 1024, max_total_memory: 4096, max_concurrent: 4,
+        max_memory_per_call: 1024,
+        max_total_memory: 4096,
+        max_concurrent: 4,
     });
     assert!(limits.try_acquire(2048).is_err());
 }
@@ -124,7 +133,9 @@ fn chaos_resource_exceed_per_call_memory() {
 #[test]
 fn chaos_resource_exceed_total_memory() {
     let limits = ResourceLimits::new(ResourceLimitsConfig {
-        max_memory_per_call: 2048, max_total_memory: 3000, max_concurrent: 10,
+        max_memory_per_call: 2048,
+        max_total_memory: 3000,
+        max_concurrent: 10,
     });
     let _g = limits.try_acquire(2000).unwrap();
     assert!(limits.try_acquire(1500).is_err());
@@ -145,9 +156,13 @@ fn chaos_resource_exceed_concurrent_limit() {
 #[test]
 fn chaos_resource_release_then_reacquire() {
     let limits = ResourceLimits::new(ResourceLimitsConfig {
-        max_memory_per_call: 1024, max_total_memory: 1024, max_concurrent: 1,
+        max_memory_per_call: 1024,
+        max_total_memory: 1024,
+        max_concurrent: 1,
     });
-    { let _g = limits.try_acquire(512).unwrap(); }
+    {
+        let _g = limits.try_acquire(512).unwrap();
+    }
     assert_eq!(limits.current_memory(), 0);
     let _g2 = limits.try_acquire(512).unwrap();
     assert_eq!(limits.current_memory(), 512);
@@ -156,7 +171,9 @@ fn chaos_resource_release_then_reacquire() {
 #[test]
 fn chaos_resource_zero_and_exact_boundary() {
     let limits = ResourceLimits::new(ResourceLimitsConfig {
-        max_memory_per_call: 1024, max_total_memory: 1024, max_concurrent: 2,
+        max_memory_per_call: 1024,
+        max_total_memory: 1024,
+        max_concurrent: 2,
     });
     assert!(limits.try_acquire(0).is_ok());
     assert!(limits.try_acquire(1024).is_ok());
@@ -169,7 +186,9 @@ fn chaos_resource_zero_and_exact_boundary() {
 #[tokio::test]
 async fn chaos_combined_resource_limits_and_queue() {
     let limits = ResourceLimits::new(ResourceLimitsConfig {
-        max_memory_per_call: 1024, max_total_memory: 2048, max_concurrent: 2,
+        max_memory_per_call: 1024,
+        max_total_memory: 2048,
+        max_concurrent: 2,
     });
     let queue = RequestQueue::new(RequestQueueConfig { max_pending: 5 });
     let mut guards = vec![];
@@ -177,10 +196,18 @@ async fn chaos_combined_resource_limits_and_queue() {
     for i in 0..10 {
         if let Ok(g) = limits.try_acquire(512) {
             guards.push(g);
-            if queue.enqueue(
-                "model".into(), format!("prompt {}", i),
-                InferenceParams::default(), Priority::Normal,
-            ).await.is_ok() { enqueued += 1; }
+            if queue
+                .enqueue(
+                    "model".into(),
+                    format!("prompt {}", i),
+                    InferenceParams::default(),
+                    Priority::Normal,
+                )
+                .await
+                .is_ok()
+            {
+                enqueued += 1;
+            }
         }
     }
     assert!(enqueued > 0 && enqueued <= 5);
@@ -191,14 +218,19 @@ async fn chaos_combined_shutdown_and_queue() {
     let shutdown = Arc::new(ShutdownCoordinator::new());
     let queue = Arc::new(RequestQueue::new(RequestQueueConfig { max_pending: 100 }));
     for i in 0..10u32 {
-        queue.enqueue("model".into(), format!("prompt {}", i), InferenceParams::default(), Priority::Normal)
-            .await.unwrap();
+        queue
+            .enqueue(
+                "model".into(),
+                format!("prompt {}", i),
+                InferenceParams::default(),
+                Priority::Normal,
+            )
+            .await
+            .unwrap();
     }
     let guard = shutdown.track().unwrap();
     let sc = Arc::clone(&shutdown);
-    let handle = tokio::spawn(async move {
-        sc.initiate(Duration::from_millis(200)).await
-    });
+    let handle = tokio::spawn(async move { sc.initiate(Duration::from_millis(200)).await });
     tokio::time::sleep(Duration::from_millis(10)).await;
     assert!(shutdown.track().is_none());
     drop(guard);
@@ -208,7 +240,9 @@ async fn chaos_combined_shutdown_and_queue() {
 
 #[test]
 fn chaos_connection_pool_concurrent_stress() {
-    let pool = Arc::new(ConnectionPool::new(ConnectionConfig { max_connections: 10 }));
+    let pool = Arc::new(ConnectionPool::new(ConnectionConfig {
+        max_connections: 10,
+    }));
     let mut handles = vec![];
     for _ in 0..8 {
         let p = Arc::clone(&pool);
@@ -221,7 +255,9 @@ fn chaos_connection_pool_concurrent_stress() {
             }
         }));
     }
-    for h in handles { h.join().unwrap(); }
+    for h in handles {
+        h.join().unwrap();
+    }
     assert_eq!(pool.active_count(), 0);
 }
 

@@ -5,9 +5,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use gg_core::ab_testing::{
-    TrafficConfig, TrafficSplitter, VariantLabel, VariantMetrics,
-};
+use gg_core::ab_testing::{TrafficConfig, TrafficSplitter, VariantLabel, VariantMetrics};
 
 // === Traffic Weight Distribution Tests ===
 
@@ -28,8 +26,16 @@ fn canary_traffic_90_10_distribution() {
     }
 
     // Expect ~90% control, ~10% canary (with hash distribution variance)
-    assert!(control_count > 800, "Control got {} (expected ~900)", control_count);
-    assert!(canary_count > 50 && canary_count < 200, "Canary got {}", canary_count);
+    assert!(
+        control_count > 800,
+        "Control got {} (expected ~900)",
+        control_count
+    );
+    assert!(
+        canary_count > 50 && canary_count < 200,
+        "Canary got {}",
+        canary_count
+    );
 }
 
 #[test]
@@ -38,7 +44,10 @@ fn canary_traffic_80_20_distribution() {
     let mut weights = BTreeMap::new();
     weights.insert(VariantLabel::control(), 80);
     weights.insert(canary.clone(), 20);
-    let config = TrafficConfig { weights, sticky_sessions: true };
+    let config = TrafficConfig {
+        weights,
+        sticky_sessions: true,
+    };
     let splitter = TrafficSplitter::new(config).unwrap();
 
     let mut canary_count = 0;
@@ -48,7 +57,11 @@ fn canary_traffic_80_20_distribution() {
         }
     }
 
-    assert!(canary_count > 100 && canary_count < 350, "Canary got {}", canary_count);
+    assert!(
+        canary_count > 100 && canary_count < 350,
+        "Canary got {}",
+        canary_count
+    );
 }
 
 #[test]
@@ -60,7 +73,10 @@ fn canary_gradual_rollout_progression() {
         let mut weights = BTreeMap::new();
         weights.insert(VariantLabel::control(), control_weight);
         weights.insert(canary.clone(), canary_weight);
-        let config = TrafficConfig { weights, sticky_sessions: true };
+        let config = TrafficConfig {
+            weights,
+            sticky_sessions: true,
+        };
         let splitter = TrafficSplitter::new(config).unwrap();
 
         let mut canary_count = 0;
@@ -106,7 +122,9 @@ fn canary_control_vs_canary_comparison() {
         let variant = splitter.select(Some(&format!("req-{}", i)));
         metrics.get_or_create(variant).record_request();
         let latency = if variant == &canary { 40 } else { 50 };
-        metrics.get_or_create(variant).record_success(Duration::from_millis(latency), 20);
+        metrics
+            .get_or_create(variant)
+            .record_success(Duration::from_millis(latency), 20);
     }
 
     let snapshots = metrics.all_snapshots();
@@ -125,19 +143,32 @@ fn canary_traffic_routing_accuracy() {
     let mut weights = BTreeMap::new();
     weights.insert(VariantLabel::control(), 75);
     weights.insert(canary.clone(), 25);
-    let config = TrafficConfig { weights, sticky_sessions: true };
+    let config = TrafficConfig {
+        weights,
+        sticky_sessions: true,
+    };
     let splitter = TrafficSplitter::new(config).unwrap();
 
     let mut distribution = std::collections::HashMap::new();
     for i in 0..2000 {
         let variant = splitter.select(Some(&format!("user-{}", i)));
-        *distribution.entry(variant.as_str().to_string()).or_insert(0) += 1;
+        *distribution
+            .entry(variant.as_str().to_string())
+            .or_insert(0) += 1;
     }
 
     let control_pct = distribution.get("control").unwrap_or(&0) * 100 / 2000;
     let canary_pct = distribution.get("accurate-canary").unwrap_or(&0) * 100 / 2000;
 
     // Allow 10% variance from expected
-    assert!(control_pct >= 65 && control_pct <= 85, "Control: {}%", control_pct);
-    assert!(canary_pct >= 15 && canary_pct <= 35, "Canary: {}%", canary_pct);
+    assert!(
+        control_pct >= 65 && control_pct <= 85,
+        "Control: {}%",
+        control_pct
+    );
+    assert!(
+        canary_pct >= 15 && canary_pct <= 35,
+        "Canary: {}%",
+        canary_pct
+    );
 }

@@ -1,8 +1,6 @@
 //! Tests for protocol version negotiation.
 
-use gg_core::ipc::{
-    decode_message, encode_message, IpcMessage, ProtocolVersion,
-};
+use gg_core::ipc::{decode_message, encode_message, IpcMessage, ProtocolVersion};
 
 #[test]
 fn handshake_v1_default_when_not_specified() {
@@ -11,7 +9,10 @@ fn handshake_v1_default_when_not_specified() {
     let message = decode_message(legacy_json.as_bytes()).unwrap();
 
     match message {
-        IpcMessage::Handshake { token, protocol_version } => {
+        IpcMessage::Handshake {
+            token,
+            protocol_version,
+        } => {
             assert_eq!(token, "secret123");
             assert_eq!(protocol_version, None);
         }
@@ -30,7 +31,10 @@ fn handshake_v1_explicit() {
     let decoded = decode_message(&encoded).unwrap();
 
     match decoded {
-        IpcMessage::Handshake { token, protocol_version } => {
+        IpcMessage::Handshake {
+            token,
+            protocol_version,
+        } => {
             assert_eq!(token, "secret123");
             assert_eq!(protocol_version, Some(ProtocolVersion::V1));
         }
@@ -49,7 +53,10 @@ fn handshake_v2_request() {
     let decoded = decode_message(&encoded).unwrap();
 
     match decoded {
-        IpcMessage::Handshake { token, protocol_version } => {
+        IpcMessage::Handshake {
+            token,
+            protocol_version,
+        } => {
             assert_eq!(token, "secret123");
             assert_eq!(protocol_version, Some(ProtocolVersion::V2));
         }
@@ -68,7 +75,10 @@ fn handshake_ack_includes_negotiated_version() {
     let decoded = decode_message(&encoded).unwrap();
 
     match decoded {
-        IpcMessage::HandshakeAck { session_id, protocol_version } => {
+        IpcMessage::HandshakeAck {
+            session_id,
+            protocol_version,
+        } => {
             assert_eq!(session_id, "session-abc");
             assert_eq!(protocol_version, ProtocolVersion::V1);
         }
@@ -87,7 +97,10 @@ fn handshake_ack_v2_negotiated() {
     let decoded = decode_message(&encoded).unwrap();
 
     match decoded {
-        IpcMessage::HandshakeAck { session_id, protocol_version } => {
+        IpcMessage::HandshakeAck {
+            session_id,
+            protocol_version,
+        } => {
             assert_eq!(session_id, "session-xyz");
             assert_eq!(protocol_version, ProtocolVersion::V2);
         }
@@ -102,7 +115,10 @@ fn legacy_handshake_ack_defaults_to_v1() {
     let message = decode_message(legacy_json.as_bytes()).unwrap();
 
     match message {
-        IpcMessage::HandshakeAck { session_id, protocol_version } => {
+        IpcMessage::HandshakeAck {
+            session_id,
+            protocol_version,
+        } => {
             assert_eq!(session_id, "session-old");
             assert_eq!(protocol_version, ProtocolVersion::V1); // Default
         }

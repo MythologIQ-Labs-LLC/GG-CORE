@@ -3,9 +3,12 @@
 use gg_core::engine::simd_matmul::{dot_q4, dot_q8, init_simd};
 
 fn dot_q8_scalar(q_data: &[u8], input: &[f32], scale: f32) -> f32 {
-    q_data.iter().zip(input.iter())
+    q_data
+        .iter()
+        .zip(input.iter())
         .map(|(&q, &x)| (q as i8 as f32) * x)
-        .sum::<f32>() * scale
+        .sum::<f32>()
+        * scale
 }
 
 fn dot_q4_scalar(q_data: &[u8], input: &[f32], scale: f32) -> f32 {
@@ -37,7 +40,10 @@ fn dot_q8_matches_scalar_small() {
     let expected = dot_q8_scalar(&q_data, &input, scale);
     let actual = dot_q8(&q_data, &input, scale);
 
-    assert!((expected - actual).abs() < 1e-5, "expected {expected}, got {actual}");
+    assert!(
+        (expected - actual).abs() < 1e-5,
+        "expected {expected}, got {actual}"
+    );
 }
 
 #[test]
@@ -49,7 +55,10 @@ fn dot_q8_matches_scalar_large() {
     let expected = dot_q8_scalar(&q_data, &input, scale);
     let actual = dot_q8(&q_data, &input, scale);
 
-    assert!((expected - actual).abs() < 1e-4, "expected {expected}, got {actual}");
+    assert!(
+        (expected - actual).abs() < 1e-4,
+        "expected {expected}, got {actual}"
+    );
 }
 
 #[test]
@@ -61,7 +70,10 @@ fn dot_q8_unaligned_length() {
     let expected = dot_q8_scalar(&q_data, &input, scale);
     let actual = dot_q8(&q_data, &input, scale);
 
-    assert!((expected - actual).abs() < 1e-5, "expected {expected}, got {actual}");
+    assert!(
+        (expected - actual).abs() < 1e-5,
+        "expected {expected}, got {actual}"
+    );
 }
 
 #[test]
@@ -82,7 +94,10 @@ fn dot_q4_matches_scalar_small() {
     let expected = dot_q4_scalar(&q_data, &input, scale);
     let actual = dot_q4(&q_data, &input, scale);
 
-    assert!((expected - actual).abs() < 1e-5, "expected {expected}, got {actual}");
+    assert!(
+        (expected - actual).abs() < 1e-5,
+        "expected {expected}, got {actual}"
+    );
 }
 
 #[test]
@@ -94,7 +109,10 @@ fn dot_q4_matches_scalar_large() {
     let expected = dot_q4_scalar(&q_data, &input, scale);
     let actual = dot_q4(&q_data, &input, scale);
 
-    assert!((expected - actual).abs() < 1e-4, "expected {expected}, got {actual}");
+    assert!(
+        (expected - actual).abs() < 1e-4,
+        "expected {expected}, got {actual}"
+    );
 }
 
 #[test]

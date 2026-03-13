@@ -2,13 +2,13 @@
 //!
 //! Tests seamless transitions between CI, Default, and Quality model tiers.
 
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use gg_core::models::pool::{ModelPool, ModelTier, PoolConfig};
 use gg_core::models::registry::{ModelHandle, ModelRegistry};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 /// Simulated model sizes for the three tiers.
-const CI_MODEL_SIZE: usize = 491_000_000;        // ~491 MB (Qwen 0.5B)
+const CI_MODEL_SIZE: usize = 491_000_000; // ~491 MB (Qwen 0.5B)
 const DEFAULT_MODEL_SIZE: usize = 1_100_000_000; // ~1.1 GB (Qwen 1.5B)
 const QUALITY_MODEL_SIZE: usize = 2_200_000_000; // ~2.2 GB (Phi-3 Mini)
 
@@ -29,21 +29,27 @@ async fn test_preload_all_tiers() {
         ModelHandle::new(1),
         ModelTier::Testing,
         CI_MODEL_SIZE,
-    ).await.expect("Failed to preload CI model");
+    )
+    .await
+    .expect("Failed to preload CI model");
 
     pool.preload(
         "qwen-1.5b".to_string(),
         ModelHandle::new(2),
         ModelTier::Default,
         DEFAULT_MODEL_SIZE,
-    ).await.expect("Failed to preload default model");
+    )
+    .await
+    .expect("Failed to preload default model");
 
     pool.preload(
         "phi-3-mini".to_string(),
         ModelHandle::new(3),
         ModelTier::Quality,
         QUALITY_MODEL_SIZE,
-    ).await.expect("Failed to preload quality model");
+    )
+    .await
+    .expect("Failed to preload quality model");
 
     let status = pool.status().await;
     assert_eq!(status.model_count, 3);
@@ -64,9 +70,30 @@ async fn test_instant_tier_switching() {
     let pool = ModelPool::new(config, registry.clone());
 
     // Preload all tiers
-    pool.preload("qwen-0.5b".to_string(), ModelHandle::new(1), ModelTier::Testing, CI_MODEL_SIZE).await.unwrap();
-    pool.preload("qwen-1.5b".to_string(), ModelHandle::new(2), ModelTier::Default, DEFAULT_MODEL_SIZE).await.unwrap();
-    pool.preload("phi-3-mini".to_string(), ModelHandle::new(3), ModelTier::Quality, QUALITY_MODEL_SIZE).await.unwrap();
+    pool.preload(
+        "qwen-0.5b".to_string(),
+        ModelHandle::new(1),
+        ModelTier::Testing,
+        CI_MODEL_SIZE,
+    )
+    .await
+    .unwrap();
+    pool.preload(
+        "qwen-1.5b".to_string(),
+        ModelHandle::new(2),
+        ModelTier::Default,
+        DEFAULT_MODEL_SIZE,
+    )
+    .await
+    .unwrap();
+    pool.preload(
+        "phi-3-mini".to_string(),
+        ModelHandle::new(3),
+        ModelTier::Quality,
+        QUALITY_MODEL_SIZE,
+    )
+    .await
+    .unwrap();
 
     let mut switch_times = Vec::new();
 
@@ -97,10 +124,17 @@ async fn test_instant_tier_switching() {
     }
 
     // Average should be well under 100us
-    let avg_ns: u64 = switch_times.iter().map(|d| d.as_nanos() as u64).sum::<u64>()
+    let avg_ns: u64 = switch_times
+        .iter()
+        .map(|d| d.as_nanos() as u64)
+        .sum::<u64>()
         / switch_times.len() as u64;
     println!("Average switch latency: {}ns", avg_ns);
-    assert!(avg_ns < 100_000, "Average switch should be < 100us, was {}ns", avg_ns);
+    assert!(
+        avg_ns < 100_000,
+        "Average switch should be < 100us, was {}ns",
+        avg_ns
+    );
 }
 
 /// Test that warmup tracking affects subsequent switches.
@@ -109,7 +143,14 @@ async fn test_warmup_affects_switch_info() {
     let registry = Arc::new(ModelRegistry::new());
     let pool = ModelPool::new(PoolConfig::default(), registry.clone());
 
-    pool.preload("test".to_string(), ModelHandle::new(1), ModelTier::Default, 100).await.unwrap();
+    pool.preload(
+        "test".to_string(),
+        ModelHandle::new(1),
+        ModelTier::Default,
+        100,
+    )
+    .await
+    .unwrap();
 
     // First switch - not warmed
     let result1 = pool.switch_to("test").await.unwrap();
@@ -135,15 +176,42 @@ async fn test_tier_based_eviction() {
     let pool = ModelPool::new(config, registry.clone());
 
     // Load CI and Quality models
-    pool.preload("ci".to_string(), ModelHandle::new(1), ModelTier::Testing, 100).await.unwrap();
-    pool.preload("quality".to_string(), ModelHandle::new(2), ModelTier::Quality, 100).await.unwrap();
+    pool.preload(
+        "ci".to_string(),
+        ModelHandle::new(1),
+        ModelTier::Testing,
+        100,
+    )
+    .await
+    .unwrap();
+    pool.preload(
+        "quality".to_string(),
+        ModelHandle::new(2),
+        ModelTier::Quality,
+        100,
+    )
+    .await
+    .unwrap();
 
     // Adding a third should evict CI (lowest tier)
-    pool.preload("default".to_string(), ModelHandle::new(3), ModelTier::Default, 100).await.unwrap();
+    pool.preload(
+        "default".to_string(),
+        ModelHandle::new(3),
+        ModelTier::Default,
+        100,
+    )
+    .await
+    .unwrap();
 
     assert!(!pool.contains("ci").await, "CI model should be evicted");
-    assert!(pool.contains("quality").await, "Quality model should remain");
-    assert!(pool.contains("default").await, "Default model should be added");
+    assert!(
+        pool.contains("quality").await,
+        "Quality model should remain"
+    );
+    assert!(
+        pool.contains("default").await,
+        "Default model should be added"
+    );
 }
 
 /// Test active model protection from eviction.
@@ -158,17 +226,41 @@ async fn test_active_model_protected() {
     let pool = ModelPool::new(config, registry.clone());
 
     // Load two models
-    pool.preload("ci".to_string(), ModelHandle::new(1), ModelTier::Testing, 100).await.unwrap();
-    pool.preload("quality".to_string(), ModelHandle::new(2), ModelTier::Quality, 100).await.unwrap();
+    pool.preload(
+        "ci".to_string(),
+        ModelHandle::new(1),
+        ModelTier::Testing,
+        100,
+    )
+    .await
+    .unwrap();
+    pool.preload(
+        "quality".to_string(),
+        ModelHandle::new(2),
+        ModelTier::Quality,
+        100,
+    )
+    .await
+    .unwrap();
 
     // Activate CI (lowest tier)
     pool.switch_to("ci").await.unwrap();
 
     // Adding a third should evict quality (not active CI even though lower tier)
-    pool.preload("default".to_string(), ModelHandle::new(3), ModelTier::Default, 100).await.unwrap();
+    pool.preload(
+        "default".to_string(),
+        ModelHandle::new(3),
+        ModelTier::Default,
+        100,
+    )
+    .await
+    .unwrap();
 
     assert!(pool.contains("ci").await, "Active CI should be protected");
-    assert!(!pool.contains("quality").await, "Inactive quality should be evicted");
+    assert!(
+        !pool.contains("quality").await,
+        "Inactive quality should be evicted"
+    );
 }
 
 /// Test metrics tracking.
@@ -177,7 +269,14 @@ async fn test_pool_metrics() {
     let registry = Arc::new(ModelRegistry::new());
     let pool = ModelPool::new(PoolConfig::default(), registry.clone());
 
-    pool.preload("test".to_string(), ModelHandle::new(1), ModelTier::Default, 100).await.unwrap();
+    pool.preload(
+        "test".to_string(),
+        ModelHandle::new(1),
+        ModelTier::Default,
+        100,
+    )
+    .await
+    .unwrap();
 
     // Multiple switches
     for _ in 0..10 {
@@ -202,9 +301,30 @@ async fn benchmark_transition_latency() {
     let pool = ModelPool::new(config, registry.clone());
 
     // Preload all tiers
-    pool.preload("ci".to_string(), ModelHandle::new(1), ModelTier::Testing, CI_MODEL_SIZE).await.unwrap();
-    pool.preload("default".to_string(), ModelHandle::new(2), ModelTier::Default, DEFAULT_MODEL_SIZE).await.unwrap();
-    pool.preload("quality".to_string(), ModelHandle::new(3), ModelTier::Quality, QUALITY_MODEL_SIZE).await.unwrap();
+    pool.preload(
+        "ci".to_string(),
+        ModelHandle::new(1),
+        ModelTier::Testing,
+        CI_MODEL_SIZE,
+    )
+    .await
+    .unwrap();
+    pool.preload(
+        "default".to_string(),
+        ModelHandle::new(2),
+        ModelTier::Default,
+        DEFAULT_MODEL_SIZE,
+    )
+    .await
+    .unwrap();
+    pool.preload(
+        "quality".to_string(),
+        ModelHandle::new(3),
+        ModelTier::Quality,
+        QUALITY_MODEL_SIZE,
+    )
+    .await
+    .unwrap();
 
     let iterations = 1000;
     let mut latencies: Vec<Duration> = Vec::with_capacity(iterations * 3);
@@ -233,7 +353,10 @@ async fn benchmark_transition_latency() {
     println!("P95: {:?}", p95);
     println!("P99: {:?}", p99);
     println!("Max: {:?}", max);
-    println!("Throughput: {:.0} switches/sec", iterations as f64 / total_time.as_secs_f64());
+    println!(
+        "Throughput: {:.0} switches/sec",
+        iterations as f64 / total_time.as_secs_f64()
+    );
 
     // Assertions
     assert!(p50 < Duration::from_micros(50), "P50 should be < 50us");
@@ -251,15 +374,32 @@ async fn test_pool_status() {
     };
     let pool = ModelPool::new(config, registry.clone());
 
-    pool.preload("ci".to_string(), ModelHandle::new(1), ModelTier::Testing, CI_MODEL_SIZE).await.unwrap();
-    pool.preload("default".to_string(), ModelHandle::new(2), ModelTier::Default, DEFAULT_MODEL_SIZE).await.unwrap();
+    pool.preload(
+        "ci".to_string(),
+        ModelHandle::new(1),
+        ModelTier::Testing,
+        CI_MODEL_SIZE,
+    )
+    .await
+    .unwrap();
+    pool.preload(
+        "default".to_string(),
+        ModelHandle::new(2),
+        ModelTier::Default,
+        DEFAULT_MODEL_SIZE,
+    )
+    .await
+    .unwrap();
 
     pool.switch_to("default").await.unwrap();
 
     let status = pool.status().await;
 
     assert_eq!(status.model_count, 2);
-    assert_eq!(status.total_memory_bytes, CI_MODEL_SIZE + DEFAULT_MODEL_SIZE);
+    assert_eq!(
+        status.total_memory_bytes,
+        CI_MODEL_SIZE + DEFAULT_MODEL_SIZE
+    );
     assert_eq!(status.active_model, Some("default".to_string()));
     assert_eq!(status.loaded_models.len(), 2);
 }

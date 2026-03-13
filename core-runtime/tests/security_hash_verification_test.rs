@@ -3,7 +3,7 @@
 //! Tests that model integrity verification correctly accepts valid hashes
 //! and rejects invalid, malformed, or mismatched hashes.
 
-use gg_core::models::manifest::{ModelManifest, ModelCapability, ModelArchitecture};
+use gg_core::models::manifest::{ModelArchitecture, ModelCapability, ModelManifest};
 
 fn create_test_manifest(sha256: &str) -> ModelManifest {
     ModelManifest {
@@ -36,7 +36,10 @@ fn reject_short_hash() {
 
     let result = manifest.validate();
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("64 hex characters"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("64 hex characters"));
 }
 
 #[test]
@@ -47,7 +50,10 @@ fn reject_long_hash() {
 
     let result = manifest.validate();
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("64 hex characters"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("64 hex characters"));
 }
 
 #[test]
@@ -70,7 +76,8 @@ fn error_contains_hash_info() {
     // Error should indicate what's wrong
     assert!(
         err_msg.contains("sha256") || err_msg.contains("64"),
-        "Error should mention sha256 requirement: {}", err_msg
+        "Error should mention sha256 requirement: {}",
+        err_msg
     );
 }
 

@@ -31,7 +31,12 @@ async fn test_request_deadline_computed() {
 
     let before = Instant::now();
     let (id, _pos) = queue
-        .enqueue("model".to_string(), "test prompt".to_string(), params, Priority::Normal)
+        .enqueue(
+            "model".to_string(),
+            "test prompt".to_string(),
+            params,
+            Priority::Normal,
+        )
         .await
         .unwrap();
 
@@ -53,7 +58,12 @@ async fn test_request_no_deadline_when_no_timeout() {
     let params = InferenceParams::default(); // No timeout
 
     queue
-        .enqueue("model".to_string(), "test prompt".to_string(), params, Priority::Normal)
+        .enqueue(
+            "model".to_string(),
+            "test prompt".to_string(),
+            params,
+            Priority::Normal,
+        )
         .await
         .unwrap();
 
@@ -67,7 +77,12 @@ async fn test_cancel_pending_request() {
     let params = InferenceParams::default();
 
     let (id, _) = queue
-        .enqueue("model".to_string(), "test prompt".to_string(), params, Priority::Normal)
+        .enqueue(
+            "model".to_string(),
+            "test prompt".to_string(),
+            params,
+            Priority::Normal,
+        )
         .await
         .unwrap();
 
@@ -96,11 +111,21 @@ async fn test_cancelled_request_skipped_on_dequeue() {
 
     // Enqueue two requests
     let (id1, _) = queue
-        .enqueue("model".to_string(), "first prompt".to_string(), params.clone(), Priority::Normal)
+        .enqueue(
+            "model".to_string(),
+            "first prompt".to_string(),
+            params.clone(),
+            Priority::Normal,
+        )
         .await
         .unwrap();
     let (id2, _) = queue
-        .enqueue("model".to_string(), "second prompt".to_string(), params, Priority::Normal)
+        .enqueue(
+            "model".to_string(),
+            "second prompt".to_string(),
+            params,
+            Priority::Normal,
+        )
         .await
         .unwrap();
 
@@ -162,7 +187,12 @@ async fn test_expired_request_skipped_on_dequeue() {
     };
 
     queue
-        .enqueue("model".to_string(), "expiring prompt".to_string(), params.clone(), Priority::Normal)
+        .enqueue(
+            "model".to_string(),
+            "expiring prompt".to_string(),
+            params.clone(),
+            Priority::Normal,
+        )
         .await
         .unwrap();
 
@@ -172,7 +202,12 @@ async fn test_expired_request_skipped_on_dequeue() {
     // Enqueue a second request without timeout
     let params2 = InferenceParams::default();
     let (id2, _) = queue
-        .enqueue("model".to_string(), "persistent prompt".to_string(), params2, Priority::Normal)
+        .enqueue(
+            "model".to_string(),
+            "persistent prompt".to_string(),
+            params2,
+            Priority::Normal,
+        )
         .await
         .unwrap();
 

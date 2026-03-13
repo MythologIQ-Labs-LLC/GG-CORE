@@ -3,8 +3,8 @@
 
 //! GPU Support Tests
 
-use std::sync::Arc;
 use gg_core::engine::{GpuBackend, GpuConfig, GpuDevice, GpuError, GpuManager, GpuMemoryPool};
+use std::sync::Arc;
 
 #[test]
 fn test_gpu_backend_display() {

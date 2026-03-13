@@ -156,17 +156,32 @@ async fn bluegreen_rollback_preserves_blue_state() {
 
     // Record requests to blue
     for _ in 0..50 {
-        manager.blue.read().await.request_count.fetch_add(1, Ordering::Relaxed);
+        manager
+            .blue
+            .read()
+            .await
+            .request_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 
-    let blue_before = manager.blue.read().await.request_count.load(Ordering::Relaxed);
+    let blue_before = manager
+        .blue
+        .read()
+        .await
+        .request_count
+        .load(Ordering::Relaxed);
 
     // Switch to green, then rollback
     let _ = manager.switch_traffic().await;
     let _ = manager.rollback().await;
 
     // Blue state should be preserved
-    let blue_after = manager.blue.read().await.request_count.load(Ordering::Relaxed);
+    let blue_after = manager
+        .blue
+        .read()
+        .await
+        .request_count
+        .load(Ordering::Relaxed);
     assert_eq!(blue_before, blue_after);
 }
 
@@ -183,8 +198,14 @@ async fn bluegreen_multiple_rapid_switches() {
     let results: Vec<_> = futures::future::join_all(handles).await;
 
     // All calls should either succeed or fail with known errors
-    let successes = results.iter().filter(|r| r.as_ref().unwrap().is_ok()).count();
-    let failures = results.iter().filter(|r| r.as_ref().unwrap().is_err()).count();
+    let successes = results
+        .iter()
+        .filter(|r| r.as_ref().unwrap().is_ok())
+        .count();
+    let failures = results
+        .iter()
+        .filter(|r| r.as_ref().unwrap().is_err())
+        .count();
 
     // At least one should succeed
     assert!(successes >= 1, "At least one switch should succeed");

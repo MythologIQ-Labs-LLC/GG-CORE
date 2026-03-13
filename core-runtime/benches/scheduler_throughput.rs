@@ -79,28 +79,33 @@ fn bench_priority_reordering(c: &mut Criterion) {
 
     for size in [100, 1000] {
         group.throughput(Throughput::Elements(size));
-        group.bench_with_input(BenchmarkId::new("mixed_priorities", size), &size, |b, &count| {
-            b.iter(|| {
-                let mut queue = PriorityQueue::new();
-                // Interleave priorities to trigger reordering
-                for i in 0..count {
-                    let priority = match i % 4 {
-                        0 => Priority::Critical,
-                        1 => Priority::Low,
-                        2 => Priority::High,
-                        _ => Priority::Normal,
-                    };
-                    queue.push(black_box(create_test_request(i, 100)), priority);
-                }
-                // Pop all to verify ordering
-                let mut prev_priority = Priority::Critical;
-                while let Some(req) = queue.pop() {
-                    black_box(&req);
-                    black_box(&prev_priority);
-                    prev_priority = Priority::from(((req.id % 4) as u8).min(prev_priority as u8));
-                }
-            })
-        });
+        group.bench_with_input(
+            BenchmarkId::new("mixed_priorities", size),
+            &size,
+            |b, &count| {
+                b.iter(|| {
+                    let mut queue = PriorityQueue::new();
+                    // Interleave priorities to trigger reordering
+                    for i in 0..count {
+                        let priority = match i % 4 {
+                            0 => Priority::Critical,
+                            1 => Priority::Low,
+                            2 => Priority::High,
+                            _ => Priority::Normal,
+                        };
+                        queue.push(black_box(create_test_request(i, 100)), priority);
+                    }
+                    // Pop all to verify ordering
+                    let mut prev_priority = Priority::Critical;
+                    while let Some(req) = queue.pop() {
+                        black_box(&req);
+                        black_box(&prev_priority);
+                        prev_priority =
+                            Priority::from(((req.id % 4) as u8).min(prev_priority as u8));
+                    }
+                })
+            },
+        );
     }
 
     group.finish();
