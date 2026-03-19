@@ -63,6 +63,9 @@ impl FlashAttn {
         // Accumulated weighted values
         let mut acc = vec![0.0f32; head_dim];
 
+        // Pre-allocate buffer for scores to avoid allocation per block
+        let mut scores_buf = vec![0.0f32; block_size];
+
         // Process in tiles
         let num_blocks = (seq_len + block_size - 1) / block_size;
 
@@ -72,11 +75,12 @@ impl FlashAttn {
             let block_len = end - start;
 
             // Compute attention scores for this block
-            let (block_max, scores) = self.compute_block_scores(query, keys, start, block_len);
+            let block_scores = &mut scores_buf[..block_len];
+            let block_max = self.compute_block_scores(query, keys, start, block_len, block_scores);
 
             // Update global statistics and accumulate
             self.update_accumulator(
-                &scores,
+                block_scores,
                 values,
                 start,
                 block_len,
@@ -95,26 +99,26 @@ impl FlashAttn {
         }
     }
 
-    /// Compute attention scores for a single block.
+    /// Compute attention scores for a single block into the provided buffer.
     fn compute_block_scores(
         &self,
         query: &[f32],
         keys: &[f32],
         start: usize,
         block_len: usize,
-    ) -> (f32, Vec<f32>) {
+        scores_out: &mut [f32],
+    ) -> f32 {
         let head_dim = self.config.head_dim;
-        let mut scores = Vec::with_capacity(block_len);
         let mut block_max = f32::NEG_INFINITY;
 
         for i in 0..block_len {
             let key_offset = (start + i) * head_dim;
             let score = self.dot_product(query, &keys[key_offset..key_offset + head_dim]);
-            scores.push(score);
+            scores_out[i] = score;
             block_max = block_max.max(score);
         }
 
-        (block_max, scores)
+        block_max
     }
 
     /// Update accumulator with block contribution using online softmax.
