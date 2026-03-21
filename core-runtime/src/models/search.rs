@@ -64,8 +64,20 @@ impl ModelQuery {
             }
         }
         if let Some(ref pattern) = self.name_pattern {
-            if !name.to_lowercase().contains(&pattern.to_lowercase()) {
-                return false;
+            if name.is_ascii() && pattern.is_ascii() {
+                let pattern_bytes = pattern.as_bytes();
+                let name_bytes = name.as_bytes();
+                if pattern_bytes.is_empty() {
+                    // Empty pattern always matches
+                } else if name_bytes.len() < pattern_bytes.len() {
+                    return false;
+                } else if !name_bytes.windows(pattern_bytes.len()).any(|w| w.eq_ignore_ascii_case(pattern_bytes)) {
+                    return false;
+                }
+            } else {
+                if !name.to_lowercase().contains(&pattern.to_lowercase()) {
+                    return false;
+                }
             }
         }
         true
