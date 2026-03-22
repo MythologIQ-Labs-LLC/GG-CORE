@@ -64,7 +64,21 @@ impl ModelQuery {
             }
         }
         if let Some(ref pattern) = self.name_pattern {
-            if !name.to_lowercase().contains(&pattern.to_lowercase()) {
+            // Fast path for ASCII strings avoids O(N) memory allocations
+            let is_match = if pattern.is_empty() {
+                true
+            } else if name.is_ascii() && pattern.is_ascii() {
+                if name.len() >= pattern.len() {
+                    name.as_bytes()
+                        .windows(pattern.len())
+                        .any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))
+                } else {
+                    false
+                }
+            } else {
+                name.to_lowercase().contains(&pattern.to_lowercase())
+            };
+            if !is_match {
                 return false;
             }
         }

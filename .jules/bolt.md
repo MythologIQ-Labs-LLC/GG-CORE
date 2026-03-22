@@ -1,0 +1,3 @@
+## 2024-05-15 - [Allocation-free string matching in hot paths]
+**Learning:** In tight loops like registry searches, `name.to_lowercase().contains(&pattern.to_lowercase())` causes hidden O(N) memory allocations, which can severely impact performance.
+**Action:** When strings are mostly ASCII, replace `to_lowercase()` matching with an allocation-free ASCII window search: `name.as_bytes().windows(pattern.len()).any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))` (guarded by `.is_ascii()` checks) to eliminate hidden memory allocations.
