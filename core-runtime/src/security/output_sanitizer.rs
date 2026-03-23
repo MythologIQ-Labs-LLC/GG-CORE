@@ -250,7 +250,17 @@ impl OutputSanitizer {
         ];
         
         for (pattern, replacement) in patterns {
-            if result.to_lowercase().contains(pattern) {
+            let matches = if pattern.is_empty() {
+                true
+            } else if result.is_ascii() && pattern.is_ascii() {
+                result.as_bytes()
+                    .windows(pattern.len())
+                    .any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))
+            } else {
+                result.to_lowercase().contains(&pattern.to_lowercase())
+            };
+
+            if matches {
                 result = result.replace(pattern, replacement);
                 count += 1;
             }

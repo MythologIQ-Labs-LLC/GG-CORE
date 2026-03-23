@@ -64,7 +64,16 @@ impl ModelQuery {
             }
         }
         if let Some(ref pattern) = self.name_pattern {
-            if !name.to_lowercase().contains(&pattern.to_lowercase()) {
+            let matches = if pattern.is_empty() {
+                true
+            } else if name.is_ascii() && pattern.is_ascii() {
+                name.as_bytes()
+                    .windows(pattern.len())
+                    .any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))
+            } else {
+                name.to_lowercase().contains(&pattern.to_lowercase())
+            };
+            if !matches {
                 return false;
             }
         }
