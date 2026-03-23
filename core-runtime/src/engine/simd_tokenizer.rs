@@ -151,7 +151,7 @@ impl SimdTokenizer {
 
     /// Decode token IDs to text.
     pub fn decode(&self, tokens: &[u32]) -> Result<String, TokenizerError> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(tokens.len() * 4); // Estimate 4 bytes per token
         for &id in tokens {
             if let Some(entry) = self.vocab.get(id as usize) {
                 bytes.extend_from_slice(&entry.bytes);
