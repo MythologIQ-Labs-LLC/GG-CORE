@@ -15,8 +15,9 @@ impl KvCacheManager {
         keys_out: &mut [f32],
         values_out: &mut [f32],
     ) -> Result<(), KvCacheError> {
-        let mut sequences = write_or_recover(&self.sequences);
-        let entry = sequences
+        let mut store = write_or_recover(&self.sequences);
+        store.touch(seq_id);
+        let entry = store.entries
             .get_mut(&seq_id)
             .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
 
@@ -36,7 +37,7 @@ impl KvCacheManager {
                 return Ok(());
             }
         }
-        drop(sequences);
+        drop(store);
         self.read_from_page_table(pos, keys_out, values_out)
     }
 
@@ -64,8 +65,8 @@ impl KvCacheManager {
         query: &[f32],
         scores_out: &mut [f32],
     ) -> Result<(), KvCacheError> {
-        let sequences = read_or_recover(&self.sequences);
-        let entry = sequences
+        let store = read_or_recover(&self.sequences);
+        let entry = store.entries
             .get(&seq_id)
             .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
         let seq_len = entry.seq_len;
@@ -76,7 +77,7 @@ impl KvCacheManager {
                 return Ok(());
             }
         }
-        drop(sequences);
+        drop(store);
         self.attention_from_pages(seq_len, query, scores_out)
     }
 
@@ -115,8 +116,8 @@ impl KvCacheManager {
     }
 
     fn evict_pages_before(&self, seq_id: SequenceId, cutoff_token: usize) -> usize {
-        let mut sequences = write_or_recover(&self.sequences);
-        let entry = match sequences.get_mut(&seq_id) {
+        let mut store = write_or_recover(&self.sequences);
+        let entry = match store.entries.get_mut(&seq_id) {
             Some(e) => e,
             None => return 0,
         };
@@ -138,8 +139,8 @@ impl KvCacheManager {
 
     /// Get sequence length.
     pub fn seq_len(&self, seq_id: SequenceId) -> Result<usize, KvCacheError> {
-        let sequences = read_or_recover(&self.sequences);
-        let entry = sequences
+        let store = read_or_recover(&self.sequences);
+        let entry = store.entries
             .get(&seq_id)
             .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
         Ok(entry.seq_len)
@@ -147,12 +148,12 @@ impl KvCacheManager {
 
     /// Check if sequence exists.
     pub fn has_sequence(&self, seq_id: SequenceId) -> bool {
-        read_or_recover(&self.sequences).contains_key(&seq_id)
+        read_or_recover(&self.sequences).entries.contains_key(&seq_id)
     }
 
     /// Get number of active sequences.
     pub fn active_sequences(&self) -> usize {
-        read_or_recover(&self.sequences).len()
+        read_or_recover(&self.sequences).entries.len()
     }
 
     /// Get memory usage in bytes.
@@ -164,7 +165,7 @@ impl KvCacheManager {
 
     /// Get page count for a sequence (for testing).
     pub fn sequence_page_count(&self, seq_id: SequenceId) -> usize {
-        let sequences = read_or_recover(&self.sequences);
-        sequences.get(&seq_id).map_or(0, |e| e.page_ids.len())
+        let store = read_or_recover(&self.sequences);
+        store.entries.get(&seq_id).map_or(0, |e| e.page_ids.len())
     }
 }

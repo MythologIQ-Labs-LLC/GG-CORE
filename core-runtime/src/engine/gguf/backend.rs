@@ -227,7 +227,7 @@ impl LlamaBackendInner {
         tokens: &[LlamaToken],
         max_tok: u32,
         config: &InferenceConfig,
-        is_cancelled: Option<&dyn Fn() -> bool>,
+        is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<(Vec<LlamaToken>, FinishReason), InferenceError> {
         let mut batch = LlamaBatch::new(tokens.len(), 1);
         add_seq(&mut batch, tokens)?;

@@ -51,11 +51,13 @@ async fn run_stream(
 ) -> Result<Result<(), crate::engine::inference::InferenceError>, tokio::task::JoinError> {
     #[cfg(feature = "gguf")]
     {
-        let engine_ptr = engine as *const InferenceEngine;
+        // Cast to usize to avoid capturing a raw pointer (which is !Send).
+        // SAFETY: the caller awaits the JoinHandle, so the engine reference
+        // outlives the spawned task.
+        let engine_addr = engine as *const InferenceEngine as usize;
         let mid = model_id.to_string();
         tokio::task::spawn_blocking(move || {
-            // SAFETY: engine lives in the worker loop which awaits this.
-            let engine = unsafe { &*engine_ptr };
+            let engine = unsafe { &*(engine_addr as *const InferenceEngine) };
             engine.run_stream_sync(&mid, &prompt, &config, sender)
         })
         .await

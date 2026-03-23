@@ -5,7 +5,9 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::engine::gguf::GgufModel;
-use crate::engine::{InferenceConfig, InferenceInput, InferenceOutput};
+#[cfg(feature = "gguf")]
+use crate::engine::InferenceConfig;
+use crate::engine::{InferenceInput, InferenceOutput};
 use crate::models::ModelHandle;
 
 pub use super::inference_types::{InferenceError, InferenceParams, InferenceResult};
@@ -41,10 +43,6 @@ impl InferenceEngine {
     }
 
     /// Run inference on text prompt using the specified model.
-    ///
-    /// NOTE: The read lock on `self.models` is held for the entire
-    /// inference call. This is a P2 optimization target — clone the
-    /// Arc<dyn GgufModel> and drop the lock before calling infer().
     pub async fn run(
         &self,
         model_id: &str,
@@ -130,11 +128,15 @@ impl InferenceEngine {
         })
     }
 
+    /// Conservative bytes-per-token estimate for context check.
+    const BYTES_PER_TOKEN: usize = 4;
+
     fn check_context(&self, prompt: &str) -> Result<(), InferenceError> {
-        if prompt.len() > self.max_context_length {
+        let estimated_tokens = prompt.len() / Self::BYTES_PER_TOKEN;
+        if estimated_tokens > self.max_context_length {
             return Err(InferenceError::ContextExceeded {
                 max: self.max_context_length,
-                got: prompt.len(),
+                got: estimated_tokens,
             });
         }
         Ok(())
@@ -214,14 +216,15 @@ impl InferenceEngine {
     ) -> Result<(), InferenceError> {
         use crate::engine::gguf::GgufGenerator;
 
-        // Get runtime handle for async model lookup
+        // Clone Arc and drop read lock before calling into model.
         let rt = tokio::runtime::Handle::current();
-        let models = rt.block_on(self.models.read());
-        let model = models.get(model_id).ok_or_else(|| {
-            InferenceError::ModelNotLoaded(model_id.to_string())
-        })?;
+        let model = {
+            let models = rt.block_on(self.models.read());
+            models.get(model_id).cloned().ok_or_else(|| {
+                InferenceError::ModelNotLoaded(model_id.to_string())
+            })?
+        };
 
-        // Downcast to GgufGenerator for streaming access
         let generator = model.as_any().downcast_ref::<GgufGenerator>().ok_or_else(|| {
             InferenceError::ExecutionFailed("model does not support streaming".into())
         })?;

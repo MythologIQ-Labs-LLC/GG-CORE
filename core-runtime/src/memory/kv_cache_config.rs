@@ -1,15 +1,6 @@
 //! KV Cache configuration, types, and error definitions.
 
-use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
-
-/// Acquire a mutex lock, recovering from poison if a thread panicked.
-#[inline]
-pub(crate) fn lock_or_recover<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| {
-        tracing::warn!("KV cache mutex poisoned, recovering");
-        poisoned.into_inner()
-    })
-}
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// Acquire a read lock, recovering from poison if a thread panicked.
 #[inline]

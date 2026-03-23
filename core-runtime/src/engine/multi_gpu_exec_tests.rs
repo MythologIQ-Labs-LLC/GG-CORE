@@ -4,7 +4,6 @@
 //! Throughput scaling tests for multi-GPU execution (P2.2.3).
 
 use std::sync::Arc;
-use std::time::Instant;
 
 use crate::engine::gpu::{GpuBackend, GpuDevice};
 use crate::engine::multi_gpu::GpuPartition;
@@ -59,6 +58,8 @@ fn input_tensor() -> TensorData {
 
 #[test]
 fn mock_2gpu_throughput_above_1_5x() {
+    // Use result.elapsed (mock-internal timing) instead of external
+    // wall-clock to avoid Windows sleep granularity (~15ms) jitter.
     let base_us: u64 = 50_000;
     let exec = MockPartitionExecutor::new(base_us);
     let input = input_tensor();
@@ -66,25 +67,31 @@ fn mock_2gpu_throughput_above_1_5x() {
     let p1 = partition_layers(1, 32);
     let p2 = partition_layers(2, 32);
 
-    let t1 = bench(&exec, &p1, &input);
-    let t2 = bench(&exec, &p2, &input);
+    let r1 = exec.execute(&p1, &input).unwrap();
+    let r2 = exec.execute(&p2, &input).unwrap();
 
+    let t1 = r1.elapsed.as_secs_f64();
+    let t2 = r2.elapsed.as_secs_f64();
     let speedup = t1 / t2;
     assert!(speedup > 1.5, "2-GPU speedup {speedup:.2}x < 1.5x");
 }
 
 #[test]
 fn mock_4gpu_throughput_above_2_5x() {
-    let base_us: u64 = 10_000;
+    // Use result.elapsed (mock-internal timing) instead of external
+    // wall-clock to avoid Windows sleep granularity (~15ms) jitter.
+    let base_us: u64 = 50_000;
     let exec = MockPartitionExecutor::new(base_us);
     let input = input_tensor();
 
     let p1 = partition_layers(1, 48);
     let p4 = partition_layers(4, 48);
 
-    let t1 = bench(&exec, &p1, &input);
-    let t4 = bench(&exec, &p4, &input);
+    let r1 = exec.execute(&p1, &input).unwrap();
+    let r4 = exec.execute(&p4, &input).unwrap();
 
+    let t1 = r1.elapsed.as_secs_f64();
+    let t4 = r4.elapsed.as_secs_f64();
     let speedup = t1 / t4;
     assert!(speedup > 2.5, "4-GPU speedup {speedup:.2}x < 2.5x");
 }
@@ -170,20 +177,3 @@ fn cuda_p2p_check_without_feature() {
     assert!(!cuda_can_access_peer(0, 1));
 }
 
-// -- Helpers --------------------------------------------------------------
-
-fn bench(
-    exec: &dyn PartitionExecutor,
-    partitions: &[GpuPartition],
-    input: &TensorData,
-) -> f64 {
-    // Warm up
-    let _ = exec.execute(partitions, input).unwrap();
-
-    let iterations = 5;
-    let start = Instant::now();
-    for _ in 0..iterations {
-        let _ = exec.execute(partitions, input).unwrap();
-    }
-    start.elapsed().as_secs_f64() / iterations as f64
-}
