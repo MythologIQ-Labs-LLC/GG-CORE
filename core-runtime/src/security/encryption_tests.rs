@@ -5,11 +5,7 @@ use std::io::{Read, Write};
 use tempfile::NamedTempFile;
 
 fn create_test_key() -> [u8; KEY_SIZE] {
-    let mut key = [0u8; KEY_SIZE];
-    for (i, byte) in key.iter_mut().enumerate() {
-        *byte = i as u8;
-    }
-    key
+    rand::random()
 }
 
 #[test]
@@ -62,9 +58,7 @@ fn test_modified_nonce() {
 #[test]
 fn test_different_keys() {
     let enc1 = ModelEncryption::new(create_test_key());
-    let mut key2 = [0u8; KEY_SIZE];
-    key2[0] = 255;
-    let enc2 = ModelEncryption::new(key2);
+    let enc2 = ModelEncryption::new(create_test_key());
     let plaintext = b"Test message";
     let (nonce, ciphertext) = enc1.encrypt(plaintext.as_slice()).unwrap();
     let result = enc2.decrypt(&nonce, &ciphertext);
@@ -73,10 +67,12 @@ fn test_different_keys() {
 
 #[test]
 fn test_password_derived_key() {
-    let salt: &[u8] = &b"salt"[..];
-    let enc1 = ModelEncryption::from_password("password123", salt);
-    let enc2 = ModelEncryption::from_password("password123", salt);
-    let enc3 = ModelEncryption::from_password("password456", salt);
+    let password: String = (0..12).map(|_| rand::random::<char>()).collect();
+    let salt: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let enc1 = ModelEncryption::from_password(&password, &salt);
+    let enc2 = ModelEncryption::from_password(&password, &salt);
+    let different_pw: String = (0..12).map(|_| rand::random::<char>()).collect();
+    let enc3 = ModelEncryption::from_password(&different_pw, &salt);
     let plaintext = b"Test message";
     let (nonce, ct) = enc1.encrypt(plaintext.as_slice()).unwrap();
     let decrypted = enc2.decrypt(&nonce, &ct).unwrap();
@@ -141,15 +137,17 @@ fn test_invalid_nonce_size() {
     let encryption = ModelEncryption::new(create_test_key());
     let plaintext = b"Test";
     let (_, ciphertext) = encryption.encrypt(plaintext.as_slice()).unwrap();
-    let wrong_nonce = vec![0u8; 8];
+    let wrong_nonce: Vec<u8> = (0..8).map(|_| rand::random()).collect();
     let result = encryption.decrypt(&wrong_nonce, &ciphertext);
     assert!(result.is_err());
 }
 
 #[test]
 fn test_pbkdf2_key_derivation_deterministic() {
-    let enc1 = ModelEncryption::from_password("password", b"salt".as_slice());
-    let enc2 = ModelEncryption::from_password("password", b"salt".as_slice());
+    let pw: String = (0..10).map(|_| rand::random::<char>()).collect();
+    let salt: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let enc1 = ModelEncryption::from_password(&pw, &salt);
+    let enc2 = ModelEncryption::from_password(&pw, &salt);
     let plaintext = b"Test message";
     let (nonce, ct) = enc1.encrypt(plaintext.as_slice()).unwrap();
     let decrypted = enc2.decrypt(&nonce, &ct).unwrap();
@@ -158,8 +156,11 @@ fn test_pbkdf2_key_derivation_deterministic() {
 
 #[test]
 fn test_pbkdf2_different_passwords() {
-    let enc1 = ModelEncryption::from_password("password1", b"salt".as_slice());
-    let enc2 = ModelEncryption::from_password("password2", b"salt".as_slice());
+    let pw1: String = (0..10).map(|_| rand::random::<char>()).collect();
+    let pw2: String = (0..10).map(|_| rand::random::<char>()).collect();
+    let salt: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let enc1 = ModelEncryption::from_password(&pw1, &salt);
+    let enc2 = ModelEncryption::from_password(&pw2, &salt);
     let plaintext = b"Test message";
     let (nonce, ct) = enc1.encrypt(plaintext.as_slice()).unwrap();
     let result = enc2.decrypt(&nonce, &ct);
@@ -168,8 +169,11 @@ fn test_pbkdf2_different_passwords() {
 
 #[test]
 fn test_pbkdf2_different_salts() {
-    let enc1 = ModelEncryption::from_password("password", b"salt1".as_slice());
-    let enc2 = ModelEncryption::from_password("password", b"salt2".as_slice());
+    let pw: String = (0..10).map(|_| rand::random::<char>()).collect();
+    let salt1: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let salt2: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let enc1 = ModelEncryption::from_password(&pw, &salt1);
+    let enc2 = ModelEncryption::from_password(&pw, &salt2);
     let plaintext = b"Test message";
     let (nonce, ct) = enc1.encrypt(plaintext.as_slice()).unwrap();
     let result = enc2.decrypt(&nonce, &ct);
@@ -178,7 +182,8 @@ fn test_pbkdf2_different_salts() {
 
 #[test]
 fn test_pbkdf2_empty_password() {
-    let enc = ModelEncryption::from_password("", b"salt".as_slice());
+    let salt: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let enc = ModelEncryption::from_password("", &salt);
     let plaintext = b"Test";
     let (nonce, ct) = enc.encrypt(plaintext.as_slice()).unwrap();
     let decrypted = enc.decrypt(&nonce, &ct).unwrap();
@@ -187,7 +192,8 @@ fn test_pbkdf2_empty_password() {
 
 #[test]
 fn test_pbkdf2_empty_salt() {
-    let enc = ModelEncryption::from_password("password", b"".as_slice());
+    let pw: String = (0..10).map(|_| rand::random::<char>()).collect();
+    let enc = ModelEncryption::from_password(&pw, b"".as_slice());
     let plaintext = b"Test";
     let (nonce, ct) = enc.encrypt(plaintext.as_slice()).unwrap();
     let decrypted = enc.decrypt(&nonce, &ct).unwrap();
@@ -428,8 +434,8 @@ fn test_nonce_reuse_error_display() {
 
 #[test]
 fn test_different_nonces_allowed() {
-    let nonce1: [u8; NONCE_SIZE] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-    let nonce2: [u8; NONCE_SIZE] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+    let nonce1: [u8; NONCE_SIZE] = rand::random();
+    let nonce2: [u8; NONCE_SIZE] = rand::random();
     let result1 = check_and_register_nonce(&nonce1);
     assert!(result1.is_ok());
     let result2 = check_and_register_nonce(&nonce2);

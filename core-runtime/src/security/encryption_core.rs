@@ -177,9 +177,7 @@ impl ModelEncryption {
 
     /// Generate random nonce using CSPRNG with reuse detection.
     fn generate_nonce() -> Result<Vec<u8>, EncryptionError> {
-        use rand::RngCore;
-        let mut nonce = [0u8; NONCE_SIZE];
-        rand::rngs::OsRng.fill_bytes(&mut nonce[..]);
+        let nonce: [u8; NONCE_SIZE] = rand::random();
         check_and_register_nonce(&nonce)?;
         Ok(nonce.to_vec())
     }

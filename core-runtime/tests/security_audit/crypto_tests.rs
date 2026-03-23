@@ -7,11 +7,7 @@ use std::collections::HashSet;
 use std::time::Instant;
 
 fn create_test_key() -> [u8; KEY_SIZE] {
-    let mut key = [0u8; KEY_SIZE];
-    for (i, byte) in key.iter_mut().enumerate() {
-        *byte = i as u8;
-    }
-    key
+    rand::random()
 }
 
 /// Verify semantic security - same plaintext produces different ciphertext.
@@ -88,8 +84,7 @@ fn nonce_modification_fails_decrypt() {
 #[test]
 fn wrong_key_fails_decrypt() {
     let enc1 = ModelEncryption::new(create_test_key());
-    let mut wrong_key = [0u8; KEY_SIZE];
-    wrong_key[0] = 255;
+    let wrong_key: [u8; KEY_SIZE] = rand::random();
     let enc2 = ModelEncryption::new(wrong_key);
     let plaintext = b"Test message";
     let (nonce, ciphertext) = enc1.encrypt(plaintext.as_slice()).unwrap();
@@ -100,8 +95,10 @@ fn wrong_key_fails_decrypt() {
 /// PBKDF2 key derivation is deterministic with same inputs.
 #[test]
 fn pbkdf2_deterministic() {
-    let enc1 = ModelEncryption::from_password("password", b"salt".as_slice());
-    let enc2 = ModelEncryption::from_password("password", b"salt".as_slice());
+    let pw: String = (0..10).map(|_| rand::random::<char>()).collect();
+    let salt: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let enc1 = ModelEncryption::from_password(&pw, &salt);
+    let enc2 = ModelEncryption::from_password(&pw, &salt);
     let plaintext = b"Test message";
     let (nonce, ct) = enc1.encrypt(plaintext.as_slice()).unwrap();
     let decrypted = enc2.decrypt(&nonce, &ct).unwrap();
@@ -111,8 +108,11 @@ fn pbkdf2_deterministic() {
 /// PBKDF2 different passwords produce different keys.
 #[test]
 fn pbkdf2_different_passwords() {
-    let enc1 = ModelEncryption::from_password("password1", b"salt".as_slice());
-    let enc2 = ModelEncryption::from_password("password2", b"salt".as_slice());
+    let pw1: String = (0..10).map(|_| rand::random::<char>()).collect();
+    let pw2: String = (0..10).map(|_| rand::random::<char>()).collect();
+    let salt: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let enc1 = ModelEncryption::from_password(&pw1, &salt);
+    let enc2 = ModelEncryption::from_password(&pw2, &salt);
     let plaintext = b"Test message";
     let (nonce, ct) = enc1.encrypt(plaintext.as_slice()).unwrap();
     let result = enc2.decrypt(&nonce, &ct);
@@ -122,8 +122,11 @@ fn pbkdf2_different_passwords() {
 /// PBKDF2 different salts produce different keys.
 #[test]
 fn pbkdf2_different_salts() {
-    let enc1 = ModelEncryption::from_password("password", b"salt1".as_slice());
-    let enc2 = ModelEncryption::from_password("password", b"salt2".as_slice());
+    let pw: String = (0..10).map(|_| rand::random::<char>()).collect();
+    let salt1: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let salt2: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let enc1 = ModelEncryption::from_password(&pw, &salt1);
+    let enc2 = ModelEncryption::from_password(&pw, &salt2);
     let plaintext = b"Test message";
     let (nonce, ct) = enc1.encrypt(plaintext.as_slice()).unwrap();
     let result = enc2.decrypt(&nonce, &ct);
@@ -165,7 +168,7 @@ fn invalid_nonce_size_rejected() {
     let encryption = ModelEncryption::new(create_test_key());
     let plaintext = b"Test";
     let (_, ciphertext) = encryption.encrypt(plaintext.as_slice()).unwrap();
-    let wrong_nonce = vec![0u8; 8];
+    let wrong_nonce: Vec<u8> = (0..8).map(|_| rand::random()).collect();
     let result = encryption.decrypt(&wrong_nonce, &ciphertext);
     assert!(result.is_err(), "Invalid nonce size should be rejected");
 }
@@ -258,7 +261,8 @@ fn repeated_encrypt_decrypt_consistent() {
 /// Verify empty salt still derives a key.
 #[test]
 fn pbkdf2_empty_salt() {
-    let enc = ModelEncryption::from_password("password", b"".as_slice());
+    let pw: String = (0..10).map(|_| rand::random::<char>()).collect();
+    let enc = ModelEncryption::from_password(&pw, b"".as_slice());
     let plaintext = b"Test";
     let (nonce, ct) = enc.encrypt(plaintext.as_slice()).unwrap();
     let decrypted = enc.decrypt(&nonce, &ct).unwrap();
@@ -268,7 +272,8 @@ fn pbkdf2_empty_salt() {
 /// Verify empty password still derives a key.
 #[test]
 fn pbkdf2_empty_password() {
-    let enc = ModelEncryption::from_password("", b"salt".as_slice());
+    let salt: Vec<u8> = (0..16).map(|_| rand::random()).collect();
+    let enc = ModelEncryption::from_password("", &salt);
     let plaintext = b"Test";
     let (nonce, ct) = enc.encrypt(plaintext.as_slice()).unwrap();
     let decrypted = enc.decrypt(&nonce, &ct).unwrap();

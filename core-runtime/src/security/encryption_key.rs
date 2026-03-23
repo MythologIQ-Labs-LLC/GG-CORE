@@ -86,10 +86,7 @@ fn get_salt_file_path() -> Result<PathBuf, EncryptionError> {
 
 /// Generate a cryptographically random salt.
 fn generate_random_salt() -> Vec<u8> {
-    use rand::RngCore;
-    let mut salt = vec![0u8; MIN_SALT_SIZE];
-    rand::rngs::OsRng.fill_bytes(&mut salt);
-    salt
+    (0..MIN_SALT_SIZE).map(|_| rand::random::<u8>()).collect()
 }
 
 /// Write salt file with restrictive permissions.
