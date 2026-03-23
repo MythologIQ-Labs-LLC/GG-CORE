@@ -1157,6 +1157,7 @@ dependencies = [
  "aes-gcm",
  "aho-corasick",
  "async-trait",
+ "bumpalo",
  "candle-core",
  "candle-onnx",
  "cbindgen",
