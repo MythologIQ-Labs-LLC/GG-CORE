@@ -125,7 +125,14 @@ impl GgufGenerator {
         &self,
         messages: &[crate::engine::ChatMessage],
     ) -> Result<String, InferenceError> {
-        let mut prompt = String::new();
+        const MAX_ROLE_TAG_LEN: usize = 13; // "<|assistant|>"
+        const END_TAG_LEN: usize = 8;      // "<|end|>\n"
+        const FINAL_TAG_LEN: usize = 13;    // "<|assistant|>"
+
+        let total_content_len: usize = messages.iter().map(|m| m.content.len()).sum();
+        let capacity = total_content_len + (messages.len() * (MAX_ROLE_TAG_LEN + END_TAG_LEN)) + FINAL_TAG_LEN;
+        let mut prompt = String::with_capacity(capacity);
+
         for msg in messages {
             let tag = match msg.role {
                 crate::engine::ChatRole::System => "<|system|>",
