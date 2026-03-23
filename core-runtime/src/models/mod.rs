@@ -8,7 +8,6 @@ pub mod pool_types;
 pub mod smart_loader;
 mod smart_loader_ops;
 pub mod smart_loader_types;
-pub mod service_routing;
 pub mod tier_synergy;
 
 mod drain;
@@ -40,6 +39,5 @@ pub use search::{ModelQuery, ModelQueryBuilder, ModelSearchResult};
 pub use smart_loader::{LoadHint, SmartLoader, SmartLoaderConfig, SmartLoaderError, SmartLoaderMetrics, SmartLoaderStatus};
 pub use smart_loader::ModelTier as SmartModelTier;
 pub use swap::{SwapError, SwapManager, SwapResult};
-pub use service_routing::{resolve_priority, tier_to_load_hint};
 pub use tier_synergy::{SynergyMode, SynergyResult, SynergyStatus, TierSynergy};
 pub use version::{ModelVersion, VersionRange};

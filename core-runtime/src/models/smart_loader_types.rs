@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use super::registry::ModelHandle;
 
 /// Semantic hints for adaptive loading decisions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub enum LoadHint {
     /// Quick single query - prefer lightweight model
     QuickQuery,

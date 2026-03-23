@@ -409,7 +409,9 @@ fn test_byte_insertion_detection() {
 
 #[test]
 fn test_nonce_reuse_detection() {
-    let nonce: [u8; NONCE_SIZE] = rand::random();
+    use rand::RngCore;
+    let mut nonce: [u8; NONCE_SIZE] = [0u8; NONCE_SIZE];
+    rand::rngs::OsRng.fill_bytes(&mut nonce[..]);
     let result1 = check_and_register_nonce(&nonce);
     assert!(result1.is_ok());
     let result2 = check_and_register_nonce(&nonce);

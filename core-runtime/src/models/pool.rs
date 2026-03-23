@@ -15,8 +15,12 @@ pub use super::pool_types::*;
 #[derive(Debug)]
 struct PooledModel {
     handle: ModelHandle,
+    #[allow(dead_code)]
+    model_id: String,
     tier: ModelTier,
     memory_bytes: usize,
+    #[allow(dead_code)]
+    loaded_at: Instant,
     last_used: Instant,
     use_count: u64,
     warmup_complete: bool,
@@ -68,7 +72,7 @@ impl ModelPool {
 
         if models.len() >= self.config.max_models {
             drop(models);
-            let _ = self.evict_one().await?;
+            self.evict_one().await?;
             models = self.models.write().await;
         }
 
@@ -83,8 +87,8 @@ impl ModelPool {
         models.insert(
             model_id.clone(),
             PooledModel {
-                handle, tier, memory_bytes,
-                last_used: now,
+                handle, model_id, tier, memory_bytes,
+                loaded_at: now, last_used: now,
                 use_count: 0, warmup_complete: false,
             },
         );
@@ -133,8 +137,7 @@ impl ModelPool {
     }
 
     /// Evict lowest-priority model from pool.
-    /// Returns the ID of the evicted model and the number of memory bytes freed.
-    async fn evict_one(&self) -> Result<(String, usize), PoolError> {
+    async fn evict_one(&self) -> Result<String, PoolError> {
         let mut models = self.models.write().await;
         let active = self.active_model.read().await.clone();
 
@@ -146,10 +149,9 @@ impl ModelPool {
 
         if let Some(id) = evict_id {
             let model = models.remove(&id).unwrap();
-            let freed_bytes = model.memory_bytes;
             self.registry.unregister(model.handle).await;
             self.metrics.write().await.evictions += 1;
-            Ok((id, freed_bytes))
+            Ok(id)
         } else {
             Err(PoolError::EvictionFailed)
         }
@@ -157,16 +159,13 @@ impl ModelPool {
 
     /// Evict models until we have enough memory.
     async fn evict_for_memory(&self, needed_bytes: usize) -> Result<(), PoolError> {
-        // Optimize: Calculate initial total memory once outside the loop
-        // to avoid repeatedly acquiring the read lock over models.
-        let mut current: usize = self.models.read().await.values().map(|m| m.memory_bytes).sum();
-
-        while current + needed_bytes > self.config.max_memory_bytes {
-            let (_, freed_bytes) = self.evict_one().await?;
-            current = current.saturating_sub(freed_bytes);
+        loop {
+            let current: usize = self.models.read().await.values().map(|m| m.memory_bytes).sum();
+            if current + needed_bytes <= self.config.max_memory_bytes {
+                return Ok(());
+            }
+            self.evict_one().await?;
         }
-
-        Ok(())
     }
 
     /// Get current pool status.
