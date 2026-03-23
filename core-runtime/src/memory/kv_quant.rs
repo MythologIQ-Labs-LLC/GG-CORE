@@ -50,10 +50,10 @@ impl Q8KvStore {
 
     /// Compute attention scores using SIMD dot product.
     pub fn attention_scores(&self, query: &[f32], output: &mut [f32]) {
-        for pos in 0..self.seq_len {
+        for (pos, out) in output.iter_mut().enumerate().take(self.seq_len) {
             let offset = pos * self.hidden_dim;
             let scale = self.key_scales[pos];
-            output[pos] = simd_matmul::dot_q8(
+            *out = simd_matmul::dot_q8(
                 &self.keys[offset..offset + self.hidden_dim],
                 query,
                 scale,
@@ -90,9 +90,9 @@ impl Q8KvStore {
     /// Weighted sum of values for attention output.
     pub fn weighted_values(&self, weights: &[f32], output: &mut [f32]) {
         output.fill(0.0);
-        for pos in 0..self.seq_len.min(weights.len()) {
+        for (pos, &weight) in weights.iter().enumerate().take(self.seq_len.min(weights.len())) {
             let offset = pos * self.hidden_dim;
-            let scale = self.value_scales[pos] * weights[pos];
+            let scale = self.value_scales[pos] * weight;
             for (i, &q) in self.values[offset..offset + self.hidden_dim].iter().enumerate() {
                 output[i] += (q as i8 as f32) * scale;
             }

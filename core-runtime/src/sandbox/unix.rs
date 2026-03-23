@@ -513,8 +513,8 @@ mod tests {
         // this should return an error (not silently succeed)
         if !result.success {
             assert!(
-                result.error.unwrap().contains("Failed")
-                    || result.error.unwrap().contains("not available")
+                result.error.as_ref().unwrap().contains("Failed")
+                    || result.error.as_ref().unwrap().contains("not available")
             );
         }
         // If it succeeds, that's also valid (we have permissions)
