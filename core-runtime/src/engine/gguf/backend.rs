@@ -151,6 +151,7 @@ impl LlamaBackendInner {
     }
 
     /// Verify draft tokens against model (for speculative decoding).
+    #[cfg(feature = "advanced")]
     pub fn verify_tokens(
         &self,
         context: &[u32],

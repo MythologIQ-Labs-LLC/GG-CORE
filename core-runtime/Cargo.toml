@@ -128,6 +128,7 @@ gguf = ["llama-cpp-2", "encoding_rs"]
 llama-cpp-backend = ["gguf"]  # Alias for GGUF backend via llama-cpp-2
 cuda = ["cudarc"]  # GPU support via CUDA (requires CUDA toolkit)
 metal = ["dep:metal"]  # GPU support via Metal (macOS only)
+advanced = []  # Proprietary modules (TierSynergy): GPU kernels, quantization, SIMD, speculative, multi-GPU
 full = ["onnx", "gguf"]
 gpu = ["cuda"]  # GPU support alias
 ffi = ["cbindgen"]  # C FFI support (generates gg_core.h)

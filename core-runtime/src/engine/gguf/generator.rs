@@ -121,7 +121,7 @@ impl GgufGenerator {
     }
 
     /// Verify draft tokens against model (for speculative decoding).
-    #[cfg(feature = "gguf")]
+    #[cfg(all(feature = "gguf", feature = "advanced"))]
     pub async fn verify_draft_tokens(
         &self,
         context: &[u32],
@@ -134,7 +134,7 @@ impl GgufGenerator {
     }
 
     /// Get EOS token ID (for speculative decoding).
-    #[cfg(feature = "gguf")]
+    #[cfg(all(feature = "gguf", feature = "advanced"))]
     pub fn eos_token_id(&self) -> Option<u32> {
         self.inner.as_ref().and_then(|i| i.eos_token())
     }

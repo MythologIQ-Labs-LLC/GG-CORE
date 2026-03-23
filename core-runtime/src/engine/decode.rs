@@ -2,7 +2,9 @@
 //!
 //! Generates tokens sequentially with minimal latency per step.
 
-use crate::engine::{FinishReason, InferenceError, SpeculativeConfig};
+use crate::engine::{FinishReason, InferenceError};
+#[cfg(feature = "advanced")]
+use crate::engine::SpeculativeConfig;
 use crate::memory::paged::{PageTable, PAGE_TOKENS};
 
 /// Result from a single decode step.
@@ -24,6 +26,7 @@ pub struct DecodeConfig {
     /// End-of-sequence token ID.
     pub eos_token: u32,
     /// Enable speculative decoding.
+    #[cfg(feature = "advanced")]
     pub speculative: Option<SpeculativeConfig>,
 }
 
@@ -32,6 +35,7 @@ impl Default for DecodeConfig {
         Self {
             hidden_dim: 768,
             eos_token: 2, // Common EOS token ID
+            #[cfg(feature = "advanced")]
             speculative: None,
         }
     }

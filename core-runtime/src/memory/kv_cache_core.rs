@@ -12,6 +12,7 @@ use std::time::Instant;
 use super::kv_cache_config::{
     write_or_recover, KvCacheConfig, KvCacheError, KvCacheStats, SequenceId,
 };
+#[cfg(feature = "advanced")]
 use super::kv_quant::Q8KvStore;
 use super::paged::{PageId, PageTable, PAGE_TOKENS};
 
@@ -24,6 +25,7 @@ pub(super) struct SequenceEntry {
     pub(super) seq_len: usize,
     pub(super) last_access: Instant,
     pub(super) access_count: u64,
+    #[cfg(feature = "advanced")]
     pub(super) quant_store: Option<Q8KvStore>,
 }
 
@@ -73,6 +75,7 @@ impl KvCacheManager {
     /// Allocate a new sequence in the cache.
     pub fn allocate_sequence(&self) -> SequenceId {
         let id = SequenceId(self.next_seq_id.fetch_add(1, Ordering::SeqCst));
+        #[cfg(feature = "advanced")]
         let quant_store = if self.config.enable_quantization {
             Some(Q8KvStore::new(self.config.hidden_dim, self.config.max_seq_len))
         } else {
@@ -80,7 +83,9 @@ impl KvCacheManager {
         };
         let entry = SequenceEntry {
             id, page_ids: Vec::new(), seq_len: 0,
-            last_access: Instant::now(), access_count: 0, quant_store,
+            last_access: Instant::now(), access_count: 0,
+            #[cfg(feature = "advanced")]
+            quant_store,
         };
         let mut store = write_or_recover(&self.sequences);
         store.entries.insert(id, entry);
@@ -117,6 +122,7 @@ impl KvCacheManager {
         let mut store = write_or_recover(&self.sequences);
         let entry = store.entries.get_mut(&seq_id)
             .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
+        #[cfg(feature = "advanced")]
         Self::write_to_quant_store(entry, keys, values);
         entry.seq_len += 1;
         Ok(())
@@ -152,6 +158,7 @@ impl KvCacheManager {
         }
     }
 
+    #[cfg(feature = "advanced")]
     fn write_to_quant_store(entry: &mut SequenceEntry, keys: &[f32], values: &[f32]) {
         if let Some(ref mut qs) = entry.quant_store {
             if !qs.append(keys, values) {

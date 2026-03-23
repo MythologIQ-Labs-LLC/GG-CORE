@@ -30,11 +30,14 @@ impl KvCacheManager {
         entry.last_access = std::time::Instant::now();
         entry.access_count += 1;
 
-        if let Some(ref qs) = entry.quant_store {
-            if pos < qs.seq_len() {
-                qs.read_keys(pos, keys_out);
-                qs.read_values(pos, values_out);
-                return Ok(());
+        #[cfg(feature = "advanced")]
+        {
+            if let Some(ref qs) = entry.quant_store {
+                if pos < qs.seq_len() {
+                    qs.read_keys(pos, keys_out);
+                    qs.read_values(pos, values_out);
+                    return Ok(());
+                }
             }
         }
         drop(store);
@@ -71,10 +74,13 @@ impl KvCacheManager {
             .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
         let seq_len = entry.seq_len;
 
-        if let Some(ref qs) = entry.quant_store {
-            if qs.seq_len() >= seq_len {
-                qs.attention_scores(query, scores_out);
-                return Ok(());
+        #[cfg(feature = "advanced")]
+        {
+            if let Some(ref qs) = entry.quant_store {
+                if qs.seq_len() >= seq_len {
+                    qs.attention_scores(query, scores_out);
+                    return Ok(());
+                }
             }
         }
         drop(store);

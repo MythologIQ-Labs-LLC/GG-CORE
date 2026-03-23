@@ -10,6 +10,7 @@ pub mod kv_cache;
 pub mod kv_cache_config;
 pub mod kv_cache_core;
 mod kv_cache_ops;
+#[cfg(feature = "advanced")]
 pub mod kv_quant;
 mod limits;
 pub mod paged;
@@ -23,6 +24,7 @@ pub use kv_cache::{
     EvictionPolicy, KvCacheConfig, KvCacheError, KvCacheManager, KvCacheStats, SequenceId,
     SlidingWindowConfig,
 };
+#[cfg(feature = "advanced")]
 pub use kv_quant::{compute_scale, dequantize, quantize_to, Q8KvStore};
 pub use limits::{ResourceGuard, ResourceLimits, ResourceLimitsConfig};
 pub use paged::{Page, PageId, PageTable, PAGE_TOKENS};
