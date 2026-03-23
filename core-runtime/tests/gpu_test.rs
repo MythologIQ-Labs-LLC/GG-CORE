@@ -4,7 +4,7 @@
 //! GPU Support Tests
 
 use std::sync::Arc;
-use gg_core::engine::{GpuBackend, GpuConfig, GpuDevice, GpuError, GpuManager, GpuMemoryPool};
+use gg_core::engine::{GpuBackend, GpuConfig, GpuDevice, GpuError, GpuManager, GpuMemoryPool, MockGpuAllocator};
 
 #[test]
 fn test_gpu_backend_display() {
@@ -117,7 +117,8 @@ fn test_gpu_manager_available_backends() {
 #[test]
 fn test_gpu_memory_pool_new() {
     let device = Arc::new(GpuDevice::cpu());
-    let pool = GpuMemoryPool::new(device, 1024);
+    let allocator = Arc::new(MockGpuAllocator::new(4096, 0));
+    let pool = GpuMemoryPool::new(device, 1024, allocator);
 
     assert_eq!(pool.utilization(), 0.0);
 }
@@ -125,7 +126,8 @@ fn test_gpu_memory_pool_new() {
 #[test]
 fn test_gpu_memory_pool_allocate() {
     let device = Arc::new(GpuDevice::cpu());
-    let mut pool = GpuMemoryPool::new(device, 1024);
+    let allocator = Arc::new(MockGpuAllocator::new(4096, 0));
+    let mut pool = GpuMemoryPool::new(device, 1024, allocator);
 
     let mem = pool.allocate(512).unwrap();
     assert_eq!(mem.size, 512);
@@ -135,7 +137,8 @@ fn test_gpu_memory_pool_allocate() {
 #[test]
 fn test_gpu_memory_pool_multiple_allocations() {
     let device = Arc::new(GpuDevice::cpu());
-    let mut pool = GpuMemoryPool::new(device, 1024);
+    let allocator = Arc::new(MockGpuAllocator::new(4096, 0));
+    let mut pool = GpuMemoryPool::new(device, 1024, allocator);
 
     pool.allocate(256).unwrap();
     pool.allocate(256).unwrap();
@@ -148,7 +151,8 @@ fn test_gpu_memory_pool_multiple_allocations() {
 #[test]
 fn test_gpu_memory_pool_out_of_memory() {
     let device = Arc::new(GpuDevice::cpu());
-    let mut pool = GpuMemoryPool::new(device, 1024);
+    let allocator = Arc::new(MockGpuAllocator::new(4096, 0));
+    let mut pool = GpuMemoryPool::new(device, 1024, allocator);
 
     pool.allocate(512).unwrap();
     let result = pool.allocate(1024);

@@ -24,31 +24,24 @@ fn test_default_socket_path_platform_specific() {
     assert_eq!(DEFAULT_SOCKET_PATH, r"\\.\pipe\GG-CORE");
 }
 
+/// Env-var socket path tests run sequentially in a single test to avoid
+/// race conditions from `std::env::set_var` in parallel test threads.
 #[test]
-fn test_get_socket_path_uses_default_when_env_not_set() {
-    // Clear environment variable if set
-    std::env::remove_var("VERITAS_SOCKET_PATH");
-    let path = get_socket_path();
-    assert_eq!(path, DEFAULT_SOCKET_PATH);
-}
+fn test_get_socket_path_env_var_behavior() {
+    // 1. Default when env not set
+    std::env::remove_var("GG_CORE_SOCKET_PATH");
+    assert_eq!(get_socket_path(), DEFAULT_SOCKET_PATH);
 
-#[test]
-fn test_get_socket_path_respects_environment_variable() {
-    let custom_path = "/custom/path/to/socket.sock";
-    std::env::set_var("VERITAS_SOCKET_PATH", custom_path);
-    let path = get_socket_path();
-    assert_eq!(path, custom_path);
+    // 2. Respects custom env var
+    std::env::set_var("GG_CORE_SOCKET_PATH", "/custom/path/to/socket.sock");
+    assert_eq!(get_socket_path(), "/custom/path/to/socket.sock");
+
+    // 3. Empty env var returns empty (not fallback)
+    std::env::set_var("GG_CORE_SOCKET_PATH", "");
+    assert_eq!(get_socket_path(), "");
+
     // Clean up
-    std::env::remove_var("VERITAS_SOCKET_PATH");
-}
-
-#[test]
-fn test_get_socket_path_handles_empty_env_var() {
-    // Empty env var should still be used (not fallback to default)
-    std::env::set_var("VERITAS_SOCKET_PATH", "");
-    let path = get_socket_path();
-    assert_eq!(path, "");
-    std::env::remove_var("VERITAS_SOCKET_PATH");
+    std::env::remove_var("GG_CORE_SOCKET_PATH");
 }
 
 // ============================================================================

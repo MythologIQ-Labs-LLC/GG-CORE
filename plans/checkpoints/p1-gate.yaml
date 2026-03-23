@@ -1,0 +1,72 @@
+phase: P1
+gate: complete
+timestamp: "2026-02-22T00:00:00Z"
+branch: remediation/p0
+
+workstreams:
+  P1.1_config_fidelity:
+    status: complete
+    commit: a1d8298
+    summary: "Runtime configuration from GG_CORE_* environment variables"
+    artifacts:
+      - core-runtime/src/config.rs (EnvConfig, EffectiveConfig, validation)
+    tests_added: 5
+
+  P1.2_resource_limits:
+    status: complete
+    commits: [135b5c5, 877c3c4]
+    summary: "Enforce per-call and total memory limits via RAII ResourceGuard"
+    artifacts:
+      - core-runtime/src/memory/limits.rs (ResourceLimits, ResourceGuard)
+      - core-runtime/src/engine/inference.rs (MemoryExceeded, run_cancellable_with_memory_limit)
+      - core-runtime/src/scheduler/worker.rs (admission control with estimate_memory)
+    tests_added: 15
+
+  P1.3_cli_completeness:
+    status: complete
+    commit: bfd04f1
+    summary: "CLI config show/defaults/validate and models list commands"
+    artifacts:
+      - core-runtime/src/cli/config_cmd.rs
+      - core-runtime/src/cli/models_cmd.rs
+
+test_results:
+  lib_tests: 499
+  integration_tests: 583
+  total: 1082
+  failures: 0
+
+security_verification:
+  forbidden_deps: none
+  forbidden_modules: none
+  network_access: blocked
+
+quality_metrics:
+  section_4_violations:
+    - file: core-runtime/src/engine/inference.rs
+      lines: 529
+      note: "~250 lines are tests; production code ~280 lines"
+    - file: core-runtime/src/ipc/handler.rs
+      lines: 458
+      note: "pre-existing; handler message dispatch"
+    - file: core-runtime/src/ipc/protocol.rs
+      lines: 722
+      note: "pre-existing; protocol types + tests"
+    - file: core-runtime/src/config.rs
+      lines: 351
+      note: "new; env parsing + validation + tests"
+    - file: core-runtime/src/scheduler/queue.rs
+      lines: 264
+      note: "pre-existing from P0.1; 14 lines over limit"
+
+known_issues:
+  - id: env-var-race
+    severity: low
+    description: "Config env var tests require --test-threads=1 due to std::env::set_var race"
+    mitigation: "CLI env tests merged into single test function"
+
+next_phase: P2
+next_phase_prerequisites:
+  - GPU hardware or mock GPU allocator
+  - Multi-GPU topology detection
+  - Model pool with smart loader

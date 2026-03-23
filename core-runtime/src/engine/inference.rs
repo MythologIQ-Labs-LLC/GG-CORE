@@ -2,100 +2,21 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use thiserror::Error;
 use tokio::sync::RwLock;
 
 use crate::engine::gguf::GgufModel;
-use crate::engine::{InferenceConfig, InferenceInput, InferenceOutput};
+#[cfg(feature = "gguf")]
+use crate::engine::InferenceConfig;
+use crate::engine::{InferenceInput, InferenceOutput};
 use crate::models::ModelHandle;
 
-#[derive(Error, Debug)]
-pub enum InferenceError {
-    #[error("Model not loaded: {0}")]
-    ModelNotLoaded(String),
-
-    #[error("Invalid parameters: {0}")]
-    InvalidParams(String),
-
-    #[error("Inference failed: {0}")]
-    ExecutionFailed(String),
-
-    #[error("Context length exceeded: max {max}, got {got}")]
-    ContextExceeded { max: usize, got: usize },
-}
-
-/// Parameters controlling inference behavior (IPC protocol).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct InferenceParams {
-    pub max_tokens: usize,
-    pub temperature: f32,
-    pub top_p: f32,
-    pub top_k: usize,
-    /// Enable token-by-token streaming response.
-    #[serde(default)]
-    pub stream: bool,
-    /// Request timeout in milliseconds. None = no timeout.
-    #[serde(default)]
-    pub timeout_ms: Option<u64>,
-}
-
-impl Default for InferenceParams {
-    fn default() -> Self {
-        Self {
-            max_tokens: 256,
-            temperature: 0.7,
-            top_p: 0.9,
-            top_k: 40,
-            stream: false,
-            timeout_ms: None,
-        }
-    }
-}
-
-impl InferenceParams {
-    pub fn validate(&self) -> Result<(), InferenceError> {
-        if self.max_tokens == 0 {
-            return Err(InferenceError::InvalidParams("max_tokens must be > 0".into()));
-        }
-        if self.temperature < 0.0 {
-            return Err(InferenceError::InvalidParams("temperature must be >= 0".into()));
-        }
-        if self.top_p <= 0.0 || self.top_p > 1.0 {
-            return Err(InferenceError::InvalidParams("top_p must be in (0, 1]".into()));
-        }
-        Ok(())
-    }
-
-    /// Convert to internal InferenceConfig format.
-    pub fn to_config(&self) -> InferenceConfig {
-        InferenceConfig {
-            max_tokens: Some(self.max_tokens as u32),
-            temperature: self.temperature,
-            top_p: self.top_p,
-            top_k: self.top_k as u32,
-            repetition_penalty: 1.1,
-            timeout_ms: self.timeout_ms.unwrap_or(30_000),
-            max_memory_bytes: None,
-        }
-    }
-}
-
-/// Result of inference execution.
-#[derive(Debug, Clone)]
-pub struct InferenceResult {
-    /// Generated text output.
-    pub output: String,
-    pub tokens_generated: usize,
-    pub finished: bool,
-}
+pub use super::inference_types::{InferenceError, InferenceParams, InferenceResult};
 
 /// Executes model inference by delegating to registered models.
 pub struct InferenceEngine {
     max_context_length: usize,
     /// Models indexed by model_id for lookup.
     models: Arc<RwLock<HashMap<String, Arc<dyn GgufModel>>>>,
-    /// ModelHandle to model_id mapping.
-    handle_to_id: Arc<RwLock<HashMap<u64, String>>>,
 }
 
 impl InferenceEngine {
@@ -103,7 +24,6 @@ impl InferenceEngine {
         Self {
             max_context_length,
             models: Arc::new(RwLock::new(HashMap::new())),
-            handle_to_id: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -111,18 +31,15 @@ impl InferenceEngine {
     pub async fn register_model(
         &self,
         model_id: String,
-        handle: ModelHandle,
+        _handle: ModelHandle,
         model: Arc<dyn GgufModel>,
     ) {
-        self.models.write().await.insert(model_id.clone(), model);
-        self.handle_to_id.write().await.insert(handle.id(), model_id);
+        self.models.write().await.insert(model_id, model);
     }
 
     /// Unregister a model.
     pub async fn unregister_model(&self, model_id: &str) {
         self.models.write().await.remove(model_id);
-        let mut handles = self.handle_to_id.write().await;
-        handles.retain(|_, v| v != model_id);
     }
 
     /// Run inference on text prompt using the specified model.
@@ -133,31 +50,132 @@ impl InferenceEngine {
         params: &InferenceParams,
     ) -> Result<InferenceResult, InferenceError> {
         params.validate()?;
+        let model = self.get_model(model_id).await?;
+        self.check_context(prompt)?;
+        Self::infer_with_model(&model, prompt, params).await
+    }
 
-        // Look up model by ID
-        let models = self.models.read().await;
-        let model = models.get(model_id).ok_or_else(|| {
-            InferenceError::ModelNotLoaded(model_id.to_string())
-        })?;
+    /// Run inference with cooperative per-token cancellation.
+    ///
+    /// The cancellation flag is checked before inference and also
+    /// threaded through to the GGUF backend for per-token checks.
+    pub async fn run_cancellable(
+        &self,
+        model_id: &str,
+        prompt: &str,
+        params: &InferenceParams,
+        is_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> Result<InferenceResult, InferenceError> {
+        use std::sync::atomic::Ordering;
 
-        // Check context length (approximate by bytes)
-        if prompt.len() > self.max_context_length {
-            return Err(InferenceError::ContextExceeded {
-                max: self.max_context_length,
-                got: prompt.len(),
-            });
+        params.validate()?;
+
+        if is_cancelled.load(Ordering::Acquire) {
+            return Err(InferenceError::ExecutionFailed("cancelled".into()));
         }
 
-        // Convert params to internal config
-        let config = params.to_config();
+        let model = self.get_model(model_id).await?;
+        self.check_context(prompt)?;
+
+        let cancel = Arc::clone(&is_cancelled);
+        let check = move || cancel.load(Ordering::Acquire);
+        let result = Self::infer_cancellable(
+            &model, prompt, params, None, Some(&check),
+        ).await?;
+
+        Ok(result)
+    }
+
+    /// Run inference with per-token cancellation and a per-call memory budget.
+    ///
+    /// The `max_memory_bytes` is enforced before calling into the model.
+    pub async fn run_cancellable_with_memory_limit(
+        &self,
+        model_id: &str,
+        prompt: &str,
+        params: &InferenceParams,
+        is_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        max_memory_bytes: usize,
+    ) -> Result<InferenceResult, InferenceError> {
+        use std::sync::atomic::Ordering;
+
+        params.validate()?;
+
+        if is_cancelled.load(Ordering::Acquire) {
+            return Err(InferenceError::ExecutionFailed("cancelled".into()));
+        }
+
+        let model = self.get_model(model_id).await?;
+        self.check_context(prompt)?;
+
+        let cancel = Arc::clone(&is_cancelled);
+        let check = move || cancel.load(Ordering::Acquire);
+        let result = Self::infer_cancellable(
+            &model, prompt, params, Some(max_memory_bytes), Some(&check),
+        ).await?;
+
+        Ok(result)
+    }
+
+    /// Look up a model by ID, cloning the Arc (drops the read lock).
+    async fn get_model(
+        &self,
+        model_id: &str,
+    ) -> Result<Arc<dyn GgufModel>, InferenceError> {
+        let models = self.models.read().await;
+        models.get(model_id).cloned().ok_or_else(|| {
+            InferenceError::ModelNotLoaded(model_id.to_string())
+        })
+    }
+
+    /// Conservative bytes-per-token estimate for context check.
+    const BYTES_PER_TOKEN: usize = 4;
+
+    fn check_context(&self, prompt: &str) -> Result<(), InferenceError> {
+        let estimated_tokens = prompt.len() / Self::BYTES_PER_TOKEN;
+        if estimated_tokens > self.max_context_length {
+            return Err(InferenceError::ContextExceeded {
+                max: self.max_context_length,
+                got: estimated_tokens,
+            });
+        }
+        Ok(())
+    }
+
+    async fn infer_with_model(
+        model: &Arc<dyn GgufModel>,
+        prompt: &str,
+        params: &InferenceParams,
+    ) -> Result<InferenceResult, InferenceError> {
+        Self::infer_cancellable(model, prompt, params, None, None).await
+    }
+
+    async fn infer_cancellable(
+        model: &Arc<dyn GgufModel>,
+        prompt: &str,
+        params: &InferenceParams,
+        max_memory_bytes: Option<usize>,
+        is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
+    ) -> Result<InferenceResult, InferenceError> {
+        if let Some(budget) = max_memory_bytes {
+            let model_mem = model.memory_usage();
+            if model_mem > budget {
+                return Err(InferenceError::MemoryExceeded {
+                    used: model_mem,
+                    limit: budget,
+                });
+            }
+        }
+
+        let mut config = params.to_config();
+        config.max_memory_bytes = max_memory_bytes;
+
         let input = InferenceInput::Text(prompt.to_string());
+        let output = model
+            .infer_cancellable(&input, &config, is_cancelled)
+            .await
+            .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))?;
 
-        // Delegate to actual model
-        let output = model.infer(&input, &config).await.map_err(|e| {
-            InferenceError::ExecutionFailed(e.to_string())
-        })?;
-
-        // Extract generation result
         match output {
             InferenceOutput::Generation(gen) => Ok(InferenceResult {
                 output: gen.text,
@@ -170,20 +188,6 @@ impl InferenceEngine {
         }
     }
 
-    /// Run inference by handle (legacy API compatibility).
-    pub async fn run_by_handle(
-        &self,
-        handle: ModelHandle,
-        prompt: &str,
-        params: &InferenceParams,
-    ) -> Result<InferenceResult, InferenceError> {
-        let handles = self.handle_to_id.read().await;
-        let model_id = handles.get(&handle.id()).ok_or_else(|| {
-            InferenceError::ModelNotLoaded(format!("handle {}", handle.id()))
-        })?;
-        self.run(model_id, prompt, params).await
-    }
-
     pub fn max_context_length(&self) -> usize {
         self.max_context_length
     }
@@ -193,15 +197,9 @@ impl InferenceEngine {
         self.models.read().await.contains_key(model_id)
     }
 
-    /// Get the ModelHandle for a model_id (for metrics attribution).
-    pub async fn get_handle(&self, model_id: &str) -> Option<ModelHandle> {
-        let handles = self.handle_to_id.read().await;
-        for (&handle_id, id) in handles.iter() {
-            if id == model_id {
-                return Some(ModelHandle::new(handle_id));
-            }
-        }
-        None
+    /// Return the memory usage reported by a registered model, or None if not found.
+    pub async fn model_memory_usage(&self, model_id: &str) -> Option<usize> {
+        self.models.read().await.get(model_id).map(|m| m.memory_usage())
     }
 
     /// Run streaming inference, sending tokens to the provided sender.
@@ -218,93 +216,24 @@ impl InferenceEngine {
     ) -> Result<(), InferenceError> {
         use crate::engine::gguf::GgufGenerator;
 
-        // Get runtime handle for async model lookup
+        // Clone Arc and drop read lock before calling into model.
         let rt = tokio::runtime::Handle::current();
-        let models = rt.block_on(self.models.read());
-        let model = models.get(model_id).ok_or_else(|| {
-            InferenceError::ModelNotLoaded(model_id.to_string())
-        })?;
+        let model = {
+            let models = rt.block_on(self.models.read());
+            models.get(model_id).cloned().ok_or_else(|| {
+                InferenceError::ModelNotLoaded(model_id.to_string())
+            })?
+        };
 
-        // Downcast to GgufGenerator for streaming access
         let generator = model.as_any().downcast_ref::<GgufGenerator>().ok_or_else(|| {
             InferenceError::ExecutionFailed("model does not support streaming".into())
         })?;
 
-        generator.generate_stream(prompt, config, sender)
+        generator.generate_stream(prompt, config, sender, None)
             .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn inference_params_default_is_valid() {
-        let params = InferenceParams::default();
-        assert!(params.validate().is_ok());
-    }
-
-    #[test]
-    fn inference_params_rejects_zero_max_tokens() {
-        let params = InferenceParams {
-            max_tokens: 0,
-            ..Default::default()
-        };
-        assert!(params.validate().is_err());
-    }
-
-    #[test]
-    fn inference_params_rejects_negative_temperature() {
-        let params = InferenceParams {
-            temperature: -0.1,
-            ..Default::default()
-        };
-        assert!(params.validate().is_err());
-    }
-
-    #[test]
-    fn inference_params_rejects_invalid_top_p() {
-        let params = InferenceParams {
-            top_p: 0.0,
-            ..Default::default()
-        };
-        assert!(params.validate().is_err());
-
-        let params = InferenceParams {
-            top_p: 1.5,
-            ..Default::default()
-        };
-        assert!(params.validate().is_err());
-    }
-
-    #[tokio::test]
-    async fn engine_new_creates_empty_engine() {
-        let engine = InferenceEngine::new(4096);
-        assert_eq!(engine.max_context_length(), 4096);
-        assert!(!engine.has_model("any-model").await);
-    }
-
-    #[tokio::test]
-    async fn engine_get_handle_returns_none_for_unregistered() {
-        let engine = InferenceEngine::new(4096);
-        assert!(engine.get_handle("nonexistent").await.is_none());
-    }
-
-    #[tokio::test]
-    async fn engine_run_fails_for_unloaded_model() {
-        let engine = InferenceEngine::new(4096);
-        let params = InferenceParams::default();
-        let result = engine.run("missing-model", "test prompt", &params).await;
-        assert!(matches!(result, Err(InferenceError::ModelNotLoaded(_))));
-    }
-
-    #[tokio::test]
-    async fn engine_run_by_handle_fails_for_unknown_handle() {
-        let engine = InferenceEngine::new(4096);
-        let params = InferenceParams::default();
-        let handle = ModelHandle::new(999);
-        let result = engine.run_by_handle(handle, "test", &params).await;
-        assert!(matches!(result, Err(InferenceError::ModelNotLoaded(_))));
-    }
-}
+#[path = "inference_tests.rs"]
+mod tests;

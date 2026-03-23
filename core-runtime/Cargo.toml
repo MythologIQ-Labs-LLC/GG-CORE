@@ -165,6 +165,18 @@ harness = false
 name = "llama_cpp_comparison"
 harness = false
 
+[[bench]]
+name = "gpu_allocation"
+harness = false
+
+[[bench]]
+name = "multi_gpu_scaling"
+harness = false
+
+[[bench]]
+name = "kv_cache_throughput"
+harness = false
+
 [profile.release]
 opt-level = 3
 lto = "thin"

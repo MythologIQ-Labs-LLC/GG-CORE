@@ -167,6 +167,7 @@ mod windows_server_tests {
         let server = tokio::spawn(async move {
             gg_core::ipc::server::run_server(
                 server_pipe, server_handler, server_pool, rx,
+                gg_core::ipc::IpcServerConfig::default(),
             )
             .await
         });
@@ -206,7 +207,7 @@ mod windows_server_tests {
         let sh = Arc::clone(&handler);
         let sc = Arc::clone(&pool);
         let server = tokio::spawn(async move {
-            gg_core::ipc::server::run_server(sp, sh, sc, rx).await
+            gg_core::ipc::server::run_server(sp, sh, sc, rx, gg_core::ipc::IpcServerConfig::default()).await
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -240,7 +241,7 @@ mod windows_server_tests {
         let sh = Arc::clone(&handler);
         let sc = Arc::clone(&pool);
         let server = tokio::spawn(async move {
-            gg_core::ipc::server::run_server(sp, sh, sc, rx).await
+            gg_core::ipc::server::run_server(sp, sh, sc, rx, gg_core::ipc::IpcServerConfig::default()).await
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -276,7 +277,7 @@ mod windows_server_tests {
         let sh = Arc::clone(&handler);
         let sc = Arc::clone(&pool);
         let server = tokio::spawn(async move {
-            gg_core::ipc::server::run_server(sp, sh, sc, rx).await
+            gg_core::ipc::server::run_server(sp, sh, sc, rx, gg_core::ipc::IpcServerConfig::default()).await
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -306,7 +307,7 @@ mod windows_server_tests {
         let sh = Arc::clone(&handler);
         let sc = Arc::clone(&pool);
         let server = tokio::spawn(async move {
-            gg_core::ipc::server::run_server(sp, sh, sc, rx).await
+            gg_core::ipc::server::run_server(sp, sh, sc, rx, gg_core::ipc::IpcServerConfig::default()).await
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;

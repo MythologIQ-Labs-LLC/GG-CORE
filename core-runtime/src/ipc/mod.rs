@@ -4,16 +4,21 @@
 //! This is the ONLY external interface - no HTTP/REST/WebSocket allowed.
 
 mod auth;
+mod auth_session;
 mod connections;
 pub mod encoding;
 mod handler;
 mod health_handler;
+pub mod protocol_types;
+pub mod protocol_codec;
 pub mod protocol;
 pub mod server;
 mod stream_bridge;
 
 pub use auth::{AuthError, SessionAuth, SessionToken};
-pub use connections::{ConnectionConfig, ConnectionGuard, ConnectionPool, OwnedConnectionGuard};
+pub use connections::{
+    ConnectionConfig, ConnectionGuard, ConnectionPool, IpcServerConfig, OwnedConnectionGuard,
+};
 pub use encoding::{get_encoder, TokenEncoder, V1Encoder, V2Encoder};
 pub use handler::{HandlerError, IpcHandler, IpcHandlerConfig, StreamSender};
 pub use stream_bridge::IpcStreamBridge;

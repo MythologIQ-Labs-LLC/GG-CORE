@@ -67,50 +67,73 @@ impl OutputFilter {
     /// Filter the output text, returning filtered version or error if blocked.
     /// Applies NFC normalization before blocklist comparison.
     pub fn filter(&self, text: &str) -> Result<String, InferenceError> {
-        let mut result = text.to_string();
+        // Optimize allocation: start with a copy-on-write reference.
+        let mut result = std::borrow::Cow::Borrowed(text);
 
-        // Normalize input for comparison (NFC handles composed/decomposed equivalence)
-        let normalized: String = result.nfc().collect();
-        let lower = normalized.to_lowercase();
+        if !self.normalized_blocklist.is_empty() {
+            // Normalize input for comparison (NFC handles composed/decomposed equivalence)
+            // Optimization: Skip expensive NFC for ASCII text since ASCII is already normalized
+            let lower = if text.is_ascii() {
+                text.to_lowercase()
+            } else {
+                let normalized: String = text.nfc().collect();
+                normalized.to_lowercase()
+            };
 
-        // Apply blocklist with pre-computed normalized entries
-        for (i, normalized_blocked) in self.normalized_blocklist.iter().enumerate() {
-            if lower.contains(normalized_blocked) {
-                result = result.replace(&self.config.blocklist[i], &self.config.replacement);
+            // Apply blocklist with pre-computed normalized entries
+            for (i, normalized_blocked) in self.normalized_blocklist.iter().enumerate() {
+                if lower.contains(normalized_blocked) {
+                    let new_str = result.replace(&self.config.blocklist[i], &self.config.replacement);
+                    result = std::borrow::Cow::Owned(new_str);
+                }
             }
         }
 
         // Apply regex patterns (on original, not normalized)
         for pattern in &self.compiled_patterns {
-            result = pattern
-                .replace_all(&result, &self.config.replacement)
-                .to_string();
+            let replaced = pattern.replace_all(&result, &self.config.replacement);
+            // Optimization: Only allocate to the mutable result string if replace_all did work
+            if matches!(replaced, std::borrow::Cow::Owned(_)) {
+                result = std::borrow::Cow::Owned(replaced.into_owned());
+            }
         }
+
+        // Must take ownership of result now
+        let mut string_result = result.into_owned();
 
         // Apply length limit
-        if self.config.max_output_chars > 0 && result.len() > self.config.max_output_chars {
-            result.truncate(self.config.max_output_chars);
+        if self.config.max_output_chars > 0 && string_result.len() > self.config.max_output_chars {
+            string_result.truncate(self.config.max_output_chars);
         }
 
-        Ok(result)
+        Ok(string_result)
     }
 
     /// Check if text contains any blocked content.
     /// Applies NFC normalization before comparison.
     pub fn contains_blocked(&self, text: &str) -> bool {
-        let normalized: String = text.nfc().collect();
-        let lower = normalized.to_lowercase();
+        if !self.normalized_blocklist.is_empty() {
+            // Optimization: Skip expensive NFC for ASCII text
+            let lower = if text.is_ascii() {
+                text.to_lowercase()
+            } else {
+                let normalized: String = text.nfc().collect();
+                normalized.to_lowercase()
+            };
 
-        for normalized_blocked in &self.normalized_blocklist {
-            if lower.contains(normalized_blocked) {
-                return true;
+            for normalized_blocked in &self.normalized_blocklist {
+                if lower.contains(normalized_blocked) {
+                    return true;
+                }
             }
         }
+
         for pattern in &self.compiled_patterns {
             if pattern.is_match(text) {
                 return true;
             }
         }
+
         false
     }
 }
