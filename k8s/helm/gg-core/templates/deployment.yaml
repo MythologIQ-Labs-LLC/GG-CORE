@@ -25,9 +25,35 @@ spec:
             - serve
           env:
             - name: GG_CORE_SOCKET_PATH
-              value: {{ .Values.config.socketPath }}
+              value: {{ .Values.config.socketPath | quote }}
             - name: GG_CORE_MAX_CONTEXT
               value: "{{ .Values.config.maxContextLength }}"
+            - name: GG_CORE_N_CTX
+              value: "{{ .Values.config.nCtx }}"
+            - name: GG_CORE_N_THREADS
+              value: "{{ .Values.config.nThreads }}"
+            - name: GG_CORE_MAX_QUEUE_DEPTH
+              value: "{{ .Values.config.maxQueueDepth }}"
+            - name: GG_CORE_MAX_CONTEXT_TOKENS
+              value: "{{ .Values.config.maxContextTokens }}"
+            - name: GG_CORE_BATCH_MAX_REQUESTS
+              value: "{{ .Values.config.batchMaxRequests }}"
+            - name: GG_CORE_BATCH_MAX_TOKENS
+              value: "{{ .Values.config.batchMaxTokens }}"
+            - name: GG_CORE_MAX_MEMORY_PER_CALL
+              value: "{{ .Values.config.maxMemoryPerCall }}"
+            - name: GG_CORE_MAX_TOTAL_MEMORY
+              value: "{{ .Values.config.maxTotalMemory }}"
+            - name: GG_CORE_MAX_CONCURRENT
+              value: "{{ .Values.config.maxConcurrent }}"
+            - name: GG_CORE_IPC_FRAME_LIMIT
+              value: "{{ .Values.config.ipcFrameLimit }}"
+            - name: GG_CORE_MAX_CONNECTIONS
+              value: "{{ .Values.config.maxConnections }}"
+            - name: GG_CORE_SESSION_TIMEOUT
+              value: "{{ .Values.config.sessionTimeout }}"
+            - name: GG_CORE_SHUTDOWN_TIMEOUT
+              value: "{{ .Values.config.shutdownTimeout }}"
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:

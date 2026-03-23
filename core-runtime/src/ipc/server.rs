@@ -15,13 +15,10 @@ use tokio::sync::{watch, Mutex};
 use tokio_util::sync::CancellationToken;
 use thiserror::Error;
 
-use super::connections::{ConnectionPool, OwnedConnectionGuard};
+use super::connections::{ConnectionPool, IpcServerConfig, OwnedConnectionGuard};
 use super::handler::IpcHandler;
 use super::protocol::{decode_message, encode_message, IpcMessage};
 use super::stream_bridge::IpcStreamBridge;
-
-/// Maximum allowed message frame size (16 MB).
-const MAX_FRAME_SIZE: usize = 16 * 1024 * 1024;
 
 #[derive(Error, Debug)]
 pub enum ServerError {
@@ -35,15 +32,16 @@ pub enum ServerError {
 /// Read a length-prefixed frame from an async reader.
 async fn read_frame<R: AsyncReadExt + Unpin>(
     reader: &mut R,
+    max_frame_size: usize,
 ) -> Result<Vec<u8>, ServerError> {
     let mut len_buf = [0u8; 4];
     reader.read_exact(&mut len_buf).await?;
 
     let frame_len = u32::from_le_bytes(len_buf) as usize;
-    if frame_len > MAX_FRAME_SIZE {
+    if frame_len > max_frame_size {
         return Err(ServerError::FrameTooLarge {
             size: frame_len,
-            max: MAX_FRAME_SIZE,
+            max: max_frame_size,
         });
     }
 
@@ -79,6 +77,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
     stream: S,
     handler: Arc<IpcHandler>,
     _guard: OwnedConnectionGuard,
+    max_frame_size: usize,
 ) {
     let (mut read_half, write_half) = tokio::io::split(stream);
     let write_half = Arc::new(Mutex::new(write_half));
@@ -86,7 +85,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
     let mut active_streams: HashMap<u64, CancellationToken> = HashMap::new();
 
     loop {
-        let request_bytes = match read_frame(&mut read_half).await {
+        let request_bytes = match read_frame(&mut read_half, max_frame_size).await {
             Ok(bytes) => bytes,
             Err(ServerError::Io(ref e))
                 if e.kind() == std::io::ErrorKind::UnexpectedEof =>
@@ -172,6 +171,7 @@ fn spawn_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'static>(
     stream: S,
     handler: &Arc<IpcHandler>,
     connections: &Arc<ConnectionPool>,
+    max_frame_size: usize,
 ) {
     let guard = match connections.try_acquire_owned() {
         Some(g) => g,
@@ -182,7 +182,7 @@ fn spawn_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'static>(
     };
     let handler = Arc::clone(handler);
     tokio::spawn(async move {
-        handle_connection(stream, handler, guard).await;
+        handle_connection(stream, handler, guard, max_frame_size).await;
     });
 }
 
@@ -193,6 +193,7 @@ pub async fn run_server(
     handler: Arc<IpcHandler>,
     connections: Arc<ConnectionPool>,
     mut shutdown_rx: watch::Receiver<bool>,
+    ipc_config: IpcServerConfig,
 ) -> Result<(), ServerError> {
     use tokio::net::UnixListener;
 
@@ -206,7 +207,7 @@ pub async fn run_server(
             result = listener.accept() => {
                 match result {
                     Ok((stream, _)) => spawn_connection(
-                        stream, &handler, &connections,
+                        stream, &handler, &connections, ipc_config.max_frame_size,
                     ),
                     Err(e) => eprintln!("Accept error: {}", e),
                 }
@@ -229,6 +230,7 @@ pub async fn run_server(
     handler: Arc<IpcHandler>,
     connections: Arc<ConnectionPool>,
     mut shutdown_rx: watch::Receiver<bool>,
+    ipc_config: IpcServerConfig,
 ) -> Result<(), ServerError> {
     use tokio::net::windows::named_pipe::ServerOptions;
 
@@ -243,7 +245,7 @@ pub async fn run_server(
             result = server.connect() => {
                 match result {
                     Ok(()) => spawn_connection(
-                        server, &handler, &connections,
+                        server, &handler, &connections, ipc_config.max_frame_size,
                     ),
                     Err(e) => eprintln!("Pipe connect error: {}", e),
                 }

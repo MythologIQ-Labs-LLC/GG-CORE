@@ -29,6 +29,7 @@ pub enum CoreErrorCode {
     ShuttingDown = -13,
     Timeout = -14,
     Cancelled = -15,
+    BufferTooSmall = -16,
     Internal = -99,
 }
 
@@ -82,6 +83,7 @@ impl From<crate::ipc::AuthError> for CoreErrorCode {
             AuthError::SessionExpired => CoreErrorCode::SessionExpired,
             AuthError::NotAuthenticated => CoreErrorCode::AuthFailed,
             AuthError::RateLimited => CoreErrorCode::RateLimited,
+            AuthError::SessionRateLimited => CoreErrorCode::RateLimited,
         }
     }
 }

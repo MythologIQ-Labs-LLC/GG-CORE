@@ -284,9 +284,20 @@ pub struct SynergyStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::registry::ModelHandle;
     use crate::models::smart_loader::SmartLoaderConfig;
+    use crate::models::smart_loader_types::LoadCallback;
     use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use tempfile::NamedTempFile;
+
+    fn test_callback() -> LoadCallback {
+        let counter = std::sync::Arc::new(AtomicU64::new(100));
+        Box::new(move |_path| {
+            let id = counter.fetch_add(1, Ordering::SeqCst);
+            Ok(ModelHandle::new(id))
+        })
+    }
 
     fn create_test_model(size: usize) -> NamedTempFile {
         let mut file = NamedTempFile::new().unwrap();
@@ -297,7 +308,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_synergy_auto_detect_mode() {
-        let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default()));
+        let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default(), test_callback()));
         let synergy = TierSynergy::new(loader.clone());
 
         let light = create_test_model(100);
@@ -325,7 +336,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_synergy_request_quick_query() {
-        let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default()));
+        let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default(), test_callback()));
         let synergy = TierSynergy::new(loader.clone());
 
         let light = create_test_model(100);
@@ -342,7 +353,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_synergy_complex_task_speculative() {
-        let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default()));
+        let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default(), test_callback()));
         let synergy = TierSynergy::new(loader.clone());
 
         let light = create_test_model(100);
@@ -366,7 +377,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_synergy_fallback_single_tier() {
-        let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default()));
+        let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default(), test_callback()));
         let synergy = TierSynergy::new(loader.clone());
 
         let balanced = create_test_model(150);
