@@ -227,4 +227,50 @@ mod tests {
         assert_eq!(report.memory_used_bytes, 1024);
         assert_eq!(report.queue_depth, 5);
     }
+
+    #[test]
+    fn test_is_ready_running_state() {
+        let checker = HealthChecker::default();
+        // Default requires 0 models loaded and queue depth < 1000
+        assert!(checker.is_ready(ShutdownState::Running, 0, 0));
+        assert!(checker.is_ready(ShutdownState::Running, 1, 999));
+    }
+
+    #[test]
+    fn test_is_ready_shutdown_states() {
+        let checker = HealthChecker::default();
+        assert!(!checker.is_ready(ShutdownState::Draining, 1, 0));
+        assert!(!checker.is_ready(ShutdownState::Stopped, 1, 0));
+    }
+
+    #[test]
+    fn test_is_ready_require_model_loaded() {
+        let config = HealthConfig {
+            require_model_loaded: true,
+            max_queue_depth: 1000,
+        };
+        let checker = HealthChecker::new(config);
+
+        // Not ready if no models are loaded
+        assert!(!checker.is_ready(ShutdownState::Running, 0, 0));
+        // Ready if models are loaded
+        assert!(checker.is_ready(ShutdownState::Running, 1, 0));
+        assert!(checker.is_ready(ShutdownState::Running, 5, 0));
+    }
+
+    #[test]
+    fn test_is_ready_max_queue_depth() {
+        let config = HealthConfig {
+            require_model_loaded: false,
+            max_queue_depth: 10,
+        };
+        let checker = HealthChecker::new(config);
+
+        assert!(checker.is_ready(ShutdownState::Running, 0, 0));
+        assert!(checker.is_ready(ShutdownState::Running, 0, 9));
+
+        // Not ready if queue is at or above max depth
+        assert!(!checker.is_ready(ShutdownState::Running, 0, 10));
+        assert!(!checker.is_ready(ShutdownState::Running, 0, 15));
+    }
 }
