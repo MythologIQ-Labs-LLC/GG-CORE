@@ -32,8 +32,7 @@ struct SessionState {
 
 impl SessionState {
     fn add(&mut self, session_id: &str, data: &str) {
-        self.sessions
-            .insert(session_id.to_string(), data.to_string());
+        self.sessions.insert(session_id.to_string(), data.to_string());
     }
 
     fn transfer_to(&self, target: &mut SessionState) {
@@ -69,10 +68,7 @@ fn bluegreen_model_cache_warming() {
     let mut cache = ModelCache::default();
     assert!(!cache.is_warmed());
 
-    cache.warm(&[
-        ("model-v2-weights", b"weights"),
-        ("model-v2-config", b"config"),
-    ]);
+    cache.warm(&[("model-v2-weights", b"weights"), ("model-v2-config", b"config")]);
 
     assert!(cache.is_warmed());
     assert!(cache.entries.contains_key("model-v2-weights"));
@@ -112,10 +108,7 @@ fn bluegreen_session_state_handling() {
     blue_state.transfer_to(&mut green_state);
 
     assert_eq!(green_state.len(), 2);
-    assert_eq!(
-        green_state.sessions.get("session-1").unwrap(),
-        "user-context-1"
-    );
+    assert_eq!(green_state.sessions.get("session-1").unwrap(), "user-context-1");
 }
 
 #[test]
@@ -128,14 +121,8 @@ fn bluegreen_session_transfer_preserves_data() {
     source.transfer_to(&mut target);
 
     // Verify all data transferred correctly
-    assert_eq!(
-        target.sessions.get("sess-abc"),
-        Some(&"context-data-large".to_string())
-    );
-    assert_eq!(
-        target.sessions.get("sess-def"),
-        Some(&"context-data-small".to_string())
-    );
+    assert_eq!(target.sessions.get("sess-abc"), Some(&"context-data-large".to_string()));
+    assert_eq!(target.sessions.get("sess-def"), Some(&"context-data-small".to_string()));
 
     // Source should still have data
     assert_eq!(source.len(), 2);

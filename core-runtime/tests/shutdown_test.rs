@@ -52,8 +52,9 @@ async fn test_track_returns_none_when_draining() {
     let coord_clone = coordinator.clone();
 
     // Start drain in background (will wait since no requests)
-    let handle =
-        tokio::spawn(async move { coord_clone.initiate(Duration::from_millis(100)).await });
+    let handle = tokio::spawn(async move {
+        coord_clone.initiate(Duration::from_millis(100)).await
+    });
 
     // Brief delay for state transition
     tokio::time::sleep(Duration::from_millis(10)).await;
@@ -70,8 +71,9 @@ async fn test_initiate_transitions_to_draining() {
     let coordinator = Arc::new(ShutdownCoordinator::new());
     let coord_clone = coordinator.clone();
 
-    let handle =
-        tokio::spawn(async move { coord_clone.initiate(Duration::from_millis(100)).await });
+    let handle = tokio::spawn(async move {
+        coord_clone.initiate(Duration::from_millis(100)).await
+    });
 
     tokio::time::sleep(Duration::from_millis(10)).await;
     let state = coordinator.state().await;
@@ -96,8 +98,9 @@ async fn test_drain_waits_for_completion() {
     let guard = coordinator.track().unwrap();
     let coord_clone = coordinator.clone();
 
-    let handle =
-        tokio::spawn(async move { coord_clone.initiate(Duration::from_millis(500)).await });
+    let handle = tokio::spawn(async move {
+        coord_clone.initiate(Duration::from_millis(500)).await
+    });
 
     // Brief delay, then complete the request
     tokio::time::sleep(Duration::from_millis(50)).await;

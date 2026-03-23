@@ -50,22 +50,12 @@ fn scheduler_request_ordering() {
 
     // Add requests with different priorities
     queue.push(
-        QueuedRequest::new(
-            1,
-            "model-a".to_string(),
-            "first prompt".to_string(),
-            InferenceParams::default(),
-        ),
+        QueuedRequest::new(1, "model-a".to_string(), "first prompt".to_string(), InferenceParams::default()),
         Priority::Normal,
     );
 
     queue.push(
-        QueuedRequest::new(
-            2,
-            "model-b".to_string(),
-            "second prompt".to_string(),
-            InferenceParams::default(),
-        ),
+        QueuedRequest::new(2, "model-b".to_string(), "second prompt".to_string(), InferenceParams::default()),
         Priority::Critical,
     );
 
@@ -148,12 +138,7 @@ fn queue_fifo_for_same_priority() {
     // Add multiple requests with same priority
     for i in 1..=5 {
         queue.push(
-            QueuedRequest::new(
-                i,
-                format!("model-{}", i),
-                format!("prompt-{}", i),
-                InferenceParams::default(),
-            ),
+            QueuedRequest::new(i, format!("model-{}", i), format!("prompt-{}", i), InferenceParams::default()),
             Priority::Normal,
         );
     }

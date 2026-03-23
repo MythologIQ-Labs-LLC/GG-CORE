@@ -5,7 +5,9 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use gg_core::ab_testing::{TrafficConfig, TrafficSplitter, Variant, VariantLabel, VariantMetrics};
+use gg_core::ab_testing::{
+    TrafficConfig, TrafficSplitter, Variant, VariantLabel, VariantMetrics,
+};
 
 // === TrafficSplitter variant selection consistency ===
 
@@ -66,10 +68,7 @@ fn traffic_config_rejects_invalid_sum() {
     let mut weights = BTreeMap::new();
     weights.insert(VariantLabel::control(), 60);
     weights.insert(VariantLabel::treatment(), 50);
-    let config = TrafficConfig {
-        weights,
-        sticky_sessions: true,
-    };
+    let config = TrafficConfig { weights, sticky_sessions: true };
     assert!(config.validate().is_err());
 }
 
@@ -78,17 +77,11 @@ fn traffic_config_accepts_zero_weight_variant() {
     let mut weights = BTreeMap::new();
     weights.insert(VariantLabel::control(), 0);
     weights.insert(VariantLabel::treatment(), 100);
-    let config = TrafficConfig {
-        weights,
-        sticky_sessions: true,
-    };
+    let config = TrafficConfig { weights, sticky_sessions: true };
     assert!(config.validate().is_ok());
     let splitter = TrafficSplitter::new(config).unwrap();
     for i in 0..50 {
-        assert_eq!(
-            splitter.select(Some(&format!("s-{}", i))),
-            &VariantLabel::treatment()
-        );
+        assert_eq!(splitter.select(Some(&format!("s-{}", i))), &VariantLabel::treatment());
     }
 }
 
@@ -96,10 +89,7 @@ fn traffic_config_accepts_zero_weight_variant() {
 
 #[test]
 fn traffic_splitter_rejects_empty_config() {
-    let config = TrafficConfig {
-        weights: BTreeMap::new(),
-        sticky_sessions: true,
-    };
+    let config = TrafficConfig { weights: BTreeMap::new(), sticky_sessions: true };
     assert!(TrafficSplitter::new(config).is_err());
 }
 
@@ -107,10 +97,7 @@ fn traffic_splitter_rejects_empty_config() {
 fn traffic_splitter_single_variant_works() {
     let mut weights = BTreeMap::new();
     weights.insert(VariantLabel::new("only-one"), 100);
-    let config = TrafficConfig {
-        weights,
-        sticky_sessions: true,
-    };
+    let config = TrafficConfig { weights, sticky_sessions: true };
     let splitter = TrafficSplitter::new(config).unwrap();
     let expected = VariantLabel::new("only-one");
     for i in 0..50 {
@@ -124,10 +111,7 @@ fn traffic_splitter_three_way_split() {
     weights.insert(VariantLabel::new("a"), 33);
     weights.insert(VariantLabel::new("b"), 33);
     weights.insert(VariantLabel::new("c"), 34);
-    let config = TrafficConfig {
-        weights,
-        sticky_sessions: true,
-    };
+    let config = TrafficConfig { weights, sticky_sessions: true };
     let splitter = TrafficSplitter::new(config).unwrap();
     let mut counts = [0usize; 3];
     for i in 0..900 {
@@ -139,12 +123,7 @@ fn traffic_splitter_three_way_split() {
         }
     }
     for (i, count) in counts.iter().enumerate() {
-        assert!(
-            *count > 180 && *count < 405,
-            "Variant {} got {}",
-            ["a", "b", "c"][i],
-            count
-        );
+        assert!(*count > 180 && *count < 405, "Variant {} got {}", ["a","b","c"][i], count);
     }
 }
 
@@ -164,23 +143,14 @@ fn variant_metrics_concurrent_recording() {
             };
             for _ in 0..50 {
                 m.get_or_create(&label).record_request();
-                m.get_or_create(&label)
-                    .record_success(Duration::from_millis(10), 5);
+                m.get_or_create(&label).record_success(Duration::from_millis(10), 5);
             }
         }));
     }
-    for h in handles {
-        h.join().unwrap();
-    }
+    for h in handles { h.join().unwrap(); }
     let snapshots = metrics.all_snapshots();
-    assert_eq!(
-        snapshots.get(&VariantLabel::control()).unwrap().requests,
-        200
-    );
-    assert_eq!(
-        snapshots.get(&VariantLabel::treatment()).unwrap().requests,
-        200
-    );
+    assert_eq!(snapshots.get(&VariantLabel::control()).unwrap().requests, 200);
+    assert_eq!(snapshots.get(&VariantLabel::treatment()).unwrap().requests, 200);
 }
 
 #[test]
@@ -190,9 +160,7 @@ fn variant_metrics_isolated_per_variant() {
     let treatment = VariantLabel::treatment();
     metrics.get_or_create(&control).record_request();
     metrics.get_or_create(&control).record_request();
-    metrics
-        .get_or_create(&control)
-        .record_success(Duration::from_millis(100), 50);
+    metrics.get_or_create(&control).record_success(Duration::from_millis(100), 50);
     metrics.get_or_create(&treatment).record_request();
     metrics.get_or_create(&treatment).record_failure();
     let snapshots = metrics.all_snapshots();
@@ -212,9 +180,7 @@ fn integration_traffic_splitting_with_metrics() {
         let variant = splitter.select(Some(&format!("user-{}", i)));
         metrics.get_or_create(variant).record_request();
         if i % 5 != 0 {
-            metrics
-                .get_or_create(variant)
-                .record_success(Duration::from_millis(50), 25);
+            metrics.get_or_create(variant).record_success(Duration::from_millis(50), 25);
         } else {
             metrics.get_or_create(variant).record_failure();
         }
@@ -234,21 +200,12 @@ fn integration_canary_deployment_scenario() {
     for i in 0..1000 {
         let variant = splitter.select(Some(&format!("req-{}", i)));
         metrics.get_or_create(variant).record_request();
-        metrics
-            .get_or_create(variant)
-            .record_success(Duration::from_millis(30), 20);
+        metrics.get_or_create(variant).record_success(Duration::from_millis(30), 20);
     }
     let snapshots = metrics.all_snapshots();
-    let control_traffic = snapshots
-        .get(&VariantLabel::control())
-        .map(|s| s.requests)
-        .unwrap_or(0);
+    let control_traffic = snapshots.get(&VariantLabel::control()).map(|s| s.requests).unwrap_or(0);
     let canary_traffic = snapshots.get(&canary).map(|s| s.requests).unwrap_or(0);
-    assert!(
-        canary_traffic > 50 && canary_traffic < 200,
-        "Canary got {}",
-        canary_traffic
-    );
+    assert!(canary_traffic > 50 && canary_traffic < 200, "Canary got {}", canary_traffic);
     assert!(control_traffic > 800, "Control got {}", control_traffic);
 }
 

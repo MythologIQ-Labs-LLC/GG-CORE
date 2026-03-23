@@ -1,6 +1,8 @@
 //! Tests for model warm-up functionality.
 
-use gg_core::ipc::{decode_message, encode_message, IpcMessage, WarmupRequest, WarmupResponse};
+use gg_core::ipc::{
+    decode_message, encode_message, IpcMessage, WarmupRequest, WarmupResponse,
+};
 
 #[test]
 fn test_warmup_request_defaults() {
@@ -63,8 +65,11 @@ fn test_warmup_response_success() {
 
 #[test]
 fn test_warmup_response_error() {
-    let response =
-        WarmupResponse::error("test-model".to_string(), "Model not found".to_string(), 10);
+    let response = WarmupResponse::error(
+        "test-model".to_string(),
+        "Model not found".to_string(),
+        10,
+    );
 
     assert_eq!(response.model_id, "test-model");
     assert!(!response.success);

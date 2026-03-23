@@ -5,14 +5,14 @@ use std::fs;
 
 use gg_core::engine::InferenceParams;
 use gg_core::ipc::protocol::{
-    decode_message, decode_message_binary, encode_message, encode_message_binary, InferenceRequest,
-    IpcMessage, RequestId,
+    decode_message, decode_message_binary, encode_message, encode_message_binary,
+    InferenceRequest, IpcMessage, RequestId,
 };
 
 fn load_fixture(name: &str) -> serde_json::Value {
     let path = format!("fixtures/prompts/{}.json", name);
-    let content =
-        fs::read_to_string(&path).unwrap_or_else(|_| panic!("Failed to load fixture: {}", path));
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|_| panic!("Failed to load fixture: {}", path));
     serde_json::from_str(&content).expect("Invalid JSON in fixture")
 }
 

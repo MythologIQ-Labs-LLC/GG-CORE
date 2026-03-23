@@ -59,10 +59,7 @@ fn cache_lru_eviction() {
     cache.insert(&[3], vec![3], 1);
     assert_eq!(cache.len(), 2);
 
-    assert!(
-        cache.get(&[1]).is_some(),
-        "Entry 1 should survive (recently used)"
-    );
+    assert!(cache.get(&[1]).is_some(), "Entry 1 should survive (recently used)");
     assert!(cache.get(&[2]).is_none(), "Entry 2 should be evicted (LRU)");
     assert!(cache.get(&[3]).is_some(), "Entry 3 should exist");
 }

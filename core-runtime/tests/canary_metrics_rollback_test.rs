@@ -22,9 +22,7 @@ fn canary_error_rate_calculation() {
         if i % 20 == 0 {
             metrics.get_or_create(&canary).record_failure();
         } else {
-            metrics
-                .get_or_create(&canary)
-                .record_success(Duration::from_millis(50), 10);
+            metrics.get_or_create(&canary).record_success(Duration::from_millis(50), 10);
         }
     }
 
@@ -43,9 +41,7 @@ fn canary_latency_percentile_tracking() {
     let latencies = [10, 20, 30, 40, 50, 100, 200, 300, 400, 500];
     for latency in latencies {
         metrics.get_or_create(&canary).record_request();
-        metrics
-            .get_or_create(&canary)
-            .record_success(Duration::from_millis(latency), 10);
+        metrics.get_or_create(&canary).record_success(Duration::from_millis(latency), 10);
     }
 
     let snapshot = metrics.all_snapshots();
@@ -66,9 +62,7 @@ fn canary_threshold_breach_detection() {
     for i in 0..100 {
         metrics.get_or_create(&canary).record_request();
         if i < 90 {
-            metrics
-                .get_or_create(&canary)
-                .record_success(Duration::from_millis(30), 10);
+            metrics.get_or_create(&canary).record_success(Duration::from_millis(30), 10);
         } else {
             metrics.get_or_create(&canary).record_failure();
         }
@@ -79,11 +73,7 @@ fn canary_threshold_breach_detection() {
     let error_rate = 1.0 - stats.success_rate;
     let breach = error_rate > error_threshold;
 
-    assert!(
-        breach,
-        "Error rate {} should breach threshold {}",
-        error_rate, error_threshold
-    );
+    assert!(breach, "Error rate {} should breach threshold {}", error_rate, error_threshold);
 }
 
 // === Rollback Tests ===
@@ -108,10 +98,7 @@ fn canary_automatic_rollback_on_threshold_breach() {
         current_canary_weight = 0;
     }
 
-    assert_eq!(
-        current_canary_weight, 0,
-        "Should rollback to 0% canary traffic"
-    );
+    assert_eq!(current_canary_weight, 0, "Should rollback to 0% canary traffic");
 }
 
 #[test]
@@ -122,28 +109,19 @@ fn canary_manual_rollback_traffic_shift() {
     let mut weights = BTreeMap::new();
     weights.insert(VariantLabel::control(), 90);
     weights.insert(canary.clone(), 10);
-    let before = TrafficConfig {
-        weights,
-        sticky_sessions: true,
-    };
+    let before = TrafficConfig { weights, sticky_sessions: true };
     assert!(before.validate().is_ok());
 
     // After rollback: 100/0
     let mut weights = BTreeMap::new();
     weights.insert(VariantLabel::control(), 100);
     weights.insert(canary.clone(), 0);
-    let after = TrafficConfig {
-        weights,
-        sticky_sessions: true,
-    };
+    let after = TrafficConfig { weights, sticky_sessions: true };
     assert!(after.validate().is_ok());
 
     let splitter = TrafficSplitter::new(after).unwrap();
     for i in 0..100 {
-        assert_eq!(
-            splitter.select(Some(&format!("s-{}", i))),
-            &VariantLabel::control()
-        );
+        assert_eq!(splitter.select(Some(&format!("s-{}", i))), &VariantLabel::control());
     }
 }
 
@@ -156,9 +134,7 @@ fn canary_state_preservation_during_rollback() {
     // Accumulate metrics before rollback
     for _ in 0..50 {
         metrics.get_or_create(&control).record_request();
-        metrics
-            .get_or_create(&control)
-            .record_success(Duration::from_millis(30), 10);
+        metrics.get_or_create(&control).record_success(Duration::from_millis(30), 10);
         metrics.get_or_create(&canary).record_request();
         metrics.get_or_create(&canary).record_failure();
     }
@@ -171,9 +147,7 @@ fn canary_state_preservation_during_rollback() {
     // After rollback, all traffic to control
     for _ in 0..50 {
         metrics.get_or_create(&control).record_request();
-        metrics
-            .get_or_create(&control)
-            .record_success(Duration::from_millis(30), 10);
+        metrics.get_or_create(&control).record_success(Duration::from_millis(30), 10);
     }
 
     let post_rollback = metrics.all_snapshots();
@@ -194,8 +168,7 @@ fn canary_concurrent_metrics_recording() {
         handles.push(thread::spawn(move || {
             for _ in 0..100 {
                 m.get_or_create(&c).record_request();
-                m.get_or_create(&c)
-                    .record_success(Duration::from_millis(25), 15);
+                m.get_or_create(&c).record_success(Duration::from_millis(25), 15);
             }
         }));
     }
@@ -221,9 +194,7 @@ fn canary_rollback_timing_verification() {
         if i > 80 {
             metrics.get_or_create(&canary).record_failure();
         } else {
-            metrics
-                .get_or_create(&canary)
-                .record_success(Duration::from_millis(50), 10);
+            metrics.get_or_create(&canary).record_success(Duration::from_millis(50), 10);
         }
 
         // Check for rollback condition at each step

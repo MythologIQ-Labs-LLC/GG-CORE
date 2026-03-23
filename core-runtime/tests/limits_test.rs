@@ -28,10 +28,7 @@ fn limits_reject_exceeds_per_call() {
     let result = limits.try_acquire(200);
     assert!(matches!(
         result,
-        Err(InferenceError::MemoryExceeded {
-            used: 200,
-            limit: 100
-        })
+        Err(InferenceError::MemoryExceeded { used: 200, limit: 100 })
     ));
 }
 

@@ -41,9 +41,7 @@ fn simd_whitespace_all_whitespace() {
 #[test]
 fn simd_whitespace_large_input() {
     // Test with input larger than 32 bytes (SIMD chunk size)
-    let text: Vec<u8> = (0..100)
-        .map(|i| if i % 10 == 0 { b' ' } else { b'a' })
-        .collect();
+    let text: Vec<u8> = (0..100).map(|i| if i % 10 == 0 { b' ' } else { b'a' }).collect();
     let positions = SimdTokenizer::find_whitespace(&text);
 
     // Should find spaces at 0, 10, 20, 30, 40, 50, 60, 70, 80, 90

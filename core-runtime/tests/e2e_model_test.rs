@@ -5,13 +5,10 @@
 #[cfg(feature = "gguf")]
 mod tests {
     use gg_core::engine::gguf::{GgufConfig, GgufGenerator};
-    use gg_core::engine::{
-        ChatMessage, ChatRole, GgufModel, InferenceConfig, InferenceInput, InferenceOutput,
-        TokenStream,
-    };
+    use gg_core::engine::{InferenceConfig, InferenceInput, InferenceOutput, GgufModel, TokenStream, ChatMessage, ChatRole};
     use std::path::Path;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Instant;
 
     fn load_test_model() -> Option<GgufGenerator> {
@@ -22,11 +19,7 @@ mod tests {
         }
         // 4 threads is optimal for small models like 0.5B
         // Use n_threads: 0 for auto-detect with larger models
-        let config = GgufConfig {
-            n_ctx: 512,
-            n_threads: 4,
-            n_gpu_layers: 0,
-        };
+        let config = GgufConfig { n_ctx: 512, n_threads: 4, n_gpu_layers: 0 };
         GgufGenerator::load("qwen-0.5b".to_string(), model_path, &config).ok()
     }
 
@@ -104,14 +97,8 @@ mod tests {
         println!("Model loaded for chat: {}", gen.model_id());
 
         let messages = vec![
-            ChatMessage {
-                role: ChatRole::System,
-                content: "You are a helpful assistant.".into(),
-            },
-            ChatMessage {
-                role: ChatRole::User,
-                content: "What is the capital of France?".into(),
-            },
+            ChatMessage { role: ChatRole::System, content: "You are a helpful assistant.".into() },
+            ChatMessage { role: ChatRole::User, content: "What is the capital of France?".into() },
         ];
         let input = InferenceInput::ChatMessages(messages);
         let mut inf_config = InferenceConfig::default();
@@ -137,8 +124,7 @@ mod tests {
         println!("Physical CPU cores: {}", threads);
         println!("Model: {}", gen.model_id());
 
-        let input =
-            InferenceInput::Text("Write a detailed essay about climate change:".to_string());
+        let input = InferenceInput::Text("Write a detailed essay about climate change:".to_string());
         let mut inf_config = InferenceConfig::default();
         inf_config.max_tokens = Some(100);
 

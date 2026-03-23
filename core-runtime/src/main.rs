@@ -17,9 +17,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
 
-use gg_core::cli::{
-    get_socket_path, run_health, run_liveness, run_readiness, run_status, CliIpcClient,
-};
+use gg_core::cli::{get_socket_path, run_health, run_liveness, run_readiness, run_status, CliIpcClient};
 use gg_core::engine::InferenceParams;
 use gg_core::ipc::server;
 use gg_core::security::fips_tests;
@@ -515,9 +513,7 @@ async fn run_inference(args: &[String]) -> i32 {
     }
 
     if model_id.is_empty() || prompt.is_empty() {
-        eprintln!(
-            "Usage: GG-CORE infer --model <MODEL> --prompt <PROMPT> [--max-tokens N] [--stream]"
-        );
+        eprintln!("Usage: GG-CORE infer --model <MODEL> --prompt <PROMPT> [--max-tokens N] [--stream]");
         return 1;
     }
 
@@ -529,9 +525,7 @@ async fn run_inference(args: &[String]) -> i32 {
     };
 
     let result = if stream {
-        client
-            .send_streaming_inference(&model_id, &prompt, &params)
-            .await
+        client.send_streaming_inference(&model_id, &prompt, &params).await
     } else {
         client.send_inference(&model_id, &prompt, &params).await
     };

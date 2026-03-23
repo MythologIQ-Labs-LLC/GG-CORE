@@ -65,7 +65,8 @@ fn test_cli_ipc_client_creation_with_path() {
 
 #[test]
 fn test_cli_ipc_client_with_custom_timeout() {
-    let client = CliIpcClient::new("/socket".to_string()).with_timeout(Duration::from_secs(30));
+    let client = CliIpcClient::new("/socket".to_string())
+        .with_timeout(Duration::from_secs(30));
     // Verify timeout is configurable (behavior test)
     drop(client);
 }
@@ -145,10 +146,7 @@ fn test_cli_error_all_variants_have_display() {
 
     for error in errors {
         let display = error.to_string();
-        assert!(
-            !display.is_empty(),
-            "Error variant should have display text"
-        );
+        assert!(!display.is_empty(), "Error variant should have display text");
     }
 }
 
@@ -234,8 +232,8 @@ async fn test_cli_client_get_health_report_connection_failure() {
 
 #[tokio::test]
 async fn test_cli_client_with_short_timeout_fails_quickly() {
-    let client =
-        CliIpcClient::new("/nonexistent/socket".to_string()).with_timeout(Duration::from_millis(1));
+    let client = CliIpcClient::new("/nonexistent/socket".to_string())
+        .with_timeout(Duration::from_millis(1));
 
     let start = std::time::Instant::now();
     let _ = client.check_health(HealthCheckType::Full).await;

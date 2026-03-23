@@ -14,11 +14,7 @@ fn create_text_input(length: usize) -> InferenceInput {
 fn create_chat_input(message_count: usize, length_per_message: usize) -> InferenceInput {
     let messages: Vec<ChatMessage> = (0..message_count)
         .map(|i| ChatMessage {
-            role: if i % 2 == 0 {
-                ChatRole::User
-            } else {
-                ChatRole::Assistant
-            },
+            role: if i % 2 == 0 { ChatRole::User } else { ChatRole::Assistant },
             content: "x".repeat(length_per_message),
         })
         .collect();
@@ -28,11 +24,7 @@ fn create_chat_input(message_count: usize, length_per_message: usize) -> Inferen
 fn bench_input_validation(c: &mut Criterion) {
     let mut group = c.benchmark_group("input_validation_latency");
 
-    for (name, length) in [
-        ("256_chars", 256),
-        ("2048_chars", 2048),
-        ("16384_chars", 16384),
-    ] {
+    for (name, length) in [("256_chars", 256), ("2048_chars", 2048), ("16384_chars", 16384)] {
         let input = create_text_input(length);
 
         group.throughput(Throughput::Bytes(length as u64));
@@ -64,13 +56,15 @@ fn bench_params_creation(c: &mut Criterion) {
     let mut group = c.benchmark_group("params_creation");
 
     group.bench_function("inference_params", |b| {
-        b.iter(|| InferenceParams {
-            max_tokens: black_box(100),
-            temperature: black_box(0.7),
-            top_p: black_box(1.0),
-            top_k: black_box(50),
-            stream: false,
-            timeout_ms: None,
+        b.iter(|| {
+            InferenceParams {
+                max_tokens: black_box(100),
+                temperature: black_box(0.7),
+                top_p: black_box(1.0),
+                top_k: black_box(50),
+                stream: false,
+                timeout_ms: None,
+            }
         })
     });
 

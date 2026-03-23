@@ -55,9 +55,7 @@ fn test_guard_releases_on_drop() {
 fn test_concurrent_acquire() {
     use std::thread;
 
-    let config = ConnectionConfig {
-        max_connections: 100,
-    };
+    let config = ConnectionConfig { max_connections: 100 };
     let pool = Arc::new(ConnectionPool::new(config));
 
     let handles: Vec<_> = (0..10)

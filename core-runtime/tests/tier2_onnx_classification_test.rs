@@ -3,11 +3,11 @@
 //! Tests complete inference pipeline with actual ONNX model inference.
 //! Measures end-to-end latency, throughput, and resource utilization.
 
+use std::path::PathBuf;
+use std::time::Instant;
 use gg_core::engine::onnx::OnnxDevice;
 use gg_core::engine::{ClassificationResult, InferenceInput, InferenceOutput, OnnxConfig};
 use gg_core::models::ModelLoader;
-use std::path::PathBuf;
-use std::time::Instant;
 
 /// Get the path to the tinybert-classifier.onnx model
 fn get_tinybert_model_path() -> PathBuf {

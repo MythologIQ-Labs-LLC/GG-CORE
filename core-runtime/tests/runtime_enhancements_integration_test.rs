@@ -7,12 +7,10 @@ use std::time::Duration;
 
 use gg_core::engine::InferenceParams;
 use gg_core::ipc::{
-    decode_message, encode_message, ConnectionConfig, ConnectionPool, IpcMessage, WarmupRequest,
-    WarmupResponse,
+    decode_message, encode_message, ConnectionConfig, ConnectionPool,
+    IpcMessage, WarmupRequest, WarmupResponse,
 };
-use gg_core::scheduler::{
-    OutputCache, OutputCacheConfig, Priority, RequestQueue, RequestQueueConfig,
-};
+use gg_core::scheduler::{OutputCache, OutputCacheConfig, Priority, RequestQueue, RequestQueueConfig};
 
 #[tokio::test]
 async fn test_cancel_pending_request() {
@@ -24,12 +22,7 @@ async fn test_cancel_pending_request() {
 
     // Enqueue a request (text-based protocol)
     let (id, _pos) = queue
-        .enqueue(
-            "model".to_string(),
-            "test prompt".to_string(),
-            params,
-            Priority::Normal,
-        )
+        .enqueue("model".to_string(), "test prompt".to_string(), params, Priority::Normal)
         .await
         .unwrap();
 
@@ -53,12 +46,7 @@ async fn test_timeout_during_queue() {
     };
 
     queue
-        .enqueue(
-            "model".to_string(),
-            "test prompt".to_string(),
-            params,
-            Priority::Normal,
-        )
+        .enqueue("model".to_string(), "test prompt".to_string(), params, Priority::Normal)
         .await
         .unwrap();
 

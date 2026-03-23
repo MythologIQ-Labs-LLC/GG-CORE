@@ -1,9 +1,9 @@
 //! Tests for ModelPreloader - preload validation before hot-swap.
 
+use std::sync::Arc;
 use gg_core::models::{
     ModelArchitecture, ModelCapability, ModelManifest, ModelPreloader, ModelRegistry, PreloadError,
 };
-use std::sync::Arc;
 
 fn test_manifest() -> ModelManifest {
     ModelManifest {
