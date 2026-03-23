@@ -43,8 +43,7 @@ pub fn read_and_decrypt_file(enc: &ModelEncryption, path: &Path) -> Result<Vec<u
     let mut version = [0u8; 2];
     file.read_exact(&mut version).map_err(|e| EncryptionError::IoError(e.to_string()))?;
 
-    let mut nonce = [0u8; NONCE_SIZE];
-    file.read_exact(&mut nonce).map_err(|e| EncryptionError::IoError(e.to_string()))?;
+    let nonce = read_nonce_from_file(&mut file)?;
 
     if is_gcm || is_legacy_gcm {
         read_gcm_payload(enc, &mut file, &nonce)
@@ -65,6 +64,13 @@ fn read_gcm_payload(
     let mut ciphertext = vec![0u8; len];
     file.read_exact(&mut ciphertext).map_err(|e| EncryptionError::IoError(e.to_string()))?;
     enc.decrypt(&nonce[..], &ciphertext)
+}
+
+/// Read a nonce from an open file handle.
+fn read_nonce_from_file(file: &mut std::fs::File) -> Result<[u8; NONCE_SIZE], EncryptionError> {
+    let mut buf = [0; NONCE_SIZE];
+    file.read_exact(&mut buf).map_err(|e| EncryptionError::IoError(e.to_string()))?;
+    Ok(buf)
 }
 
 /// Read legacy ECB payload (deprecated).
