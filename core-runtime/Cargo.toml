@@ -79,6 +79,9 @@ metrics = "0.22"
 parking_lot = "0.12"
 dashmap = "6.0"
 
+# Arena allocator for request-scoped memory
+bumpalo = "3.14"
+
 # CPU count detection for thread pool
 num_cpus = "1.16"
 

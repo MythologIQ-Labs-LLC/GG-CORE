@@ -18,6 +18,7 @@ use crate::health::HealthChecker;
 use crate::models::ModelRegistry;
 use crate::scheduler::Priority;
 use crate::scheduler::RequestQueue;
+use crate::shim::{InterceptError, RequestInterceptor};
 use crate::shutdown::ShutdownCoordinator;
 use crate::telemetry::MetricsStore;
 
@@ -87,6 +88,8 @@ pub struct IpcHandler {
     /// Used by streaming path (gguf feature).
     #[allow(dead_code)]
     inference_engine: Arc<InferenceEngine>,
+    /// Request interceptor for rate limiting and priority adjustment.
+    interceptor: Arc<dyn RequestInterceptor>,
 }
 
 impl IpcHandler {
@@ -99,6 +102,23 @@ impl IpcHandler {
         model_registry: Arc<ModelRegistry>,
         metrics_store: Arc<MetricsStore>,
         inference_engine: Arc<InferenceEngine>,
+    ) -> Self {
+        Self::with_interceptor(
+            auth, queue, config, shutdown, health, model_registry,
+            metrics_store, inference_engine, crate::shim::default_interceptor(),
+        )
+    }
+
+    pub fn with_interceptor(
+        auth: Arc<SessionAuth>,
+        queue: Arc<RequestQueue>,
+        config: IpcHandlerConfig,
+        shutdown: Arc<ShutdownCoordinator>,
+        health: Arc<HealthChecker>,
+        model_registry: Arc<ModelRegistry>,
+        metrics_store: Arc<MetricsStore>,
+        inference_engine: Arc<InferenceEngine>,
+        interceptor: Arc<dyn RequestInterceptor>,
     ) -> Self {
         let health_handler = HealthHandler::new(
             health,
@@ -115,6 +135,7 @@ impl IpcHandler {
             metrics_store,
             model_registry,
             inference_engine,
+            interceptor,
         }
     }
 
@@ -152,7 +173,7 @@ impl IpcHandler {
 
             IpcMessage::InferenceRequest(request) => {
                 self.require_auth(session).await?;
-                let response = self.handle_inference(request).await;
+                let response = self.handle_inference(request, session).await;
                 Ok((IpcMessage::InferenceResponse(response), None))
             }
 
@@ -213,7 +234,11 @@ impl IpcHandler {
         Ok(())
     }
 
-    async fn handle_inference(&self, request: InferenceRequest) -> InferenceResponse {
+    async fn handle_inference(
+        &self,
+        request: InferenceRequest,
+        session: Option<&SessionToken>,
+    ) -> InferenceResponse {
         let _guard = match self.shutdown.track() {
             Some(g) => g,
             None => {
@@ -233,6 +258,26 @@ impl IpcHandler {
             );
         }
 
+        // Run interceptor for rate limiting / priority adjustment
+        let session_str = session.map(|s| s.as_str());
+        let priority = match self.interceptor.intercept(&request, session_str) {
+            Ok(result) => result.priority.unwrap_or(Priority::Normal),
+            Err(InterceptError::RateLimited { retry_after_ms }) => {
+                return InferenceResponse::error_coded(
+                    request.request_id,
+                    format!("Rate limited. Retry after {}ms", retry_after_ms),
+                    InferenceErrorCode::AdmissionRejected,
+                );
+            }
+            Err(e) => {
+                return InferenceResponse::error_coded(
+                    request.request_id,
+                    e.to_string(),
+                    InferenceErrorCode::AdmissionRejected,
+                );
+            }
+        };
+
         // Enqueue and await result from worker (queue is sole execution path)
         let enqueue_result = self
             .queue
@@ -240,7 +285,7 @@ impl IpcHandler {
                 request.model_id.clone(),
                 request.prompt.clone(),
                 request.parameters.clone(),
-                Priority::Normal,
+                priority,
             )
             .await;
 

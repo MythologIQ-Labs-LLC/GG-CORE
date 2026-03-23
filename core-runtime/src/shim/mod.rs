@@ -35,11 +35,17 @@
 //! └─────────────────────────────────────────────────┘
 //! ```
 
+pub mod rate_limiter;
+pub mod service_tier;
+
 use std::fmt;
 use std::sync::Arc;
 
 use crate::ipc::protocol::InferenceRequest;
 use crate::scheduler::Priority;
+
+pub use rate_limiter::RateLimiter;
+pub use service_tier::ServiceTier;
 
 /// Error returned when request interception fails.
 #[derive(Debug, Clone)]
