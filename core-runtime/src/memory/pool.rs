@@ -3,9 +3,9 @@
 //! Uses parking_lot::Mutex for fast synchronous locking.
 //! No async overhead or tokio runtime requirement.
 
+use parking_lot::Mutex;
 use std::collections::VecDeque;
 use std::sync::Arc;
-use parking_lot::Mutex;
 
 /// Configuration for memory pool.
 #[derive(Debug, Clone)]
@@ -73,9 +73,11 @@ impl MemoryPool {
     /// Acquire a buffer from the pool, or allocate a new one.
     /// Synchronous - no async overhead.
     pub fn acquire(&self) -> PooledBuffer {
-        let data = self.buffers.lock().pop_front().unwrap_or_else(|| {
-            vec![0u8; self.config.buffer_size]
-        });
+        let data = self
+            .buffers
+            .lock()
+            .pop_front()
+            .unwrap_or_else(|| vec![0u8; self.config.buffer_size]);
 
         PooledBuffer {
             data,
@@ -91,5 +93,43 @@ impl MemoryPool {
     /// Current number of available buffers in pool.
     pub fn available(&self) -> usize {
         self.buffers.lock().len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_memory_pool_acquire_and_release() {
+        let config = MemoryPoolConfig {
+            buffer_size: 1024,
+            max_buffers: 2,
+        };
+        let pool = MemoryPool::new(config);
+
+        // Initially empty
+        assert_eq!(pool.available(), 0);
+
+        {
+            // Acquire allocates a new buffer
+            let buffer = pool.acquire();
+            assert_eq!(buffer.len(), 1024);
+            assert_eq!(pool.available(), 0);
+        } // buffer dropped here, returned to pool
+
+        // Pool now has 1 available buffer
+        assert_eq!(pool.available(), 1);
+
+        {
+            // Acquire reuses the buffer
+            let buffer2 = pool.acquire();
+            assert_eq!(buffer2.len(), 1024);
+            // Pool is empty again
+            assert_eq!(pool.available(), 0);
+        }
+
+        // Buffer returned again
+        assert_eq!(pool.available(), 1);
     }
 }
