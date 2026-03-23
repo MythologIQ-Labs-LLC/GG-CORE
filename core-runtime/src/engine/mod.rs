@@ -11,6 +11,9 @@ pub mod flash_attn;
 pub mod flash_attn_gpu;
 pub mod gguf;
 pub mod gpu;
+pub mod gpu_allocator;
+pub mod gpu_manager;
+pub mod gpu_pool;
 pub mod input;
 pub mod onnx;
 pub mod output;
@@ -30,8 +33,13 @@ pub mod cuda;
 pub mod metal;
 pub mod moe;
 pub mod multi_gpu;
+pub mod multi_gpu_exec;
+pub mod multi_gpu_partition;
+pub mod multi_gpu_pipeline;
+pub mod multi_gpu_tensor;
 
 pub mod inference;
+pub mod inference_types;
 mod streaming;
 mod tokenizer;
 
@@ -67,7 +75,14 @@ pub use tokenizer::{TokenizerError, TokenizerWrapper};
 pub use gguf::{GgufConfig, GgufGenerator, GgufModel};
 #[cfg(feature = "gguf")]
 pub use gguf::LlamaBackendInner;
-pub use gpu::{GpuBackend, GpuConfig, GpuDevice, GpuError, GpuManager, GpuMemory, GpuMemoryPool};
+pub use gpu::{DevicePlacement, GpuBackend, GpuConfig, GpuDevice, GpuError, GpuMemory};
+pub use gpu_allocator::{GpuAllocation, GpuAllocator, MockGpuAllocator};
+#[cfg(feature = "cuda")]
+pub use gpu_allocator::CudaGpuAllocator;
+#[cfg(feature = "metal")]
+pub use gpu_allocator::MetalGpuAllocator;
+pub use gpu_manager::GpuManager;
+pub use gpu_pool::GpuMemoryPool;
 pub use onnx::{OnnxClassifier, OnnxConfig, OnnxEmbedder, OnnxModel};
 
 // CUDA backend re-exports
@@ -84,10 +99,13 @@ pub use metal::{
 };
 
 // Multi-GPU support
-pub use multi_gpu::{
-    CrossGpuCommunication, GpuPartition, MultiGpuConfig, MultiGpuError, MultiGpuManager,
-    MultiGpuStrategy,
+pub use multi_gpu::{GpuPartition, MultiGpuConfig, MultiGpuError, MultiGpuManager, MultiGpuStrategy};
+pub use multi_gpu_exec::{
+    ExecutionResult, LayerParallelExecutor, MockPartitionExecutor, PartitionExecutor, TensorData,
 };
+pub use multi_gpu_partition::{CrossGpuCommunication, TransferMethod, TransferResult};
+pub use multi_gpu_pipeline::PipelineParallelExecutor;
+pub use multi_gpu_tensor::TensorParallelExecutor;
 
 // Mixture of Experts support
 pub use moe::{

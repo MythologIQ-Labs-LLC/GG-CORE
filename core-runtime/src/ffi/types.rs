@@ -68,10 +68,10 @@ impl Default for CoreInferenceParams {
 /// Inference result (for non-streaming)
 #[repr(C)]
 pub struct CoreInferenceResult {
-    /// Output tokens (caller must free with core_free_tokens)
-    pub tokens: *mut u32,
-    /// Number of output tokens
-    pub token_count: u32,
+    /// Generated text (caller must free with core_free_string)
+    pub output_text: *mut c_char,
+    /// Number of tokens generated
+    pub tokens_generated: u32,
     /// Whether generation finished normally
     pub finished: bool,
 }
@@ -79,8 +79,8 @@ pub struct CoreInferenceResult {
 impl Default for CoreInferenceResult {
     fn default() -> Self {
         Self {
-            tokens: std::ptr::null_mut(),
-            token_count: 0,
+            output_text: std::ptr::null_mut(),
+            tokens_generated: 0,
             finished: false,
         }
     }

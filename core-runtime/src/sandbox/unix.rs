@@ -203,6 +203,20 @@ impl UnixSandbox {
         Ok(cgroup_path)
     }
 
+    /// Additional syscalls required for GPU (NVIDIA) driver access.
+    /// Only included when `gpu_enabled` is true in `SandboxConfig`.
+    #[cfg(target_os = "linux")]
+    fn gpu_syscalls_x86_64() -> &'static [i32] {
+        &[
+            16,  // ioctl — NVIDIA kernel module communication
+            9,   // mmap — GPU buffer mapping (already in base, harmless dup)
+            10,  // mprotect — GPU memory protection changes
+            25,  // mremap — GPU buffer resizing
+            27,  // mincore — page residency check
+            302, // prlimit64 — resource limit queries
+        ]
+    }
+
     /// Apply seccomp-bpf filter to restrict syscalls
     /// This provides defense-in-depth against code execution vulnerabilities
     #[cfg(target_os = "linux")]
@@ -298,6 +312,18 @@ impl UnixSandbox {
             jf: 0,
             k: 0, // offsetof(seccomp_data, nr)
         });
+
+        // Conditionally add GPU driver syscalls
+        if self.config.gpu_enabled {
+            for &syscall_nr in Self::gpu_syscalls_x86_64() {
+                filter.push(SockFilter {
+                    code: bpf::JMP | bpf_jmp::JEQ | bpf_src::K,
+                    jt: 1,
+                    jf: 0,
+                    k: syscall_nr as u32,
+                });
+            }
+        }
 
         // Check against allowed syscalls
         for &syscall_nr in ALLOWED_SYSCALLS_X86_64 {
