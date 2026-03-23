@@ -17,6 +17,19 @@ impl Default for ConnectionConfig {
     }
 }
 
+/// Configuration for the IPC server framing layer.
+#[derive(Debug, Clone)]
+pub struct IpcServerConfig {
+    /// Maximum inbound frame size in bytes (default 16 MiB).
+    pub max_frame_size: usize,
+}
+
+impl Default for IpcServerConfig {
+    fn default() -> Self {
+        Self { max_frame_size: 16 * 1024 * 1024 }
+    }
+}
+
 /// Global connection pool with atomic counting.
 pub struct ConnectionPool {
     active: AtomicUsize,

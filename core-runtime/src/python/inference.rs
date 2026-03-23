@@ -1,7 +1,7 @@
 // Copyright 2024-2026 GG-CORE Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! Python inference parameter and result types
+//! Python inference parameter and result types (text-based v1 API)
 
 use pyo3::prelude::*;
 
@@ -12,45 +12,33 @@ use crate::engine::InferenceResult as RustResult;
 ///
 /// Example:
 /// ```python
-/// params = InferenceParams(
-///     max_tokens=256,
-///     temperature=0.7,
-///     top_p=0.9,
-///     top_k=40
-/// )
-/// result = session.infer("model", tokens, params)
+/// params = InferenceParams(max_tokens=256, temperature=0.7)
+/// result = session.infer("model-id", "Hello world", params)
 /// ```
 #[pyclass]
 #[derive(Clone)]
 pub struct InferenceParams {
-    /// Maximum tokens to generate
     #[pyo3(get, set)]
     pub max_tokens: u32,
 
-    /// Temperature for sampling (0.0 = deterministic, 2.0 = very random)
     #[pyo3(get, set)]
     pub temperature: f32,
 
-    /// Nucleus sampling threshold (0.0-1.0)
     #[pyo3(get, set)]
     pub top_p: f32,
 
-    /// Top-k sampling (number of tokens to consider)
     #[pyo3(get, set)]
     pub top_k: u32,
 
-    /// Enable streaming output
     #[pyo3(get, set)]
     pub stream: bool,
 
-    /// Timeout in milliseconds (None = no timeout)
     #[pyo3(get, set)]
     pub timeout_ms: Option<u64>,
 }
 
 #[pymethods]
 impl InferenceParams {
-    /// Create inference parameters
     #[new]
     #[pyo3(signature = (max_tokens=256, temperature=0.7, top_p=0.9, top_k=40, stream=false, timeout_ms=None))]
     fn new(
@@ -61,20 +49,13 @@ impl InferenceParams {
         stream: bool,
         timeout_ms: Option<u64>,
     ) -> Self {
-        Self {
-            max_tokens,
-            temperature,
-            top_p,
-            top_k,
-            stream,
-            timeout_ms,
-        }
+        Self { max_tokens, temperature, top_p, top_k, stream, timeout_ms }
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "InferenceParams(max_tokens={}, temperature={}, top_p={}, top_k={}, stream={})",
-            self.max_tokens, self.temperature, self.top_p, self.top_k, self.stream
+            "InferenceParams(max_tokens={}, temperature={}, top_p={}, top_k={})",
+            self.max_tokens, self.temperature, self.top_p, self.top_k
         )
     }
 }
@@ -105,17 +86,19 @@ impl From<&InferenceParams> for RustParams {
     }
 }
 
-/// Result from inference operation
-///
-/// Contains the generated tokens and completion status.
+/// Result from inference operation (text-based)
 #[pyclass]
 #[derive(Clone)]
 pub struct InferenceResult {
-    /// Generated token IDs
+    /// Generated text output
     #[pyo3(get)]
-    pub tokens: Vec<u32>,
+    pub output: String,
 
-    /// Whether generation finished normally (vs truncated/cancelled)
+    /// Number of tokens generated
+    #[pyo3(get)]
+    pub tokens_generated: usize,
+
+    /// Whether generation finished normally
     #[pyo3(get)]
     pub finished: bool,
 }
@@ -124,33 +107,25 @@ pub struct InferenceResult {
 impl InferenceResult {
     fn __repr__(&self) -> String {
         format!(
-            "InferenceResult(tokens=[...{} tokens], finished={})",
-            self.tokens.len(),
-            self.finished
+            "InferenceResult(tokens_generated={}, finished={})",
+            self.tokens_generated, self.finished
         )
     }
 
     fn __len__(&self) -> usize {
-        self.tokens.len()
+        self.tokens_generated
     }
 
-    /// Get token at index
-    fn __getitem__(&self, idx: isize) -> PyResult<u32> {
-        let len = self.tokens.len() as isize;
-        let actual_idx = if idx < 0 { len + idx } else { idx };
-
-        if actual_idx < 0 || actual_idx >= len {
-            Err(pyo3::exceptions::PyIndexError::new_err("index out of range"))
-        } else {
-            Ok(self.tokens[actual_idx as usize])
-        }
+    fn __str__(&self) -> &str {
+        &self.output
     }
 }
 
 impl From<RustResult> for InferenceResult {
     fn from(result: RustResult) -> Self {
         Self {
-            tokens: result.output_tokens,
+            output: result.output,
+            tokens_generated: result.tokens_generated,
             finished: result.finished,
         }
     }

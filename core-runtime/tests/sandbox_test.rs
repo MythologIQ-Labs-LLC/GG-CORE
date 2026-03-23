@@ -47,6 +47,7 @@ fn sandbox_config_custom_limits() {
         max_memory_bytes: 512 * 1024 * 1024, // 512MB
         max_cpu_time_ms: 5000,                // 5 seconds
         enabled: true,
+        gpu_enabled: false,
     };
 
     assert_eq!(config.max_memory_bytes, 512 * 1024 * 1024);

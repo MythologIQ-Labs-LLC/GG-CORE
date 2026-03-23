@@ -7,8 +7,9 @@ use tokio_util::sync::CancellationToken;
 use super::auth::{AuthError, SessionAuth, SessionToken};
 use super::health_handler::HealthHandler;
 use super::protocol::{
-    decode_message, encode_message, InferenceRequest, InferenceResponse, IpcMessage, ModelInfo,
-    ModelsListResponse, ProtocolError, ProtocolVersion, StreamChunk, WarmupResponse,
+    decode_message, encode_message, InferenceErrorCode, InferenceRequest, InferenceResponse,
+    IpcMessage, ModelInfo, ModelsListResponse, ProtocolError, ProtocolVersion, StreamChunk,
+    WarmupResponse,
 };
 use crate::engine::InferenceEngine;
 #[cfg(feature = "gguf")]
@@ -18,7 +19,7 @@ use crate::models::ModelRegistry;
 use crate::scheduler::Priority;
 use crate::scheduler::RequestQueue;
 use crate::shutdown::ShutdownCoordinator;
-use crate::telemetry::{self, MetricsStore};
+use crate::telemetry::MetricsStore;
 
 #[derive(Error, Debug)]
 pub enum HandlerError {
@@ -83,6 +84,8 @@ pub struct IpcHandler {
     health_handler: HealthHandler,
     metrics_store: Arc<MetricsStore>,
     model_registry: Arc<ModelRegistry>,
+    /// Used by streaming path (gguf feature).
+    #[allow(dead_code)]
     inference_engine: Arc<InferenceEngine>,
 }
 
@@ -211,25 +214,29 @@ impl IpcHandler {
     }
 
     async fn handle_inference(&self, request: InferenceRequest) -> InferenceResponse {
-        // Check shutdown state before accepting new request
         let _guard = match self.shutdown.track() {
             Some(g) => g,
             None => {
-                return InferenceResponse::error(
+                return InferenceResponse::error_coded(
                     request.request_id,
                     "Server is shutting down".into(),
+                    InferenceErrorCode::ShuttingDown,
                 );
             }
         };
 
         if let Err(e) = request.validate() {
-            return InferenceResponse::error(request.request_id, e.to_string());
+            return InferenceResponse::error_coded(
+                request.request_id,
+                e.to_string(),
+                InferenceErrorCode::InputInvalid,
+            );
         }
 
-        // Track request in queue for metrics
+        // Enqueue and await result from worker (queue is sole execution path)
         let enqueue_result = self
             .queue
-            .enqueue(
+            .enqueue_with_response(
                 request.model_id.clone(),
                 request.prompt.clone(),
                 request.parameters.clone(),
@@ -237,67 +244,76 @@ impl IpcHandler {
             )
             .await;
 
-        if let Err(e) = enqueue_result {
-            return InferenceResponse::error(request.request_id, e.to_string());
-        }
+        let (_id, rx) = match enqueue_result {
+            Ok(r) => r,
+            Err(e) => return InferenceResponse::error_coded(
+                request.request_id,
+                e.to_string(),
+                InferenceErrorCode::AdmissionRejected,
+            ),
+        };
 
-        // Run inference using model_id to look up the model
-        let start = std::time::Instant::now();
-
-        match self
-            .inference_engine
-            .run(&request.model_id, &request.prompt, &request.parameters)
-            .await
-        {
-            Ok(result) => {
-                let latency_ms = start.elapsed().as_millis() as u64;
-
-                // Record metrics via telemetry facade (Prometheus-compatible)
-                telemetry::record_request_success(
-                    &request.model_id,
-                    latency_ms,
-                    result.tokens_generated as u64,
-                );
-
-                // Also record in model registry with correct handle for per-model stats
-                if let Some(handle) = self.inference_engine.get_handle(&request.model_id).await {
-                    self.model_registry
-                        .record_request(handle, latency_ms as f64)
-                        .await;
-                }
-
-                InferenceResponse::success(
-                    request.request_id,
-                    result.output,
-                    result.tokens_generated,
-                    result.finished,
-                )
+        // Await the worker's response — classify the error code from message content.
+        match rx.await {
+            Ok(Ok(result)) => InferenceResponse::success(
+                request.request_id,
+                result.output,
+                result.tokens_generated,
+                result.finished,
+            ),
+            Ok(Err(e)) => {
+                let code = classify_worker_error(&e);
+                InferenceResponse::error_coded(request.request_id, e, code)
             }
-            Err(e) => {
-                // Record failure metrics
-                telemetry::record_request_failure(&request.model_id, &e.to_string());
-                InferenceResponse::error(request.request_id, e.to_string())
-            }
+            Err(_) => InferenceResponse::error_coded(
+                request.request_id,
+                "worker dropped response channel".into(),
+                InferenceErrorCode::ExecutionFailed,
+            ),
         }
-        // guard dropped here, decrementing in-flight count
     }
 
     async fn handle_warmup(&self, model_id: String, _tokens: usize) -> WarmupResponse {
         let start = std::time::Instant::now();
-        let result = self
+
+        // Real warmup: 1-token inference through the queue
+        let warmup_params = crate::engine::InferenceParams {
+            max_tokens: 1,
+            ..Default::default()
+        };
+
+        let enqueue_result = self
             .queue
-            .enqueue(
+            .enqueue_with_response(
                 model_id.clone(),
-                "warmup".to_string(), // Minimal warmup prompt
-                crate::engine::InferenceParams::default(),
+                "Hello".to_string(),
+                warmup_params,
                 Priority::Low,
             )
             .await;
-        let elapsed_ms = start.elapsed().as_millis() as u64;
-        match result {
-            Ok(_) => WarmupResponse::success(model_id, elapsed_ms),
-            Err(e) => WarmupResponse::error(model_id, e.to_string(), elapsed_ms),
-        }
+
+        let rx = match enqueue_result {
+            Ok((_id, rx)) => rx,
+            Err(e) => {
+                let elapsed = start.elapsed().as_millis() as u64;
+                return WarmupResponse::error(model_id, e.to_string(), elapsed);
+            }
+        };
+
+        // Await actual inference result
+        let elapsed_ms = match rx.await {
+            Ok(Ok(_)) => start.elapsed().as_millis() as u64,
+            Ok(Err(e)) => {
+                let elapsed = start.elapsed().as_millis() as u64;
+                return WarmupResponse::error(model_id, e, elapsed);
+            }
+            Err(_) => {
+                let elapsed = start.elapsed().as_millis() as u64;
+                return WarmupResponse::error(model_id, "worker unavailable".into(), elapsed);
+            }
+        };
+
+        WarmupResponse::success(model_id, elapsed_ms)
     }
 
     async fn handle_models_request(&self) -> ModelsListResponse {
@@ -370,7 +386,11 @@ impl IpcHandler {
         }
     }
 
-    /// Internal streaming implementation (gguf feature only).
+    /// Internal streaming implementation.
+    ///
+    /// Enqueues the request into the streaming queue so the worker loop
+    /// handles resource limits and telemetry. The handler reads tokens
+    /// from the receiver channel and relays them to IPC.
     #[cfg(feature = "gguf")]
     async fn run_streaming_inference(
         &self,
@@ -379,20 +399,33 @@ impl IpcHandler {
         cancel: CancellationToken,
     ) -> Result<(), HandlerError> {
         let request_id = request.request_id;
-        let model_id = request.model_id.clone();
-        let prompt = request.prompt.clone();
         let config = request.parameters.to_config();
-        let engine = Arc::clone(&self.inference_engine);
 
-        // Create channel for token streaming
         let (token_sender, mut stream) = TokenStream::new(32);
 
-        // Spawn blocking inference task
-        let inf_handle = tokio::task::spawn_blocking(move || {
-            engine.run_stream_sync(&model_id, &prompt, &config, token_sender)
-        });
+        // Enqueue into the streaming queue — worker picks it up.
+        self.queue
+            .enqueue_streaming(
+                request.model_id.clone(),
+                request.prompt.clone(),
+                config,
+                token_sender,
+            )
+            .await
+            .map_err(|e| HandlerError::QueueFull(e.to_string()))?;
 
-        // Relay tokens to IPC, handling cancellation
+        self.relay_stream(request_id, &mut stream, sender, cancel).await
+    }
+
+    /// Relay tokens from the stream receiver to the IPC sender.
+    #[cfg(feature = "gguf")]
+    async fn relay_stream(
+        &self,
+        request_id: super::protocol::RequestId,
+        stream: &mut TokenStream,
+        sender: &dyn StreamSender,
+        cancel: CancellationToken,
+    ) -> Result<(), HandlerError> {
         loop {
             tokio::select! {
                 biased;
@@ -404,24 +437,35 @@ impl IpcHandler {
                 token_opt = stream.next() => {
                     match token_opt {
                         Some(output) => {
-                            let chunk = if output.is_final {
+                            let done = output.is_final;
+                            let chunk = if done {
                                 StreamChunk::final_token(request_id, output.token)
                             } else {
                                 StreamChunk::token(request_id, output.token)
                             };
                             sender.send(IpcMessage::StreamChunk(chunk)).await?;
-                            if output.is_final {
-                                break;
-                            }
+                            if done { break; }
                         }
-                        None => break, // Channel closed
+                        None => break,
                     }
                 }
             }
         }
-
-        // Wait for inference task (ignore result - tokens already sent)
-        let _ = inf_handle.await;
         Ok(())
+    }
+}
+
+/// Map a worker error string to a structured `InferenceErrorCode`.
+///
+/// The worker stringifies `engine::InferenceError` variants. We classify by
+/// matching known prefixes so callers can distinguish admission rejections
+/// (retriable) from execution failures (not retriable without change).
+fn classify_worker_error(msg: &str) -> InferenceErrorCode {
+    if msg.contains("Memory limit exceeded") || msg.contains("queue full") || msg.contains("Queue full") {
+        InferenceErrorCode::AdmissionRejected
+    } else if msg.contains("Model not loaded") {
+        InferenceErrorCode::ModelNotLoaded
+    } else {
+        InferenceErrorCode::ExecutionFailed
     }
 }

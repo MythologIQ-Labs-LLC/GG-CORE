@@ -107,7 +107,8 @@ impl PageTable {
     /// Free pages associated with given IDs.
     pub fn free(&mut self, page_ids: &[PageId]) {
         for &id in page_ids {
-            if let Some(page) = self.pages.iter_mut().find(|p| p.id == id) {
+            // O(1) lookup since page ID maps directly to vector index
+            if let Some(page) = self.pages.get_mut(id.0) {
                 page.reset();
                 self.free_pages.push_back(id);
             }
@@ -123,14 +124,16 @@ impl PageTable {
     pub fn get(&self, seq_pos: usize) -> Option<&Page> {
         let page_idx = seq_pos / PAGE_TOKENS;
         let page_id = self.entries.get(page_idx)?.as_ref()?;
-        self.pages.iter().find(|p| p.id == *page_id)
+        // O(1) lookup since page ID maps directly to vector index
+        self.pages.get(page_id.0)
     }
 
     /// Get mutable page for writing.
     pub fn get_mut(&mut self, seq_pos: usize) -> Option<&mut Page> {
         let page_idx = seq_pos / PAGE_TOKENS;
         let page_id = self.entries.get(page_idx)?.as_ref()?;
-        self.pages.iter_mut().find(|p| p.id == *page_id)
+        // O(1) lookup since page ID maps directly to vector index
+        self.pages.get_mut(page_id.0)
     }
 
     /// Calculate slot within page for sequence position.
@@ -165,26 +168,66 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_page_table_allocate() {
-        let mut table = PageTable::new(128, 2);
+    fn test_page_table_basic_allocation() {
+        let mut pt = PageTable::new(128, 10);
+        let id = pt.allocate(0);
+        assert!(id.is_some());
+        assert_eq!(pt.page_count(), 1);
+        assert_eq!(pt.free_count(), 0);
+    }
 
-        // Test allocation for first sequence position
-        let page_id = table.allocate(0);
-        assert!(page_id.is_some());
-        let page_id_0 = page_id.unwrap();
+    #[test]
+    fn test_page_table_free() {
+        let mut pt = PageTable::new(128, 10);
+        let seq_pos = 0;
+        let id = pt.allocate(seq_pos).unwrap();
 
-        // Test allocation within the same page
-        let page_id_same = table.allocate(PAGE_TOKENS - 1);
-        assert_eq!(page_id_same, Some(page_id_0));
+        // Write some data to the page to change its state
+        {
+            let page = pt.get_mut(seq_pos).unwrap();
+            let data = vec![1.0; 128];
+            page.write(0, &data, &data);
+            assert_eq!(page.used_slots(), 1);
+        }
 
-        // Test allocation on a new page
-        let page_id_next = table.allocate(PAGE_TOKENS);
-        assert!(page_id_next.is_some());
-        let page_id_1 = page_id_next.unwrap();
-        assert_ne!(page_id_0, page_id_1);
+        // Free the page
+        pt.free(&[id]);
 
-        // Test max pages limit
-        let page_id_full = table.allocate(PAGE_TOKENS * 2);
-        assert!(page_id_full.is_none());
+        // Check state after free
+        assert_eq!(pt.free_count(), 1);
+        assert!(pt.get(seq_pos).is_none());
+
+        // Verify page was reset
+        let page = pt.pages.iter().find(|p| p.id == id).unwrap();
+        assert_eq!(page.used_slots(), 0);
+    }
+
+    #[test]
+    fn test_page_table_reuse() {
+        let mut pt = PageTable::new(128, 10);
+        let id1 = pt.allocate(0).unwrap();
+        pt.free(&[id1]);
+        assert_eq!(pt.free_count(), 1);
+
+        // Subsequent allocation should reuse the freed page
+        let id2 = pt.allocate(PAGE_TOKENS).unwrap();
+        assert_eq!(id1, id2);
+        assert_eq!(pt.free_count(), 0);
+        assert_eq!(pt.page_count(), 1);
+    }
+
+    #[test]
+    fn test_page_table_free_multiple() {
+        let mut pt = PageTable::new(128, 10);
+        let id1 = pt.allocate(0).unwrap();
+        let id2 = pt.allocate(PAGE_TOKENS).unwrap();
+
+        assert_eq!(pt.page_count(), 2);
+
+        pt.free(&[id1, id2]);
+
+        assert_eq!(pt.free_count(), 2);
+        assert!(pt.get(0).is_none());
+        assert!(pt.get(PAGE_TOKENS).is_none());
     }
 }

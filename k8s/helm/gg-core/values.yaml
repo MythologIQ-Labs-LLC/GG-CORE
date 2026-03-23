@@ -31,11 +31,36 @@ models:
   mountPath: "/models"
 
 # Runtime configuration
+# All values map directly to GG_CORE_* environment variables.
+# Set to "" to use the compiled-in default.
 config:
   socketPath: "/var/run/gg-core/gg-core.sock"
-  maxContextLength: 4096
-  sessionTimeout: 3600
-  shutdownTimeout: 30
+
+  # Inference
+  maxContextLength: 4096       # GG_CORE_MAX_CONTEXT
+  nCtx: 2048                   # GG_CORE_N_CTX (GGUF context window)
+  nThreads: 0                  # GG_CORE_N_THREADS (0 = auto-detect)
+
+  # Queue
+  maxQueueDepth: 256            # GG_CORE_MAX_QUEUE_DEPTH
+  maxContextTokens: 4096        # GG_CORE_MAX_CONTEXT_TOKENS
+
+  # Batching
+  batchMaxRequests: 8           # GG_CORE_BATCH_MAX_REQUESTS
+  batchMaxTokens: 4096          # GG_CORE_BATCH_MAX_TOKENS
+
+  # Resource limits
+  maxMemoryPerCall: 1073741824  # GG_CORE_MAX_MEMORY_PER_CALL (bytes, default 1 GiB)
+  maxTotalMemory: 2147483648    # GG_CORE_MAX_TOTAL_MEMORY (bytes, default 2 GiB)
+  maxConcurrent: 2              # GG_CORE_MAX_CONCURRENT
+
+  # IPC
+  ipcFrameLimit: 16777216       # GG_CORE_IPC_FRAME_LIMIT (bytes, default 16 MiB)
+  maxConnections: 64            # GG_CORE_MAX_CONNECTIONS
+
+  # Lifecycle
+  sessionTimeout: 3600          # GG_CORE_SESSION_TIMEOUT (seconds)
+  shutdownTimeout: 30           # GG_CORE_SHUTDOWN_TIMEOUT (seconds)
 
 # Health probes using exec (NO HTTP)
 probes:

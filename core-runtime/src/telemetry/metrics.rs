@@ -38,6 +38,27 @@ pub fn init_metrics() {
     describe_counter!("core_speculative_drafts_total", "Total draft generation cycles");
     describe_counter!("core_speculative_accepted_tokens", "Draft tokens accepted");
     describe_counter!("core_speculative_rejected_tokens", "Draft tokens rejected");
+
+    // Admission control
+    describe_counter!(
+        "core_admission_rejections_total",
+        "Requests rejected before inference due to resource limits"
+    );
+
+    // Model pool warm-switch latency
+    describe_histogram!(
+        "core_model_switch_latency_seconds",
+        "Model pool warm-switch latency in seconds"
+    );
+}
+
+/// Record model pool warm-switch latency.
+pub fn record_model_switch_latency(model_id: &str, latency_secs: f64) {
+    histogram!(
+        "core_model_switch_latency_seconds",
+        "model" => model_id.to_string()
+    )
+    .record(latency_secs);
 }
 
 /// Record a successful inference request.
@@ -67,6 +88,19 @@ pub fn record_memory_pool(used_bytes: usize) {
 /// Record queue depth.
 pub fn record_queue_depth(depth: usize) {
     gauge!("core_queue_depth").set(depth as f64);
+}
+
+/// Record an admission rejection (resource limits exceeded before inference starts).
+///
+/// This is distinct from `record_request_failure`, which tracks execution failures.
+pub fn record_admission_rejection(model: &str, reason: &str) {
+    counter!("core_requests_total", "model" => model.to_string()).increment(1);
+    counter!(
+        "core_admission_rejections_total",
+        "model" => model.to_string(),
+        "reason" => reason.to_string()
+    )
+    .increment(1);
 }
 
 /// Record speculative decoding cycle stats.

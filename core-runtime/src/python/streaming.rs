@@ -1,25 +1,19 @@
 // Copyright 2024-2026 GG-CORE Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! Python streaming types for token-by-token output
+//! Python streaming types for text-based output
 
 use pyo3::prelude::*;
 
-/// A single streaming result chunk
-///
-/// Represents one token in the streaming output.
+/// A single streaming result chunk (text-based)
 #[pyclass]
 #[derive(Clone)]
 pub struct StreamingResult {
-    /// The generated token ID
+    /// Generated text for this chunk
     #[pyo3(get)]
-    pub token: u32,
+    pub text: String,
 
-    /// Index of this token in the sequence (0-based)
-    #[pyo3(get)]
-    pub index: usize,
-
-    /// Whether this is the final token
+    /// Whether this is the final chunk
     #[pyo3(get)]
     pub is_final: bool,
 
@@ -35,40 +29,32 @@ impl StreamingResult {
             format!("StreamingResult(error={})", err)
         } else {
             format!(
-                "StreamingResult(token={}, index={}, is_final={})",
-                self.token, self.index, self.is_final
+                "StreamingResult(text='{}...', is_final={})",
+                &self.text[..self.text.len().min(20)],
+                self.is_final
             )
         }
     }
 
-    /// Check if this result indicates an error
     #[getter]
     fn is_error(&self) -> bool {
         self.error.is_some()
     }
 }
 
-/// Iterator for streaming inference results
+/// Iterator for streaming inference results (text-based)
 ///
-/// Yields StreamingResult objects one at a time.
-///
-/// Example:
-/// ```python
-/// for chunk in session.infer_streaming("model", tokens):
-///     if chunk.is_error:
-///         print(f"Error: {chunk.error}")
-///     else:
-///         print(f"Token {chunk.index}: {chunk.token}")
-/// ```
+/// Yields StreamingResult objects. Currently returns the full
+/// output as a single chunk (true streaming is a future feature).
 #[pyclass]
 pub struct StreamingIterator {
-    tokens: Vec<u32>,
-    index: usize,
+    text: Option<String>,
+    done: bool,
 }
 
 impl StreamingIterator {
-    pub fn new(tokens: Vec<u32>) -> Self {
-        Self { tokens, index: 0 }
+    pub fn new(text: String) -> Self {
+        Self { text: Some(text), done: false }
     }
 }
 
@@ -79,43 +65,29 @@ impl StreamingIterator {
     }
 
     fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<StreamingResult> {
-        if slf.index >= slf.tokens.len() {
+        if slf.done {
             return None;
         }
-
-        let token = slf.tokens[slf.index];
-        let index = slf.index;
-        let is_final = index == slf.tokens.len() - 1;
-
-        slf.index += 1;
-
+        slf.done = true;
         Some(StreamingResult {
-            token,
-            index,
-            is_final,
+            text: slf.text.take().unwrap_or_default(),
+            is_final: true,
             error: None,
         })
-    }
-
-    /// Get total number of tokens
-    fn __len__(&self) -> usize {
-        self.tokens.len()
     }
 }
 
 /// Async iterator for streaming inference (future implementation)
-///
-/// For true async streaming, this would yield tokens as they are generated.
 #[pyclass]
 pub struct AsyncStreamingIterator {
-    tokens: Vec<u32>,
-    index: usize,
+    text: Option<String>,
+    done: bool,
 }
 
 impl AsyncStreamingIterator {
     #[allow(dead_code)]
-    pub fn new(tokens: Vec<u32>) -> Self {
-        Self { tokens, index: 0 }
+    pub fn new(text: String) -> Self {
+        Self { text: Some(text), done: false }
     }
 }
 
@@ -126,20 +98,13 @@ impl AsyncStreamingIterator {
     }
 
     fn __anext__(mut slf: PyRefMut<'_, Self>) -> Option<StreamingResult> {
-        if slf.index >= slf.tokens.len() {
+        if slf.done {
             return None;
         }
-
-        let token = slf.tokens[slf.index];
-        let index = slf.index;
-        let is_final = index == slf.tokens.len() - 1;
-
-        slf.index += 1;
-
+        slf.done = true;
         Some(StreamingResult {
-            token,
-            index,
-            is_final,
+            text: slf.text.take().unwrap_or_default(),
+            is_final: true,
             error: None,
         })
     }
