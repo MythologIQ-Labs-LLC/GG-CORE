@@ -1,15 +1,16 @@
 // Copyright 2024-2026 GG-CORE Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! Model management functions for FFI
+//! Model management functions for FFI (lifecycle-aware v1 API)
 
 use std::ffi::{c_char, CStr, CString};
 
 use super::error::{set_last_error, CoreErrorCode};
 use super::runtime::CoreRuntime;
 use super::types::CoreModelMetadata;
+use crate::engine::gguf;
 
-/// Load a model from path (relative to base_path/models/)
+/// Load a model via ModelLifecycle. # Safety: all pointers must be valid.
 #[no_mangle]
 pub unsafe extern "C" fn core_model_load(
     runtime: *mut CoreRuntime,
@@ -30,31 +31,49 @@ pub unsafe extern "C" fn core_model_load(
         }
     };
 
-    // Validate path
-    let model_path = match rt.inner.model_loader.validate_path(path_str) {
+    let validated = match rt.inner.model_loader.validate_path(path_str) {
         Ok(p) => p,
         Err(e) => return e.into(),
     };
 
-    // Load metadata
-    let metadata = match rt.inner.model_loader.load_metadata(&model_path) {
+    let metadata = match rt.inner.model_loader.load_metadata(&validated) {
         Ok(m) => m,
         Err(e) => return e.into(),
     };
 
-    // Register model
-    let handle = rt.tokio.block_on(async {
-        rt.inner
-            .model_registry
-            .register(metadata, 0)
-            .await
+    let model_id = metadata.name.clone();
+
+    // Load GGUF model (or stub if feature disabled)
+    let model = match gguf::load_gguf_model(
+        validated.as_path(),
+        &model_id,
+        &gguf::GgufConfig::default(),
+    ) {
+        Ok(m) => m,
+        Err(e) => {
+            set_last_error(format!("model load: {}", e));
+            return CoreErrorCode::ModelLoadFailed;
+        }
+    };
+
+    // Atomic load via lifecycle coordinator
+    let result = rt.tokio.block_on(async {
+        rt.inner.model_lifecycle.load(model_id, metadata, model).await
     });
 
-    *out_handle_id = handle.id();
-    CoreErrorCode::Ok
+    match result {
+        Ok(handle) => {
+            *out_handle_id = handle.id();
+            CoreErrorCode::Ok
+        }
+        Err(e) => {
+            set_last_error(format!("{}", e));
+            CoreErrorCode::ModelLoadFailed
+        }
+    }
 }
 
-/// Unload a model by handle
+/// Unload a model via ModelLifecycle. # Safety: `runtime` must be valid.
 #[no_mangle]
 pub unsafe extern "C" fn core_model_unload(
     runtime: *mut CoreRuntime,
@@ -66,22 +85,34 @@ pub unsafe extern "C" fn core_model_unload(
     }
 
     let rt = &*runtime;
-    let handle = crate::models::ModelHandle::new(handle_id);
+
+    // Resolve handle -> model_id via lifecycle index
+    let model_id = rt.tokio.block_on(async {
+        rt.inner.model_lifecycle.get_model_id(handle_id).await
+    });
+
+    let model_id = match model_id {
+        Some(id) => id,
+        None => {
+            set_last_error("model not found");
+            return CoreErrorCode::ModelNotFound;
+        }
+    };
 
     let result = rt.tokio.block_on(async {
-        rt.inner.model_registry.unregister(handle).await
+        rt.inner.model_lifecycle.unload(&model_id).await
     });
 
     match result {
-        Some(_) => CoreErrorCode::Ok,
-        None => {
-            set_last_error("model not found");
+        Ok(_) => CoreErrorCode::Ok,
+        Err(e) => {
+            set_last_error(format!("{}", e));
             CoreErrorCode::ModelNotFound
         }
     }
 }
 
-/// Get model info
+/// Get model info. # Safety: all pointers must be valid.
 #[no_mangle]
 pub unsafe extern "C" fn core_model_info(
     runtime: *mut CoreRuntime,
@@ -115,9 +146,11 @@ pub unsafe extern "C" fn core_model_info(
     }
 }
 
-/// Free model metadata
+/// Free model metadata. # Safety: `metadata` must be null or from `core_model_info`.
 #[no_mangle]
-pub unsafe extern "C" fn core_free_model_metadata(metadata: *mut CoreModelMetadata) {
+pub unsafe extern "C" fn core_free_model_metadata(
+    metadata: *mut CoreModelMetadata,
+) {
     if !metadata.is_null() {
         let m = &mut *metadata;
         if !m.name.is_null() {
@@ -127,7 +160,7 @@ pub unsafe extern "C" fn core_free_model_metadata(metadata: *mut CoreModelMetada
     }
 }
 
-/// List all loaded models
+/// List loaded models. # Safety: `out_handles` must have room for `max_count` u64 values.
 #[no_mangle]
 pub unsafe extern "C" fn core_model_list(
     runtime: *mut CoreRuntime,
@@ -142,17 +175,20 @@ pub unsafe extern "C" fn core_model_list(
 
     let rt = &*runtime;
 
-    let count = rt.tokio.block_on(async {
-        rt.inner.model_registry.count().await
+    let models = rt.tokio.block_on(async {
+        rt.inner.model_registry.list_models().await
     });
 
-    // For now, return count but don't fill handles (registry doesn't expose list)
-    *out_count = count.min(max_count as usize) as u32;
+    let write_count = models.len().min(max_count as usize);
+    for (i, info) in models.iter().take(write_count).enumerate() {
+        *out_handles.add(i) = info.handle_id;
+    }
+    *out_count = write_count as u32;
 
     CoreErrorCode::Ok
 }
 
-/// Get count of loaded models
+/// Get count of loaded models. # Safety: all pointers must be valid.
 #[no_mangle]
 pub unsafe extern "C" fn core_model_count(
     runtime: *mut CoreRuntime,
@@ -164,11 +200,10 @@ pub unsafe extern "C" fn core_model_count(
     }
 
     let rt = &*runtime;
-
     let count = rt.tokio.block_on(async {
         rt.inner.model_registry.count().await
     });
-
     *out_count = count as u32;
+
     CoreErrorCode::Ok
 }

@@ -126,48 +126,105 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_is_ready_running_state() {
-        let checker = HealthChecker::default();
-        // Default requires 0 models loaded and queue depth < 1000
-        assert!(checker.is_ready(ShutdownState::Running, 0, 0));
-        assert!(checker.is_ready(ShutdownState::Running, 1, 999));
-    }
-
-    #[test]
-    fn test_is_ready_shutdown_states() {
-        let checker = HealthChecker::default();
-        assert!(!checker.is_ready(ShutdownState::Draining, 1, 0));
-        assert!(!checker.is_ready(ShutdownState::Stopped, 1, 0));
-    }
-
-    #[test]
-    fn test_is_ready_require_model_loaded() {
-        let config = HealthConfig {
+    fn test_health_checker_report_healthy() {
+        let checker = HealthChecker::new(HealthConfig {
             require_model_loaded: true,
-            max_queue_depth: 1000,
-        };
-        let checker = HealthChecker::new(config);
+            max_queue_depth: 10,
+        });
 
-        // Not ready if no models are loaded
-        assert!(!checker.is_ready(ShutdownState::Running, 0, 0));
-        // Ready if models are loaded
-        assert!(checker.is_ready(ShutdownState::Running, 1, 0));
-        assert!(checker.is_ready(ShutdownState::Running, 5, 0));
+        let report = checker.report(ShutdownState::Running, 1, 1024, 5);
+
+        assert_eq!(report.state, HealthState::Healthy);
+        assert!(report.ready);
+        assert!(report.accepting_requests);
+        assert_eq!(report.models_loaded, 1);
+        assert_eq!(report.memory_used_bytes, 1024);
+        assert_eq!(report.queue_depth, 5);
     }
 
     #[test]
-    fn test_is_ready_max_queue_depth() {
-        let config = HealthConfig {
+    fn test_health_checker_report_degraded_no_model() {
+        let checker = HealthChecker::new(HealthConfig {
+            require_model_loaded: true,
+            max_queue_depth: 10,
+        });
+
+        let report = checker.report(ShutdownState::Running, 0, 1024, 5);
+
+        assert_eq!(report.state, HealthState::Degraded);
+        assert!(!report.ready);
+        assert!(report.accepting_requests);
+        assert_eq!(report.models_loaded, 0);
+        assert_eq!(report.memory_used_bytes, 1024);
+        assert_eq!(report.queue_depth, 5);
+    }
+
+    #[test]
+    fn test_health_checker_report_healthy_no_model_required() {
+        let checker = HealthChecker::new(HealthConfig {
             require_model_loaded: false,
             max_queue_depth: 10,
-        };
-        let checker = HealthChecker::new(config);
+        });
 
-        assert!(checker.is_ready(ShutdownState::Running, 0, 0));
-        assert!(checker.is_ready(ShutdownState::Running, 0, 9));
+        let report = checker.report(ShutdownState::Running, 0, 1024, 5);
 
-        // Not ready if queue is at or above max depth
-        assert!(!checker.is_ready(ShutdownState::Running, 0, 10));
-        assert!(!checker.is_ready(ShutdownState::Running, 0, 15));
+        assert_eq!(report.state, HealthState::Healthy);
+        assert!(report.ready);
+        assert!(report.accepting_requests);
+        assert_eq!(report.models_loaded, 0);
+        assert_eq!(report.memory_used_bytes, 1024);
+        assert_eq!(report.queue_depth, 5);
+    }
+
+    #[test]
+    fn test_health_checker_report_degraded_queue_full() {
+        let checker = HealthChecker::new(HealthConfig {
+            require_model_loaded: false,
+            max_queue_depth: 10,
+        });
+
+        // Queue is at max capacity
+        let report = checker.report(ShutdownState::Running, 1, 1024, 10);
+
+        assert_eq!(report.state, HealthState::Degraded);
+        assert!(!report.ready);
+        assert!(report.accepting_requests);
+        assert_eq!(report.models_loaded, 1);
+        assert_eq!(report.memory_used_bytes, 1024);
+        assert_eq!(report.queue_depth, 10);
+    }
+
+    #[test]
+    fn test_health_checker_report_unhealthy_draining() {
+        let checker = HealthChecker::new(HealthConfig {
+            require_model_loaded: false,
+            max_queue_depth: 10,
+        });
+
+        let report = checker.report(ShutdownState::Draining, 1, 1024, 5);
+
+        assert_eq!(report.state, HealthState::Unhealthy);
+        assert!(!report.ready);
+        assert!(!report.accepting_requests);
+        assert_eq!(report.models_loaded, 1);
+        assert_eq!(report.memory_used_bytes, 1024);
+        assert_eq!(report.queue_depth, 5);
+    }
+
+    #[test]
+    fn test_health_checker_report_unhealthy_stopped() {
+        let checker = HealthChecker::new(HealthConfig {
+            require_model_loaded: false,
+            max_queue_depth: 10,
+        });
+
+        let report = checker.report(ShutdownState::Stopped, 1, 1024, 5);
+
+        assert_eq!(report.state, HealthState::Unhealthy);
+        assert!(!report.ready);
+        assert!(!report.accepting_requests);
+        assert_eq!(report.models_loaded, 1);
+        assert_eq!(report.memory_used_bytes, 1024);
+        assert_eq!(report.queue_depth, 5);
     }
 }

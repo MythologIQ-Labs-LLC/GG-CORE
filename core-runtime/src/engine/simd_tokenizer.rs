@@ -50,6 +50,9 @@ impl SimdTokenizer {
     }
 
     /// Find whitespace positions using AVX2 SIMD (x86_64 only).
+    ///
+    /// # Safety
+    /// Caller must verify AVX2 support via `is_x86_feature_detected!("avx2")`.
     #[cfg(target_arch = "x86_64")]
     #[target_feature(enable = "avx2")]
     unsafe fn find_whitespace_avx2(text: &[u8]) -> Vec<usize> {
@@ -148,7 +151,7 @@ impl SimdTokenizer {
 
     /// Decode token IDs to text.
     pub fn decode(&self, tokens: &[u32]) -> Result<String, TokenizerError> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(tokens.len() * 4); // Estimate 4 bytes per token
         for &id in tokens {
             if let Some(entry) = self.vocab.get(id as usize) {
                 bytes.extend_from_slice(&entry.bytes);

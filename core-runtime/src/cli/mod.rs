@@ -15,9 +15,12 @@
 //! GG-CORE status   # Show system status and statistics
 //! ```
 
+pub mod config_cmd;
 pub mod health;
 pub mod ipc_client;
+pub mod models_cmd;
 pub mod status;
+pub mod status_format;
 
 pub use health::{run_health, run_liveness, run_readiness};
 pub use ipc_client::{CliError, CliIpcClient};
@@ -25,14 +28,14 @@ pub use status::{run_status, SystemStatus};
 
 /// Default socket path for IPC communication.
 #[cfg(unix)]
-pub const DEFAULT_SOCKET_PATH: &str = "/var/run/veritas/GG-CORE.sock";
+pub const DEFAULT_SOCKET_PATH: &str = "/var/run/gg-core/GG-CORE.sock";
 
 #[cfg(windows)]
 pub const DEFAULT_SOCKET_PATH: &str = r"\\.\pipe\GG-CORE";
 
 /// Get socket path from environment or use default.
 pub fn get_socket_path() -> String {
-    std::env::var("VERITAS_SOCKET_PATH").unwrap_or_else(|_| DEFAULT_SOCKET_PATH.to_string())
+    std::env::var("GG_CORE_SOCKET_PATH").unwrap_or_else(|_| DEFAULT_SOCKET_PATH.to_string())
 }
 
 #[cfg(test)]
@@ -42,7 +45,7 @@ mod tests {
     #[test]
     fn test_default_socket_path_unix() {
         #[cfg(unix)]
-        assert_eq!(DEFAULT_SOCKET_PATH, "/var/run/veritas/GG-CORE.sock");
+        assert_eq!(DEFAULT_SOCKET_PATH, "/var/run/gg-core/GG-CORE.sock");
     }
 
     #[test]
@@ -54,7 +57,7 @@ mod tests {
     #[test]
     fn test_get_socket_path_default() {
         // Clear env var if set
-        std::env::remove_var("VERITAS_SOCKET_PATH");
+        std::env::remove_var("GG_CORE_SOCKET_PATH");
         let path = get_socket_path();
         assert_eq!(path, DEFAULT_SOCKET_PATH);
     }
@@ -62,11 +65,11 @@ mod tests {
     #[test]
     fn test_get_socket_path_from_env() {
         let custom_path = "/custom/socket.sock";
-        std::env::set_var("VERITAS_SOCKET_PATH", custom_path);
+        std::env::set_var("GG_CORE_SOCKET_PATH", custom_path);
         let path = get_socket_path();
         assert_eq!(path, custom_path);
         // Clean up
-        std::env::remove_var("VERITAS_SOCKET_PATH");
+        std::env::remove_var("GG_CORE_SOCKET_PATH");
     }
 
     #[test]

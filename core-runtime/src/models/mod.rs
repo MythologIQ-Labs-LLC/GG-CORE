@@ -4,10 +4,14 @@
 
 pub mod manifest;
 pub mod pool;
+pub mod pool_types;
 pub mod smart_loader;
+mod smart_loader_ops;
+pub mod smart_loader_types;
 pub mod tier_synergy;
 
 mod drain;
+pub mod lifecycle;
 mod loader;
 mod preload;
 pub mod registry;
@@ -21,6 +25,7 @@ pub mod search;
 pub mod version;
 
 pub use drain::{DrainError, FlightGuard, FlightTracker};
+pub use lifecycle::{LifecycleError, ModelLifecycle};
 pub use history::{VersionHistory, VersionHistoryEntry, VersionSource};
 pub use loader::{LoadError, MappedModel, ModelLoader, ModelMetadata, ModelPath};
 pub use manifest::{ModelArchitecture, ModelCapability, ModelManifest};

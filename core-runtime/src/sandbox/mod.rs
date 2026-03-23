@@ -21,6 +21,8 @@ pub struct SandboxConfig {
     pub max_cpu_time_ms: u64,
     /// Whether to enable the sandbox (false = dry run).
     pub enabled: bool,
+    /// Whether GPU device access is permitted (adds ioctl to seccomp whitelist).
+    pub gpu_enabled: bool,
 }
 
 impl Default for SandboxConfig {
@@ -29,6 +31,7 @@ impl Default for SandboxConfig {
             max_memory_bytes: 2 * 1024 * 1024 * 1024, // 2GB
             max_cpu_time_ms: 30_000,                   // 30s
             enabled: true,
+            gpu_enabled: false,
         }
     }
 }
