@@ -134,6 +134,7 @@ pub struct ThreadPoolStats {
 /// Worker thread state.
 struct Worker {
     queue: Arc<Mutex<VecDeque<PrioritizedTask>>>,
+    queue_len: Arc<std::sync::atomic::AtomicUsize>,
     active: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
 }
@@ -169,14 +170,21 @@ impl ThreadPool {
             .map(|_| Arc::new(Mutex::new(VecDeque::with_capacity(config.queue_size))))
             .collect();
 
+        let all_queue_lens: Vec<Arc<std::sync::atomic::AtomicUsize>> = (0..num_threads)
+            .map(|_| Arc::new(std::sync::atomic::AtomicUsize::new(0)))
+            .collect();
+
         let mut workers = Vec::with_capacity(num_threads);
 
         for id in 0..num_threads {
             let queue = all_queues[id].clone();
             let queue_for_worker = queue.clone(); // Clone for worker struct
+            let queue_len = all_queue_lens[id].clone();
+            let queue_len_for_worker = queue_len.clone();
 
             // Create steal targets (all queues for stealing)
             let steal_queues = all_queues.clone();
+            let steal_queue_lens = all_queue_lens.clone();
 
             let active = Arc::new(AtomicBool::new(false));
             let shutdown_clone = shutdown.clone();
@@ -199,7 +207,9 @@ impl ThreadPool {
                     Self::worker_loop(
                         id,
                         queue,
+                        queue_len,
                         steal_queues,
+                        steal_queue_lens,
                         active_clone,
                         shutdown_clone,
                         condvar_clone,
@@ -212,6 +222,7 @@ impl ThreadPool {
 
             workers.push(Worker {
                 queue: queue_for_worker,
+                queue_len: queue_len_for_worker,
                 active,
                 handle: Some(handle),
             });
@@ -275,6 +286,9 @@ impl ThreadPool {
                 .unwrap_or(q.len());
 
             q.insert(insert_pos, prioritized);
+            if let Some(id) = min_queue_worker {
+                self.workers[id].queue_len.fetch_add(1, Ordering::Relaxed);
+            }
         }
 
         // Wake up a worker
@@ -292,7 +306,7 @@ impl ThreadPool {
         self.workers
             .iter()
             .enumerate()
-            .min_by_key(|(_, w)| lock_or_recover(&w.queue).len())
+            .min_by_key(|(_, w)| w.queue_len.load(Ordering::Relaxed))
             .map(|(i, _)| i)
     }
 
@@ -300,7 +314,9 @@ impl ThreadPool {
     fn worker_loop(
         worker_id: usize,
         queue: Arc<Mutex<VecDeque<PrioritizedTask>>>,
+        queue_len: Arc<std::sync::atomic::AtomicUsize>,
         all_queues: Vec<Arc<Mutex<VecDeque<PrioritizedTask>>>>,
+        all_queue_lens: Vec<Arc<std::sync::atomic::AtomicUsize>>,
         active: Arc<AtomicBool>,
         shutdown: Arc<AtomicBool>,
         condvar: Arc<(Mutex<bool>, Condvar)>,
@@ -313,6 +329,9 @@ impl ThreadPool {
         while !shutdown.load(Ordering::SeqCst) {
             // Try to get a task from local queue
             let task = lock_or_recover(&queue).pop_front();
+            if task.is_some() {
+                queue_len.fetch_sub(1, Ordering::Relaxed);
+            }
 
             let task = match task {
                 Some(t) => Some(t),
@@ -322,7 +341,7 @@ impl ThreadPool {
                         Some(t)
                     } else if config.enable_work_stealing {
                         // Try to steal from other workers
-                        Self::try_steal(worker_id, &all_queues)
+                        Self::try_steal(worker_id, &all_queues, &all_queue_lens)
                     } else {
                         None
                     }
@@ -366,6 +385,7 @@ impl ThreadPool {
     fn try_steal(
         worker_id: usize,
         all_queues: &[Arc<Mutex<VecDeque<PrioritizedTask>>>],
+        all_queue_lens: &[Arc<std::sync::atomic::AtomicUsize>],
     ) -> Option<PrioritizedTask> {
         for (id, target) in all_queues.iter().enumerate() {
             if id == worker_id {
@@ -373,6 +393,7 @@ impl ThreadPool {
             }
             let mut q = lock_or_recover(target);
             if let Some(task) = q.pop_back() {
+                all_queue_lens[id].fetch_sub(1, Ordering::Relaxed);
                 return Some(task);
             }
         }
