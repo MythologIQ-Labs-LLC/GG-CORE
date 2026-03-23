@@ -13,6 +13,12 @@ pub enum InferenceError {
     #[error("Input validation failed: {0}")]
     InputValidation(String),
 
+    #[error("Input validation failed for batch item {index}: {error}")]
+    BatchItemValidation {
+        index: usize,
+        error: Box<InferenceError>,
+    },
+
     #[error("Inference timeout after {0}ms")]
     Timeout(u64),
 
@@ -55,7 +61,10 @@ impl InferenceError {
     pub fn is_security_concern(&self) -> bool {
         matches!(
             self,
-            Self::HashMismatch { .. } | Self::InputValidation(_) | Self::OutputFiltered { .. }
+            Self::HashMismatch { .. }
+                | Self::InputValidation(_)
+                | Self::BatchItemValidation { .. }
+                | Self::OutputFiltered { .. }
         )
     }
 }

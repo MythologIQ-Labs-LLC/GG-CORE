@@ -86,9 +86,12 @@ fn validate_batch(batch: &[String]) -> Result<(), InferenceError> {
         )));
     }
     for (i, text) in batch.iter().enumerate() {
-        validate_text(text).map_err(|e| {
-            InferenceError::InputValidation(format!("batch item {}: {}", i, e))
-        })?;
+        if let Err(e) = validate_text(text) {
+            return Err(InferenceError::BatchItemValidation {
+                index: i,
+                error: Box::new(e),
+            });
+        }
     }
     Ok(())
 }

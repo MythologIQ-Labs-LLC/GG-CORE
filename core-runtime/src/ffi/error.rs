@@ -95,6 +95,7 @@ impl From<crate::engine::InferenceError> for CoreErrorCode {
         match err {
             InferenceError::ModelNotLoaded(_) => CoreErrorCode::ModelNotFound,
             InferenceError::InputValidation(_) => CoreErrorCode::InvalidParams,
+            InferenceError::BatchItemValidation { .. } => CoreErrorCode::InvalidParams,
             InferenceError::Timeout(_) => CoreErrorCode::Timeout,
             InferenceError::MemoryExceeded { .. } => CoreErrorCode::ContextExceeded,
             InferenceError::OutputFiltered { .. } => CoreErrorCode::InferenceFailed,

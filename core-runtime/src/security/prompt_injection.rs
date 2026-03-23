@@ -198,13 +198,17 @@ impl PromptInjectionFilter {
             ("show", "instruction"),
         ];
 
+        // Optimization: Convert cleaned text to lowercase once instead of
+        // doing it repeatedly inside the loop for each pattern.
+        let cleaned_lower = cleaned.to_lowercase();
+
         for (pattern, context) in context_patterns {
-            if let Some(pos) = cleaned.to_lowercase().find(pattern) {
+            if let Some(pos) = cleaned_lower.find(pattern) {
                 // Check if context appears nearby
                 let context_window = 50;
                 let start = pos.saturating_sub(context_window);
-                let end = (pos + pattern.len() + context_window).min(cleaned.len());
-                let window = &cleaned[start..end].to_lowercase();
+                let end = (pos + pattern.len() + context_window).min(cleaned_lower.len());
+                let window = &cleaned_lower[start..end];
 
                 if window.contains(context) {
                     matches.push(InjectionMatch {
