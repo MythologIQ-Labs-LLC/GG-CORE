@@ -19,7 +19,22 @@ pub fn filter_content_patterns(text: &str) -> (String, usize) {
     let mut result = text.to_string();
     let mut count = 0;
     for (pattern, replacement) in get_content_filter_patterns() {
-        if result.to_lowercase().contains(pattern) {
+        // PERFORMANCE OPTIMIZATION:
+        // Avoid unconditionally allocating a new lowercased string on every loop iteration.
+        // For ASCII strings (the vast majority of cases), we use an allocation-free sliding
+        // window search. We only fall back to `to_lowercase()` for strings with Unicode.
+        let matches = if pattern.is_empty() {
+            true
+        } else if result.is_ascii() && pattern.is_ascii() {
+            result.as_bytes()
+                .windows(pattern.len())
+                .any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))
+        } else {
+            let pattern_lower = pattern.to_lowercase();
+            result.to_lowercase().contains(&pattern_lower)
+        };
+
+        if matches {
             result = result.replace(pattern, replacement);
             count += 1;
         }
