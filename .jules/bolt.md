@@ -1,3 +1,7 @@
 ## 2024-05-24 - [O(N) to O(1) PageTable Lookups in KV-Cache Memory Manager]
 **Learning:** Found a major performance bottleneck where the `PageTable` implementation in `paged.rs` was using an O(N) linear scan (`self.pages.iter().find(|p| p.id == *page_id)`) to find pages by ID, despite the fact that `PageId` corresponds exactly to the page's index in the `self.pages` vector (since pages are assigned sequentially and never removed). This means every token generation and attention score calculation in the KV cache was executing an O(max_pages) search.
 **Action:** Replaced the O(N) linear scans with O(1) direct array accesses (`self.pages.get(page_id.0)`). When dealing with memory pools or arenas where IDs are assigned sequentially, always check if the ID can be used as a direct index to avoid unnecessary O(N) lookups.
+
+## 2024-05-27 - [O(N) to O(1) Memory Allocations in Repetition Checking]
+**Learning:** Found a major performance bottleneck where the `has_excessive_repetition` function in `sanitizer_rules.rs` was using `window.join(" ")` on every 3-word window to create a `String` used as a `HashMap` key. Since this runs on every check, it means N heap allocations, which adds extreme memory pressure on long texts.
+**Action:** Replaced the `String` key with a fixed array of slice references (`[&str; 3]`). This makes the key allocation 0 (stack allocated), dramatically lowering heap usage and overhead on text processing.
