@@ -18,9 +18,11 @@ pub fn get_content_filter_patterns() -> Vec<(&'static str, &'static str)> {
 pub fn filter_content_patterns(text: &str) -> (String, usize) {
     let mut result = text.to_string();
     let mut count = 0;
+    let mut result_lower = result.to_lowercase();
     for (pattern, replacement) in get_content_filter_patterns() {
-        if result.to_lowercase().contains(pattern) {
+        if result_lower.contains(pattern) {
             result = result.replace(pattern, replacement);
+            result_lower = result.to_lowercase();
             count += 1;
         }
     }
