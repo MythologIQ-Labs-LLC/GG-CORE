@@ -54,6 +54,10 @@ pub trait OnnxModel: Send + Sync {
     async fn unload(&mut self) -> Result<(), InferenceError>;
 }
 
+/// Default embedding dimension for MiniLM-style models.
+#[cfg(feature = "onnx")]
+const DEFAULT_EMBEDDING_DIM: usize = 384;
+
 /// Load an ONNX model from a file path.
 ///
 /// # Arguments
@@ -65,14 +69,18 @@ pub trait OnnxModel: Send + Sync {
 /// Returns error if model cannot be loaded or is invalid format.
 #[cfg(feature = "onnx")]
 pub fn load_onnx_model(
-    _path: &Path,
-    _model_id: &str,
+    path: &Path,
+    model_id: &str,
     _config: &OnnxConfig,
 ) -> Result<Arc<dyn OnnxModel>, InferenceError> {
-    // Actual candle-onnx loading would go here
-    Err(InferenceError::ModelError(
-        "ONNX model loading requires candle implementation".into(),
-    ))
+    let model = candle_onnx::read_file(path)
+        .map_err(|e| InferenceError::ModelError(format!("load {path:?}: {e}")))?;
+    let embedder = OnnxEmbedder::with_model(
+        model_id.to_string(),
+        DEFAULT_EMBEDDING_DIM,
+        model,
+    );
+    Ok(Arc::new(embedder))
 }
 
 /// Stub for non-onnx builds.
