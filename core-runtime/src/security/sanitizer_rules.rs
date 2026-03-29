@@ -16,14 +16,42 @@ pub fn get_content_filter_patterns() -> Vec<(&'static str, &'static str)> {
 
 /// Apply content filter patterns to text. Returns (filtered_text, count).
 pub fn filter_content_patterns(text: &str) -> (String, usize) {
+    if text.is_empty() {
+        return (String::new(), 0);
+    }
+
+    // Optimization: Avoid unconditionally calling `to_lowercase()`
+    // which does a heap allocation and Unicode iteration.
     let mut result = text.to_string();
     let mut count = 0;
+
+    // Only lowercase the result string if we fall back from fast ASCII check
+    let mut lower_result: Option<String> = None;
+
     for (pattern, replacement) in get_content_filter_patterns() {
-        if result.to_lowercase().contains(pattern) {
+        // Safe fast-path for non-empty patterns
+        let has_match = if pattern.is_empty() {
+            true // technically empty pattern is in every string, though our rules have none
+        } else if result.is_ascii() && pattern.is_ascii() {
+            // Allocation-free case-insensitive search
+            result.as_bytes()
+                .windows(pattern.len())
+                .any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))
+        } else {
+            // Fallback for non-ASCII
+            lower_result
+                .get_or_insert_with(|| result.to_lowercase())
+                .contains(pattern)
+        };
+
+        if has_match {
             result = result.replace(pattern, replacement);
+            // Invalidate the cached lower_result since result changed
+            lower_result = None;
             count += 1;
         }
     }
+
     (result, count)
 }
 
