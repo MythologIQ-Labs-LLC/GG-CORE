@@ -19,7 +19,17 @@ pub fn filter_content_patterns(text: &str) -> (String, usize) {
     let mut result = text.to_string();
     let mut count = 0;
     for (pattern, replacement) in get_content_filter_patterns() {
-        if result.to_lowercase().contains(pattern) {
+        if pattern.is_empty() {
+            continue;
+        }
+
+        let is_match = if result.is_ascii() && pattern.is_ascii() {
+            result.as_bytes().windows(pattern.len()).any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))
+        } else {
+            result.to_lowercase().contains(&pattern.to_lowercase())
+        };
+
+        if is_match {
             result = result.replace(pattern, replacement);
             count += 1;
         }

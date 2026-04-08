@@ -1,3 +1,7 @@
 ## 2024-05-24 - [O(N) to O(1) PageTable Lookups in KV-Cache Memory Manager]
 **Learning:** Found a major performance bottleneck where the `PageTable` implementation in `paged.rs` was using an O(N) linear scan (`self.pages.iter().find(|p| p.id == *page_id)`) to find pages by ID, despite the fact that `PageId` corresponds exactly to the page's index in the `self.pages` vector (since pages are assigned sequentially and never removed). This means every token generation and attention score calculation in the KV cache was executing an O(max_pages) search.
 **Action:** Replaced the O(N) linear scans with O(1) direct array accesses (`self.pages.get(page_id.0)`). When dealing with memory pools or arenas where IDs are assigned sequentially, always check if the ID can be used as a direct index to avoid unnecessary O(N) lookups.
+
+## 2024-11-20 - [Allocation-free ASCII window search]
+**Learning:** Using `text.to_lowercase().contains(pattern)` in a loop creates an O(N) allocation bottleneck.
+**Action:** Replace `to_lowercase().contains()` with an allocation-free ASCII window search `text.as_bytes().windows(pattern.len()).any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))` guarded by `.is_ascii()` checks to avoid allocations on the fast path, while preserving exact behavior.
