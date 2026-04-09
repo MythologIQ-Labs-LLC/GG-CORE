@@ -4,13 +4,23 @@
 pub fn get_content_filter_patterns() -> Vec<(&'static str, &'static str)> {
     vec![
         // Self-harm indicators (replace with resources)
-        ("I want to kill myself",
-         "If you're having thoughts of self-harm, please reach out to a crisis helpline: 988"),
-        ("I want to die",
-         "If you're having thoughts of self-harm, please reach out to a crisis helpline: 988"),
+        (
+            "I want to kill myself",
+            "If you're having thoughts of self-harm, please reach out to a crisis helpline: 988",
+        ),
+        (
+            "I want to die",
+            "If you're having thoughts of self-harm, please reach out to a crisis helpline: 988",
+        ),
         // Dangerous instructions
-        ("how to make a bomb", "[CONTENT FILTERED: Dangerous content]"),
-        ("how to create a virus", "[CONTENT FILTERED: Dangerous content]"),
+        (
+            "how to make a bomb",
+            "[CONTENT FILTERED: Dangerous content]",
+        ),
+        (
+            "how to create a virus",
+            "[CONTENT FILTERED: Dangerous content]",
+        ),
     ]
 }
 
@@ -33,11 +43,13 @@ pub fn has_excessive_repetition(text: &str) -> bool {
     if words.len() < 10 {
         return false;
     }
-    let mut phrase_counts: std::collections::HashMap<String, usize> =
+
+    // Performance optimization: Using slice references `&[&str]` as the HashMap key
+    // instead of joining the window into a new String to avoid O(N) heap allocations.
+    let mut phrase_counts: std::collections::HashMap<&[&str], usize> =
         std::collections::HashMap::new();
     for window in words.windows(3) {
-        let phrase = window.join(" ");
-        *phrase_counts.entry(phrase).or_insert(0) += 1;
+        *phrase_counts.entry(window).or_insert(0) += 1;
     }
     phrase_counts.values().any(|&count| count > 5)
 }
@@ -79,5 +91,8 @@ pub fn find_safe_trim_point(buffer: &str, max_trim: usize) -> usize {
         }
     }
 
-    buffer.len().saturating_sub(MAX_PII_LENGTH * 2).min(max_trim)
+    buffer
+        .len()
+        .saturating_sub(MAX_PII_LENGTH * 2)
+        .min(max_trim)
 }
