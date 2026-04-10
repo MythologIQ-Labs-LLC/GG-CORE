@@ -33,11 +33,10 @@ pub fn has_excessive_repetition(text: &str) -> bool {
     if words.len() < 10 {
         return false;
     }
-    let mut phrase_counts: std::collections::HashMap<String, usize> =
+    let mut phrase_counts: std::collections::HashMap<&[&str], usize> =
         std::collections::HashMap::new();
     for window in words.windows(3) {
-        let phrase = window.join(" ");
-        *phrase_counts.entry(phrase).or_insert(0) += 1;
+        *phrase_counts.entry(window).or_insert(0) += 1;
     }
     phrase_counts.values().any(|&count| count > 5)
 }

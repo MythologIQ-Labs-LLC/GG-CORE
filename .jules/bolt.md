@@ -1,3 +1,7 @@
 ## 2024-05-24 - [O(N) to O(1) PageTable Lookups in KV-Cache Memory Manager]
 **Learning:** Found a major performance bottleneck where the `PageTable` implementation in `paged.rs` was using an O(N) linear scan (`self.pages.iter().find(|p| p.id == *page_id)`) to find pages by ID, despite the fact that `PageId` corresponds exactly to the page's index in the `self.pages` vector (since pages are assigned sequentially and never removed). This means every token generation and attention score calculation in the KV cache was executing an O(max_pages) search.
 **Action:** Replaced the O(N) linear scans with O(1) direct array accesses (`self.pages.get(page_id.0)`). When dealing with memory pools or arenas where IDs are assigned sequentially, always check if the ID can be used as a direct index to avoid unnecessary O(N) lookups.
+
+## 2024-05-24 - [Avoid O(N) heap allocations in sliding window counting]
+**Learning:** In `has_excessive_repetition`, using `.join(" ")` on sliding windows to create a String key for a HashMap incurred unnecessary heap allocations inside a tight loop. Rust's slice references `&[&str]` natively implement `Hash` and `Eq`.
+**Action:** When calculating occurrences over sliding windows (e.g., `words.windows(n)`), use the slice reference `&[&T]` directly as the `HashMap` key instead of joining or allocating a new `String` or `Vec<T>` to avoid O(N) heap allocations.
