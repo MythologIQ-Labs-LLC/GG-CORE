@@ -19,7 +19,18 @@ pub fn filter_content_patterns(text: &str) -> (String, usize) {
     let mut result = text.to_string();
     let mut count = 0;
     for (pattern, replacement) in get_content_filter_patterns() {
-        if result.to_lowercase().contains(pattern) {
+        let matches = if pattern.is_empty() {
+            true
+        } else if result.is_ascii() && pattern.is_ascii() {
+            result
+                .as_bytes()
+                .windows(pattern.len())
+                .any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))
+        } else {
+            result.to_lowercase().contains(&pattern.to_lowercase())
+        };
+
+        if matches {
             result = result.replace(pattern, replacement);
             count += 1;
         }
@@ -33,11 +44,10 @@ pub fn has_excessive_repetition(text: &str) -> bool {
     if words.len() < 10 {
         return false;
     }
-    let mut phrase_counts: std::collections::HashMap<String, usize> =
+    let mut phrase_counts: std::collections::HashMap<&[&str], usize> =
         std::collections::HashMap::new();
     for window in words.windows(3) {
-        let phrase = window.join(" ");
-        *phrase_counts.entry(phrase).or_insert(0) += 1;
+        *phrase_counts.entry(window).or_insert(0) += 1;
     }
     phrase_counts.values().any(|&count| count > 5)
 }

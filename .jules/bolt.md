@@ -1,3 +1,7 @@
 ## 2024-05-24 - [O(N) to O(1) PageTable Lookups in KV-Cache Memory Manager]
 **Learning:** Found a major performance bottleneck where the `PageTable` implementation in `paged.rs` was using an O(N) linear scan (`self.pages.iter().find(|p| p.id == *page_id)`) to find pages by ID, despite the fact that `PageId` corresponds exactly to the page's index in the `self.pages` vector (since pages are assigned sequentially and never removed). This means every token generation and attention score calculation in the KV cache was executing an O(max_pages) search.
 **Action:** Replaced the O(N) linear scans with O(1) direct array accesses (`self.pages.get(page_id.0)`). When dealing with memory pools or arenas where IDs are assigned sequentially, always check if the ID can be used as a direct index to avoid unnecessary O(N) lookups.
+
+## 2024-06-25 - [O(N) to O(1) repetition checks and string filtering optimization]
+**Learning:** When working with `.windows()` sliding iterators to build occurrence counts, you should use the returned slice `&[T]` directly as a HashMap key instead of joining it into a new String, since slices implement `Hash` and `Eq` natively. This changes the O(N) allocation per window into an O(1) lookup. Furthermore, string matching loops can be optimized by using the `.is_ascii()` check and the `result.as_bytes().windows(pattern.len()).any(|w| w.eq_ignore_ascii_case(pattern.as_bytes()))` trick.
+**Action:** Use slices directly as Hashmap keys and apply the ASCII string searching optimization across string manipulation paths.
