@@ -165,9 +165,12 @@ harness = false
 name = "concurrent_load"
 harness = false
 
-[[bench]]
-name = "llama_cpp_comparison"
-harness = false
+# Note: `llama_cpp_comparison` bench source was removed in commit a604ce7
+# ("chore: move proprietary optimizations to private tracking") but the
+# manifest declaration was left orphaned, which causes `cargo metadata`
+# (and therefore any downstream workspace consuming gg-core as a path
+# dep) to fail. Dropping the declaration restores the manifest to a
+# parseable state. Closes #45.
 
 [[bench]]
 name = "gpu_allocation"
