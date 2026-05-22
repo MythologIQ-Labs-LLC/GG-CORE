@@ -80,9 +80,9 @@ impl DecodeExecutor {
         }
 
         // Allocate page for new position
-        page_table.allocate(self.current_pos).ok_or_else(|| {
-            InferenceError::MemoryExceeded { used: self.current_pos, limit: self.current_pos }
-        })?;
+        page_table.allocate(self.current_pos).ok_or(
+            InferenceError::MemoryExceeded { used: self.current_pos, limit: self.current_pos },
+        )?;
 
         // Simulate token generation (actual model would sample here)
         let token = self.sample_token()?;
@@ -130,7 +130,7 @@ impl DecodeExecutor {
     /// Estimate pages needed for generation length.
     pub fn estimate_pages(current_pos: usize, max_tokens: usize) -> usize {
         let end_pos = current_pos + max_tokens;
-        (end_pos + PAGE_TOKENS - 1) / PAGE_TOKENS
+        end_pos.div_ceil(PAGE_TOKENS)
     }
 
     pub fn config(&self) -> &DecodeConfig { &self.config }

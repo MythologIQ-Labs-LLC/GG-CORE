@@ -1,3 +1,4 @@
+#![cfg(feature = "advanced")]
 // Copyright 2024-2026 GG-CORE Contributors
 // Licensed under the Apache License, Version 2.0
 

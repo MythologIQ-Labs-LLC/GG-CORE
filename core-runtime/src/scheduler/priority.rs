@@ -4,18 +4,13 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 /// Priority level for inference requests.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Priority {
     Low = 0,
+    #[default]
     Normal = 1,
     High = 2,
     Critical = 3,
-}
-
-impl Default for Priority {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 impl From<u8> for Priority {

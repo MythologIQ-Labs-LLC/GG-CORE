@@ -13,20 +13,15 @@ use thiserror::Error;
 use super::gpu_allocator::{GpuAllocation, GpuAllocator};
 
 /// GPU Backend Types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum GpuBackend {
     /// NVIDIA CUDA backend
     Cuda,
     /// Apple Metal backend (macOS only)
     Metal,
     /// CPU fallback (no GPU)
+    #[default]
     Cpu,
-}
-
-impl Default for GpuBackend {
-    fn default() -> Self {
-        Self::Cpu
-    }
 }
 
 impl fmt::Display for GpuBackend {
@@ -180,9 +175,10 @@ pub enum GpuError {
 }
 
 /// Device placement strategy for model loading.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum DevicePlacement {
     /// Run entirely on CPU.
+    #[default]
     Cpu,
     /// Run on a single GPU device, optionally offloading only some layers.
     Gpu {
@@ -191,12 +187,6 @@ pub enum DevicePlacement {
     },
     /// Split across multiple GPU devices.
     Split { devices: Vec<usize> },
-}
-
-impl Default for DevicePlacement {
-    fn default() -> Self {
-        Self::Cpu
-    }
 }
 
 /// GPU Memory Handle backed by a `GpuAllocator`.

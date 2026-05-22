@@ -94,10 +94,10 @@ impl KvCacheManager {
         scores_out: &mut [f32],
     ) -> Result<(), KvCacheError> {
         let page_table = read_or_recover(&self.page_table);
-        for pos in 0..seq_len {
+        for (pos, score_out) in scores_out.iter_mut().enumerate().take(seq_len) {
             if let Some(page) = page_table.get(pos) {
                 let slot = pos % PAGE_TOKENS;
-                scores_out[pos] = Self::dot_product(query, page.read_keys(slot));
+                *score_out = Self::dot_product(query, page.read_keys(slot));
             }
         }
         Ok(())

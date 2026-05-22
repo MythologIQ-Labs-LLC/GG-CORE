@@ -81,9 +81,9 @@ impl PrefillExecutor {
             let seq_pos = start_pos + i;
 
             // Allocate page if needed
-            page_table.allocate(seq_pos).ok_or_else(|| {
-                InferenceError::MemoryExceeded { used: seq_pos, limit: seq_pos }
-            })?;
+            page_table.allocate(seq_pos).ok_or(
+                InferenceError::MemoryExceeded { used: seq_pos, limit: seq_pos },
+            )?;
 
             // Write placeholder KV (actual transformer would compute here)
             let slot = PageTable::slot_in_page(seq_pos);
@@ -98,7 +98,7 @@ impl PrefillExecutor {
 
     /// Estimate pages needed for prompt length.
     pub fn estimate_pages(prompt_len: usize) -> usize {
-        (prompt_len + PAGE_TOKENS - 1) / PAGE_TOKENS
+        prompt_len.div_ceil(PAGE_TOKENS)
     }
 
     pub fn config(&self) -> &PrefillConfig { &self.config }

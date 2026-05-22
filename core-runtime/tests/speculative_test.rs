@@ -1,3 +1,4 @@
+#![cfg(feature = "advanced")]
 //! TDD-Light tests for speculative decoding.
 
 use async_trait::async_trait;

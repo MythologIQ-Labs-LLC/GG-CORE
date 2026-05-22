@@ -1,3 +1,4 @@
+#![cfg(feature = "advanced")]
 //! Tests for ARM NEON SIMD kernels.
 //!
 //! These tests verify NEON produces same results as scalar fallback.

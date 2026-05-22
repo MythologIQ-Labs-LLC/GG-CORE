@@ -137,8 +137,7 @@ impl MoeExecutor {
     pub fn load_statistics(&self, routing: &RoutingDecision) -> LoadStats {
         let load = routing
             .load_per_expert
-            .as_ref()
-            .map(|l| l.clone())
+            .clone()
             .unwrap_or_else(|| vec![0; self.config.num_experts]);
 
         let total: u32 = load.iter().sum();

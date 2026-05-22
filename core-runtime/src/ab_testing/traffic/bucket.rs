@@ -22,10 +22,10 @@ pub fn random_bucket() -> u8 {
 }
 
 /// Convert bucket to variant using cumulative weights.
-pub fn bucket_to_variant<'a>(
+pub fn bucket_to_variant(
     bucket: u8,
-    cumulative: &'a [(VariantLabel, u8)],
-) -> &'a VariantLabel {
+    cumulative: &[(VariantLabel, u8)],
+) -> &VariantLabel {
     for (label, threshold) in cumulative {
         if bucket < *threshold {
             return label;

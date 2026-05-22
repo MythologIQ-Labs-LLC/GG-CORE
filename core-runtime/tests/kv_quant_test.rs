@@ -1,3 +1,4 @@
+#![cfg(feature = "advanced")]
 //! Tests for Q8 KV-cache storage.
 
 use gg_core::memory::kv_quant::{compute_scale, dequantize, quantize_to, Q8KvStore};
