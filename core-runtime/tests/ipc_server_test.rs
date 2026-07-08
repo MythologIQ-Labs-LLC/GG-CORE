@@ -5,7 +5,6 @@
 //! depending on the build target.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use gg_core::ipc::{ConnectionConfig, ConnectionPool};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -34,6 +33,7 @@ async fn read_frame<R: AsyncReadExt + Unpin>(r: &mut R) -> Vec<u8> {
 // Helpers: build a test IpcHandler via Runtime
 // ---------------------------------------------------------------------------
 
+#[cfg(windows)]
 fn test_handler() -> Arc<gg_core::ipc::IpcHandler> {
     let rt = gg_core::Runtime::new(gg_core::RuntimeConfig {
         auth_token: "test-token".into(),
@@ -141,6 +141,7 @@ fn unique_pipe_name(label: &str) -> String {
 #[cfg(windows)]
 mod windows_server_tests {
     use super::*;
+    use std::time::Duration;
     use tokio::net::windows::named_pipe::ClientOptions;
 
     /// Spin up a real IPC server and do a health check round-trip.

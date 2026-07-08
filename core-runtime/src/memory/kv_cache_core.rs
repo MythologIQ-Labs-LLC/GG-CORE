@@ -132,16 +132,17 @@ impl KvCacheManager {
             self.allocate_page_for_seq(seq_id)?;
         }
         // Phase 3: resolve page_id from per-sequence page_ids, then write.
+        // Use last() — evict_beyond_window drains from the front, so the
+        // absolute index (seq_pos / PAGE_TOKENS) is no longer valid after eviction.
         let page_id = {
             let store = read_or_recover(&self.sequences);
             let entry = store
                 .entries
                 .get(&seq_id)
                 .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
-            let page_idx = seq_pos / PAGE_TOKENS;
             *entry
                 .page_ids
-                .get(page_idx)
+                .last()
                 .ok_or(KvCacheError::PageNotFound)?
         };
         self.write_to_page(page_id, seq_pos % PAGE_TOKENS, keys, values);
