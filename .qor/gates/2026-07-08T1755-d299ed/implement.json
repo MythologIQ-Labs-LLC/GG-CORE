@@ -1,0 +1,33 @@
+{
+  "phase": "implement",
+  "ts": "2026-07-08T20:30:00Z",
+  "session_id": "2026-07-08T1755-d299ed",
+  "plan_path": "docs/plan-b20-kv-isolation-redesign.md",
+  "commit": "6c8c228",
+  "files_changed": [
+    "core-runtime/src/memory/paged.rs",
+    "core-runtime/src/memory/kv_cache_core.rs",
+    "core-runtime/src/memory/kv_cache_ops.rs",
+    "core-runtime/src/engine/prefill.rs",
+    "core-runtime/src/engine/decode.rs",
+    "core-runtime/tests/kv_cache_test.rs",
+    "core-runtime/tests/tier4_paged_continuous_test.rs"
+  ],
+  "test_results": {
+    "kv_cache_test": "15/15 PASS",
+    "paged_unit": "5/5 PASS",
+    "tier4_paged": "9/9 PASS"
+  },
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-21",
+      "operation": "MODIFIED",
+      "status": "verified"
+    }
+  ],
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T1755-d299ed"
+  }
+}

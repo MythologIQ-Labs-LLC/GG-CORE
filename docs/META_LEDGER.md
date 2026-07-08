@@ -5943,16 +5943,84 @@ SHA256(content_hash + "|" + previous_hash)
 
 **Content Hash**:
 
-
+```
+SHA256(touched governance files)
+= a8cd9f1432867dde821b6f633ddad7cff994388109adb542cc23afb282f34c35
+```
 
 **Previous Hash**: 816999553aac806f0673be3130075db9c6797212d80b04c8696e3b197865dab5
 
 **Chain Hash**:
 
-
+```
+SHA256(content_hash + "|" + previous_hash)
+= 50183476b4ccc9ed38219698cd9193d56b8a34f30691af37c6094e3d437461f3
+```
 
 **Session Seal**:
 
-
+```
+SHA256(chain_hash + "SEALED")
+= 3af0f92e62b0cdcb2d2b13218ca3f32a21e3ab66dbd6e80e38548ba4ae0ce2d2
+```
 
 **Decision**: SUBSTANTIATION COMPLETE at local hold. Cycle 2 of runtime-optimization-hardening sealed: validate_path NUL rejection (#57), load-existence test contract (#55), 13 clippy residuals (#56), security oracle const-assertion rework, B-22 bench match fix (#69). Outstanding: B-20 KV isolation redesign (L3, next governed cycle), B-21 ADR-007 epic, B-23 now closed. Push/PR/merge/tag reserved for operator review.
+
+---
+
+### Entry #86: SESSION SEAL (B-20 KV Cache Cross-Sequence Isolation Redesign)
+
+**Entry ID**: `d299ed7b20a1`
+**Timestamp**: 2026-07-08T20:35:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L3
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1, PW.4.4
+**Session ID**: 2026-07-08T1755-d299ed
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (PageTable pure-pool rewrite; per-sequence page_ids lookup; all 7 planned files modified) |
+| Cross-sequence isolation oracle | **PASS** (`test_two_sequences_same_position_distinct_pages` — seq1 reads 11.0, seq2 reads 22.0 independently) |
+| Remanence hygiene | **PASS** (`Page::reset()` zeros key+value buffers; `test_evicted_page_is_zeroed` oracle) |
+| Lock order discipline | **PASS** (sequences→page_table uniformly; `free_sequence` and `evict_pages_before` both drop sequences before acquiring page_table) |
+| kv_cache_test suite | **PASS** (15/15; was 13/14 before fix — 2 new isolation oracles added) |
+| paged unit tests | **PASS** (5/5) |
+| tier4_paged tests | **PASS** (9/9; updated to new allocate_page()/page(id) API) |
+| Forbidden modules/deps | **PASS** (0 detected) |
+| Section 4 Razor | **PASS** (no touched file exceeds 250 lines) |
+| Feature Inventory | **PASS** (F-21 → verified) |
+| Backlog | **PASS** (B-20 → done) |
+
+**Disclosed SKIPs (Phase 75 / Review Boundary)**:
+
+- intent_lock verify: absent (orchestrated by /qor-auto-dev-1, not /qor-implement)
+- Version bump / CHANGELOG stamp / seal tag: deferred to operator (Review Boundary)
+- Push/PR/merge: Review Boundary enforced; implementation commit 6c8c228 staged locally only
+
+**Content Hash**:
+
+```
+SHA256(paged.rs + kv_cache_core.rs + kv_cache_ops.rs + kv_cache_test.rs + FEATURE_INDEX.md)
+= 4ca545c7c5dd348e0c6b1a0f57739682bacf4fb1ec764106cd6e54d7c0bd2f9b
+```
+
+**Previous Hash**: 50183476b4ccc9ed38219698cd9193d56b8a34f30691af37c6094e3d437461f3
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 5accccd5d0dec9ba4282dd21f5de53b1a19a1ef0e3d5dab457e8f25d8cb0c655
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 73fbb656b1bfe79e3812194a41c41ef6392b176dce030bb3459c580b6295044b
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. B-20 KV cache cross-sequence data leakage resolved: PageTable redesigned as pure pool (removed global `entries: Vec<Option<PageId>>`, added `allocate_page()`/`page(id)`/`page_mut(id)`); per-sequence `entry.page_ids` lookup eliminates position-key collision; `Page::reset()` zeroes key/value buffers (remanence); lock order sequences→page_table enforced uniformly. 15/15 kv_cache tests pass (2 new isolation oracles). F-21 verified. Push/PR/merge/tag reserved for operator review.

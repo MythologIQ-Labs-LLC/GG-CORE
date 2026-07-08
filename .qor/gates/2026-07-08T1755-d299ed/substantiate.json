@@ -1,0 +1,35 @@
+{
+  "phase": "substantiate",
+  "ts": "2026-07-08T20:35:00Z",
+  "session_id": "2026-07-08T1755-d299ed",
+  "ledger_entry": 86,
+  "verdict": "PASS",
+  "merkle_seal": "73fbb656b1bfe79e3812194a41c41ef6392b176dce030bb3459c580b6295044b",
+  "dimensions": {
+    "reality_equals_promise": "PASS",
+    "cross_sequence_isolation": "PASS",
+    "remanence_hygiene": "PASS",
+    "lock_order": "PASS",
+    "forbidden_modules": "PASS",
+    "forbidden_deps": "PASS",
+    "section4_razor": "PASS",
+    "test_oracle": "PASS"
+  },
+  "test_evidence": {
+    "kv_cache_test": "15/15 (added test_two_sequences_same_position_distinct_pages + test_evicted_page_is_zeroed)",
+    "paged_unit": "5/5",
+    "tier4_paged": "9/9"
+  },
+  "feature_index": "F-21 -> verified",
+  "backlog": "B-20 -> done",
+  "disclosed_skips": [
+    "intent_lock verify: absent (orchestrated by qor-auto-dev-1)",
+    "version bump/CHANGELOG/tag: deferred to operator (Review Boundary)",
+    "push/PR/merge: Review Boundary enforced"
+  ],
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T1755-d299ed"
+  }
+}
