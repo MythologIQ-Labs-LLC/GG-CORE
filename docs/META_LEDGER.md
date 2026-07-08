@@ -5906,3 +5906,53 @@ SHA256(AUDIT_REPORT.md)
 SHA256(content_hash + "|" + previous_hash)
 = 816999553aac806f0673be3130075db9c6797212d80b04c8696e3b197865dab5
 ```
+
+---
+
+### Entry #85: SESSION SEAL (Runtime Hardening Cycle 2)
+
+**Entry ID**: `8c3a5f91de24`
+**Timestamp**: 2026-07-08T19:45:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L3
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (10 planned deliverables; 1 unplanned: B-22 fix found during verification, filed #69, fixed 626f034 same branch) |
+| Audit gate | **PASS** (Entry #84, rev.3, 3 plan-audit attempts; prior VETOs: clippy map mis-attribution x2) |
+| Clippy 13-site fix | **PASS** (all 13 sites verified from captured cargo clippy output; committed 43cc89c) |
+| Bench E0004 (B-22) | **PASS** (FinishReason::Cancelled arm added to bench match; gguf test count 4->5; committed 626f034) |
+| validate_path NUL rejection | **PASS** (issue #57 fixed; unit test in loader.rs) |
+| Load-existence tests | **PASS** (issue #55 fixed; validate_path lexical, load_metadata/load_mapped existence-gated) |
+| Security oracles | **PASS** (PBKDF2>=600k, EXIT_HEALTHY==0, EXIT_UNHEALTHY!=0 reworked to const _: () = assert!(...)) |
+| Forbidden modules/deps | **PASS** (0 detected) |
+| Section 4 Razor (touched files) | **PASS** (no new file exceeds limits; pre-existing unix.rs 523-line debt -> B-16) |
+| Governance index | **PASS** (RC=0, drift clean at commit bc0c70c) |
+| Feature Inventory | F-21 remains unverified (B-20 KV isolation pending); all others verified |
+
+**Disclosed SKIPs (Phase 75 / Review Boundary)**:
+
+- intent_lock verify: absent (implementation orchestrated by /qor-auto-dev-1, not /qor-implement)
+- Version bump / CHANGELOG stamp / seal tag: deferred to operator (Review Boundary)
+- kv_cache_test 13/14: pre-existing B-20 cross-sequence isolation defect, scoped out; spec in docs/plan-b20-kv-isolation-redesign.md
+- --all-targets clippy leg B-22: fixed in 626f034 (found during verification; not in original cycle-2 scope)
+
+**Content Hash**:
+
+
+
+**Previous Hash**: 816999553aac806f0673be3130075db9c6797212d80b04c8696e3b197865dab5
+
+**Chain Hash**:
+
+
+
+**Session Seal**:
+
+
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Cycle 2 of runtime-optimization-hardening sealed: validate_path NUL rejection (#57), load-existence test contract (#55), 13 clippy residuals (#56), security oracle const-assertion rework, B-22 bench match fix (#69). Outstanding: B-20 KV isolation redesign (L3, next governed cycle), B-21 ADR-007 epic, B-23 now closed. Push/PR/merge/tag reserved for operator review.

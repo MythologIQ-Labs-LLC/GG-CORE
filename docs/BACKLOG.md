@@ -24,7 +24,7 @@ it. Priority and status reflect observable state at reconstruction time.
 | B-19 | security: `validate_path()` does not reject NUL bytes (FFI truncation class) | issue #57 | P1 | open | Scoped into cycle-2 rev.2 plan (Phase 1) |
 | B-20 | security: KV cache cross-sequence data leakage — PageTable is single-sequence (global position-keyed) | issue #58 | P1 | open | **Multi-tenant isolation redesign** — escalated out of cycle 2 by audit VETO (Entry #82). Explicit execution spec: `docs/plan-b20-kv-isolation-redesign.md` |
 | B-21 | ADR-007 epic: TierSynergy consolidation + DSpark adaptive speculative decoding | issues #60–68, PR #59 | P2 | open | Forward-looking design epic. Decomposition + per-issue briefs: `docs/plan-adr007-epic-execution.md`. One issue per governed cycle |
-| B-22 | `cargo clippy --all-targets`: non-exhaustive `FinishReason::Cancelled` match (test + bench) + 1 field-assign | issue #69 | P1 | open | Outside #56's 13; blocks clean `--all-targets` clippy leg. Mechanical (add match arm) |
+| B-22 | `cargo clippy --all-targets`: non-exhaustive `FinishReason::Cancelled` match (test + bench) + 1 field-assign | issue #69 | P1 | done | Fixed `626f034`: added `Cancelled` arm to bench match; updated gguf test vec+count (4→5) |
 | B-23 | Seal runtime-hardening cycle 2 (session 2026-07-08T1651-6c68b6) | this session | P2 | open | Code+governance committed (`43cc89c`/`bc0c70c`); needs `/qor-substantiate` Entry #85. Steps: `docs/runbook-merge-integration-sequence.md` §4 |
 | B-02 | ADR: Backend Capability Contract & BitNet-compatible runtime adapter | issue #48 | P2 | open | Author ADR; parent of B-03..B-06 |
 | B-03 | Implement `RuntimeBackendCapabilities` schema | issue #49 | P2 | open | Define schema after ADR #48 lands |
