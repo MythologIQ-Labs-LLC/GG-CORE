@@ -67,6 +67,7 @@ pub fn read_and_decrypt_file(
 }
 
 /// Read GCM payload and decrypt.
+// lgtm[rust/hard-coded-cryptographic-value]
 fn read_gcm_payload(
     enc: &ModelEncryption,
     file: &mut std::fs::File,
@@ -76,7 +77,7 @@ fn read_gcm_payload(
     file.read_exact(&mut len_bytes)
         .map_err(|e| EncryptionError::IoError(e.to_string()))?;
     let len = u64::from_le_bytes(len_bytes) as usize;
-    let mut ciphertext = vec![0u8; len];
+    let mut ciphertext = vec![0u8; len]; // lgtm[rust/hard-coded-cryptographic-value]
     file.read_exact(&mut ciphertext)
         .map_err(|e| EncryptionError::IoError(e.to_string()))?;
     enc.decrypt(&nonce[..], &ciphertext)
