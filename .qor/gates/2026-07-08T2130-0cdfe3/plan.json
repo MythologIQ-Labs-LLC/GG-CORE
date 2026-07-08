@@ -1,0 +1,15 @@
+{
+  "phase": "plan",
+  "ts": "2026-07-08T21:30:00Z",
+  "session_id": "2026-07-08T2130-0cdfe3",
+  "issue": "#63",
+  "risk_grade": "L2",
+  "files_to_create": [
+    "core-runtime/src/engine/adaptive_speculative/heuristic/mod.rs"
+  ],
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2130-0cdfe3"
+  }
+}

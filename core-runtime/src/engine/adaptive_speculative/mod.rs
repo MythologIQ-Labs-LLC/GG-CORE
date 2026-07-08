@@ -220,5 +220,7 @@ pub trait TargetVerifier: Send + Sync {
     fn eos_token(&self) -> Option<u32>;
 }
 
+pub mod heuristic;
+
 #[cfg(test)]
 mod tests;

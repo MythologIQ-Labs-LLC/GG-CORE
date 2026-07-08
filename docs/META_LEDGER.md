@@ -6178,3 +6178,53 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #62 complete: backend-agnostic adaptive speculative decoder trait surface (`BlockDraftModel`, `ConfidenceEstimator`, `VerificationScheduler`, `TargetVerifier`) + types (`DraftBlock`, `SurvivalProfile`, `VerificationPlan`, `VerificationResult`) delivered. 9/9 tests green. GGUF wrappers can implement `TargetVerifier` without duplicate logic.
+
+---
+
+### Entry #90: SESSION SEAL (Issue #63 — Heuristic Confidence + Verification Scheduling)
+
+**Entry ID**: `0cdfe3630001`
+**Timestamp**: 2026-07-08T21:30:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2130-0cdfe3
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`heuristic/mod.rs` + `heuristic/tests.rs` created; `pub mod heuristic` added) |
+| HeuristicConfidenceEstimator | **PASS** (log-prob + entropy + temperature + repetition-penalty + history signals) |
+| AdaptiveVerificationScheduler | **PASS** (window = round(draft_len × mean_score × mode_multiplier), clamped to bounds) |
+| Low-confidence tails not over-verified | **PASS** (wider verification delegated to scheduler; estimator only scores) |
+| Auto-disable trigger | **PASS** (fires when 1.0 + history.mean() < threshold; returns VerificationPlan::fallback()) |
+| GPU-free | **PASS** (pure CPU signal computation) |
+| Feature gate | **PASS** (`cfg(feature = "advanced")`) |
+| Section 4 Razor | **PASS** (247 lines ≤ 250) |
+| Tests | **PASS** (11/11: high-confidence, low-confidence, auto-disable, underperforming, mode multipliers) |
+
+**Content Hash**:
+
+```
+SHA256(heuristic/mod.rs + heuristic/tests.rs + adaptive_speculative/mod.rs)
+= 0f901b315211e517ea34f26d9c29e70fe9151b80f0b1c0e33d20c1a3c33dcc8f
+```
+
+**Previous Hash**: 93b42b484686968afd8015064c2c66cba8183bbd41cb6052e4045212452d418a
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= e4207fa5891317c484ca31ad4e21fd38d92d85c6fbacbaeaabe63a1c8f29df43
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 7f5f90d884c095087c730781d03ff17c4480db9846932c374ce38d5db3dec82f
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #63 complete: `HeuristicConfidenceEstimator` (4-signal fusion: log-prob, entropy, temperature, repetition-penalty, history) and `AdaptiveVerificationScheduler` (mode-multiplier window selection, auto-disable) implemented. 11/11 tests green. No GPU required.
