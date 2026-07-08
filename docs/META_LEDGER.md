@@ -6329,3 +6329,101 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #67 complete: 5-threat speculative decoding threat model (T1–T5) with attack tree and test coverage table appended to THREAT_MODEL.md; 14 security oracle tests covering verification bypass, PII-free telemetry, incompatible-pairing fallback, auto-disable guarantees. All rejected tokens structurally unreachable.
+
+---
+
+### Entry #93: SESSION SEAL (Issue #65 — Telemetry, Auto-Disable, CLI Surface)
+
+**Entry ID**: `bd8a1f650001`
+**Timestamp**: 2026-07-08T22:10:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L3
+**Session ID**: 2026-07-08T2210-bd8a1f
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`telemetry.rs` + CLI surface delivered) |
+| SpeculativeSessionStats fields | **PASS** (u64/u32/f32/bool/enum only — T3 PII-free) |
+| AutoDisableReason codes | **PASS** (`AcceptanceRateLow`, `SpeedupBelowThreshold`, `PairingIncompatible`, `ExplicitDisable`) |
+| CLI surface | **PASS** (`speculative_stats: Option<SpeculativeSessionStats>` in SystemStatus; `print_speculative()` in status_format) |
+| All fields cfg-gated | **PASS** (`#[cfg(feature = "advanced")]` on StatusReport field + format arm) |
+| Section 4 Razor | **PASS** (207 lines ≤ 250) |
+| Security T3 | **PASS** (no prompt/output/PII in any telemetry field) |
+| Tests | **PASS** (11/11) |
+
+**Content Hash**:
+
+```
+SHA256(telemetry.rs + telemetry_tests.rs + adaptive_speculative/mod.rs + engine/mod.rs + status.rs + status_format.rs + status_tests.rs)
+= abe22f48fb2f7210491b7cef3182b417da62baf20a2c27c20693c517003f7f9d
+```
+
+**Previous Hash**: 3b15cbae0aaf8b4884063e3710bba186c74b9ee58108d22631c3d1693d630fdd
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= c198bbf805aadb677602a0625870bdccf8c6efc14db264c5f4fe26df5f5d8ac8
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 0eb2d2fb45460b0c4dbae1e0847fed1160d9d9ddd5b9afa1e5baa83df6d5db8a
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #65 complete: `SpeculativeTelemetry` + `SpeculativeSessionStats` + `AutoDisableReason` delivered; CLI status shows enabled/disabled/auto-disabled state + acceptance rate + speedup. No PII stored. 11/11 tests green.
+
+---
+
+### Entry #94: SESSION SEAL (Issue #66 — Speculative Benchmark Matrix)
+
+**Entry ID**: `0085a6660001`
+**Timestamp**: 2026-07-08T22:20:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2220-0085a6
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`speculative_matrix.rs` + BENCHMARKS.md section added) |
+| Benchmarks delivered | **PASS** (config creation, tier plan selection, verification plan, survival profile, draft block) |
+| Results marked ESTIMATED | **PASS** (`ESTIMATED (CPU, no real model)` on all rows) |
+| Honest reporting | **PASS** (note: real speedup requires actual draft/target pair; no copied DSpark claims) |
+| Compiles with advanced | **PASS** (0 errors) |
+| Compiles without advanced | **PASS** (noop bench group, 0 errors) |
+| Section 4 Razor | **PASS** (189 lines ≤ 250) |
+| Cargo.toml entry | **PASS** (`[[bench]] name = "speculative_matrix" harness = false`) |
+
+**Content Hash**:
+
+```
+SHA256(speculative_matrix.rs + Cargo.toml + BENCHMARKS.md)
+= 2c9ee5c63e4d45aa8091914aca04198643cb4cebd728110a7dae91107bd0a582
+```
+
+**Previous Hash**: c198bbf805aadb677602a0625870bdccf8c6efc14db264c5f4fe26df5f5d8ac8
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 6e7d6724eb81df4048874dddec289a5c0ab24cdc736b467295519bac134c8db2
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 3041972aad5ae70ad04f7a761f862af8619fdd59721711190f74e15960c3532b
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #66 complete: `speculative_matrix.rs` benchmarks 5 scenarios across both feature modes; BENCHMARKS.md §Speculative Decoding Overhead added with ESTIMATED results table and honest-reporting note. No GPU required for CPU-path benchmarks.

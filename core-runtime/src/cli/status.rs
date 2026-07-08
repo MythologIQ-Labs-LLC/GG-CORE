@@ -2,6 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "advanced")]
+use crate::engine::SpeculativeSessionStats;
+
 use super::ipc_client::{CliError, CliIpcClient};
 use super::status_format::print_status_human;
 
@@ -16,6 +19,12 @@ pub struct SystemStatus {
     pub scheduler: SchedulerStatus,
     pub gpus: Option<Vec<GpuStatus>>,
     pub recent_events: Vec<Event>,
+    /// Aggregate speculative decoding statistics, when the `advanced` feature
+    /// is enabled and speculative decoding has been active this session.
+    /// No prompt or output text is stored here — see T3 threat model.
+    #[cfg(feature = "advanced")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speculative_stats: Option<SpeculativeSessionStats>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -212,6 +221,8 @@ fn build_status(
         },
         gpus: None,
         recent_events: vec![],
+        #[cfg(feature = "advanced")]
+        speculative_stats: None,
     }
 }
 

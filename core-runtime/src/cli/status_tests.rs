@@ -87,6 +87,8 @@ fn test_system_status_serialization() {
         },
         gpus: None,
         recent_events: vec![],
+        #[cfg(feature = "advanced")]
+        speculative_stats: None,
     };
 
     let json = serde_json::to_string(&status).unwrap();

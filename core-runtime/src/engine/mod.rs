@@ -116,6 +116,12 @@ pub use speculative_v2::{
 #[cfg(feature = "advanced")]
 pub use multi_gpu::{GpuPartition, MultiGpuConfig, MultiGpuError, MultiGpuManager, MultiGpuStrategy};
 
+// Adaptive speculative telemetry (requires `advanced` feature)
+#[cfg(feature = "advanced")]
+pub use adaptive_speculative::telemetry::{
+    AutoDisableReason, SpeculativeSessionStats, SpeculativeTelemetry,
+};
+
 // Multi-GPU execution (requires `advanced` feature — depends on multi_gpu types)
 #[cfg(feature = "advanced")]
 pub use multi_gpu_exec::{

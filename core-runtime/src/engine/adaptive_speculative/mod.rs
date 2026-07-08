@@ -221,6 +221,7 @@ pub trait TargetVerifier: Send + Sync {
 }
 
 pub mod heuristic;
+pub mod telemetry;
 
 #[cfg(test)]
 mod tests;
