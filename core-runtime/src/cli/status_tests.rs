@@ -1,7 +1,7 @@
 //! Tests for the status command.
 
-use super::*;
 use super::super::status_format::*;
+use super::*;
 
 #[test]
 fn test_format_uptime() {
@@ -87,6 +87,8 @@ fn test_system_status_serialization() {
         },
         gpus: None,
         recent_events: vec![],
+        #[cfg(feature = "advanced")]
+        speculative_stats: None,
     };
 
     let json = serde_json::to_string(&status).unwrap();

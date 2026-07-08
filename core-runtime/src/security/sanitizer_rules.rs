@@ -4,13 +4,23 @@
 pub fn get_content_filter_patterns() -> Vec<(&'static str, &'static str)> {
     vec![
         // Self-harm indicators (replace with resources)
-        ("I want to kill myself",
-         "If you're having thoughts of self-harm, please reach out to a crisis helpline: 988"),
-        ("I want to die",
-         "If you're having thoughts of self-harm, please reach out to a crisis helpline: 988"),
+        (
+            "I want to kill myself",
+            "If you're having thoughts of self-harm, please reach out to a crisis helpline: 988",
+        ),
+        (
+            "I want to die",
+            "If you're having thoughts of self-harm, please reach out to a crisis helpline: 988",
+        ),
         // Dangerous instructions
-        ("how to make a bomb", "[CONTENT FILTERED: Dangerous content]"),
-        ("how to create a virus", "[CONTENT FILTERED: Dangerous content]"),
+        (
+            "how to make a bomb",
+            "[CONTENT FILTERED: Dangerous content]",
+        ),
+        (
+            "how to create a virus",
+            "[CONTENT FILTERED: Dangerous content]",
+        ),
     ]
 }
 
@@ -79,5 +89,8 @@ pub fn find_safe_trim_point(buffer: &str, max_trim: usize) -> usize {
         }
     }
 
-    buffer.len().saturating_sub(MAX_PII_LENGTH * 2).min(max_trim)
+    buffer
+        .len()
+        .saturating_sub(MAX_PII_LENGTH * 2)
+        .min(max_trim)
 }

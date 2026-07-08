@@ -184,6 +184,10 @@ harness = false
 name = "kv_cache_throughput"
 harness = false
 
+[[bench]]
+name = "speculative_matrix"
+harness = false
+
 [profile.release]
 opt-level = 3
 lto = "thin"

@@ -3,9 +3,9 @@
 //! Validates config, input, output, and manifest types.
 
 use gg_core::engine::{
-    ChatMessage, ChatRole, ClassificationResult, EmbeddingResult, FinishReason,
-    GenerationResult, InferenceCapability, InferenceConfig, InferenceError,
-    InferenceInput, InferenceOutput, MAX_BATCH_SIZE, MAX_TEXT_BYTES,
+    ChatMessage, ChatRole, ClassificationResult, EmbeddingResult, FinishReason, GenerationResult,
+    InferenceCapability, InferenceConfig, InferenceError, InferenceInput, InferenceOutput,
+    MAX_BATCH_SIZE, MAX_TEXT_BYTES,
 };
 use gg_core::models::{ModelArchitecture, ModelCapability, ModelManifest};
 
@@ -23,8 +23,10 @@ fn config_default_values_are_safe() {
 
 #[test]
 fn config_rejects_invalid_temperature() {
-    let mut config = InferenceConfig::default();
-    config.temperature = -0.1;
+    let config = InferenceConfig {
+        temperature: -0.1,
+        ..Default::default()
+    };
     assert!(matches!(
         config.validate(),
         Err(InferenceError::InputValidation(_))
@@ -33,8 +35,10 @@ fn config_rejects_invalid_temperature() {
 
 #[test]
 fn config_rejects_invalid_top_p() {
-    let mut config = InferenceConfig::default();
-    config.top_p = 0.0;
+    let mut config = InferenceConfig {
+        top_p: 0.0,
+        ..Default::default()
+    };
     assert!(config.validate().is_err());
 
     config.top_p = 1.5;
@@ -92,8 +96,14 @@ fn input_batch_rejects_oversized() {
 #[test]
 fn input_chat_validates_messages() {
     let messages = vec![
-        ChatMessage { role: ChatRole::System, content: "You are helpful.".to_string() },
-        ChatMessage { role: ChatRole::User, content: "Hello!".to_string() },
+        ChatMessage {
+            role: ChatRole::System,
+            content: "You are helpful.".to_string(),
+        },
+        ChatMessage {
+            role: ChatRole::User,
+            content: "Hello!".to_string(),
+        },
     ];
     let input = InferenceInput::ChatMessages(messages);
     assert!(input.validate().is_ok());
@@ -114,7 +124,10 @@ fn output_classification_result_created() {
     let result = ClassificationResult {
         label: "positive".to_string(),
         confidence: 0.95,
-        all_labels: vec![("positive".to_string(), 0.95), ("negative".to_string(), 0.05)],
+        all_labels: vec![
+            ("positive".to_string(), 0.95),
+            ("negative".to_string(), 0.05),
+        ],
     };
     let output = InferenceOutput::Classification(result);
     assert!(output.is_classification());
@@ -205,6 +218,12 @@ fn manifest_has_capability_check() {
 
 #[test]
 fn capability_enum_equality() {
-    assert_eq!(InferenceCapability::TextClassification, InferenceCapability::TextClassification);
-    assert_ne!(InferenceCapability::TextClassification, InferenceCapability::Embedding);
+    assert_eq!(
+        InferenceCapability::TextClassification,
+        InferenceCapability::TextClassification
+    );
+    assert_ne!(
+        InferenceCapability::TextClassification,
+        InferenceCapability::Embedding
+    );
 }

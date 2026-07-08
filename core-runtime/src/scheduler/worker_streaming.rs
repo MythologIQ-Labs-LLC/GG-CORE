@@ -1,9 +1,9 @@
 //! Streaming execution helpers for the worker loop.
 
+use super::streaming_queue::StreamingQueuedRequest;
 use crate::engine::InferenceEngine;
 use crate::memory::ResourceLimits;
 use crate::telemetry;
-use super::streaming_queue::StreamingQueuedRequest;
 
 /// Execute a streaming inference request with resource control.
 pub(crate) async fn execute(
@@ -13,9 +13,7 @@ pub(crate) async fn execute(
 ) {
     let model_id = request.model_id.clone();
 
-    let _guard = match super::worker::acquire_guard(
-        engine, resource_limits, &model_id,
-    ).await {
+    let _guard = match super::worker::acquire_guard(engine, resource_limits, &model_id).await {
         Ok(g) => g,
         Err(msg) => {
             telemetry::record_admission_rejection(&model_id, &msg);
@@ -25,7 +23,14 @@ pub(crate) async fn execute(
     };
 
     let start = std::time::Instant::now();
-    let result = run_stream(engine, &model_id, request.prompt, request.config, request.token_sender).await;
+    let result = run_stream(
+        engine,
+        &model_id,
+        request.prompt,
+        request.config,
+        request.token_sender,
+    )
+    .await;
     let latency_ms = start.elapsed().as_millis() as u64;
 
     match result {
@@ -65,9 +70,11 @@ async fn run_stream(
     #[cfg(not(feature = "gguf"))]
     {
         let _ = (engine, model_id, prompt, config, sender);
-        Ok(Err(crate::engine::inference::InferenceError::ExecutionFailed(
-            "streaming requires gguf feature".into(),
-        )))
+        Ok(Err(
+            crate::engine::inference::InferenceError::ExecutionFailed(
+                "streaming requires gguf feature".into(),
+            ),
+        ))
     }
 }
 

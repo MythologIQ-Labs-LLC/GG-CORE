@@ -2,9 +2,9 @@
 //!
 //! Extracted from `multi_gpu.rs` for Section 4 compliance.
 
-use std::sync::Arc;
 use super::*;
 use crate::engine::multi_gpu_partition::CrossGpuCommunication;
+use std::sync::Arc;
 
 fn create_test_devices() -> Vec<Arc<GpuDevice>> {
     vec![

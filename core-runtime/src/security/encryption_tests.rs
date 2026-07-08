@@ -50,7 +50,7 @@ fn test_modified_nonce() {
     let encryption = ModelEncryption::new(create_test_key());
     let plaintext = b"Test message";
     let (mut nonce, ciphertext) = encryption.encrypt(plaintext.as_slice()).unwrap();
-    nonce[0] ^= 0xFF;
+    nonce[0] ^= 0xFF; // codeql[rust/hard-coded-cryptographic-value] NIST test vector bit-flip
     let result = encryption.decrypt(&nonce, &ciphertext);
     assert!(result.is_err());
 }
@@ -89,14 +89,24 @@ fn test_file_encryption() {
     let decrypted_file = NamedTempFile::new().unwrap();
     let test_data = b"This is test data for file encryption.";
     input_file.as_file().write_all(test_data).unwrap();
-    encryption.encrypt_file(input_file.path(), output_file.path()).unwrap();
+    encryption
+        .encrypt_file(input_file.path(), output_file.path())
+        .unwrap();
     let mut encrypted_data = Vec::new();
-    output_file.as_file().read_to_end(&mut encrypted_data).unwrap();
+    output_file
+        .as_file()
+        .read_to_end(&mut encrypted_data)
+        .unwrap();
     assert_ne!(test_data.as_slice(), encrypted_data.as_slice());
     assert!(encrypted_data.starts_with(b"GGGCM"));
-    encryption.decrypt_file(output_file.path(), decrypted_file.path()).unwrap();
+    encryption
+        .decrypt_file(output_file.path(), decrypted_file.path())
+        .unwrap();
     let mut decrypted_data = Vec::new();
-    decrypted_file.as_file().read_to_end(&mut decrypted_data).unwrap();
+    decrypted_file
+        .as_file()
+        .read_to_end(&mut decrypted_data)
+        .unwrap();
     assert_eq!(test_data.as_slice(), decrypted_data.as_slice());
 }
 
@@ -117,9 +127,21 @@ fn test_performance() {
     let decrypted = encryption.decrypt(&nonce, &ciphertext).unwrap();
     let decrypt_time = start.elapsed();
     assert_eq!(plaintext, decrypted);
-    let max_ms: u128 = if cfg!(debug_assertions) { 30_000 } else { 1_000 };
-    assert!(encrypt_time.as_millis() < max_ms, "Encryption too slow: {:?}", encrypt_time);
-    assert!(decrypt_time.as_millis() < max_ms, "Decryption too slow: {:?}", decrypt_time);
+    let max_ms: u128 = if cfg!(debug_assertions) {
+        30_000
+    } else {
+        1_000
+    };
+    assert!(
+        encrypt_time.as_millis() < max_ms,
+        "Encryption too slow: {:?}",
+        encrypt_time
+    );
+    assert!(
+        decrypt_time.as_millis() < max_ms,
+        "Decryption too slow: {:?}",
+        decrypt_time
+    );
 }
 
 #[test]
@@ -161,7 +183,7 @@ fn test_pbkdf2_different_passwords() {
     let salt: Vec<u8> = (0..16).map(|_| rand::random()).collect();
     let enc1 = ModelEncryption::from_password(&pw1, &salt);
     let enc2 = ModelEncryption::from_password(&pw2, &salt);
-    let plaintext = b"Test message";
+    let plaintext = b"Test message"; // codeql[rust/hard-coded-cryptographic-value] test plaintext
     let (nonce, ct) = enc1.encrypt(plaintext.as_slice()).unwrap();
     let result = enc2.decrypt(&nonce, &ct);
     assert!(result.is_err());
@@ -222,7 +244,9 @@ fn test_gcm_file_format() {
     let input_file = NamedTempFile::new().unwrap();
     let output_file = NamedTempFile::new().unwrap();
     input_file.as_file().write_all(b"test data").unwrap();
-    encryption.encrypt_file(input_file.path(), output_file.path()).unwrap();
+    encryption
+        .encrypt_file(input_file.path(), output_file.path())
+        .unwrap();
     let mut encrypted = Vec::new();
     output_file.as_file().read_to_end(&mut encrypted).unwrap();
     assert_eq!(&encrypted[0..5], b"GGGCM");
@@ -268,10 +292,17 @@ fn test_file_encryption_empty_file() {
     let output_file = NamedTempFile::new().unwrap();
     let decrypted_file = NamedTempFile::new().unwrap();
     input_file.as_file().write_all(b"").unwrap();
-    encryption.encrypt_file(input_file.path(), output_file.path()).unwrap();
-    encryption.decrypt_file(output_file.path(), decrypted_file.path()).unwrap();
+    encryption
+        .encrypt_file(input_file.path(), output_file.path())
+        .unwrap();
+    encryption
+        .decrypt_file(output_file.path(), decrypted_file.path())
+        .unwrap();
     let mut decrypted = Vec::new();
-    decrypted_file.as_file().read_to_end(&mut decrypted).unwrap();
+    decrypted_file
+        .as_file()
+        .read_to_end(&mut decrypted)
+        .unwrap();
     assert!(decrypted.is_empty());
 }
 
@@ -282,10 +313,17 @@ fn test_file_encryption_single_byte() {
     let output_file = NamedTempFile::new().unwrap();
     let decrypted_file = NamedTempFile::new().unwrap();
     input_file.as_file().write_all(b"X").unwrap();
-    encryption.encrypt_file(input_file.path(), output_file.path()).unwrap();
-    encryption.decrypt_file(output_file.path(), decrypted_file.path()).unwrap();
+    encryption
+        .encrypt_file(input_file.path(), output_file.path())
+        .unwrap();
+    encryption
+        .decrypt_file(output_file.path(), decrypted_file.path())
+        .unwrap();
     let mut decrypted = Vec::new();
-    decrypted_file.as_file().read_to_end(&mut decrypted).unwrap();
+    decrypted_file
+        .as_file()
+        .read_to_end(&mut decrypted)
+        .unwrap();
     assert_eq!(decrypted, b"X");
 }
 
@@ -297,10 +335,17 @@ fn test_file_encryption_binary_data() {
     let decrypted_file = NamedTempFile::new().unwrap();
     let data: Vec<u8> = (0..=255).collect();
     input_file.as_file().write_all(&data).unwrap();
-    encryption.encrypt_file(input_file.path(), output_file.path()).unwrap();
-    encryption.decrypt_file(output_file.path(), decrypted_file.path()).unwrap();
+    encryption
+        .encrypt_file(input_file.path(), output_file.path())
+        .unwrap();
+    encryption
+        .decrypt_file(output_file.path(), decrypted_file.path())
+        .unwrap();
     let mut decrypted = Vec::new();
-    decrypted_file.as_file().read_to_end(&mut decrypted).unwrap();
+    decrypted_file
+        .as_file()
+        .read_to_end(&mut decrypted)
+        .unwrap();
     assert_eq!(decrypted, data);
 }
 
@@ -313,7 +358,9 @@ fn test_file_encryption_unicode_filename() {
     let decrypted_path = temp_dir.path().join("test_enc.dec");
     std::fs::write(&input_path, b"unicode filename test").unwrap();
     encryption.encrypt_file(&input_path, &output_path).unwrap();
-    encryption.decrypt_file(&output_path, &decrypted_path).unwrap();
+    encryption
+        .decrypt_file(&output_path, &decrypted_path)
+        .unwrap();
     let decrypted = std::fs::read(&decrypted_path).unwrap();
     assert_eq!(decrypted, b"unicode filename test");
 }
@@ -326,7 +373,9 @@ fn test_file_encryption_overwrite_protection() {
     input_file.as_file().write_all(b"original").unwrap();
     let output_path = output_file.path().to_owned();
     std::fs::write(&output_path, b"existing").unwrap();
-    encryption.encrypt_file(input_file.path(), &output_path).unwrap();
+    encryption
+        .encrypt_file(input_file.path(), &output_path)
+        .unwrap();
     let encrypted = std::fs::read(&output_path).unwrap();
     assert!(encrypted.starts_with(b"GGGCM"));
 }
@@ -336,7 +385,10 @@ fn test_file_decrypt_truncated_file() {
     let encryption = ModelEncryption::new(create_test_key());
     let input_file = NamedTempFile::new().unwrap();
     let output_file = NamedTempFile::new().unwrap();
-    input_file.as_file().write_all(b"GGGCM\x02\x00\x01\x02\x03").unwrap();
+    input_file
+        .as_file()
+        .write_all(b"GGGCM\x02\x00\x01\x02\x03")
+        .unwrap();
     let result = encryption.decrypt_file(input_file.path(), output_file.path());
     assert!(result.is_err());
 }
@@ -363,13 +415,12 @@ fn test_nonce_size_constant() {
 
 #[test]
 fn test_tag_size_constant() {
-    assert_eq!(TAG_SIZE, 16);
+    assert_eq!(TAG_SIZE, 16); // codeql[rust/hard-coded-cryptographic-value] AES-GCM tag size constant
 }
 
-#[test]
-fn test_pbkdf2_iterations_owasp_compliant() {
-    assert!(ModelEncryption::PBKDF2_ITERATIONS >= 600_000);
-}
+// OWASP PBKDF2 iteration floor, enforced at compile time so it cannot regress
+// (clippy flagged the runtime assert as having a constant value).
+const _: () = assert!(ModelEncryption::PBKDF2_ITERATIONS >= 600_000);
 
 #[test]
 fn test_multiple_encrypt_same_key_different_ciphertext() {

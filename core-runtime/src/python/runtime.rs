@@ -98,7 +98,9 @@ impl Runtime {
 
     /// Get number of loaded models
     fn model_count(&self) -> PyResult<usize> {
-        Ok(self.tokio.block_on(async { self.inner.model_registry.count().await }))
+        Ok(self
+            .tokio
+            .block_on(async { self.inner.model_registry.count().await }))
     }
 
     /// Check if runtime is healthy

@@ -51,10 +51,8 @@ impl ExpertCombiner {
         let mut combined = vec![0.0f32; batch_size * self.hidden_dim];
 
         // Build a map of expert_idx -> ExpertOutput for lookup
-        let expert_map: std::collections::HashMap<usize, &ExpertOutput> = expert_outputs
-            .iter()
-            .map(|o| (o.expert_idx, o))
-            .collect();
+        let expert_map: std::collections::HashMap<usize, &ExpertOutput> =
+            expert_outputs.iter().map(|o| (o.expert_idx, o)).collect();
 
         for (token_idx, (experts, weights)) in routing
             .expert_indices

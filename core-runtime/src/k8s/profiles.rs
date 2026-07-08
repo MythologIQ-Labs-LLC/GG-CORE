@@ -63,7 +63,10 @@ pub struct PreferredNodeSelector {
 /// Rollout strategy for deployments.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RolloutStrategy {
-    RollingUpdate { max_unavailable: u32, max_surge: u32 },
+    RollingUpdate {
+        max_unavailable: u32,
+        max_surge: u32,
+    },
     Recreate,
 }
 

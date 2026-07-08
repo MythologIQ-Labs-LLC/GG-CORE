@@ -122,13 +122,16 @@ pub fn analyze_thresholds(
         comparison.latency_p99_ratio,
         thresholds.max_latency_p99_increase,
     );
-    let throughput_level = compute_throughput_level(
-        comparison.throughput_ratio,
-        thresholds.min_throughput_ratio,
-    );
+    let throughput_level =
+        compute_throughput_level(comparison.throughput_ratio, thresholds.min_throughput_ratio);
 
     let alert_level = max_level(&[error_rate_level, latency_level, throughput_level]);
-    let reason = build_reason(&error_rate_level, &latency_level, &throughput_level, comparison);
+    let reason = build_reason(
+        &error_rate_level,
+        &latency_level,
+        &throughput_level,
+        comparison,
+    );
 
     ThresholdResult {
         alert_level,
@@ -199,13 +202,19 @@ fn build_reason(
 ) -> String {
     let mut parts = Vec::new();
     if *error != AlertLevel::None {
-        parts.push(format!("error rate +{:.2}%", comparison.error_rate_diff * 100.0));
+        parts.push(format!(
+            "error rate +{:.2}%",
+            comparison.error_rate_diff * 100.0
+        ));
     }
     if *latency != AlertLevel::None {
         parts.push(format!("P99 latency {:.1}x", comparison.latency_p99_ratio));
     }
     if *throughput != AlertLevel::None {
-        parts.push(format!("throughput {:.1}%", comparison.throughput_ratio * 100.0));
+        parts.push(format!(
+            "throughput {:.1}%",
+            comparison.throughput_ratio * 100.0
+        ));
     }
     if parts.is_empty() {
         "All metrics within thresholds".to_string()
@@ -213,4 +222,3 @@ fn build_reason(
         parts.join(", ")
     }
 }
-

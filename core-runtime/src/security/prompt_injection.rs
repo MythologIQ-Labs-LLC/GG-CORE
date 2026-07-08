@@ -186,7 +186,7 @@ impl PromptInjectionFilter {
                 severity,
             });
 
-            risk_score = risk_score.saturating_add(severity as u8 * 5);
+            risk_score = risk_score.saturating_add(severity * 5);
         }
 
         // Check context patterns (pattern + nearby context)

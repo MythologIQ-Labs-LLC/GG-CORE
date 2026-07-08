@@ -48,7 +48,10 @@ impl ModelPreloader {
             size_bytes: manifest.size_bytes,
         };
 
-        let handle = self.registry.register(metadata, manifest.size_bytes as usize).await;
+        let handle = self
+            .registry
+            .register(metadata, manifest.size_bytes as usize)
+            .await;
 
         Ok(PreloadedModel { handle, manifest })
     }
@@ -56,7 +59,9 @@ impl ModelPreloader {
     /// Validate manifest fields.
     fn validate_manifest(&self, manifest: &ModelManifest) -> Result<(), PreloadError> {
         if manifest.model_id.is_empty() {
-            return Err(PreloadError::ManifestInvalid("model_id cannot be empty".into()));
+            return Err(PreloadError::ManifestInvalid(
+                "model_id cannot be empty".into(),
+            ));
         }
         if manifest.sha256.len() != 64 {
             return Err(PreloadError::ManifestInvalid(

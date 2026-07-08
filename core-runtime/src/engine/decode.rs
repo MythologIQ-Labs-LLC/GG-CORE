@@ -2,10 +2,10 @@
 //!
 //! Generates tokens sequentially with minimal latency per step.
 
-use crate::engine::{FinishReason, InferenceError};
 #[cfg(feature = "advanced")]
 use crate::engine::SpeculativeConfig;
-use crate::memory::paged::{PageTable, PAGE_TOKENS};
+use crate::engine::{FinishReason, InferenceError};
+use crate::memory::paged::{PageId, PageTable, PAGE_TOKENS};
 
 /// Result from a single decode step.
 #[derive(Debug, Clone)]
@@ -47,6 +47,8 @@ pub struct DecodeExecutor {
     config: DecodeConfig,
     current_pos: usize,
     tokens_generated: usize,
+    /// PageId for the current page (updated at each page boundary).
+    current_page_id: Option<PageId>,
 }
 
 impl DecodeExecutor {
@@ -56,6 +58,7 @@ impl DecodeExecutor {
             config,
             current_pos: 0,
             tokens_generated: 0,
+            current_page_id: None,
         }
     }
 
@@ -63,6 +66,7 @@ impl DecodeExecutor {
     pub fn init(&mut self, prefill_len: usize) {
         self.current_pos = prefill_len;
         self.tokens_generated = 0;
+        self.current_page_id = None;
     }
 
     /// Generate a single token with minimal latency.
@@ -79,10 +83,16 @@ impl DecodeExecutor {
             });
         }
 
-        // Allocate page for new position
-        page_table.allocate(self.current_pos).ok_or_else(|| {
-            InferenceError::MemoryExceeded { used: self.current_pos, limit: self.current_pos }
-        })?;
+        // Allocate a new page at each page boundary.
+        if self.current_pos.is_multiple_of(PAGE_TOKENS) {
+            let page_id = page_table
+                .allocate_page()
+                .ok_or(InferenceError::MemoryExceeded {
+                    used: self.current_pos,
+                    limit: self.current_pos,
+                })?;
+            self.current_page_id = Some(page_id);
+        }
 
         // Simulate token generation (actual model would sample here)
         let token = self.sample_token()?;
@@ -119,10 +129,12 @@ impl DecodeExecutor {
 
     fn write_kv(&self, page_table: &mut PageTable) -> Result<(), InferenceError> {
         let slot = PageTable::slot_in_page(self.current_pos);
-        if let Some(page) = page_table.get_mut(self.current_pos) {
-            let keys = vec![0.0f32; self.config.hidden_dim];
-            let values = vec![0.0f32; self.config.hidden_dim];
-            page.write(slot, &keys, &values);
+        if let Some(pid) = self.current_page_id {
+            if let Some(page) = page_table.page_mut(pid) {
+                let keys = vec![0.0f32; self.config.hidden_dim];
+                let values = vec![0.0f32; self.config.hidden_dim];
+                page.write(slot, &keys, &values);
+            }
         }
         Ok(())
     }
@@ -130,10 +142,16 @@ impl DecodeExecutor {
     /// Estimate pages needed for generation length.
     pub fn estimate_pages(current_pos: usize, max_tokens: usize) -> usize {
         let end_pos = current_pos + max_tokens;
-        (end_pos + PAGE_TOKENS - 1) / PAGE_TOKENS
+        end_pos.div_ceil(PAGE_TOKENS)
     }
 
-    pub fn config(&self) -> &DecodeConfig { &self.config }
-    pub fn tokens_generated(&self) -> usize { self.tokens_generated }
-    pub fn current_pos(&self) -> usize { self.current_pos }
+    pub fn config(&self) -> &DecodeConfig {
+        &self.config
+    }
+    pub fn tokens_generated(&self) -> usize {
+        self.tokens_generated
+    }
+    pub fn current_pos(&self) -> usize {
+        self.current_pos
+    }
 }

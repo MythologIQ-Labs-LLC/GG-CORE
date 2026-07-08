@@ -32,6 +32,7 @@ fn default_replacement() -> String {
 
 /// Output filter that applies blocklist and regex patterns.
 /// Pre-computes NFC-normalized blocklist at construction for efficiency.
+#[derive(Default)]
 pub struct OutputFilter {
     config: FilterConfig,
     compiled_patterns: Vec<Regex>,
@@ -83,7 +84,8 @@ impl OutputFilter {
             // Apply blocklist with pre-computed normalized entries
             for (i, normalized_blocked) in self.normalized_blocklist.iter().enumerate() {
                 if lower.contains(normalized_blocked) {
-                    let new_str = result.replace(&self.config.blocklist[i], &self.config.replacement);
+                    let new_str =
+                        result.replace(&self.config.blocklist[i], &self.config.replacement);
                     result = std::borrow::Cow::Owned(new_str);
                 }
             }
@@ -135,15 +137,5 @@ impl OutputFilter {
         }
 
         false
-    }
-}
-
-impl Default for OutputFilter {
-    fn default() -> Self {
-        Self {
-            config: FilterConfig::default(),
-            compiled_patterns: Vec::new(),
-            normalized_blocklist: Vec::new(),
-        }
     }
 }

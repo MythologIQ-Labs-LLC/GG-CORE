@@ -159,7 +159,10 @@ fn build_loader_callback(registry: Arc<ModelRegistry>) -> models::smart_loader_t
             .and_then(|s| s.to_str())
             .unwrap_or("unknown")
             .to_string();
-        let meta = models::ModelMetadata { name, size_bytes: size };
+        let meta = models::ModelMetadata {
+            name,
+            size_bytes: size,
+        };
         let handle = futures::executor::block_on(registry.register(meta, size as usize));
         Ok(handle)
     })
@@ -188,15 +191,35 @@ impl Runtime {
         let connections = Arc::new(ConnectionPool::new(config.connections.clone()));
         let gpu_manager = GpuManager::new(config.gpu.clone()).ok();
         let ipc_handler = Self::init_ipc(
-            &config, &request_queue, &shutdown, &health,
-            &model_registry, &metrics_store, &inference_engine,
+            &config,
+            &request_queue,
+            &shutdown,
+            &health,
+            &model_registry,
+            &metrics_store,
+            &inference_engine,
         );
 
         Self {
-            config, memory_pool, gpu_memory, context_cache, model_loader,
-            model_registry, inference_engine, model_lifecycle, smart_loader,
-            request_queue, batch_processor, resource_limits, ipc_handler,
-            gpu_manager, shutdown, health, metrics_store, output_cache, connections,
+            config,
+            memory_pool,
+            gpu_memory,
+            context_cache,
+            model_loader,
+            model_registry,
+            inference_engine,
+            model_lifecycle,
+            smart_loader,
+            request_queue,
+            batch_processor,
+            resource_limits,
+            ipc_handler,
+            gpu_manager,
+            shutdown,
+            health,
+            metrics_store,
+            output_cache,
+            connections,
         }
     }
 
@@ -210,7 +233,12 @@ impl Runtime {
 
     fn init_scheduler(
         config: &RuntimeConfig,
-    ) -> (Arc<RequestQueue>, BatchProcessor, ResourceLimits, Arc<Mutex<OutputCache>>) {
+    ) -> (
+        Arc<RequestQueue>,
+        BatchProcessor,
+        ResourceLimits,
+        Arc<Mutex<OutputCache>>,
+    ) {
         (
             Arc::new(RequestQueue::new(config.request_queue.clone())),
             BatchProcessor::new(config.batch.clone()),
@@ -230,10 +258,14 @@ impl Runtime {
     ) -> IpcHandler {
         let session_auth = Arc::new(SessionAuth::new(&config.auth_token, config.session_timeout));
         IpcHandler::new(
-            session_auth, queue.clone(), IpcHandlerConfig::default(),
-            shutdown.clone(), health.clone(), registry.clone(),
-            metrics.clone(), Arc::clone(engine),
+            session_auth,
+            queue.clone(),
+            IpcHandlerConfig::default(),
+            shutdown.clone(),
+            health.clone(),
+            registry.clone(),
+            metrics.clone(),
+            Arc::clone(engine),
         )
     }
 }
-

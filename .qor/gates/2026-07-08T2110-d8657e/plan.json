@@ -1,0 +1,20 @@
+{
+  "phase": "plan",
+  "ts": "2026-07-08T21:10:00Z",
+  "session_id": "2026-07-08T2110-d8657e",
+  "issue": "#62",
+  "risk_grade": "L2",
+  "feature_gate": "advanced",
+  "files_to_create": [
+    "core-runtime/src/engine/adaptive_speculative/mod.rs",
+    "core-runtime/src/engine/adaptive_speculative/tests.rs"
+  ],
+  "files_to_modify": [
+    "core-runtime/src/engine/mod.rs"
+  ],
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2110-d8657e"
+  }
+}

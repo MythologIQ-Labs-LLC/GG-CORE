@@ -20,11 +20,7 @@ pub struct GpuMemoryPool {
 
 impl GpuMemoryPool {
     /// Create a new memory pool backed by an allocator.
-    pub fn new(
-        device: Arc<GpuDevice>,
-        max_size: u64,
-        allocator: Arc<dyn GpuAllocator>,
-    ) -> Self {
+    pub fn new(device: Arc<GpuDevice>, max_size: u64, allocator: Arc<dyn GpuAllocator>) -> Self {
         Self {
             device,
             allocator,

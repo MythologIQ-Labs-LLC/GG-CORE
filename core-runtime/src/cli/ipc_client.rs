@@ -322,8 +322,8 @@ mod tests {
 
     #[test]
     fn test_cli_ipc_client_with_timeout() {
-        let client = CliIpcClient::new("/test/socket".to_string())
-            .with_timeout(Duration::from_secs(10));
+        let client =
+            CliIpcClient::new("/test/socket".to_string()).with_timeout(Duration::from_secs(10));
         assert_eq!(client.timeout_duration, Duration::from_secs(10));
     }
 
@@ -401,7 +401,7 @@ mod tests {
             CliError::ConnectionFailed("test".into()),
             CliError::Timeout,
             CliError::Protocol("test".into()),
-            CliError::Io(std::io::Error::new(std::io::ErrorKind::Other, "test")),
+            CliError::Io(std::io::Error::other("test")),
             CliError::Unhealthy,
         ];
 

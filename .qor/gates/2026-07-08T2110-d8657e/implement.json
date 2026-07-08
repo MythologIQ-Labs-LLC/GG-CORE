@@ -1,0 +1,20 @@
+{
+  "phase": "implement",
+  "ts": "2026-07-08T21:10:00Z",
+  "session_id": "2026-07-08T2110-d8657e",
+  "issue": "#62",
+  "files_created": [
+    "core-runtime/src/engine/adaptive_speculative/mod.rs",
+    "core-runtime/src/engine/adaptive_speculative/tests.rs"
+  ],
+  "files_modified": [
+    "core-runtime/src/engine/mod.rs"
+  ],
+  "tests": "9/9 PASS",
+  "razor": "224 lines (PASS)",
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2110-d8657e"
+  }
+}

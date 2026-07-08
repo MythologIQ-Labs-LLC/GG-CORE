@@ -90,7 +90,10 @@ pub unsafe extern "C" fn core_runtime_destroy(runtime: *mut CoreRuntime) {
 
     // Graceful shutdown
     rt.tokio.block_on(async {
-        rt.inner.shutdown.initiate(rt.inner.config.shutdown_timeout).await;
+        rt.inner
+            .shutdown
+            .initiate(rt.inner.config.shutdown_timeout)
+            .await;
     });
 
     // rt dropped here, releasing Arc

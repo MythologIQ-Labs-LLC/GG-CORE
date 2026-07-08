@@ -8,20 +8,15 @@ use crate::scheduler::Priority;
 /// Service tier for request prioritization.
 ///
 /// Higher tiers receive higher priority and more generous rate limits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum ServiceTier {
     /// Basic tier: low priority, strict rate limits.
     Bronze,
     /// Standard tier: normal priority, moderate rate limits.
+    #[default]
     Silver,
     /// Premium tier: high priority, generous rate limits.
     Gold,
-}
-
-impl Default for ServiceTier {
-    fn default() -> Self {
-        Self::Silver
-    }
 }
 
 impl ServiceTier {

@@ -15,7 +15,10 @@ pub fn init_metrics() {
     describe_counter!("core_requests_failed", "Failed inference requests");
 
     // Latency histograms
-    describe_histogram!("core_inference_latency_ms", "Inference latency in milliseconds");
+    describe_histogram!(
+        "core_inference_latency_ms",
+        "Inference latency in milliseconds"
+    );
     describe_histogram!(
         "core_tokenization_latency_ms",
         "Tokenization latency in milliseconds"
@@ -35,7 +38,10 @@ pub fn init_metrics() {
     describe_counter!("core_arena_resets_total", "Arena reset count");
 
     // Speculative decoding (Tier 3)
-    describe_counter!("core_speculative_drafts_total", "Total draft generation cycles");
+    describe_counter!(
+        "core_speculative_drafts_total",
+        "Total draft generation cycles"
+    );
     describe_counter!("core_speculative_accepted_tokens", "Draft tokens accepted");
     describe_counter!("core_speculative_rejected_tokens", "Draft tokens rejected");
 

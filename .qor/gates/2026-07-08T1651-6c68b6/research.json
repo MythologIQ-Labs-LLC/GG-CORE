@@ -1,0 +1,50 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-08T1651-6c68b6",
+  "ts": "2026-07-08T16:54:12Z",
+  "questions": [
+    "Root cause of kv_cache cross-sequence leakage (#58)?",
+    "Correct resolution for validate_path existence-expectation tests (#55)?",
+    "Where should NUL-byte rejection live (#57)?",
+    "What are the 13 residual clippy errors (#56)?"
+  ],
+  "findings": [
+    {
+      "id": "R1",
+      "summary": "kv_cache_core.rs pages keyed by seq_pos only (write_to_page :121/:154-158, allocate :137); entry.page_ids tracked (:149) but never consulted -> cross-sequence collision; quant store (advanced) masks it",
+      "status": "verified"
+    },
+    {
+      "id": "R2",
+      "summary": "validate_path is lexical by contract: unit tests (loader.rs:194-211) assert Ok on nonexistent /base paths; existence lives in load_metadata (:104-107 NotFound). #55 tests drifted -> amend tests to assert at load step",
+      "status": "verified"
+    },
+    {
+      "id": "R3",
+      "summary": "NUL rejection precedent exists in k8s validate_path (types.rs:167, types_tests.rs:401); loader.validate_path lacks it -> add early reject + unit test (#57)",
+      "status": "verified"
+    },
+    {
+      "id": "R4",
+      "summary": "13 clippy errors across 8 files: 4x field-assignment-outside-Default, 3x constant-assertion, 2x manual-checked-div, unused import, io::Error::other, new-returns-Self, u8-as-u8 cast (#56)",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/memory/kv_cache_core.rs",
+    "core-runtime/src/models/loader.rs",
+    "core-runtime/src/k8s/types.rs + types_tests.rs",
+    "core-runtime/tests/{integration_gguf_test.rs,kv_cache_test.rs,security_path_traversal_test.rs}",
+    "/tmp/clippy_preview.log + /tmp/test_full.log (preview base b661403+7a00233)",
+    "GitHub issues #55 #56 #57 #58"
+  ],
+  "brief_path": "https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/55 #56 #57 #58 (issue bodies are the brief)",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "unknown",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-08T16:54:12Z"
+  }
+}

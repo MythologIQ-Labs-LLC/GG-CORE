@@ -1,4 +1,5 @@
 //! TDD-Light tests for speculative decoding.
+#![cfg(feature = "advanced")]
 
 use async_trait::async_trait;
 use gg_core::engine::{
@@ -53,14 +54,19 @@ impl TargetModel for MockTarget {
 
 #[tokio::test]
 async fn speculative_accepts_matching_draft() {
-    let draft = MockDraft { tokens: vec![1, 2, 3, 4] };
+    let draft = MockDraft {
+        tokens: vec![1, 2, 3, 4],
+    };
     let target = MockTarget {
         accept_count: 4,
         correction: None,
         fallback_token: 99,
         eos: Some(0),
     };
-    let config = SpeculativeConfig { draft_tokens: 4, ..Default::default() };
+    let config = SpeculativeConfig {
+        draft_tokens: 4,
+        ..Default::default()
+    };
 
     let decoder = SpeculativeDecoder::new(draft, target, config);
     let result = decoder.generate(&[100], 4).await.unwrap();
@@ -70,14 +76,19 @@ async fn speculative_accepts_matching_draft() {
 
 #[tokio::test]
 async fn speculative_rejects_divergent_draft() {
-    let draft = MockDraft { tokens: vec![1, 2, 3, 4] };
+    let draft = MockDraft {
+        tokens: vec![1, 2, 3, 4],
+    };
     let target = MockTarget {
         accept_count: 2,
         correction: Some(5),
         fallback_token: 99,
         eos: Some(0),
     };
-    let config = SpeculativeConfig { draft_tokens: 4, ..Default::default() };
+    let config = SpeculativeConfig {
+        draft_tokens: 4,
+        ..Default::default()
+    };
 
     let decoder = SpeculativeDecoder::new(draft, target, config);
     let result = decoder.generate(&[100], 3).await.unwrap();
@@ -88,14 +99,19 @@ async fn speculative_rejects_divergent_draft() {
 
 #[tokio::test]
 async fn speculative_fallback_on_empty_accept() {
-    let draft = MockDraft { tokens: vec![1, 2, 3, 4] };
+    let draft = MockDraft {
+        tokens: vec![1, 2, 3, 4],
+    };
     let target = MockTarget {
         accept_count: 0,
         correction: None,
         fallback_token: 99,
         eos: Some(0),
     };
-    let config = SpeculativeConfig { draft_tokens: 4, ..Default::default() };
+    let config = SpeculativeConfig {
+        draft_tokens: 4,
+        ..Default::default()
+    };
 
     let decoder = SpeculativeDecoder::new(draft, target, config);
     let result = decoder.generate(&[100], 1).await.unwrap();
@@ -106,14 +122,19 @@ async fn speculative_fallback_on_empty_accept() {
 
 #[tokio::test]
 async fn speculative_stops_at_eos() {
-    let draft = MockDraft { tokens: vec![1, 2, 0] }; // 0 is EOS
+    let draft = MockDraft {
+        tokens: vec![1, 2, 0],
+    }; // 0 is EOS
     let target = MockTarget {
         accept_count: 3,
         correction: None,
         fallback_token: 99,
         eos: Some(0),
     };
-    let config = SpeculativeConfig { draft_tokens: 4, ..Default::default() };
+    let config = SpeculativeConfig {
+        draft_tokens: 4,
+        ..Default::default()
+    };
 
     let decoder = SpeculativeDecoder::new(draft, target, config);
     let result = decoder.generate(&[100], 10).await.unwrap();
@@ -124,7 +145,9 @@ async fn speculative_stops_at_eos() {
 
 #[tokio::test]
 async fn speculative_config_draft_tokens() {
-    let draft = MockDraft { tokens: vec![1, 2, 3, 4, 5, 6, 7, 8] };
+    let draft = MockDraft {
+        tokens: vec![1, 2, 3, 4, 5, 6, 7, 8],
+    };
     let target = MockTarget {
         accept_count: 2,
         correction: None,
@@ -145,7 +168,9 @@ async fn speculative_config_draft_tokens() {
 
 #[tokio::test]
 async fn speculative_disabled_uses_standard() {
-    let draft = MockDraft { tokens: vec![1, 2, 3, 4] };
+    let draft = MockDraft {
+        tokens: vec![1, 2, 3, 4],
+    };
     let target = MockTarget {
         accept_count: 4,
         correction: None,

@@ -10,10 +10,10 @@
 
 pub mod audit;
 pub mod audit_types;
+pub mod encryption;
 pub mod encryption_core;
 pub mod encryption_io;
 pub mod encryption_key;
-pub mod encryption;
 pub mod fips_tests;
 pub mod key_rotation;
 pub mod output_sanitizer;

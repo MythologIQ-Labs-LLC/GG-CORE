@@ -13,7 +13,9 @@ pub struct ConnectionConfig {
 
 impl Default for ConnectionConfig {
     fn default() -> Self {
-        Self { max_connections: 64 }
+        Self {
+            max_connections: 64,
+        }
     }
 }
 
@@ -26,7 +28,9 @@ pub struct IpcServerConfig {
 
 impl Default for IpcServerConfig {
     fn default() -> Self {
-        Self { max_frame_size: 16 * 1024 * 1024 }
+        Self {
+            max_frame_size: 16 * 1024 * 1024,
+        }
     }
 }
 

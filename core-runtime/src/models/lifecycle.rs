@@ -8,10 +8,10 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::RwLock;
 
-use crate::engine::gguf::GgufModel;
-use crate::engine::InferenceEngine;
 use super::loader::ModelMetadata;
 use super::registry::{ModelHandle, ModelRegistry};
+use crate::engine::gguf::GgufModel;
+use crate::engine::InferenceEngine;
 
 #[derive(Error, Debug)]
 pub enum LifecycleError {
@@ -116,7 +116,8 @@ impl ModelLifecycle {
     pub async fn unload(&self, model_id: &str) -> Result<ModelHandle, LifecycleError> {
         let mut index = self.index.write().await;
 
-        let handle = index.get_handle(model_id)
+        let handle = index
+            .get_handle(model_id)
             .ok_or_else(|| LifecycleError::NotLoaded(model_id.into()))?;
 
         self.engine.unregister_model(model_id).await;
@@ -151,7 +152,12 @@ impl ModelLifecycle {
     /// Returns `false` if the handle is stale (present in one but not the other,
     /// or absent from both).
     pub async fn validate_handle(&self, handle: &ModelHandle) -> bool {
-        let in_index = self.index.read().await.handle_to_id.contains_key(&handle.id());
+        let in_index = self
+            .index
+            .read()
+            .await
+            .handle_to_id
+            .contains_key(&handle.id());
         let in_registry = self.registry.contains(*handle).await;
         in_index && in_registry
     }

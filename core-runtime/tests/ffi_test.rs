@@ -10,9 +10,8 @@ use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 
 use gg_core::ffi::{
-    core_clear_last_error, core_config_default, core_get_last_error,
-    core_runtime_create, core_runtime_destroy,
-    CoreConfig, CoreErrorCode, CoreHealthReport, CoreHealthState,
+    core_clear_last_error, core_config_default, core_get_last_error, core_runtime_create,
+    core_runtime_destroy, CoreConfig, CoreErrorCode, CoreHealthReport, CoreHealthState,
     CoreInferenceParams, CoreInferenceResult, CoreModelMetadata,
 };
 
@@ -232,9 +231,8 @@ fn test_model_load_rejects_null_runtime() {
     let path = CString::new("models/test.gguf").unwrap();
     let mut handle_id: u64 = 0;
 
-    let result = unsafe {
-        gg_core::ffi::core_model_load(ptr::null_mut(), path.as_ptr(), &mut handle_id)
-    };
+    let result =
+        unsafe { gg_core::ffi::core_model_load(ptr::null_mut(), path.as_ptr(), &mut handle_id) };
     assert_eq!(result, CoreErrorCode::NullPointer);
 }
 
@@ -250,9 +248,7 @@ fn test_model_load_rejects_null_path() {
     assert!(!rt.is_null());
 
     let mut handle_id: u64 = 0;
-    let result = unsafe {
-        gg_core::ffi::core_model_load(rt, ptr::null(), &mut handle_id)
-    };
+    let result = unsafe { gg_core::ffi::core_model_load(rt, ptr::null(), &mut handle_id) };
     assert_eq!(result, CoreErrorCode::NullPointer);
 
     unsafe { core_runtime_destroy(rt) };
@@ -260,9 +256,7 @@ fn test_model_load_rejects_null_path() {
 
 #[test]
 fn test_model_unload_rejects_null_runtime() {
-    let result = unsafe {
-        gg_core::ffi::core_model_unload(ptr::null_mut(), 1)
-    };
+    let result = unsafe { gg_core::ffi::core_model_unload(ptr::null_mut(), 1) };
     assert_eq!(result, CoreErrorCode::NullPointer);
 }
 
@@ -275,9 +269,7 @@ fn test_model_unload_nonexistent_returns_not_found() {
     let mut rt: *mut gg_core::ffi::CoreRuntime = ptr::null_mut();
     unsafe { core_runtime_create(&config, &mut rt) };
 
-    let result = unsafe {
-        gg_core::ffi::core_model_unload(rt, 999)
-    };
+    let result = unsafe { gg_core::ffi::core_model_unload(rt, 999) };
     assert_eq!(result, CoreErrorCode::ModelNotFound);
 
     unsafe { core_runtime_destroy(rt) };
@@ -306,9 +298,7 @@ fn test_model_list_empty_returns_zero() {
 
     let mut handles = [0u64; 16];
     let mut count: u32 = 99;
-    let result = unsafe {
-        gg_core::ffi::core_model_list(rt, handles.as_mut_ptr(), 16, &mut count)
-    };
+    let result = unsafe { gg_core::ffi::core_model_list(rt, handles.as_mut_ptr(), 16, &mut count) };
 
     assert_eq!(result, CoreErrorCode::Ok);
     assert_eq!(count, 0);
@@ -326,9 +316,7 @@ fn test_model_count_returns_zero_initially() {
     unsafe { core_runtime_create(&config, &mut rt) };
 
     let mut count: u32 = 99;
-    let result = unsafe {
-        gg_core::ffi::core_model_count(rt, &mut count)
-    };
+    let result = unsafe { gg_core::ffi::core_model_count(rt, &mut count) };
 
     assert_eq!(result, CoreErrorCode::Ok);
     assert_eq!(count, 0);
@@ -529,12 +517,7 @@ fn test_model_list_and_count_consistent() {
         // list should also return 0
         let mut handles = [0u64; 16];
         let mut list_count: u32 = 99;
-        let code = gg_core::ffi::core_model_list(
-            rt,
-            handles.as_mut_ptr(),
-            16,
-            &mut list_count,
-        );
+        let code = gg_core::ffi::core_model_list(rt, handles.as_mut_ptr(), 16, &mut list_count);
         assert_eq!(code, CoreErrorCode::Ok);
         assert_eq!(list_count, 0);
 

@@ -2,15 +2,15 @@
 //!
 //! Platform-specific process isolation to enforce resource limits and security.
 
-#[cfg(windows)]
-mod windows;
 #[cfg(unix)]
 mod unix;
-
 #[cfg(windows)]
-pub use windows::WindowsSandbox;
+mod windows;
+
 #[cfg(unix)]
 pub use unix::UnixSandbox;
+#[cfg(windows)]
+pub use windows::WindowsSandbox;
 
 /// Configuration for process sandboxing.
 #[derive(Debug, Clone)]
@@ -29,7 +29,7 @@ impl Default for SandboxConfig {
     fn default() -> Self {
         Self {
             max_memory_bytes: 2 * 1024 * 1024 * 1024, // 2GB
-            max_cpu_time_ms: 30_000,                   // 30s
+            max_cpu_time_ms: 30_000,                  // 30s
             enabled: true,
             gpu_enabled: false,
         }

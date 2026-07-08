@@ -124,8 +124,10 @@ fn test_stream_chunk_error_roundtrip() {
 
 #[test]
 fn test_inference_request_with_stream_flag() {
-    let mut params = InferenceParams::default();
-    params.stream = true;
+    let params = InferenceParams {
+        stream: true,
+        ..Default::default()
+    };
 
     let request = InferenceRequest {
         request_id: RequestId(100),

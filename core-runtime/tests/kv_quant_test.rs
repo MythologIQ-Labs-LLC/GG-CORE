@@ -1,4 +1,5 @@
 //! Tests for Q8 KV-cache storage.
+#![cfg(feature = "advanced")]
 
 use gg_core::memory::kv_quant::{compute_scale, dequantize, quantize_to, Q8KvStore};
 
@@ -15,7 +16,10 @@ fn q8_roundtrip_within_tolerance() {
 
     for (i, (&orig, &rec)) in original.iter().zip(recovered.iter()).enumerate() {
         let error = (orig - rec).abs() / orig.abs().max(0.001);
-        assert!(error < 0.02, "Position {i}: orig={orig}, rec={rec}, error={error}");
+        assert!(
+            error < 0.02,
+            "Position {i}: orig={orig}, rec={rec}, error={error}"
+        );
     }
 }
 

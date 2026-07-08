@@ -46,7 +46,12 @@ impl SimdTokenizer {
             });
         }
 
-        Ok(Self { vocab, vocab_map, eos_token, bos_token })
+        Ok(Self {
+            vocab,
+            vocab_map,
+            eos_token,
+            bos_token,
+        })
     }
 
     /// Find whitespace positions using AVX2 SIMD (x86_64 only).
@@ -90,6 +95,7 @@ impl SimdTokenizer {
     }
 
     /// Handle remainder bytes after SIMD chunks.
+    #[cfg(target_arch = "x86_64")]
     fn find_whitespace_remainder(remainder: &[u8], total_len: usize, positions: &mut Vec<usize>) {
         let base = total_len - remainder.len();
         for (i, &b) in remainder.iter().enumerate() {

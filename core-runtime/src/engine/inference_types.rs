@@ -55,13 +55,19 @@ impl Default for InferenceParams {
 impl InferenceParams {
     pub fn validate(&self) -> Result<(), InferenceError> {
         if self.max_tokens == 0 {
-            return Err(InferenceError::InvalidParams("max_tokens must be > 0".into()));
+            return Err(InferenceError::InvalidParams(
+                "max_tokens must be > 0".into(),
+            ));
         }
         if self.temperature < 0.0 {
-            return Err(InferenceError::InvalidParams("temperature must be >= 0".into()));
+            return Err(InferenceError::InvalidParams(
+                "temperature must be >= 0".into(),
+            ));
         }
         if self.top_p <= 0.0 || self.top_p > 1.0 {
-            return Err(InferenceError::InvalidParams("top_p must be in (0, 1]".into()));
+            return Err(InferenceError::InvalidParams(
+                "top_p must be in (0, 1]".into(),
+            ));
         }
         Ok(())
     }

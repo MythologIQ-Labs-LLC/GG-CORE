@@ -36,12 +36,7 @@ impl std::fmt::Debug for QueuedRequest {
 
 impl QueuedRequest {
     /// Create a new queued request. Used for testing and batch processing.
-    pub fn new(
-        id: u64,
-        model_id: String,
-        prompt: String,
-        params: InferenceParams,
-    ) -> Self {
+    pub fn new(id: u64, model_id: String, prompt: String, params: InferenceParams) -> Self {
         Self::with_tx(id, model_id, prompt, params, None)
     }
 
@@ -54,7 +49,9 @@ impl QueuedRequest {
         response_tx: Option<ResponseTx>,
     ) -> Self {
         let enqueued_at = Instant::now();
-        let deadline = params.timeout_ms.map(|ms| enqueued_at + Duration::from_millis(ms));
+        let deadline = params
+            .timeout_ms
+            .map(|ms| enqueued_at + Duration::from_millis(ms));
         Self {
             id,
             model_id,
@@ -74,7 +71,7 @@ impl QueuedRequest {
 
     /// Check if request has exceeded its deadline.
     pub fn is_expired(&self) -> bool {
-        self.deadline.map_or(false, |d| Instant::now() > d)
+        self.deadline.is_some_and(|d| Instant::now() > d)
     }
 
     /// Mark the request as cancelled.

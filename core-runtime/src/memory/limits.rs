@@ -21,7 +21,7 @@ pub struct ResourceLimitsConfig {
 impl Default for ResourceLimitsConfig {
     fn default() -> Self {
         Self {
-            max_memory_per_call: 1024 * 1024 * 1024, // 1GB
+            max_memory_per_call: 1024 * 1024 * 1024,  // 1GB
             max_total_memory: 2 * 1024 * 1024 * 1024, // 2GB
             max_concurrent: 2,
         }
@@ -66,9 +66,13 @@ impl ResourceLimits {
         }
 
         // Try to reserve memory
-        let prev_memory = inner.current_memory.fetch_add(memory_bytes, Ordering::SeqCst);
+        let prev_memory = inner
+            .current_memory
+            .fetch_add(memory_bytes, Ordering::SeqCst);
         if prev_memory + memory_bytes > inner.config.max_total_memory {
-            inner.current_memory.fetch_sub(memory_bytes, Ordering::SeqCst);
+            inner
+                .current_memory
+                .fetch_sub(memory_bytes, Ordering::SeqCst);
             return Err(InferenceError::MemoryExceeded {
                 used: prev_memory + memory_bytes,
                 limit: inner.config.max_total_memory,
@@ -79,7 +83,9 @@ impl ResourceLimits {
         let prev_concurrent = inner.current_concurrent.fetch_add(1, Ordering::SeqCst);
         if prev_concurrent >= inner.config.max_concurrent {
             inner.current_concurrent.fetch_sub(1, Ordering::SeqCst);
-            inner.current_memory.fetch_sub(memory_bytes, Ordering::SeqCst);
+            inner
+                .current_memory
+                .fetch_sub(memory_bytes, Ordering::SeqCst);
             return Err(InferenceError::QueueFull {
                 current: prev_concurrent + 1,
                 max: inner.config.max_concurrent,
@@ -124,7 +130,9 @@ impl std::fmt::Debug for ResourceGuard {
 
 impl Drop for ResourceGuard {
     fn drop(&mut self) {
-        self.inner.current_memory.fetch_sub(self.memory_bytes, Ordering::SeqCst);
+        self.inner
+            .current_memory
+            .fetch_sub(self.memory_bytes, Ordering::SeqCst);
         self.inner.current_concurrent.fetch_sub(1, Ordering::SeqCst);
     }
 }

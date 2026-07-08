@@ -1,0 +1,14 @@
+{
+  "phase": "substantiate",
+  "ts": "2026-07-08T21:10:00Z",
+  "session_id": "2026-07-08T2110-d8657e",
+  "issue": "#62",
+  "ledger_entry": 89,
+  "verdict": "PASS",
+  "merkle_seal": "dce5d52a08f6b2fdd66fb2d08aad14d3356072fcf018e51864f857a0c2584ea4",
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2110-d8657e"
+  }
+}

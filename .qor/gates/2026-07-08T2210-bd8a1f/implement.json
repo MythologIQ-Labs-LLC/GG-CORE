@@ -1,0 +1,21 @@
+{
+  "phase": "implement",
+  "ts": "2026-07-08T22:10:00Z",
+  "session_id": "2026-07-08T2210-bd8a1f",
+  "issue": "#65",
+  "tests": "11/11 PASS",
+  "files": [
+    "core-runtime/src/engine/adaptive_speculative/telemetry.rs",
+    "core-runtime/src/engine/adaptive_speculative/telemetry_tests.rs",
+    "core-runtime/src/engine/adaptive_speculative/mod.rs",
+    "core-runtime/src/engine/mod.rs",
+    "core-runtime/src/cli/status.rs",
+    "core-runtime/src/cli/status_format.rs",
+    "core-runtime/src/cli/status_tests.rs"
+  ],
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2210-bd8a1f"
+  }
+}

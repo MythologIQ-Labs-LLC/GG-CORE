@@ -134,7 +134,11 @@ impl SwapManager {
 
         self.reset_state().await;
 
-        Ok(SwapResult { old_handle, new_handle, drain_duration })
+        Ok(SwapResult {
+            old_handle,
+            new_handle,
+            drain_duration,
+        })
     }
 
     async fn reset_state(&self) {

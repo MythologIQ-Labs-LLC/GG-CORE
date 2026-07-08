@@ -5715,3 +5715,778 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: SUBSTANTIATION COMPLETE. Reality matches Promise. Veritas-Shim implementation verified across all 8 audit dimensions. Session sealed.
+
+---
+
+### Entry #80: RESEARCH BRIEF (Runtime Optimization + Hardening)
+
+**Timestamp**: 2026-07-08T16:05:13Z
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3
+
+**Content Hash**:
+
+```
+SHA256(research-brief-runtime-optimization-hardening-2026-07-08.md)
+= f3d61468617117e82ac10c0659b92d617406bd18e946bb9352bd9cb8415101ce
+```
+
+**Previous Hash**: 0c9b7cf87abffa8307a1ac606122fa231a7eecec8b34ba09fe5c9fca491eb472
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 58d9fc70449d3421572a767e7ab800b142666573e65defb4f2a891c0543cc962
+```
+
+**Decision**: Research complete for runtime-optimization-hardening (session 2026-07-08T1556-3b7852; ideation gate sealed same session). Key findings: (1) PR #47 and issue #54 are disjoint -- PR branch tip b661403 is the exact commit where COREFORGE observed the 23 sandbox/unix.rs lints; (2) working tree is a 193-file cargo fmt sweep (fmt --check clean), local main diverged ahead 1/behind 1, plus a 6-commit worktree branch refactoring shim/; (3) CRITICAL DRIFT: no Rust CI exists (CodeQL only) -- fmt/clippy/test workflow is prerequisite for all hardening evidence; (4) coverage gaps F-38/F-40/F-45 confirmed with F-45 deferred behind in-flight shim refactor. Recommendations: merge #47 -> add CI -> fix #54 -> rebase + land fmt sweep -> close index gaps. Findings advisory; routing to /qor-plan.
+
+---
+
+### Entry #81: SESSION SEAL (Runtime Hardening Cycle 1)
+
+**Entry ID**: `82f5d62a2732`
+**Timestamp**: 2026-07-08T16:50:13Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L3
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (4 planned files delivered; 1 justified delta: `__len__` assertion unreachable without embedding Python, delegate asserted instead) |
+| Audit gate | **PASS** (adversarial tribunal 8/8 dimensions; .agent/staging/AUDIT_REPORT.md) |
+| Behavior preservation | **PASS** (sandbox lint-only; observer verified seccomp/BPF constants against kernel ABI) |
+| Test oracles | **PASS on integration preview** (b661403 + 7a00233): sandbox 5/5, sandbox-escape 8/8, input-validation 11/11, filter 10/10; 69 suites ok / 1073 tests |
+| Pre-existing failures | 4, all reproduced on bare b661403 (innocence proven); filed as issues #55/#56/#57 |
+| Forbidden modules/deps | **PASS** (0 detected) |
+| Section 4 Razor (new files) | **PASS** (test 50 lines; workflow YAML; unix.rs 523-line debt pre-existing -> B-16) |
+| Secret scan | run pre-commit on staged set |
+| Governance index enforce | **PASS** (Last Reviewed 2026-07-08; 0 findings) |
+| Feature Inventory | Total: 47 / verified: 44 / unverified: 3 / n/a: 0; newly unverified: none |
+
+**Disclosed SKIPs (Phase 75 / Review Boundary)**:
+
+- intent_lock verify: lock never set (implementation orchestrated by /qor-auto-dev-1, not /qor-implement) -- gate_skipped_prerequisite_absent
+- Version bump / CHANGELOG stamp / seal tag: deferred to operator (Review Boundary forbids release actions; no Target Version declared in plan)
+- Unix clippy legs + live CI run: deferred to operator push (D4.d waiver in plan)
+- badge_currency: README literal-count badges are qor-logic-repo convention; README.md carries an uncommitted operator rework -- not applicable this seal
+
+**Content Hash**:
+
+```
+SHA256(SYSTEM_STATE + rust.yml + sandbox/unix.rs + python_binding_test.rs + FEATURE_INDEX)
+= 83f86389c0a785a2b39fbde2e967822ae49c365ea7c9ebbf12fc9388a37f41d1
+```
+
+**Previous Hash**: 58d9fc70449d3421572a767e7ab800b142666573e65defb4f2a891c0543cc962
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 275bad75276680e620d8ef9299153f204aac5554cceffa525123eace2def9aff
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 06638c94fe8840aa04008d3a0185b748534eea8e499cb39ce0cb0917609e854a
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Cycle 1 of runtime-optimization-hardening sealed: issue #54 lint fixes (behavior-preserving), Rust CI gate (B-15), F-40 test binding, tree reconciliation (fmt sweep isolated, main rebased). Green-CI dependency chain documented: PR #47 -> #56 -> #55/#57 -> this branch + style/cargo-fmt-sweep. Push/PR/merge/tag reserved for operator review. Cycle 2 candidate scoped: validate_path surface (#55/#57) + residual clippy (#56).
+
+---
+
+### Entry #82: GATE AUDIT (Runtime Hardening Cycle 2 — VETO)
+
+**Timestamp**: 2026-07-08T17:04:40Z
+**Phase**: AUDIT
+**Author**: Judge
+**Risk Grade**: L3
+
+**Verdict**: **VETO** (cycle-2 plan revision required; 3 HALLUCINATION findings)
+
+**Findings**:
+
+- **V1** (kv isolation, #58): proposed `page_ids` lookup does NOT fix the leak — `PageTable::allocate` dedups on a single global position-keyed `entries` map (`src/memory/paged.rs:94-104`), so two sequences at the same position share a page regardless. The PageTable is architecturally single-sequence; a real fix needs exclusive per-sequence page ownership or `(SequenceId, block)` keying, plus eviction use-after-free + data-remanence handling (`Page::reset` zeroes only `used_slots`, `paged.rs:64-66`).
+- **V2** (#58): `attention_from_pages` (`src/memory/kv_cache_ops.rs:96-101`) is a third leak channel on default features, unaddressed by the plan — D1 unfulfillable as scoped.
+- **V3** (clippy #56): plan's security-file lint map was fabricated. Real sites: `encryption_tests.rs:371` is a PBKDF2>=600k **security regression oracle** (rework to `const _: () = assert!(...)`, never delete); `prompt_injection.rs:189` is a `u8 as u8` cast in live `scan()` (behavior-preserving, was mis-described).
+
+**Content Hash**:
+
+```
+SHA256(AUDIT_REPORT.md)
+= c5a4d54f8156338e571fa53c15a87f7be0ca5afc8db75342ab9df54ddb0d813d
+```
+
+**Previous Hash**: 275bad75276680e620d8ef9299153f204aac5554cceffa525123eace2def9aff
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 636fa0d87acbaa9391f7bdba528582b78e5cec74f20f499b35b80cb01d3913cc
+```
+
+**Decision**: VETO. #58 (multi-tenant KV isolation) escalated out of cycle 2 as a dedicated L3 redesign (own ideation/design). Cycle 2 re-scoped to the judged-sound remainder: #55/#57 validate_path (with mmap error-variant + python/session.rs:105 caller corrections) and #56 clippy (corrected 13-site map, rework-not-remove for the PBKDF2 oracle). Revised plan returns to /qor-audit. Shadow Genome Entry #2 recorded by Judge.
+
+---
+
+### Entry #83: GATE AUDIT (Runtime Hardening Cycle 2 rev.2 — VETO)
+
+**Timestamp**: 2026-07-08T17:15:32Z
+**Phase**: AUDIT
+**Author**: Judge
+**Risk Grade**: L3
+
+**Verdict**: **VETO** (rev.2; V1/V2/V3 resolved but clippy map re-introduced mis-attribution)
+
+**Findings**:
+
+- V1/V2 (#58 KV isolation) — **RESOLVED**: fully escalated to backlog B-20; no KV page-lookup change remains.
+- V3 (named sites) — **RESOLVED**: encryption_tests.rs:371 PBKDF2 oracle reworked not deleted; prompt_injection.rs:189 confirmed no-op cast.
+- **F1** (new): plan mislabeled `cli/health.rs:94,95` as "manual checked division" — actual lint is constant-value assertion (`assert!(EXIT_HEALTHY == 0)` / `!= 0`).
+- **F2** (new): plan mislabeled `ab_testing/metrics/stats.rs:61,66` as field-reassign-after-Default — actual lint is the manual-checked-division site.
+- validate_path (#57/#55) substance PASS; mmap R3 correction honest.
+
+**Content Hash**:
+
+```
+SHA256(AUDIT_REPORT.md)
+= 01d7c48d76ab1ec8cd380928fe94cb8c564d16b8153ea2fe969a00312c8ff619
+```
+
+**Previous Hash**: 636fa0d87acbaa9391f7bdba528582b78e5cec74f20f499b35b80cb01d3913cc
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= c2464912460d24618379b045ebd4943556a652578f33d9de328b0117e1ca27e4
+```
+
+**Decision**: VETO. Recurring HALLUCINATION (clippy lint mis-attribution) logged as Shadow Genome Entry #3. rev.3 derives the 13-site clippy map from captured `cargo clippy` output (verbatim lint name per location); the three constant-assertion oracles (encryption_tests.rs:371, health.rs:94, health.rs:95) rework to `const _: () = assert!(...)`. Returns to /qor-audit.
+
+---
+
+### Entry #84: GATE AUDIT (Runtime Hardening Cycle 2 rev.3 — PASS)
+
+**Timestamp**: 2026-07-08T17:19:12Z
+**Phase**: AUDIT
+**Author**: Judge
+**Risk Grade**: L3
+
+**Verdict**: **PASS** (3rd plan-audit attempt; 2 prior VETOs cleared)
+
+**Decision**: rev.3 authorized. 13/13 clippy sites verified against source (F1/F2
+swap corrected); 3 constant-assertion oracles (PBKDF2_ITERATIONS, EXIT_HEALTHY,
+EXIT_UNHEALTHY) confirmed compile-time const, reworked to `const _: () = assert!(...)`
+(guarantee strengthened, not deleted). validate_path #57/#55 substance sound
+(mmap asserts is_err per R3; NUL sentinel; 3 callers safe). #58 remains escalated
+to B-20. Implementation of both phases authorized.
+
+**Content Hash**:
+
+```
+SHA256(AUDIT_REPORT.md)
+= fe75cdf2d1575292fafb1153b47ea09729e3dd291f2e385cdca0047f21914aa0
+```
+
+**Previous Hash**: c2464912460d24618379b045ebd4943556a652578f33d9de328b0117e1ca27e4
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 816999553aac806f0673be3130075db9c6797212d80b04c8696e3b197865dab5
+```
+
+---
+
+### Entry #85: SESSION SEAL (Runtime Hardening Cycle 2)
+
+**Entry ID**: `8c3a5f91de24`
+**Timestamp**: 2026-07-08T19:45:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L3
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (10 planned deliverables; 1 unplanned: B-22 fix found during verification, filed #69, fixed 626f034 same branch) |
+| Audit gate | **PASS** (Entry #84, rev.3, 3 plan-audit attempts; prior VETOs: clippy map mis-attribution x2) |
+| Clippy 13-site fix | **PASS** (all 13 sites verified from captured cargo clippy output; committed 43cc89c) |
+| Bench E0004 (B-22) | **PASS** (FinishReason::Cancelled arm added to bench match; gguf test count 4->5; committed 626f034) |
+| validate_path NUL rejection | **PASS** (issue #57 fixed; unit test in loader.rs) |
+| Load-existence tests | **PASS** (issue #55 fixed; validate_path lexical, load_metadata/load_mapped existence-gated) |
+| Security oracles | **PASS** (PBKDF2>=600k, EXIT_HEALTHY==0, EXIT_UNHEALTHY!=0 reworked to const _: () = assert!(...)) |
+| Forbidden modules/deps | **PASS** (0 detected) |
+| Section 4 Razor (touched files) | **PASS** (no new file exceeds limits; pre-existing unix.rs 523-line debt -> B-16) |
+| Governance index | **PASS** (RC=0, drift clean at commit bc0c70c) |
+| Feature Inventory | F-21 remains unverified (B-20 KV isolation pending); all others verified |
+
+**Disclosed SKIPs (Phase 75 / Review Boundary)**:
+
+- intent_lock verify: absent (implementation orchestrated by /qor-auto-dev-1, not /qor-implement)
+- Version bump / CHANGELOG stamp / seal tag: deferred to operator (Review Boundary)
+- kv_cache_test 13/14: pre-existing B-20 cross-sequence isolation defect, scoped out; spec in docs/plan-b20-kv-isolation-redesign.md
+- --all-targets clippy leg B-22: fixed in 626f034 (found during verification; not in original cycle-2 scope)
+
+**Content Hash**:
+
+```
+SHA256(touched governance files)
+= a8cd9f1432867dde821b6f633ddad7cff994388109adb542cc23afb282f34c35
+```
+
+**Previous Hash**: 816999553aac806f0673be3130075db9c6797212d80b04c8696e3b197865dab5
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 50183476b4ccc9ed38219698cd9193d56b8a34f30691af37c6094e3d437461f3
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 3af0f92e62b0cdcb2d2b13218ca3f32a21e3ab66dbd6e80e38548ba4ae0ce2d2
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Cycle 2 of runtime-optimization-hardening sealed: validate_path NUL rejection (#57), load-existence test contract (#55), 13 clippy residuals (#56), security oracle const-assertion rework, B-22 bench match fix (#69). Outstanding: B-20 KV isolation redesign (L3, next governed cycle), B-21 ADR-007 epic, B-23 now closed. Push/PR/merge/tag reserved for operator review.
+
+---
+
+### Entry #86: SESSION SEAL (B-20 KV Cache Cross-Sequence Isolation Redesign)
+
+**Entry ID**: `d299ed7b20a1`
+**Timestamp**: 2026-07-08T20:35:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L3
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1, PW.4.4
+**Session ID**: 2026-07-08T1755-d299ed
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (PageTable pure-pool rewrite; per-sequence page_ids lookup; all 7 planned files modified) |
+| Cross-sequence isolation oracle | **PASS** (`test_two_sequences_same_position_distinct_pages` — seq1 reads 11.0, seq2 reads 22.0 independently) |
+| Remanence hygiene | **PASS** (`Page::reset()` zeros key+value buffers; `test_evicted_page_is_zeroed` oracle) |
+| Lock order discipline | **PASS** (sequences→page_table uniformly; `free_sequence` and `evict_pages_before` both drop sequences before acquiring page_table) |
+| kv_cache_test suite | **PASS** (15/15; was 13/14 before fix — 2 new isolation oracles added) |
+| paged unit tests | **PASS** (5/5) |
+| tier4_paged tests | **PASS** (9/9; updated to new allocate_page()/page(id) API) |
+| Forbidden modules/deps | **PASS** (0 detected) |
+| Section 4 Razor | **PASS** (no touched file exceeds 250 lines) |
+| Feature Inventory | **PASS** (F-21 → verified) |
+| Backlog | **PASS** (B-20 → done) |
+
+**Disclosed SKIPs (Phase 75 / Review Boundary)**:
+
+- intent_lock verify: absent (orchestrated by /qor-auto-dev-1, not /qor-implement)
+- Version bump / CHANGELOG stamp / seal tag: deferred to operator (Review Boundary)
+- Push/PR/merge: Review Boundary enforced; implementation commit 6c8c228 staged locally only
+
+**Content Hash**:
+
+```
+SHA256(paged.rs + kv_cache_core.rs + kv_cache_ops.rs + kv_cache_test.rs + FEATURE_INDEX.md)
+= 4ca545c7c5dd348e0c6b1a0f57739682bacf4fb1ec764106cd6e54d7c0bd2f9b
+```
+
+**Previous Hash**: 50183476b4ccc9ed38219698cd9193d56b8a34f30691af37c6094e3d437461f3
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 5accccd5d0dec9ba4282dd21f5de53b1a19a1ef0e3d5dab457e8f25d8cb0c655
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 73fbb656b1bfe79e3812194a41c41ef6392b176dce030bb3459c580b6295044b
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. B-20 KV cache cross-sequence data leakage resolved: PageTable redesigned as pure pool (removed global `entries: Vec<Option<PageId>>`, added `allocate_page()`/`page(id)`/`page_mut(id)`); per-sequence `entry.page_ids` lookup eliminates position-key collision; `Page::reset()` zeroes key/value buffers (remanence); lock order sequences→page_table enforced uniformly. 15/15 kv_cache tests pass (2 new isolation oracles). F-21 verified. Push/PR/merge/tag reserved for operator review.
+
+---
+
+### Entry #87: SESSION SEAL (Issue #68 — ADR-007 Consolidation Audit)
+
+**Entry ID**: `7baafe68a001`
+**Timestamp**: 2026-07-08T20:45:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L1
+**Session ID**: 2026-07-08T2035-7baafe
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`docs/architecture/ADR-007-CONSOLIDATION-AUDIT.md` created, all 6 ACs met) |
+| Inventory completeness | **PASS** (5 source files, 2 build refs, 4 doc refs, test gap identified) |
+| Migrate-or-reject decisions | **PASS** (all 5 items decided) |
+| Section 4 Razor violation identified | **PASS** (tier_synergy.rs 397 lines flagged as F1 for future refactor) |
+| Canonical status affirmed | **PASS** (in-tree is canonical; no external migration needed) |
+| C.O.R.E. boundary | **PASS** (no network/agent/authority added) |
+| Forbidden modules/deps | **PASS** (n/a for docs-only cycle) |
+| FEATURE_INDEX | **PASS** (n/a — no new code features; F-X TierSynergy gap noted for #64) |
+
+**Disclosed SKIPs**:
+- Version bump / CHANGELOG / tag: deferred to operator (Review Boundary)
+- Standalone repo archive: operator action required (agent cannot access external repos autonomously)
+
+**Content Hash**:
+
+```
+SHA256(ADR-007-CONSOLIDATION-AUDIT.md)
+= 1ddff61f86d0de20b83a0c7b7299adc443b607b9248cd99b101d07d35e98dfbd
+```
+
+**Previous Hash**: 5accccd5d0dec9ba4282dd21f5de53b1a19a1ef0e3d5dab457e8f25d8cb0c655
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 89f7216f8fcbfa4d8223e876c0df09d9857a0ea8c1b83750a811c89703b3ac8f
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= dd16c3997b26233596dab31274d6b2feaf4430e8eb24f8792582628c06b265fb
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #68 ADR-007 consolidation audit complete: in-tree `tier_synergy.rs` affirmed canonical; 3 follow-up items identified (Section 4 Razor refactor, stale engine comment cleanup, integration test + FEATURE_INDEX entry for #64); operator action required for standalone repo verification/archive. Push/PR reserved for operator.
+
+---
+
+### Entry #88: SESSION SEAL (Issue #61 — AdaptiveSpeculativeConfig)
+
+**Entry ID**: `129262610001`
+**Timestamp**: 2026-07-08T20:56:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2050-129262
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`speculative_config.rs` created, `mod.rs` exports added) |
+| Default speculation off | **PASS** (`enabled: false`, `mode: Disabled`, `is_active()` returns false) |
+| Serde round-trips | **PASS** (2 serde tests: default + enabled_balanced) |
+| Disable path | **PASS** (`enabled` field is the master kill-switch) |
+| Feature gate | **PASS** (`cfg(feature = "advanced")` on mod + export) |
+| Section 4 Razor | **PASS** (173 lines ≤ 250) |
+| C.O.R.E. boundary | **PASS** (config struct only; no network/agent/authority) |
+| Tests | **PASS** (7/7 unit tests: default-off, active logic, clamp helpers, serde ×2) |
+| Compile check | **PASS** (both with and without `advanced` feature) |
+
+**Content Hash**:
+
+```
+SHA256(speculative_config.rs + mod.rs)
+= 12fc8417bcacfedac97c0275864b7aa69d33310635ed6766393e61439c84ecb5
+```
+
+**Previous Hash**: 89f7216f8fcbfa4d8223e876c0df09d9857a0ea8c1b83750a811c89703b3ac8f
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 1eef1ee0cbc75478fb0615a5ee73b5017e16c1ee92994dd0eaf41e81d709add8
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= d23e112a7f0bd610b38148e56f9b86497c979304b3b41ad7e1a2d7755a521c27
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #61 complete: `AdaptiveSpeculativeConfig` + `AdaptiveMode` enum created under `advanced` feature; 173 lines; speculation off by default; serde serializable; 7 unit tests green. Feature gate name `advanced` locked for #62–#67.
+
+---
+
+### Entry #89: SESSION SEAL (Issue #62 — Adaptive Speculative Decoder Interfaces)
+
+**Entry ID**: `d8657e620001`
+**Timestamp**: 2026-07-08T21:10:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2110-d8657e
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (4 traits + 4 types created; mod.rs export added) |
+| Traits delivered | **PASS** (`BlockDraftModel`, `ConfidenceEstimator`, `VerificationScheduler`, `TargetVerifier`) |
+| Types delivered | **PASS** (`DraftBlock`, `SurvivalProfile`, `VerificationPlan`, `VerificationResult`) |
+| No learned confidence heads | **PASS** (`SurvivalProfile::uniform()` satisfies v1 no-confidence contract) |
+| Single-model fallback | **PASS** (`VerificationPlan::fallback()` + zero-window path to `generate_one`) |
+| Feature gate | **PASS** (`#![cfg(feature = "advanced")]` at module root) |
+| Section 4 Razor | **PASS** (`mod.rs` 224 lines, `tests.rs` 185 lines) |
+| Tests | **PASS** (9/9: success, rejection, fallback ×2, token assembly, profiles) |
+| Compile | **PASS** (0 errors with and without `advanced`) |
+| C.O.R.E. boundary | **PASS** (no network/agent/authority) |
+
+**Content Hash**:
+
+```
+SHA256(adaptive_speculative/mod.rs + tests.rs + engine/mod.rs)
+= c03d5256ab6c02445e1d4e156177448514c39cc97c58bcf46af6120be415e571
+```
+
+**Previous Hash**: 1eef1ee0cbc75478fb0615a5ee73b5017e16c1ee92994dd0eaf41e81d709add8
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 93b42b484686968afd8015064c2c66cba8183bbd41cb6052e4045212452d418a
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= dce5d52a08f6b2fdd66fb2d08aad14d3356072fcf018e51864f857a0c2584ea4
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #62 complete: backend-agnostic adaptive speculative decoder trait surface (`BlockDraftModel`, `ConfidenceEstimator`, `VerificationScheduler`, `TargetVerifier`) + types (`DraftBlock`, `SurvivalProfile`, `VerificationPlan`, `VerificationResult`) delivered. 9/9 tests green. GGUF wrappers can implement `TargetVerifier` without duplicate logic.
+
+---
+
+### Entry #90: SESSION SEAL (Issue #63 — Heuristic Confidence + Verification Scheduling)
+
+**Entry ID**: `0cdfe3630001`
+**Timestamp**: 2026-07-08T21:30:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2130-0cdfe3
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`heuristic/mod.rs` + `heuristic/tests.rs` created; `pub mod heuristic` added) |
+| HeuristicConfidenceEstimator | **PASS** (log-prob + entropy + temperature + repetition-penalty + history signals) |
+| AdaptiveVerificationScheduler | **PASS** (window = round(draft_len × mean_score × mode_multiplier), clamped to bounds) |
+| Low-confidence tails not over-verified | **PASS** (wider verification delegated to scheduler; estimator only scores) |
+| Auto-disable trigger | **PASS** (fires when 1.0 + history.mean() < threshold; returns VerificationPlan::fallback()) |
+| GPU-free | **PASS** (pure CPU signal computation) |
+| Feature gate | **PASS** (`cfg(feature = "advanced")`) |
+| Section 4 Razor | **PASS** (247 lines ≤ 250) |
+| Tests | **PASS** (11/11: high-confidence, low-confidence, auto-disable, underperforming, mode multipliers) |
+
+**Content Hash**:
+
+```
+SHA256(heuristic/mod.rs + heuristic/tests.rs + adaptive_speculative/mod.rs)
+= 0f901b315211e517ea34f26d9c29e70fe9151b80f0b1c0e33d20c1a3c33dcc8f
+```
+
+**Previous Hash**: 93b42b484686968afd8015064c2c66cba8183bbd41cb6052e4045212452d418a
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= e4207fa5891317c484ca31ad4e21fd38d92d85c6fbacbaeaabe63a1c8f29df43
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 7f5f90d884c095087c730781d03ff17c4480db9846932c374ce38d5db3dec82f
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #63 complete: `HeuristicConfidenceEstimator` (4-signal fusion: log-prob, entropy, temperature, repetition-penalty, history) and `AdaptiveVerificationScheduler` (mode-multiplier window selection, auto-disable) implemented. 11/11 tests green. No GPU required.
+
+---
+
+### Entry #91: SESSION SEAL (Issue #64 — TierSynergy Speculative Execution Plan)
+
+**Entry ID**: `3b4e07640001`
+**Timestamp**: 2026-07-08T21:45:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2145-3b4e07
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`tier_synergy_speculative.rs` + tests created; `mod.rs` exports added) |
+| TierSpeculativePlan::select | **PASS** (priority: LightQuality → LightBalanced → BalancedQuality → single) |
+| Pairing coverage | **PASS** (all 3 pairings + single-tier fallback tested) |
+| Incompatible pairing falls back | **PASS** (NoGpu blocks BalancedQuality; returns single-model) |
+| Disabled config falls back | **PASS** (`enabled=false` or `AdaptiveMode::Disabled` → `is_speculative=false`) |
+| Low acceptance rate falls back | **PASS** (acceptance < `acceptance_floor` forces fallback) |
+| tier_synergy.rs untouched | **PASS** (0 modifications to oversized file) |
+| Section 4 Razor | **PASS** (214 lines ≤ 250) |
+| Tests | **PASS** (8/8) |
+| Compile | **PASS** (0 errors) |
+
+**Content Hash**:
+
+```
+SHA256(tier_synergy_speculative.rs + tier_synergy_speculative_tests.rs + mod.rs)
+= a80d6f56756e45f59c63e8b0d0fd304a8d6c34511cbe8b5068d672764af2f71c
+```
+
+**Previous Hash**: 7f5f90d884c095087c730781d03ff17c4480db9846932c374ce38d5db3dec82f
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 087a0db218ae38276bfd8397bd99e43200ef4f751b523b58ba98dd992bfb080a
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= f1ecdc9ed228bb9eda0045ea0229d3d2313d0d654b341761ce9b02772dd73da6
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #64 complete: `TierSpeculativePlan` selects Light→Quality/Balanced, Balanced→Quality pairings with hardware gating, acceptance-floor fallback, compatibility tracking, and single-model default. `tier_synergy.rs` untouched. 8/8 tests green.
+
+---
+
+### Entry #92: SESSION SEAL (Issue #67 — Threat Model + Security Tests)
+
+**Entry ID**: `141d24670001`
+**Timestamp**: 2026-07-08T21:55:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L3
+**Session ID**: 2026-07-08T2155-141d24
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (THREAT_MODEL.md §12 + security_speculative_test.rs created) |
+| T1 draft model loading | **PASS** (documented: AES-GCM auth tag, path allowlist) |
+| T2 verification bypass | **PASS** (test: `into_tokens` saturates at accepted_count; suffix unreachable) |
+| T3 telemetry PII | **PASS** (test: config fields are bool/usize/f32/enum only — no String/Vec<u8>) |
+| T4 incompatible pairing | **PASS** (test: disabled config → is_speculative=false) |
+| T5 auto-disable evasion | **PASS** (test: fallback plan has window=0; no unchecked emission) |
+| Prompt-injection / output-sanitization order | **PASS** (documented in threat model §12.6) |
+| Tests | **PASS** (14/14 across 4 modules: T2×4, T3×2, T4×4, T5×4) |
+| C.O.R.E. boundary | **PASS** (no network/agent/authority in test or doc) |
+
+**Content Hash**:
+
+```
+SHA256(THREAT_MODEL.md + security_speculative_test.rs)
+= 64032c34585fd0da4ae07f5f815528a3c4c5e3e3e3bbfe2b379e1e7618093084
+```
+
+**Previous Hash**: 087a0db218ae38276bfd8397bd99e43200ef4f751b523b58ba98dd992bfb080a
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 3b15cbae0aaf8b4884063e3710bba186c74b9ee58108d22631c3d1693d630fdd
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 502297b6cb545cbbfe455ba6fba1e701d7f22a6bf2d7b0cbeb540a00b9e4e9a0
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #67 complete: 5-threat speculative decoding threat model (T1–T5) with attack tree and test coverage table appended to THREAT_MODEL.md; 14 security oracle tests covering verification bypass, PII-free telemetry, incompatible-pairing fallback, auto-disable guarantees. All rejected tokens structurally unreachable.
+
+---
+
+### Entry #93: SESSION SEAL (Issue #65 — Telemetry, Auto-Disable, CLI Surface)
+
+**Entry ID**: `bd8a1f650001`
+**Timestamp**: 2026-07-08T22:10:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L3
+**Session ID**: 2026-07-08T2210-bd8a1f
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`telemetry.rs` + CLI surface delivered) |
+| SpeculativeSessionStats fields | **PASS** (u64/u32/f32/bool/enum only — T3 PII-free) |
+| AutoDisableReason codes | **PASS** (`AcceptanceRateLow`, `SpeedupBelowThreshold`, `PairingIncompatible`, `ExplicitDisable`) |
+| CLI surface | **PASS** (`speculative_stats: Option<SpeculativeSessionStats>` in SystemStatus; `print_speculative()` in status_format) |
+| All fields cfg-gated | **PASS** (`#[cfg(feature = "advanced")]` on StatusReport field + format arm) |
+| Section 4 Razor | **PASS** (207 lines ≤ 250) |
+| Security T3 | **PASS** (no prompt/output/PII in any telemetry field) |
+| Tests | **PASS** (11/11) |
+
+**Content Hash**:
+
+```
+SHA256(telemetry.rs + telemetry_tests.rs + adaptive_speculative/mod.rs + engine/mod.rs + status.rs + status_format.rs + status_tests.rs)
+= abe22f48fb2f7210491b7cef3182b417da62baf20a2c27c20693c517003f7f9d
+```
+
+**Previous Hash**: 3b15cbae0aaf8b4884063e3710bba186c74b9ee58108d22631c3d1693d630fdd
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= c198bbf805aadb677602a0625870bdccf8c6efc14db264c5f4fe26df5f5d8ac8
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 0eb2d2fb45460b0c4dbae1e0847fed1160d9d9ddd5b9afa1e5baa83df6d5db8a
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #65 complete: `SpeculativeTelemetry` + `SpeculativeSessionStats` + `AutoDisableReason` delivered; CLI status shows enabled/disabled/auto-disabled state + acceptance rate + speedup. No PII stored. 11/11 tests green.
+
+---
+
+### Entry #94: SESSION SEAL (Issue #66 — Speculative Benchmark Matrix)
+
+**Entry ID**: `0085a6660001`
+**Timestamp**: 2026-07-08T22:20:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2220-0085a6
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`speculative_matrix.rs` + BENCHMARKS.md section added) |
+| Benchmarks delivered | **PASS** (config creation, tier plan selection, verification plan, survival profile, draft block) |
+| Results marked ESTIMATED | **PASS** (`ESTIMATED (CPU, no real model)` on all rows) |
+| Honest reporting | **PASS** (note: real speedup requires actual draft/target pair; no copied DSpark claims) |
+| Compiles with advanced | **PASS** (0 errors) |
+| Compiles without advanced | **PASS** (noop bench group, 0 errors) |
+| Section 4 Razor | **PASS** (189 lines ≤ 250) |
+| Cargo.toml entry | **PASS** (`[[bench]] name = "speculative_matrix" harness = false`) |
+
+**Content Hash**:
+
+```
+SHA256(speculative_matrix.rs + Cargo.toml + BENCHMARKS.md)
+= 2c9ee5c63e4d45aa8091914aca04198643cb4cebd728110a7dae91107bd0a582
+```
+
+**Previous Hash**: c198bbf805aadb677602a0625870bdccf8c6efc14db264c5f4fe26df5f5d8ac8
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 6e7d6724eb81df4048874dddec289a5c0ab24cdc736b467295519bac134c8db2
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 3041972aad5ae70ad04f7a761f862af8619fdd59721711190f74e15960c3532b
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #66 complete: `speculative_matrix.rs` benchmarks 5 scenarios across both feature modes; BENCHMARKS.md §Speculative Decoding Overhead added with ESTIMATED results table and honest-reporting note. No GPU required for CPU-path benchmarks.
+
+---
+
+### Entry #95: SESSION SEAL (qor-refactor — tier_synergy.rs Razor fix)
+
+**Entry ID**: `b36127950001`
+**Timestamp**: 2026-07-08T23:00:00Z
+**Phase**: IMPLEMENT (maintenance — /qor-refactor)
+**Author**: Specialist
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2300-b36127
+
+**Target**: `core-runtime/src/models/tier_synergy.rs` (397 lines — Section 4 Razor violation F1 from ADR-007-CONSOLIDATION-AUDIT.md)
+
+**Refactor Actions**:
+
+| Action | Detail |
+| --- | --- |
+| File split | `tier_synergy.rs` (397 lines) → `tier_synergy/` module directory |
+| `tier_synergy/mode.rs` | `SynergyMode` + `SynergyResult` — 29 lines ≤ 60 ✓ |
+| `tier_synergy/status.rs` | `SynergyStatus` — 16 lines ≤ 40 ✓ |
+| `tier_synergy/mod.rs` | `TierSynergy` orchestration — 230 lines ≤ 250 ✓ |
+| `tier_synergy/tests.rs` | Extracted unit tests — 112 lines ≤ 150 ✓ |
+| Function decomposition | `request()` (88 lines) split into 4 helpers: `request_complex_speculative`, `request_quick_query_inner`, `request_batch_speculative` (each ≤ 25 lines), dispatcher ≤ 24 lines |
+| Old file removed | `tier_synergy.rs` deleted |
+| Behavior | Unchanged — public API identical, 12/12 tests pass |
+| External callers | `tier_synergy_speculative.rs:32` `use crate::models::tier_synergy::SynergyMode` still resolves ✓ |
+
+**Compliance Check**:
+
+| Rule | Before | After | Status |
+| --- | --- | --- | --- |
+| Files ≤ 250 lines | 397 FAIL | max 230 | **PASS** |
+| Functions ≤ 40 lines | `request()` 88 FAIL | max 25 | **PASS** |
+| Nesting ≤ 3 levels | 2 | 2 | **PASS** |
+| Nested ternaries | 0 | 0 | **PASS** |
+| Orphan detection | n/a | all wired | **PASS** |
+| Tests | 12 pass | 12 pass | **PASS** |
+
+**Content Hash**:
+
+```
+SHA256(mod.rs + mode.rs + status.rs + tests.rs)
+= b361276fc562451fce9bd6b5e7094ca164b1ce10887f5acf76aa2027d3bb6249
+```
+
+**Previous Hash**: 6e7d6724eb81df4048874dddec289a5c0ab24cdc736b467295519bac134c8db2
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 53bb56939d2c91f2d822ac6836fd29a8fa546d66d4ce4a0451af124abf7eb419
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= d0c90b70efa96b04bc56d963848f93035fe9f0f1d3fd7699d293c529ee493efa
+```
+
+**Decision**: REFACTOR COMPLETE. `tier_synergy.rs` F1 Razor violation (397 lines) resolved. Split into 4-file module directory; all Section 4 constraints satisfied. Behavior preserved — public API unchanged, 12/12 unit tests pass. Chain tip: `53bb56939d2c91f2d822ac6836fd29a8fa546d66d4ce4a0451af124abf7eb419`.

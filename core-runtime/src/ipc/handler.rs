@@ -90,6 +90,7 @@ pub struct IpcHandler {
 }
 
 impl IpcHandler {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         auth: Arc<SessionAuth>,
         queue: Arc<RequestQueue>,
@@ -246,11 +247,13 @@ impl IpcHandler {
 
         let (_id, rx) = match enqueue_result {
             Ok(r) => r,
-            Err(e) => return InferenceResponse::error_coded(
-                request.request_id,
-                e.to_string(),
-                InferenceErrorCode::AdmissionRejected,
-            ),
+            Err(e) => {
+                return InferenceResponse::error_coded(
+                    request.request_id,
+                    e.to_string(),
+                    InferenceErrorCode::AdmissionRejected,
+                )
+            }
         };
 
         // Await the worker's response — classify the error code from message content.
@@ -377,7 +380,7 @@ impl IpcHandler {
                 "Streaming requires GGUF feature. Rebuild with --features gguf.".into(),
             );
             sender.send(IpcMessage::StreamChunk(chunk)).await?;
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(feature = "gguf")]
@@ -414,7 +417,8 @@ impl IpcHandler {
             .await
             .map_err(|e| HandlerError::QueueFull(e.to_string()))?;
 
-        self.relay_stream(request_id, &mut stream, sender, cancel).await
+        self.relay_stream(request_id, &mut stream, sender, cancel)
+            .await
     }
 
     /// Relay tokens from the stream receiver to the IPC sender.
@@ -461,7 +465,10 @@ impl IpcHandler {
 /// matching known prefixes so callers can distinguish admission rejections
 /// (retriable) from execution failures (not retriable without change).
 fn classify_worker_error(msg: &str) -> InferenceErrorCode {
-    if msg.contains("Memory limit exceeded") || msg.contains("queue full") || msg.contains("Queue full") {
+    if msg.contains("Memory limit exceeded")
+        || msg.contains("queue full")
+        || msg.contains("Queue full")
+    {
         InferenceErrorCode::AdmissionRejected
     } else if msg.contains("Model not loaded") {
         InferenceErrorCode::ModelNotLoaded

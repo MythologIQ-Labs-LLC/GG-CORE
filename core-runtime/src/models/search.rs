@@ -210,26 +210,20 @@ mod tests {
 
     #[test]
     fn test_query_builder_offset() {
-        let query = ModelQuery::builder()
-            .offset(5)
-            .build();
+        let query = ModelQuery::builder().offset(5).build();
         assert_eq!(query.offset, Some(5));
     }
 
     #[test]
     fn test_query_builder_name_contains() {
-        let query = ModelQuery::builder()
-            .name_contains("llama")
-            .build();
+        let query = ModelQuery::builder().name_contains("llama").build();
         assert_eq!(query.name_pattern, Some("llama".to_string()));
     }
 
     #[test]
     fn test_query_builder_version_range() {
         let range = VersionRange::at_least(ModelVersion::new(2, 0, 0));
-        let query = ModelQuery::builder()
-            .version_range(range.clone())
-            .build();
+        let query = ModelQuery::builder().version_range(range.clone()).build();
         assert!(query.version_range.is_some());
     }
 
@@ -275,9 +269,7 @@ mod tests {
     #[test]
     fn test_query_matches_version_range() {
         let range = VersionRange::at_least(ModelVersion::new(2, 0, 0));
-        let query = ModelQuery::builder()
-            .version_range(range)
-            .build();
+        let query = ModelQuery::builder().version_range(range).build();
 
         let old_version = ModelVersion::new(1, 0, 0);
         let new_version = ModelVersion::new(2, 5, 0);
@@ -290,9 +282,7 @@ mod tests {
 
     #[test]
     fn test_query_matches_name_case_insensitive() {
-        let query = ModelQuery::builder()
-            .name_contains("PHI")
-            .build();
+        let query = ModelQuery::builder().name_contains("PHI").build();
 
         let version = ModelVersion::new(1, 0, 0);
         let caps = vec![ModelCapability::TextGeneration];
@@ -305,9 +295,7 @@ mod tests {
 
     #[test]
     fn test_query_matches_name_partial() {
-        let query = ModelQuery::builder()
-            .name_contains("ama")
-            .build();
+        let query = ModelQuery::builder().name_contains("ama").build();
 
         let version = ModelVersion::new(1, 0, 0);
         let caps = vec![ModelCapability::TextGeneration];

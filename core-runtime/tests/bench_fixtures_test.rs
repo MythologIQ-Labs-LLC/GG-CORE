@@ -18,7 +18,11 @@ struct FixtureParams {
 
 fn load_and_validate_fixture(name: &str, expected_token_count: usize) -> FixturePrompt {
     let path = format!("fixtures/prompts/{}.json", name);
-    assert!(Path::new(&path).exists(), "Fixture file not found: {}", path);
+    assert!(
+        Path::new(&path).exists(),
+        "Fixture file not found: {}",
+        path
+    );
 
     let content = fs::read_to_string(&path).expect("Failed to read fixture");
     let fixture: FixturePrompt = serde_json::from_str(&content).expect("Invalid JSON");
@@ -32,8 +36,14 @@ fn load_and_validate_fixture(name: &str, expected_token_count: usize) -> Fixture
         expected_token_count,
         fixture.prompt_tokens.len()
     );
-    assert!(fixture.parameters.max_tokens > 0, "max_tokens must be positive");
-    assert!(fixture.parameters.temperature >= 0.0, "temperature must be non-negative");
+    assert!(
+        fixture.parameters.max_tokens > 0,
+        "max_tokens must be positive"
+    );
+    assert!(
+        fixture.parameters.temperature >= 0.0,
+        "temperature must be non-negative"
+    );
 
     fixture
 }
@@ -82,7 +92,10 @@ fn test_fixtures_have_consistent_parameters() {
         let content = fs::read_to_string(&path).expect("Failed to read fixture");
         let fixture: FixturePrompt = serde_json::from_str(&content).expect("Invalid JSON");
 
-        assert_eq!(fixture.parameters.max_tokens, 256, "max_tokens should be 256");
+        assert_eq!(
+            fixture.parameters.max_tokens, 256,
+            "max_tokens should be 256"
+        );
         assert!(
             (fixture.parameters.temperature - 0.7).abs() < 0.001,
             "temperature should be 0.7"

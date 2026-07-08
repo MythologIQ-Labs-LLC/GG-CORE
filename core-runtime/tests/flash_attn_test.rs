@@ -21,7 +21,11 @@ fn flash_attn_single_position() {
 
     // With single position, output should equal values (softmax = 1.0)
     for (i, &v) in values.iter().enumerate() {
-        assert!((output[i] - v).abs() < 0.01, "Position {i}: expected {v}, got {}", output[i]);
+        assert!(
+            (output[i] - v).abs() < 0.01,
+            "Position {i}: expected {v}, got {}",
+            output[i]
+        );
     }
 }
 
@@ -35,14 +39,8 @@ fn flash_attn_two_positions_equal_scores() {
 
     let query = vec![1.0f32, 0.0, 0.0, 0.0];
     // Two identical keys -> equal attention weights
-    let keys = vec![
-        1.0, 0.0, 0.0, 0.0,
-        1.0, 0.0, 0.0, 0.0,
-    ];
-    let values = vec![
-        1.0, 2.0, 3.0, 4.0,
-        5.0, 6.0, 7.0, 8.0,
-    ];
+    let keys = vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0];
+    let values = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
     let mut output = vec![0.0f32; 4];
 
     attn.forward(&query, &keys, &values, 2, &mut output);
@@ -50,7 +48,11 @@ fn flash_attn_two_positions_equal_scores() {
     // Equal attention -> output should be average: [3, 4, 5, 6]
     let expected = [3.0f32, 4.0, 5.0, 6.0];
     for (i, &e) in expected.iter().enumerate() {
-        assert!((output[i] - e).abs() < 0.01, "Position {i}: expected {e}, got {}", output[i]);
+        assert!(
+            (output[i] - e).abs() < 0.01,
+            "Position {i}: expected {e}, got {}",
+            output[i]
+        );
     }
 }
 
@@ -65,13 +67,10 @@ fn flash_attn_weighted_attention() {
     // Query strongly matches first key
     let query = vec![1.0f32, 0.0, 0.0, 0.0];
     let keys = vec![
-        1.0, 0.0, 0.0, 0.0,  // High score
-        0.0, 1.0, 0.0, 0.0,  // Low score
+        1.0, 0.0, 0.0, 0.0, // High score
+        0.0, 1.0, 0.0, 0.0, // Low score
     ];
-    let values = vec![
-        10.0, 10.0, 10.0, 10.0,
-        0.0, 0.0, 0.0, 0.0,
-    ];
+    let values = vec![10.0, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0, 0.0];
     let mut output = vec![0.0f32; 4];
 
     attn.forward(&query, &keys, &values, 2, &mut output);
@@ -86,7 +85,7 @@ fn flash_attn_weighted_attention() {
 fn flash_attn_tiled_matches_single_block() {
     // Test that tiled computation matches when seq_len > block_size
     let config = FlashAttnConfig {
-        block_size: 4,  // Small block to force multiple tiles
+        block_size: 4, // Small block to force multiple tiles
         head_dim: 4,
     };
     let attn = FlashAttn::new(config);
@@ -116,13 +115,10 @@ fn flash_attn_numerical_stability() {
 
     let query = vec![10.0f32, 0.0, 0.0, 0.0]; // Large magnitude
     let keys = vec![
-        10.0, 0.0, 0.0, 0.0,  // Very high score (100)
-        0.0, 0.0, 0.0, 0.0,   // Low score (0)
+        10.0, 0.0, 0.0, 0.0, // Very high score (100)
+        0.0, 0.0, 0.0, 0.0, // Low score (0)
     ];
-    let values = vec![
-        1.0, 1.0, 1.0, 1.0,
-        0.0, 0.0, 0.0, 0.0,
-    ];
+    let values = vec![1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0];
     let mut output = vec![0.0f32; 4];
 
     attn.forward(&query, &keys, &values, 2, &mut output);

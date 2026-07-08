@@ -12,9 +12,9 @@ use gg_core::scheduler::continuous::{
 #[test]
 fn page_table_allocate_returns_unique_ids() {
     let mut table = PageTable::new(64, 10);
-    let id1 = table.allocate(0).unwrap();
-    let id2 = table.allocate(16).unwrap();
-    let id3 = table.allocate(32).unwrap();
+    let id1 = table.allocate_page().unwrap();
+    let id2 = table.allocate_page().unwrap();
+    let id3 = table.allocate_page().unwrap();
 
     assert_ne!(id1, id2);
     assert_ne!(id2, id3);
@@ -24,16 +24,16 @@ fn page_table_allocate_returns_unique_ids() {
 #[test]
 fn page_table_free_recycles_pages() {
     let mut table = PageTable::new(64, 2);
-    let id1 = table.allocate(0).unwrap();
-    let _id2 = table.allocate(16).unwrap();
+    let id1 = table.allocate_page().unwrap();
+    let _id2 = table.allocate_page().unwrap();
 
     assert_eq!(table.page_count(), 2);
-    assert!(table.allocate(32).is_none());
+    assert!(table.allocate_page().is_none());
 
     table.free(&[id1]);
     assert_eq!(table.free_count(), 1);
 
-    let id3 = table.allocate(32).unwrap();
+    let id3 = table.allocate_page().unwrap();
     assert_eq!(id3, id1);
 }
 

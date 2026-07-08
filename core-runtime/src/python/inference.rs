@@ -49,7 +49,14 @@ impl InferenceParams {
         stream: bool,
         timeout_ms: Option<u64>,
     ) -> Self {
-        Self { max_tokens, temperature, top_p, top_k, stream, timeout_ms }
+        Self {
+            max_tokens,
+            temperature,
+            top_p,
+            top_k,
+            stream,
+            timeout_ms,
+        }
     }
 
     fn __repr__(&self) -> String {

@@ -15,9 +15,7 @@ use llama_cpp_2::model::{AddBos, LlamaModel};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 
-use crate::engine::{
-    FinishReason, GenerationResult, InferenceConfig, InferenceError,
-};
+use crate::engine::{FinishReason, GenerationResult, InferenceConfig, InferenceError};
 
 /// Holds the loaded llama-cpp-2 model and backend.
 pub struct LlamaBackendInner {
@@ -33,22 +31,24 @@ unsafe impl Sync for LlamaBackendInner {}
 
 impl LlamaBackendInner {
     /// Load a GGUF model from disk.
-    pub fn load(
-        path: &Path,
-        config: &super::GgufConfig,
-    ) -> Result<Self, InferenceError> {
-        let backend = LlamaBackend::init().map_err(|e| {
-            InferenceError::ModelError(format!("backend init: {e}"))
-        })?;
-        let model_params = LlamaModelParams::default()
-            .with_n_gpu_layers(config.n_gpu_layers);
+    pub fn load(path: &Path, config: &super::GgufConfig) -> Result<Self, InferenceError> {
+        let backend = LlamaBackend::init()
+            .map_err(|e| InferenceError::ModelError(format!("backend init: {e}")))?;
+        let model_params = LlamaModelParams::default().with_n_gpu_layers(config.n_gpu_layers);
         let model = LlamaModel::load_from_file(&backend, path, &model_params)
             .map_err(|e| InferenceError::ModelError(format!("load: {e}")))?;
         let n_threads = resolve_threads(config.n_threads);
-        Ok(Self { backend, model, n_ctx: config.n_ctx, n_threads })
+        Ok(Self {
+            backend,
+            model,
+            n_ctx: config.n_ctx,
+            n_threads,
+        })
     }
 
-    pub fn model_size(&self) -> usize { self.model.size() as usize }
+    pub fn model_size(&self) -> usize {
+        self.model.size() as usize
+    }
 
     /// Generate text from a prompt using llama-cpp-2.
     pub fn generate(
@@ -76,7 +76,11 @@ impl LlamaBackendInner {
             self.sample_loop(&mut ctx, &tokens, max_tok, config, is_cancelled)?;
         let text = self.detokenize(&out_tokens)?;
         let count = u32::try_from(out_tokens.len()).unwrap_or(u32::MAX);
-        Ok(GenerationResult { text, tokens_generated: count, finish_reason: reason })
+        Ok(GenerationResult {
+            text,
+            tokens_generated: count,
+            finish_reason: reason,
+        })
     }
 
     /// Stream tokens one at a time through a channel.
@@ -112,7 +116,9 @@ impl LlamaBackendInner {
             if rt.block_on(sender.send(tok.0 as u32, is_final)).is_err() {
                 break;
             }
-            if eog { break; }
+            if eog {
+                break;
+            }
             batch.clear();
             add_one(&mut batch, tok, pos)?;
             decode(&mut ctx, &mut batch)?;
@@ -140,7 +146,9 @@ impl LlamaBackendInner {
         for _ in 0..count {
             let tok = sampler.sample(&ctx, -1);
             sampler.accept(tok);
-            if self.model.is_eog_token(tok) { break; }
+            if self.model.is_eog_token(tok) {
+                break;
+            }
             out.push(tok.0 as u32);
             batch.clear();
             add_one(&mut batch, tok, pos)?;
@@ -158,7 +166,8 @@ impl LlamaBackendInner {
         draft: &[u32],
     ) -> Result<crate::engine::speculative::VerifyResult, InferenceError> {
         use crate::engine::speculative::VerifyResult;
-        let all_tokens: Vec<LlamaToken> = context.iter()
+        let all_tokens: Vec<LlamaToken> = context
+            .iter()
             .chain(draft.iter())
             .map(|&t| LlamaToken(t as i32))
             .collect();
@@ -170,7 +179,8 @@ impl LlamaBackendInner {
         for (i, &tok) in all_tokens.iter().enumerate() {
             // Enable logits for context's last token and all draft positions
             let needs_logits = i >= ctx_len.saturating_sub(1);
-            batch.add(tok, i as i32, &[0], needs_logits)
+            batch
+                .add(tok, i as i32, &[0], needs_logits)
                 .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
         }
         decode(&mut ctx, &mut batch)?;
@@ -194,9 +204,9 @@ impl LlamaBackendInner {
 
     /// Tokenize a prompt string.
     pub fn tokenize(&self, text: &str) -> Result<Vec<LlamaToken>, InferenceError> {
-        self.model.str_to_token(text, AddBos::Always).map_err(|e| {
-            InferenceError::InputValidation(format!("tokenize: {e}"))
-        })
+        self.model
+            .str_to_token(text, AddBos::Always)
+            .map_err(|e| InferenceError::InputValidation(format!("tokenize: {e}")))
     }
 
     /// Convert token IDs back to a string.
@@ -204,7 +214,9 @@ impl LlamaBackendInner {
         let mut dec = encoding_rs::UTF_8.new_decoder();
         let mut out = String::new();
         for &t in tokens {
-            let piece = self.model.token_to_piece(t, &mut dec, false, None)
+            let piece = self
+                .model
+                .token_to_piece(t, &mut dec, false, None)
                 .map_err(|e| InferenceError::ModelError(format!("detok: {e}")))?;
             out.push_str(&piece);
         }
@@ -218,7 +230,8 @@ impl LlamaBackendInner {
             .with_n_ctx(NonZeroU32::new(self.n_ctx))
             .with_n_threads(self.n_threads)
             .with_n_threads_batch(self.n_threads);
-        self.model.new_context(&self.backend, p)
+        self.model
+            .new_context(&self.backend, p)
             .map_err(|e| InferenceError::ModelError(format!("ctx: {e}")))
     }
 
@@ -266,25 +279,33 @@ fn add_seq(batch: &mut LlamaBatch, tokens: &[LlamaToken]) -> Result<(), Inferenc
     }
     for (i, &tok) in tokens.iter().enumerate() {
         let logits = i == n - 1; // Only compute logits for last token
-        batch.add(tok, i as i32, &[0], logits)
+        batch
+            .add(tok, i as i32, &[0], logits)
             .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
     }
     Ok(())
 }
 
 fn add_one(batch: &mut LlamaBatch, tok: LlamaToken, pos: i32) -> Result<(), InferenceError> {
-    batch.add(tok, pos, &[0], true)
+    batch
+        .add(tok, pos, &[0], true)
         .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))
 }
 
 fn decode(ctx: &mut LlamaContext<'_>, batch: &mut LlamaBatch) -> Result<(), InferenceError> {
-    ctx.decode(batch).map_err(|e| InferenceError::ModelError(format!("decode: {e}")))
+    ctx.decode(batch)
+        .map_err(|e| InferenceError::ModelError(format!("decode: {e}")))
 }
 
 fn build_sampler(config: &InferenceConfig) -> LlamaSampler {
     let mut s = Vec::new();
     if config.repetition_penalty > 1.0 {
-        s.push(LlamaSampler::penalties(64, config.repetition_penalty, 0.0, 0.0));
+        s.push(LlamaSampler::penalties(
+            64,
+            config.repetition_penalty,
+            0.0,
+            0.0,
+        ));
     }
     if config.top_k > 0 {
         s.push(LlamaSampler::top_k(config.top_k as i32));

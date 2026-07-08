@@ -227,4 +227,3 @@ pub fn compare_metrics(
         is_significant,
     }
 }
-

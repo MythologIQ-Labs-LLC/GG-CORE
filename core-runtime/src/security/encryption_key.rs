@@ -177,9 +177,7 @@ pub fn from_machine_id(iterations: u32) -> Result<ModelEncryption, EncryptionErr
 
     let user = std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
-        .map_err(|_| {
-            EncryptionError::EncryptionFailed("Could not determine user".to_string())
-        })?;
+        .map_err(|_| EncryptionError::EncryptionFailed("Could not determine user".to_string()))?;
 
     let combined = format!("{}-{}", hostname, user);
     let salt = get_or_create_installation_salt()?;

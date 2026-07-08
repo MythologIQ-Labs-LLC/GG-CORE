@@ -2,8 +2,8 @@
 
 use gg_core::engine::InferenceParams;
 use gg_core::scheduler::{
-    BatchConfig, BatchProcessor, Priority, PriorityQueue, RequestQueue,
-    RequestQueueConfig, ThreadPoolConfig,
+    BatchConfig, BatchProcessor, Priority, PriorityQueue, RequestQueue, RequestQueueConfig,
+    ThreadPoolConfig,
 };
 
 #[test]
@@ -96,10 +96,7 @@ fn batch_processor_respects_token_limit() {
     assert_eq!(batches[1].total_tokens, 10);
 }
 
-fn create_test_request(
-    id: u64,
-    token_count: usize,
-) -> gg_core::scheduler::QueuedRequest {
+fn create_test_request(id: u64, token_count: usize) -> gg_core::scheduler::QueuedRequest {
     // Create prompt with ~4 chars per token (batch processor estimates tokens from bytes)
     let prompt = "x".repeat(token_count * 4);
     gg_core::scheduler::QueuedRequest::new(

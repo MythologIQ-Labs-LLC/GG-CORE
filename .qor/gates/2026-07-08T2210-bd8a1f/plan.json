@@ -1,0 +1,12 @@
+{
+  "phase": "plan",
+  "ts": "2026-07-08T22:10:00Z",
+  "session_id": "2026-07-08T2210-bd8a1f",
+  "issue": "#65",
+  "risk_grade": "L3",
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2210-bd8a1f"
+  }
+}

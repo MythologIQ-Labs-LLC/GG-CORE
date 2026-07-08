@@ -1,0 +1,45 @@
+{
+  "phase": "plan",
+  "ts": "2026-07-08T20:52:00Z",
+  "session_id": "2026-07-08T2050-129262",
+  "issue": "#61",
+  "title": "AdaptiveSpeculativeConfig + runtime modes",
+  "change_class": "feature",
+  "risk_grade": "L2",
+  "feature_gate": "advanced",
+  "files_to_create": [
+    "core-runtime/src/models/speculative_config.rs"
+  ],
+  "files_to_modify": [
+    "core-runtime/src/models/mod.rs"
+  ],
+  "acceptance_criteria": [
+    "AdaptiveSpeculativeConfig struct exists with all required fields",
+    "Default: enabled=false (speculation DISABLED)",
+    "AdaptiveMode enum: Disabled, Conservative, Balanced, Aggressive",
+    "Fully disable-able via enabled field",
+    "Serde-serializable (Serialize+Deserialize derive)",
+    "Unit test: default has speculation off",
+    "Unit test: round-trips through serde_json",
+    "Feature gate: cfg(feature = advanced)",
+    "Section 4 Razor: file <= 250 lines"
+  ],
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-NEW-AdaptiveSpeculativeConfig",
+      "operation": "NEW",
+      "status": "verified"
+    }
+  ],
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2050-129262"
+  }
+}

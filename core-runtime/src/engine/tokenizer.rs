@@ -134,10 +134,7 @@ impl TokenizerWrapper {
 
 /// Encode text via the GGUF backend, converting LlamaToken to u32.
 #[cfg(feature = "gguf")]
-fn encode_via_backend(
-    be: &LlamaBackendInner,
-    text: &str,
-) -> Result<Vec<u32>, TokenizerError> {
+fn encode_via_backend(be: &LlamaBackendInner, text: &str) -> Result<Vec<u32>, TokenizerError> {
     let llama_tokens = be
         .tokenize(text)
         .map_err(|e| TokenizerError::EncodingFailed(e.to_string()))?;
@@ -146,13 +143,9 @@ fn encode_via_backend(
 
 /// Decode u32 token IDs via the GGUF backend.
 #[cfg(feature = "gguf")]
-fn decode_via_backend(
-    be: &LlamaBackendInner,
-    tokens: &[u32],
-) -> Result<String, TokenizerError> {
+fn decode_via_backend(be: &LlamaBackendInner, tokens: &[u32]) -> Result<String, TokenizerError> {
     use llama_cpp_2::token::LlamaToken;
-    let llama_tokens: Vec<LlamaToken> =
-        tokens.iter().map(|&t| LlamaToken(t as i32)).collect();
+    let llama_tokens: Vec<LlamaToken> = tokens.iter().map(|&t| LlamaToken(t as i32)).collect();
     be.detokenize(&llama_tokens)
         .map_err(|e| TokenizerError::DecodingFailed(e.to_string()))
 }

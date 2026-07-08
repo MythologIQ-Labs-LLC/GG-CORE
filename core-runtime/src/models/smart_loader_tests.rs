@@ -30,7 +30,11 @@ async fn test_register_zero_overhead() {
     let file = create_test_model(1_000_000);
 
     loader
-        .register("test".to_string(), file.path().to_path_buf(), ModelTier::Light)
+        .register(
+            "test".to_string(),
+            file.path().to_path_buf(),
+            ModelTier::Light,
+        )
         .await
         .unwrap();
 
@@ -48,11 +52,21 @@ async fn test_semantic_hint_quick_query() {
     let quality = create_test_model(200_000);
 
     loader
-        .register("light".to_string(), light.path().to_path_buf(), ModelTier::Light)
-        .await.unwrap();
+        .register(
+            "light".to_string(),
+            light.path().to_path_buf(),
+            ModelTier::Light,
+        )
+        .await
+        .unwrap();
     loader
-        .register("quality".to_string(), quality.path().to_path_buf(), ModelTier::Quality)
-        .await.unwrap();
+        .register(
+            "quality".to_string(),
+            quality.path().to_path_buf(),
+            ModelTier::Quality,
+        )
+        .await
+        .unwrap();
 
     loader.hint(LoadHint::QuickQuery).await;
 
@@ -66,8 +80,13 @@ async fn test_cache_hit_fast() {
     let file = create_test_model(100_000);
 
     loader
-        .register("test".to_string(), file.path().to_path_buf(), ModelTier::Balanced)
-        .await.unwrap();
+        .register(
+            "test".to_string(),
+            file.path().to_path_buf(),
+            ModelTier::Balanced,
+        )
+        .await
+        .unwrap();
 
     let start = Instant::now();
     loader.get("test").await.unwrap();
@@ -92,9 +111,30 @@ async fn test_tier_based_hints() {
     let balanced = create_test_model(100);
     let quality = create_test_model(100);
 
-    loader.register("l".to_string(), light.path().to_path_buf(), ModelTier::Light).await.unwrap();
-    loader.register("b".to_string(), balanced.path().to_path_buf(), ModelTier::Balanced).await.unwrap();
-    loader.register("q".to_string(), quality.path().to_path_buf(), ModelTier::Quality).await.unwrap();
+    loader
+        .register(
+            "l".to_string(),
+            light.path().to_path_buf(),
+            ModelTier::Light,
+        )
+        .await
+        .unwrap();
+    loader
+        .register(
+            "b".to_string(),
+            balanced.path().to_path_buf(),
+            ModelTier::Balanced,
+        )
+        .await
+        .unwrap();
+    loader
+        .register(
+            "q".to_string(),
+            quality.path().to_path_buf(),
+            ModelTier::Quality,
+        )
+        .await
+        .unwrap();
 
     loader.hint(LoadHint::QuickQuery).await;
     assert_eq!(loader.status().await.predicted_next, Some("l".to_string()));
@@ -102,7 +142,11 @@ async fn test_tier_based_hints() {
     loader.hint(LoadHint::ComplexTask).await;
     assert_eq!(loader.status().await.predicted_next, Some("q".to_string()));
 
-    loader.hint(LoadHint::PreferModel { tier: ModelTier::Balanced }).await;
+    loader
+        .hint(LoadHint::PreferModel {
+            tier: ModelTier::Balanced,
+        })
+        .await;
     assert_eq!(loader.status().await.predicted_next, Some("b".to_string()));
 }
 
@@ -113,7 +157,11 @@ async fn test_callback_is_required() {
     let file = create_test_model(1_000);
 
     loader
-        .register("cb".to_string(), file.path().to_path_buf(), ModelTier::Light)
+        .register(
+            "cb".to_string(),
+            file.path().to_path_buf(),
+            ModelTier::Light,
+        )
         .await
         .unwrap();
 

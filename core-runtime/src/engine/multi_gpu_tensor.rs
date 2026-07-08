@@ -19,14 +19,14 @@ pub struct TensorParallelExecutor {
 
 impl TensorParallelExecutor {
     pub fn new(shard_compute_us: u64, p2p_enabled: bool) -> Self {
-        Self { shard_compute_us, p2p_enabled }
+        Self {
+            shard_compute_us,
+            p2p_enabled,
+        }
     }
 
     /// Simulate an all-reduce across `n` GPUs, returning aggregated data.
-    fn all_reduce(
-        &self,
-        shards: &[Vec<f32>],
-    ) -> Result<Vec<f32>, MultiGpuError> {
+    fn all_reduce(&self, shards: &[Vec<f32>]) -> Result<Vec<f32>, MultiGpuError> {
         if shards.is_empty() {
             return Ok(Vec::new());
         }
@@ -63,7 +63,11 @@ impl PartitionExecutor for TensorParallelExecutor {
         let mut shards: Vec<Vec<f32>> = Vec::with_capacity(gpu_count);
         for (i, partition) in partitions.iter().enumerate() {
             let begin = i * shard_size;
-            let end = if i == gpu_count - 1 { numel } else { begin + shard_size };
+            let end = if i == gpu_count - 1 {
+                numel
+            } else {
+                begin + shard_size
+            };
             let shard: Vec<f32> = input.data[begin..end]
                 .iter()
                 .map(|&v| v * partition.parameter_fraction)

@@ -20,15 +20,51 @@ pub struct MetricHelp {
 
 /// Standard metric definitions for GG-CORE.
 pub const METRIC_DEFINITIONS: &[MetricHelp] = &[
-    MetricHelp { name: "core_requests_total", help: "Total inference requests", metric_type: "counter" },
-    MetricHelp { name: "core_requests_success", help: "Successful inference requests", metric_type: "counter" },
-    MetricHelp { name: "core_requests_failed", help: "Failed inference requests", metric_type: "counter" },
-    MetricHelp { name: "core_tokens_generated", help: "Total tokens generated", metric_type: "counter" },
-    MetricHelp { name: "core_queue_depth", help: "Current request queue depth", metric_type: "gauge" },
-    MetricHelp { name: "core_memory_used_bytes", help: "Memory currently in use", metric_type: "gauge" },
-    MetricHelp { name: "core_models_loaded", help: "Number of loaded models", metric_type: "gauge" },
-    MetricHelp { name: "core_latency_ms", help: "Request latency in milliseconds", metric_type: "histogram" },
-    MetricHelp { name: "core_throughput_tps", help: "Token throughput per second", metric_type: "histogram" },
+    MetricHelp {
+        name: "core_requests_total",
+        help: "Total inference requests",
+        metric_type: "counter",
+    },
+    MetricHelp {
+        name: "core_requests_success",
+        help: "Successful inference requests",
+        metric_type: "counter",
+    },
+    MetricHelp {
+        name: "core_requests_failed",
+        help: "Failed inference requests",
+        metric_type: "counter",
+    },
+    MetricHelp {
+        name: "core_tokens_generated",
+        help: "Total tokens generated",
+        metric_type: "counter",
+    },
+    MetricHelp {
+        name: "core_queue_depth",
+        help: "Current request queue depth",
+        metric_type: "gauge",
+    },
+    MetricHelp {
+        name: "core_memory_used_bytes",
+        help: "Memory currently in use",
+        metric_type: "gauge",
+    },
+    MetricHelp {
+        name: "core_models_loaded",
+        help: "Number of loaded models",
+        metric_type: "gauge",
+    },
+    MetricHelp {
+        name: "core_latency_ms",
+        help: "Request latency in milliseconds",
+        metric_type: "histogram",
+    },
+    MetricHelp {
+        name: "core_throughput_tps",
+        help: "Token throughput per second",
+        metric_type: "histogram",
+    },
 ];
 
 /// Encode metrics snapshot to Prometheus text format.
@@ -101,7 +137,9 @@ mod tests {
             histograms: HashMap::new(),
             bucketed_histograms: HashMap::new(),
         };
-        snapshot.counters.insert("core_requests_total".to_string(), 42);
+        snapshot
+            .counters
+            .insert("core_requests_total".to_string(), 42);
 
         let output = encode_prometheus(&snapshot);
         assert!(output.contains("# HELP core_requests_total"));

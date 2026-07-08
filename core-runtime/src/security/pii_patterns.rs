@@ -1,7 +1,7 @@
 //! PII detection patterns and confidence calculation.
 
+use super::pii_detector::{PIIMatch, PIIType};
 use regex::Regex;
-use super::pii_detector::{PIIType, PIIMatch};
 
 /// Build the compiled regex patterns for all PII types.
 pub fn build_patterns() -> Vec<(PIIType, Regex)> {
@@ -36,25 +36,39 @@ pub fn build_patterns() -> Vec<(PIIType, Regex)> {
 pub fn calculate_confidence(pii_type: &PIIType, text: &str) -> f32 {
     match pii_type {
         PIIType::Email => {
-            if text.contains('@') && text.contains('.') { 0.95 } else { 0.7 }
+            if text.contains('@') && text.contains('.') {
+                0.95
+            } else {
+                0.7
+            }
         }
         PIIType::CreditCard => 0.95,
         PIIType::SSN => {
             let digits: String = text.chars().filter(|c| c.is_ascii_digit()).collect();
             if digits.len() == 9 {
                 let area = &digits[0..3];
-                if area != "000" && area != "666" && area < "900" { 0.9 } else { 0.5 }
-            } else { 0.6 }
+                if area != "000" && area != "666" && area < "900" {
+                    0.9
+                } else {
+                    0.5
+                }
+            } else {
+                0.6
+            }
         }
         PIIType::Phone => {
             if text.starts_with('+') || text.chars().filter(|c| c.is_ascii_digit()).count() == 10 {
                 0.85
-            } else { 0.6 }
+            } else {
+                0.6
+            }
         }
         PIIType::APIKey => {
             if text.starts_with("sk-") || text.starts_with("ghp_") || text.starts_with("xox") {
                 0.98
-            } else { 0.7 }
+            } else {
+                0.7
+            }
         }
         _ => 0.75,
     }
@@ -63,26 +77,37 @@ pub fn calculate_confidence(pii_type: &PIIType, text: &str) -> f32 {
 /// Luhn algorithm for credit card validation.
 pub fn luhn_check(number: &str) -> bool {
     let digits: Vec<u32> = number.chars().filter_map(|c| c.to_digit(10)).collect();
-    if digits.len() < 13 || digits.len() > 19 { return false; }
+    if digits.len() < 13 || digits.len() > 19 {
+        return false;
+    }
     let mut sum = 0u32;
     let mut double = false;
     for &digit in digits.iter().rev() {
         let mut d = digit;
-        if double { d *= 2; if d > 9 { d -= 9; } }
+        if double {
+            d *= 2;
+            if d > 9 {
+                d -= 9;
+            }
+        }
         sum += d;
         double = !double;
     }
-    sum % 10 == 0
+    sum.is_multiple_of(10)
 }
 
 /// Remove overlapping matches, keeping highest confidence.
 pub fn remove_overlaps(mut matches: Vec<PIIMatch>) -> Vec<PIIMatch> {
-    if matches.len() <= 1 { return matches; }
+    if matches.len() <= 1 {
+        return matches;
+    }
     let mut result = Vec::new();
     let mut current = matches.remove(0);
     for m in matches {
         if m.start < current.end {
-            if m.confidence > current.confidence { current = m; }
+            if m.confidence > current.confidence {
+                current = m;
+            }
         } else {
             result.push(current);
             current = m;

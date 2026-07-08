@@ -1,9 +1,33 @@
 # System State Snapshot
 
-**Generated**: 2026-02-14T17:45:00+00:00
-**Phase**: SUBSTANTIATE (Pre-Testing Hardening Bundle)
-**Status**: SEALED
-**Session ID**: p8t9h0b1
+**Generated**: 2026-07-08 (ADR-007 epic + /qor-refactor cycle)
+**Phase**: SUBSTANTIATE (Hardening Cycle 2 + Refactor)
+**Status**: SEALED (push authorized — user approved 2026-07-08)
+**Session ID**: 2026-07-08T2300-b36127 (Entry #95)
+
+## Delta since prior seal (p8t9h0b1, 2026-02-14)
+
+Branch topology after cycle 1:
+
+- `main` — rebased onto origin/main `575d703`; carries `b048869` (Candle ONNX
+  embedder) + `354d41d` (governance reconstruction: BACKLOG, FEATURE_INDEX,
+  ARCHITECTURE_PLAN, GOVERNANCE_INDEX, META_LEDGER #80, cycle-1 gates).
+- `style/cargo-fmt-sweep` — `774df09`: isolated 191-file cargo fmt sweep.
+- `chore/hardening-ci-sandbox-lints` — `7a00233`: issue #54 lint-only fixes in
+  `src/sandbox/unix.rs`; NEW `.github/workflows/rust.yml` (fmt/clippy/test CI,
+  3-OS matrix); NEW `tests/python_binding_test.rs` (F-40 binding); FEATURE_INDEX
+  F-38/F-40 updates. This seal's branch.
+- `integration/preview-cycle1` — local verification preview (PR #47 tip
+  `b661403` + cherry-picked `7a00233`); evidence base for the seal, disposable.
+
+Verification evidence (preview base): 69 suites ok / 1073 tests passed;
+sandbox_test 5/5, security_sandbox_escape 8/8, security_input_validation 11/11,
+filter_test 10/10. 4 pre-existing failures reproduced on bare `b661403` and
+filed as issues #55 (gguf validate_path ×2 + kv_cache addendum), #56 (13
+residual clippy errors), #57 (security: NUL byte not rejected by validate_path).
+Green-CI dependency chain: PR #47 → #56 → #55/#57 → this branch + fmt sweep.
+
+## Prior snapshot (2026-02-14, session p8t9h0b1)
 
 ## Physical Tree
 
@@ -57,14 +81,21 @@ core-runtime/
 │   │       ├── mod.rs
 │   │       └── generator.rs
 │   ├── models/
-│   │   ├── mod.rs                   [Hot-Swap - exports updated]
+│   │   ├── mod.rs                   [Hot-Swap + ADR-007 exports]
 │   │   ├── loader.rs                [Tier 2 - MappedModel]
 │   │   ├── manifest.rs
 │   │   ├── registry.rs              [Hot-Swap - ModelHandle::new()]
 │   │   ├── router.rs                [Hot-Swap - atomic routing]
 │   │   ├── drain.rs                 [Hot-Swap - flight tracking]
 │   │   ├── preload.rs               [Hot-Swap - preload validation]
-│   │   └── swap.rs                  [Hot-Swap - orchestration]
+│   │   ├── swap.rs                  [Hot-Swap - orchestration]
+│   │   ├── speculative_config.rs    [ADR-007/#61 — AdaptiveSpeculativeConfig] **advanced**
+│   │   ├── tier_synergy/            [ADR-007 — refactored from 397-line flat file] **advanced**
+│   │   │   ├── mod.rs               (230 lines — TierSynergy orchestration)
+│   │   │   ├── mode.rs              (29 lines — SynergyMode + SynergyResult)
+│   │   │   ├── status.rs            (16 lines — SynergyStatus)
+│   │   │   └── tests.rs             (112 lines — unit tests, cfg(test))
+│   │   └── tier_synergy_speculative.rs [ADR-007/#64 — TierSpeculativePlan] **advanced**
 │   ├── memory/
 │   │   ├── mod.rs                   [Tier 3/4/5 - Arena, Paged, Q8KvStore, PromptCache exports]
 │   │   ├── arena.rs                 [Tier 3]

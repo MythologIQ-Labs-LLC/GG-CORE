@@ -1,0 +1,40 @@
+{
+  "phase": "implement",
+  "session_id": "2026-07-08T2300-b36127",
+  "ts": "2026-07-08T23:00:00Z",
+  "skill": "qor-refactor",
+  "risk_grade": "L2",
+  "target": "core-runtime/src/models/tier_synergy.rs",
+  "violation": "Section 4 Razor: 397 lines > 250 limit (F1 from ADR-007-CONSOLIDATION-AUDIT.md)",
+  "refactor_type": "multi_file_macro",
+  "files_created": [
+    "core-runtime/src/models/tier_synergy/mod.rs",
+    "core-runtime/src/models/tier_synergy/mode.rs",
+    "core-runtime/src/models/tier_synergy/status.rs",
+    "core-runtime/src/models/tier_synergy/tests.rs"
+  ],
+  "files_deleted": [
+    "core-runtime/src/models/tier_synergy.rs"
+  ],
+  "compliance": {
+    "max_file_lines": 230,
+    "max_function_lines": 25,
+    "max_nesting": 2,
+    "nested_ternaries": 0,
+    "orphans_detected": 0,
+    "tests_pass": true,
+    "test_count": 12,
+    "behavior_changed": false,
+    "public_api_changed": false
+  },
+  "content_hash": "b361276fc562451fce9bd6b5e7094ca164b1ce10887f5acf76aa2027d3bb6249",
+  "previous_hash": "6e7d6724eb81df4048874dddec289a5c0ab24cdc736b467295519bac134c8db2",
+  "chain_hash": "53bb56939d2c91f2d822ac6836fd29a8fa546d66d4ce4a0451af124abf7eb419",
+  "seal": "d0c90b70efa96b04bc56d963848f93035fe9f0f1d3fd7699d293c529ee493efa",
+  "ledger_entry": "#95",
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "ABSENT",
+    "authorized_by": "operator (user) prior to session start"
+  }
+}

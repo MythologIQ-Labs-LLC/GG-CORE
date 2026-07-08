@@ -83,7 +83,8 @@ impl ModelRegistry {
 
     /// Register a new model and return its handle.
     pub async fn register(&self, metadata: ModelMetadata, memory_bytes: usize) -> ModelHandle {
-        self.register_with_format(metadata, memory_bytes, "unknown".to_string()).await
+        self.register_with_format(metadata, memory_bytes, "unknown".to_string())
+            .await
     }
 
     /// Register a new model with format info and return its handle.
@@ -117,17 +118,30 @@ impl ModelRegistry {
 
     /// Get metadata for a loaded model.
     pub async fn get_metadata(&self, handle: ModelHandle) -> Option<ModelMetadata> {
-        self.models.read().await.get(&handle).map(|m| m.metadata.clone())
+        self.models
+            .read()
+            .await
+            .get(&handle)
+            .map(|m| m.metadata.clone())
     }
 
     /// Remove a model from the registry.
     pub async fn unregister(&self, handle: ModelHandle) -> Option<usize> {
-        self.models.write().await.remove(&handle).map(|m| m.memory_bytes)
+        self.models
+            .write()
+            .await
+            .remove(&handle)
+            .map(|m| m.memory_bytes)
     }
 
     /// Total memory used by all registered models.
     pub async fn total_memory(&self) -> usize {
-        self.models.read().await.values().map(|m| m.memory_bytes).sum()
+        self.models
+            .read()
+            .await
+            .values()
+            .map(|m| m.memory_bytes)
+            .sum()
     }
 
     /// Number of loaded models.

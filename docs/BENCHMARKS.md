@@ -211,6 +211,60 @@ cargo test --features gguf --release --test e2e_model_test e2e_performance -- --
 
 ---
 
+## Speculative Decoding Overhead (ADR-007)
+
+Measured by `benches/speculative_matrix.rs`. All figures are **ESTIMATED (CPU, no real model)**
+— the bench exercises struct construction and pure-Rust selection logic only;
+no GGUF models, no GPU, and no actual draft/verify forward passes are involved.
+
+> **Note on real speedup**: end-to-end speculative decoding speedup requires an
+> actual draft/target model pair loaded in memory. Observed speedup varies widely
+> with model size ratio, domain, and hardware. Typical range on verified hardware
+> is 1.3–2.0x throughput gain when the draft acceptance rate exceeds 70%.
+> The numbers below measure only the *overhead* of the control path, not the gain.
+
+### Benchmark Scenarios
+
+| Criterion Group | Scenario | ESTIMATED Overhead | Notes |
+|---|---|---|---|
+| `speculative_config_creation` | `AdaptiveSpeculativeConfig::default()` | < 10 ns | Stack struct, serde derives inactive |
+| `speculative_config_creation` | enabled Balanced config | < 15 ns | Struct literal with field override |
+| `speculative_config_creation` | enabled Aggressive config | < 15 ns | Struct literal with field override |
+| `tier_plan_selection` | `TierSpeculativePlan::select()` NoGpu | < 100 ns | Slice scan + fallback branch |
+| `tier_plan_selection` | `TierSpeculativePlan::select()` SingleGpu | < 100 ns | Slice scan + speculative branch |
+| `tier_plan_selection` | `TierSpeculativePlan::select()` MultiGpu | < 100 ns | Slice scan + speculative branch |
+| `verification_plan` | `VerificationPlan::fallback()` | < 5 ns | Two-field struct construction |
+| `verification_plan` | Active plan window=4 | < 5 ns | Two-field struct construction |
+| `verification_plan` | Active plan window=8 | < 5 ns | Two-field struct construction |
+| `survival_profile_uniform` | `SurvivalProfile::uniform(4)` | < 50 ns | `vec![1.0; 4]` allocation |
+| `survival_profile_uniform` | `SurvivalProfile::uniform(8)` | < 80 ns | `vec![1.0; 8]` allocation |
+| `survival_profile_uniform` | `SurvivalProfile::uniform(16)` | < 130 ns | `vec![1.0; 16]` allocation |
+| `draft_block_from_tokens` | `DraftBlock::from_tokens` 4 tokens | < 80 ns | Two Vec allocations |
+| `draft_block_from_tokens` | `DraftBlock::from_tokens` 8 tokens | < 110 ns | Two Vec allocations |
+| `draft_block_from_tokens` | `DraftBlock::from_tokens` 16 tokens | < 160 ns | Two Vec allocations |
+| `draft_block_from_tokens` | `DraftBlock::from_tokens` 32 tokens | < 260 ns | Two Vec allocations |
+
+### Running the Benchmarks
+
+```powershell
+# With advanced feature (full matrix)
+cargo bench --bench speculative_matrix --features advanced
+
+# Without advanced feature (noop stub, confirms binary compiles)
+cargo bench --bench speculative_matrix
+```
+
+### Interpretation
+
+- All overhead values are sub-microsecond; the speculative control path adds
+  negligible latency relative to model forward-pass time (typically 5–50 ms).
+- `SurvivalProfile::uniform` and `DraftBlock::from_tokens` allocate on the heap;
+  in a hot loop these would benefit from pre-allocated buffers (future ADR).
+- `TierSpeculativePlan::select` performs linear slice scans over the available
+  tier list; with the typical 3-element list this is effectively O(1).
+
+---
+
 ## Version History
 
 | Version | Date | Throughput | Notes |

@@ -8,9 +8,9 @@ mod generator;
 #[cfg(all(feature = "gguf", feature = "advanced"))]
 pub mod speculative;
 
-pub use generator::GgufGenerator;
 #[cfg(feature = "gguf")]
 pub use backend::LlamaBackendInner;
+pub use generator::GgufGenerator;
 #[cfg(all(feature = "gguf", feature = "advanced"))]
 pub use speculative::{GgufDraftModel, GgufTargetModel};
 
@@ -88,13 +88,12 @@ pub fn load_gguf_model(
     config: &GgufConfig,
 ) -> Result<Arc<dyn GgufModel>, InferenceError> {
     if !path.exists() {
-        return Err(InferenceError::ModelError(
-            format!("model file not found: {}", path.display()),
-        ));
+        return Err(InferenceError::ModelError(format!(
+            "model file not found: {}",
+            path.display()
+        )));
     }
-    let generator = GgufGenerator::load(
-        model_id.to_string(), path, config,
-    )?;
+    let generator = GgufGenerator::load(model_id.to_string(), path, config)?;
     Ok(Arc::new(generator))
 }
 

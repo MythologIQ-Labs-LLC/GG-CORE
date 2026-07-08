@@ -1,8 +1,9 @@
 //! Formatting helpers for the status command display.
 
-use super::status::{
-    EventSeverity, GpuStatus, HealthState, SystemStatus,
-};
+use super::status::{EventSeverity, GpuStatus, HealthState, SystemStatus};
+
+#[cfg(feature = "advanced")]
+use crate::engine::SpeculativeSessionStats;
 
 /// Print status in human-readable format.
 pub fn print_status_human(status: &SystemStatus) {
@@ -12,6 +13,8 @@ pub fn print_status_human(status: &SystemStatus) {
     print_resources(status);
     print_gpus(status);
     print_scheduler(status);
+    #[cfg(feature = "advanced")]
+    print_speculative(status.speculative_stats.as_ref());
     print_events(status);
 }
 
@@ -23,7 +26,10 @@ fn print_header(status: &SystemStatus) {
     };
 
     println!("====================================================");
-    println!("  GG-CORE Status                         v{}", status.version.version);
+    println!(
+        "  GG-CORE Status                         v{}",
+        status.version.version
+    );
     println!("====================================================");
     println!(
         "  Health: {} {:10}  Uptime: {}",
@@ -140,6 +146,55 @@ fn print_events(status: &SystemStatus) {
                 truncate(&event.timestamp, 10),
                 truncate(&event.message, 54)
             );
+        }
+    }
+}
+
+/// Print speculative decoding stats section (advanced feature only).
+///
+/// Output format (one line):
+/// `Speculative: <state> | <acceptance_rate>% | <net_speedup>x`
+///
+/// where state is one of: `enabled`, `disabled`, `auto-disabled`.
+#[cfg(feature = "advanced")]
+fn print_speculative(stats: Option<&SpeculativeSessionStats>) {
+    println!("\nSpeculative Decoding");
+    match stats {
+        None => println!("  Speculative: disabled"),
+        Some(s) => {
+            let state = if s.auto_disable_count > 0 {
+                "auto-disabled".to_string()
+            } else if s.verification_steps > 0 {
+                "enabled".to_string()
+            } else {
+                "disabled".to_string()
+            };
+            let reason_suffix = s
+                .auto_disable_reason
+                .as_deref()
+                .map(|r| format!(" ({})", r))
+                .unwrap_or_default();
+            println!(
+                "  Speculative: {}{} | {:.1}% acceptance | {:.2}x speedup",
+                state,
+                reason_suffix,
+                s.acceptance_rate * 100.0,
+                s.net_speedup,
+            );
+            println!(
+                "  Steps: {}   Draft tokens: {}   Accepted: {}   Rejected: {}",
+                s.verification_steps,
+                s.draft_tokens_generated,
+                s.accepted_tokens,
+                s.rejected_tokens,
+            );
+            println!(
+                "  Mean draft latency: {:.1} us   Mean verify latency: {:.1} us",
+                s.mean_draft_latency_us, s.mean_verify_latency_us,
+            );
+            if s.auto_disable_count > 0 {
+                println!("  Auto-disable events: {}", s.auto_disable_count);
+            }
         }
     }
 }

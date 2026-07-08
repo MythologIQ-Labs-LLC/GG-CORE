@@ -58,16 +58,12 @@ impl VariantStats {
             requests,
             successes,
             failures: self.failures.load(Ordering::Relaxed),
-            avg_latency_ms: if successes > 0 {
-                (total_latency_us / successes / 1000) as f64
-            } else {
-                0.0
-            },
-            avg_tokens: if successes > 0 {
-                (total_tokens / successes) as f64
-            } else {
-                0.0
-            },
+            avg_latency_ms: total_latency_us
+                .checked_div(successes)
+                .map_or(0.0, |v| (v / 1000) as f64),
+            avg_tokens: total_tokens
+                .checked_div(successes)
+                .map_or(0.0, |v| v as f64),
             success_rate: if requests > 0 {
                 successes as f64 / requests as f64
             } else {

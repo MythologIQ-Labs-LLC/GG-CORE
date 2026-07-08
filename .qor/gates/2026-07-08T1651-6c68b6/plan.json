@@ -1,0 +1,63 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-08T1651-6c68b6",
+  "ts": "2026-07-08T17:16:37Z",
+  "plan_path": "docs/plan-runtime-hardening-cycle2-2026-07-08.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "high_risk_target": false,
+  "open_questions": [],
+  "boundaries": {
+    "limitations": [
+      "verification on local integration preview; live CI needs operator push"
+    ],
+    "non_goals": [
+      "#58 KV isolation redesign (B-20)",
+      "PR #47 merge",
+      "fmt-sweep integration",
+      "bench work"
+    ],
+    "exclusions": [
+      "no ipc/ sandbox/ source changes",
+      "no security/ behavior changes (clippy edits are const-assert rework + no-op cast)",
+      "no public API signature changes"
+    ]
+  },
+  "phases": [
+    "Phase 1: validate_path NUL rejection (#57) + existence-contract test fix (#55) -> src/models/loader.rs + 2 integration tests",
+    "Phase 2: residual clippy cleanup (#56) -> 13 sites from captured clippy output; 3 oracle asserts reworked to const _"
+  ],
+  "ci_commands": [
+    "cargo clippy --all-targets -- -D warnings",
+    "cargo test --workspace --no-fail-fast",
+    "cargo fmt --check"
+  ],
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-24",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/tests/integration_gguf_test.rs",
+      "test_descriptor": "load step errs for nonexistent model; validate_path stays lexical"
+    },
+    {
+      "entry_id": "F-33",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/tests/security_path_traversal_test.rs",
+      "test_descriptor": "NUL-byte path rejected at validation seam"
+    },
+    {
+      "entry_id": "F-35",
+      "operation": "n/a-justified",
+      "test_path": "core-runtime/src/security/encryption_tests.rs",
+      "test_descriptor": "PBKDF2>=600k oracle strengthened to compile-time const assert; behavior unchanged"
+    }
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "unknown",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-08T17:16:37Z"
+  }
+}

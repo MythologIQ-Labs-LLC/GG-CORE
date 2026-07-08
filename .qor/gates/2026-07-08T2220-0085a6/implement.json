@@ -1,0 +1,17 @@
+{
+  "phase": "implement",
+  "ts": "2026-07-08T22:10:00Z",
+  "session_id": "2026-07-08T2220-0085a6",
+  "issue": "#66",
+  "tests": "compile PASS both modes",
+  "files": [
+    "core-runtime/benches/speculative_matrix.rs",
+    "core-runtime/Cargo.toml",
+    "docs/BENCHMARKS.md"
+  ],
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2220-0085a6"
+  }
+}

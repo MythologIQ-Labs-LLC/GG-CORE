@@ -18,7 +18,7 @@ use gg_core::ipc::protocol::HealthCheckType;
 #[test]
 fn test_default_socket_path_platform_specific() {
     #[cfg(unix)]
-    assert_eq!(DEFAULT_SOCKET_PATH, "/var/run/veritas/GG-CORE.sock");
+    assert_eq!(DEFAULT_SOCKET_PATH, "/var/run/gg-core/GG-CORE.sock");
 
     #[cfg(windows)]
     assert_eq!(DEFAULT_SOCKET_PATH, r"\\.\pipe\GG-CORE");
@@ -58,8 +58,7 @@ fn test_cli_ipc_client_creation_with_path() {
 
 #[test]
 fn test_cli_ipc_client_with_custom_timeout() {
-    let client = CliIpcClient::new("/socket".to_string())
-        .with_timeout(Duration::from_secs(30));
+    let client = CliIpcClient::new("/socket".to_string()).with_timeout(Duration::from_secs(30));
     // Verify timeout is configurable (behavior test)
     drop(client);
 }
@@ -133,13 +132,16 @@ fn test_cli_error_all_variants_have_display() {
         CliError::ConnectionFailed("test".to_string()),
         CliError::Timeout,
         CliError::Protocol("test".to_string()),
-        CliError::Io(std::io::Error::new(std::io::ErrorKind::Other, "test")),
+        CliError::Io(std::io::Error::other("test")),
         CliError::Unhealthy,
     ];
 
     for error in errors {
         let display = error.to_string();
-        assert!(!display.is_empty(), "Error variant should have display text");
+        assert!(
+            !display.is_empty(),
+            "Error variant should have display text"
+        );
     }
 }
 
@@ -225,8 +227,8 @@ async fn test_cli_client_get_health_report_connection_failure() {
 
 #[tokio::test]
 async fn test_cli_client_with_short_timeout_fails_quickly() {
-    let client = CliIpcClient::new("/nonexistent/socket".to_string())
-        .with_timeout(Duration::from_millis(1));
+    let client =
+        CliIpcClient::new("/nonexistent/socket".to_string()).with_timeout(Duration::from_millis(1));
 
     let start = std::time::Instant::now();
     let _ = client.check_health(HealthCheckType::Full).await;

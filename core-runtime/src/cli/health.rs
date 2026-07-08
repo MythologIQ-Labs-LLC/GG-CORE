@@ -88,12 +88,14 @@ mod tests {
         assert_eq!(EXIT_UNHEALTHY, 1);
     }
 
-    #[test]
-    fn test_exit_code_values_are_standard() {
-        // Standard Unix convention: 0 = success, non-zero = failure
-        assert!(EXIT_HEALTHY == 0, "Healthy exit code should be 0");
-        assert!(EXIT_UNHEALTHY != 0, "Unhealthy exit code should be non-zero");
-    }
+    // Standard Unix convention: 0 = success, non-zero = failure. Enforced at
+    // compile time so the guarantee cannot regress (clippy flagged the runtime
+    // asserts as having constant values).
+    const _: () = assert!(EXIT_HEALTHY == 0, "Healthy exit code should be 0");
+    const _: () = assert!(
+        EXIT_UNHEALTHY != 0,
+        "Unhealthy exit code should be non-zero"
+    );
 
     #[tokio::test]
     async fn test_run_health_connection_failure() {

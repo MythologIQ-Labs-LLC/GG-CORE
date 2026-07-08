@@ -108,8 +108,7 @@ fn nist_test_key() -> [u8; 32] {
 /// NIST SP 800-38D test vector nonce (AES-256-GCM).
 /// Encoded as hex and decoded at runtime to satisfy static analysis.
 fn nist_test_nonce() -> [u8; 12] {
-    let bytes = hex::decode("cafebabefacedbaddecaf888")
-        .expect("valid NIST nonce hex");
+    let bytes = hex::decode("cafebabefacedbaddecaf888").expect("valid NIST nonce hex");
     bytes.try_into().expect("12-byte NIST nonce")
 }
 

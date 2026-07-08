@@ -2,6 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "advanced")]
+use crate::engine::SpeculativeSessionStats;
+
 use super::ipc_client::{CliError, CliIpcClient};
 use super::status_format::print_status_human;
 
@@ -16,11 +19,21 @@ pub struct SystemStatus {
     pub scheduler: SchedulerStatus,
     pub gpus: Option<Vec<GpuStatus>>,
     pub recent_events: Vec<Event>,
+    /// Aggregate speculative decoding statistics, when the `advanced` feature
+    /// is enabled and speculative decoding has been active this session.
+    /// No prompt or output text is stored here — see T3 threat model.
+    #[cfg(feature = "advanced")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speculative_stats: Option<SpeculativeSessionStats>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum HealthState { Healthy, Degraded, Unhealthy }
+pub enum HealthState {
+    Healthy,
+    Degraded,
+    Unhealthy,
+}
 
 impl std::fmt::Display for HealthState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -53,7 +66,12 @@ pub struct ModelStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ModelState { Loading, Ready, Unloading, Error }
+pub enum ModelState {
+    Loading,
+    Ready,
+    Unloading,
+    Error,
+}
 
 impl std::fmt::Display for ModelState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -122,7 +140,11 @@ pub struct Event {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum EventSeverity { Info, Warning, Error }
+pub enum EventSeverity {
+    Info,
+    Warning,
+    Error,
+}
 
 /// Run the status command and display results.
 pub async fn run_status(socket_path: &str, json_output: bool) -> i32 {
@@ -171,9 +193,17 @@ fn build_status(
     let queue_depth = get_gauge(&metrics, "core_queue_depth") as u64;
     let memory_pool_bytes = get_gauge(&metrics, "core_memory_pool_used_bytes") as u64;
 
-    let latency_hist = metrics.as_ref().and_then(|m| m.histograms.get("core_inference_latency_ms"));
+    let latency_hist = metrics
+        .as_ref()
+        .and_then(|m| m.histograms.get("core_inference_latency_ms"));
     let avg_latency_ms = latency_hist
-        .map(|h| if h.count > 0 { h.sum / h.count as f64 } else { 0.0 })
+        .map(|h| {
+            if h.count > 0 {
+                h.sum / h.count as f64
+            } else {
+                0.0
+            }
+        })
         .unwrap_or(0.0);
 
     let uptime_secs = report.as_ref().map(|r| r.uptime_secs).unwrap_or(1).max(1);
@@ -183,62 +213,108 @@ fn build_status(
     let models = build_models_list(&models_response);
 
     SystemStatus {
-        health: if health_ok { HealthState::Healthy } else { HealthState::Unhealthy },
+        health: if health_ok {
+            HealthState::Healthy
+        } else {
+            HealthState::Unhealthy
+        },
         uptime_secs,
         version: VersionInfo {
             version: env!("CARGO_PKG_VERSION").to_string(),
-            commit: option_env!("VERGEN_GIT_SHA").unwrap_or("unknown").to_string(),
-            build_date: option_env!("VERGEN_BUILD_DATE").unwrap_or("unknown").to_string(),
-            rust_version: option_env!("VERGEN_RUSTC_SEMVER").unwrap_or("unknown").to_string(),
+            commit: option_env!("VERGEN_GIT_SHA")
+                .unwrap_or("unknown")
+                .to_string(),
+            build_date: option_env!("VERGEN_BUILD_DATE")
+                .unwrap_or("unknown")
+                .to_string(),
+            rust_version: option_env!("VERGEN_RUSTC_SEMVER")
+                .unwrap_or("unknown")
+                .to_string(),
         },
         models,
         requests: RequestStats {
-            total_requests, successful_requests, failed_requests,
-            requests_per_second: rps, avg_latency_ms,
+            total_requests,
+            successful_requests,
+            failed_requests,
+            requests_per_second: rps,
+            avg_latency_ms,
             p50_latency_ms: latency_hist.map(|h| h.min).unwrap_or(0.0),
             p95_latency_ms: latency_hist.map(|h| h.max * 0.95).unwrap_or(0.0),
             p99_latency_ms: latency_hist.map(|h| h.max * 0.99).unwrap_or(0.0),
-            tokens_generated, tokens_per_second: tps,
+            tokens_generated,
+            tokens_per_second: tps,
         },
         resources: ResourceUtilization {
-            memory_rss_bytes: report.as_ref().map(|r| r.memory_used_bytes as u64).unwrap_or(memory_pool_bytes),
-            kv_cache_bytes: 0, arena_bytes, memory_limit_bytes: 0,
-            memory_utilization_percent: 0.0, cpu_utilization_percent: 0.0, active_threads: 0,
+            memory_rss_bytes: report
+                .as_ref()
+                .map(|r| r.memory_used_bytes as u64)
+                .unwrap_or(memory_pool_bytes),
+            kv_cache_bytes: 0,
+            arena_bytes,
+            memory_limit_bytes: 0,
+            memory_utilization_percent: 0.0,
+            cpu_utilization_percent: 0.0,
+            active_threads: 0,
         },
         scheduler: SchedulerStatus {
-            queue_depth: report.as_ref().map(|r| r.queue_depth as u64).unwrap_or(queue_depth),
-            active_batches: 0, pending_requests: queue_depth,
-            completed_requests: total_requests, avg_batch_size: 0.0,
+            queue_depth: report
+                .as_ref()
+                .map(|r| r.queue_depth as u64)
+                .unwrap_or(queue_depth),
+            active_batches: 0,
+            pending_requests: queue_depth,
+            completed_requests: total_requests,
+            avg_batch_size: 0.0,
         },
         gpus: None,
         recent_events: vec![],
+        #[cfg(feature = "advanced")]
+        speculative_stats: None,
     }
 }
 
 fn get_counter(m: &Option<crate::telemetry::MetricsSnapshot>, key: &str) -> u64 {
-    m.as_ref().and_then(|m| m.counters.get(key).copied()).unwrap_or(0)
+    m.as_ref()
+        .and_then(|m| m.counters.get(key).copied())
+        .unwrap_or(0)
 }
 
 fn get_gauge(m: &Option<crate::telemetry::MetricsSnapshot>, key: &str) -> f64 {
-    m.as_ref().and_then(|m| m.gauges.get(key).copied()).unwrap_or(0.0)
+    m.as_ref()
+        .and_then(|m| m.gauges.get(key).copied())
+        .unwrap_or(0.0)
 }
 
 fn build_models_list(resp: &Option<crate::ipc::ModelsListResponse>) -> Vec<ModelStatus> {
-    resp.as_ref().map(|r| {
-        r.models.iter().map(|m| {
-            let avg = if m.request_count > 0 { m.avg_latency_ms / m.request_count as f64 } else { 0.0 };
-            ModelStatus {
-                name: m.name.clone(), format: m.format.clone(),
-                size_bytes: m.size_bytes, loaded_at: m.loaded_at.clone(),
-                request_count: m.request_count, avg_latency_ms: avg,
-                state: match m.state.as_str() {
-                    "loading" => ModelState::Loading, "ready" => ModelState::Ready,
-                    "unloading" => ModelState::Unloading, "error" => ModelState::Error,
-                    _ => ModelState::Ready,
-                },
-            }
-        }).collect()
-    }).unwrap_or_default()
+    resp.as_ref()
+        .map(|r| {
+            r.models
+                .iter()
+                .map(|m| {
+                    let avg = if m.request_count > 0 {
+                        m.avg_latency_ms / m.request_count as f64
+                    } else {
+                        0.0
+                    };
+                    ModelStatus {
+                        name: m.name.clone(),
+                        format: m.format.clone(),
+                        size_bytes: m.size_bytes,
+                        loaded_at: m.loaded_at.clone(),
+                        request_count: m.request_count,
+                        avg_latency_ms: avg,
+                        state: match m.state.as_str() {
+                            "loading" => ModelState::Loading,
+                            "ready" => ModelState::Ready,
+                            "unloading" => ModelState::Unloading,
+                            "error" => ModelState::Error,
+                            _ => ModelState::Ready,
+                        },
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

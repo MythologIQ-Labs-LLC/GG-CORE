@@ -3,8 +3,10 @@
 
 //! GPU Support Tests
 
+use gg_core::engine::{
+    GpuBackend, GpuConfig, GpuDevice, GpuError, GpuManager, GpuMemoryPool, MockGpuAllocator,
+};
 use std::sync::Arc;
-use gg_core::engine::{GpuBackend, GpuConfig, GpuDevice, GpuError, GpuManager, GpuMemoryPool, MockGpuAllocator};
 
 #[test]
 fn test_gpu_backend_display() {

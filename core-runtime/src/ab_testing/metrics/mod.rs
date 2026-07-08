@@ -38,7 +38,7 @@ impl VariantMetrics {
     pub fn get_or_create(
         &self,
         label: &VariantLabel,
-    ) -> dashmap::mapref::one::RefMut<VariantLabel, VariantStats> {
+    ) -> dashmap::mapref::one::RefMut<'_, VariantLabel, VariantStats> {
         self.variants.entry(label.clone()).or_default()
     }
 
@@ -46,7 +46,7 @@ impl VariantMetrics {
     pub fn get(
         &self,
         label: &VariantLabel,
-    ) -> Option<dashmap::mapref::one::Ref<VariantLabel, VariantStats>> {
+    ) -> Option<dashmap::mapref::one::Ref<'_, VariantLabel, VariantStats>> {
         self.variants.get(label)
     }
 

@@ -85,10 +85,9 @@ struct TierTarget {
 
 fn load_baseline() -> Result<BaselineWithReferences, String> {
     let path = Path::new("fixtures/baselines/baseline_metrics.json");
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("Failed to load baseline: {}", e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse baseline: {}", e))
+    let content =
+        fs::read_to_string(path).map_err(|e| format!("Failed to load baseline: {}", e))?;
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse baseline: {}", e))
 }
 
 #[test]
@@ -96,9 +95,30 @@ fn external_references_loaded() {
     let baseline = load_baseline().expect("Should load baseline");
 
     // Verify external references are present
-    assert!(baseline.external_references.generation.ollama_cpu_16core.tok_per_sec > 0.0);
-    assert!(baseline.external_references.generation.llama_cpp_m2_ultra.tok_per_sec > 0.0);
-    assert!(baseline.external_references.classification.onnx_runtime_arm.latency_ms > 0.0);
+    assert!(
+        baseline
+            .external_references
+            .generation
+            .ollama_cpu_16core
+            .tok_per_sec
+            > 0.0
+    );
+    assert!(
+        baseline
+            .external_references
+            .generation
+            .llama_cpp_m2_ultra
+            .tok_per_sec
+            > 0.0
+    );
+    assert!(
+        baseline
+            .external_references
+            .classification
+            .onnx_runtime_arm
+            .latency_ms
+            > 0.0
+    );
 }
 
 #[test]
@@ -106,16 +126,39 @@ fn tier_targets_defined() {
     let baseline = load_baseline().expect("Should load baseline");
 
     // Tier 1 < Tier 2 < Tier 3 for throughput
-    assert!(baseline.tier_targets.tier_1_minimum.generation_tok_per_sec
-        < baseline.tier_targets.tier_2_competitive.generation_tok_per_sec);
-    assert!(baseline.tier_targets.tier_2_competitive.generation_tok_per_sec
-        < baseline.tier_targets.tier_3_optimized.generation_tok_per_sec);
+    assert!(
+        baseline.tier_targets.tier_1_minimum.generation_tok_per_sec
+            < baseline
+                .tier_targets
+                .tier_2_competitive
+                .generation_tok_per_sec
+    );
+    assert!(
+        baseline
+            .tier_targets
+            .tier_2_competitive
+            .generation_tok_per_sec
+            < baseline
+                .tier_targets
+                .tier_3_optimized
+                .generation_tok_per_sec
+    );
 
     // Tier 1 > Tier 2 > Tier 3 for latency (lower is better)
-    assert!(baseline.tier_targets.tier_1_minimum.classification_p95_ms
-        > baseline.tier_targets.tier_2_competitive.classification_p95_ms);
-    assert!(baseline.tier_targets.tier_2_competitive.classification_p95_ms
-        > baseline.tier_targets.tier_3_optimized.classification_p95_ms);
+    assert!(
+        baseline.tier_targets.tier_1_minimum.classification_p95_ms
+            > baseline
+                .tier_targets
+                .tier_2_competitive
+                .classification_p95_ms
+    );
+    assert!(
+        baseline
+            .tier_targets
+            .tier_2_competitive
+            .classification_p95_ms
+            > baseline.tier_targets.tier_3_optimized.classification_p95_ms
+    );
 }
 
 #[test]
@@ -124,14 +167,16 @@ fn core_targets_meet_tier_1() {
 
     // Our baseline metrics should meet Tier 1 minimum
     assert!(
-        baseline.metrics.generation_tok_per_sec >= baseline.tier_targets.tier_1_minimum.generation_tok_per_sec,
+        baseline.metrics.generation_tok_per_sec
+            >= baseline.tier_targets.tier_1_minimum.generation_tok_per_sec,
         "Generation throughput {:.1} tok/s should meet Tier 1 minimum {:.1} tok/s",
         baseline.metrics.generation_tok_per_sec,
         baseline.tier_targets.tier_1_minimum.generation_tok_per_sec
     );
 
     assert!(
-        baseline.metrics.classification_p95_ms <= baseline.tier_targets.tier_1_minimum.classification_p95_ms,
+        baseline.metrics.classification_p95_ms
+            <= baseline.tier_targets.tier_1_minimum.classification_p95_ms,
         "Classification P95 {}ms should meet Tier 1 maximum {}ms",
         baseline.metrics.classification_p95_ms,
         baseline.tier_targets.tier_1_minimum.classification_p95_ms
@@ -149,7 +194,11 @@ fn core_targets_meet_tier_1() {
 fn generation_competitive_ratio() {
     let baseline = load_baseline().expect("Should load baseline");
 
-    let ollama_cpu = baseline.external_references.generation.ollama_cpu_16core.tok_per_sec;
+    let ollama_cpu = baseline
+        .external_references
+        .generation
+        .ollama_cpu_16core
+        .tok_per_sec;
     let our_target = baseline.metrics.generation_tok_per_sec;
     let ratio = our_target / ollama_cpu;
 
@@ -162,15 +211,23 @@ fn generation_competitive_ratio() {
     );
 
     // Document the gap for analysis
-    println!("CORE vs Ollama CPU: {:.1}% ({:.1} vs {:.1} tok/s)",
-        ratio * 100.0, our_target, ollama_cpu);
+    println!(
+        "CORE vs Ollama CPU: {:.1}% ({:.1} vs {:.1} tok/s)",
+        ratio * 100.0,
+        our_target,
+        ollama_cpu
+    );
 }
 
 #[test]
 fn classification_competitive_ratio() {
     let baseline = load_baseline().expect("Should load baseline");
 
-    let onnx_bare = baseline.external_references.classification.onnx_runtime_arm.latency_ms;
+    let onnx_bare = baseline
+        .external_references
+        .classification
+        .onnx_runtime_arm
+        .latency_ms;
     let our_target = baseline.metrics.classification_p95_ms as f64;
     let overhead_factor = our_target / onnx_bare;
 
@@ -183,8 +240,10 @@ fn classification_competitive_ratio() {
     );
 
     // Document the gap for analysis
-    println!("CORE vs bare ONNX: {:.1}x overhead ({:.1}ms vs {:.2}ms)",
-        overhead_factor, our_target, onnx_bare);
+    println!(
+        "CORE vs bare ONNX: {:.1}x overhead ({:.1}ms vs {:.2}ms)",
+        overhead_factor, our_target, onnx_bare
+    );
 }
 
 #[test]
@@ -210,15 +269,29 @@ fn tier_progression_reasonable() {
     let baseline = load_baseline().expect("Should load baseline");
 
     // Tier 2 should be 2-3x better than Tier 1 for throughput
-    let gen_improvement = baseline.tier_targets.tier_2_competitive.generation_tok_per_sec
+    let gen_improvement = baseline
+        .tier_targets
+        .tier_2_competitive
+        .generation_tok_per_sec
         / baseline.tier_targets.tier_1_minimum.generation_tok_per_sec;
-    assert!(gen_improvement >= 2.0 && gen_improvement <= 5.0,
-        "Tier 2 generation should be 2-5x Tier 1 (got {:.1}x)", gen_improvement);
+    assert!(
+        (2.0..=5.0).contains(&gen_improvement),
+        "Tier 2 generation should be 2-5x Tier 1 (got {:.1}x)",
+        gen_improvement
+    );
 
     // Tier 3 should approach but not exceed external benchmarks
-    let ollama_cpu = baseline.external_references.generation.ollama_cpu_16core.tok_per_sec;
+    let ollama_cpu = baseline
+        .external_references
+        .generation
+        .ollama_cpu_16core
+        .tok_per_sec;
     assert!(
-        baseline.tier_targets.tier_3_optimized.generation_tok_per_sec <= ollama_cpu,
+        baseline
+            .tier_targets
+            .tier_3_optimized
+            .generation_tok_per_sec
+            <= ollama_cpu,
         "Tier 3 target should not exceed unsandboxed Ollama"
     );
 }

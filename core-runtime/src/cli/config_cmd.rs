@@ -66,8 +66,14 @@ pub fn run_validate() -> i32 {
 fn print_config(cfg: &EffectiveConfig) {
     println!("GG_CORE_MAX_CONTEXT={}", cfg.max_context_length);
     println!("GG_CORE_MAX_QUEUE_DEPTH={}", cfg.queue_max_pending);
-    println!("GG_CORE_MAX_CONTEXT_TOKENS={}", cfg.queue_max_context_tokens);
-    println!("GG_CORE_MAX_MEMORY_PER_CALL={}", cfg.resource_max_memory_per_call);
+    println!(
+        "GG_CORE_MAX_CONTEXT_TOKENS={}",
+        cfg.queue_max_context_tokens
+    );
+    println!(
+        "GG_CORE_MAX_MEMORY_PER_CALL={}",
+        cfg.resource_max_memory_per_call
+    );
     println!("GG_CORE_MAX_TOTAL_MEMORY={}", cfg.resource_max_total_memory);
     println!("GG_CORE_MAX_CONCURRENT={}", cfg.resource_max_concurrent);
     println!("GG_CORE_BATCH_MAX_REQUESTS={}", cfg.batch_max_requests);

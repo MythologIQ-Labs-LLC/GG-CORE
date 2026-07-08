@@ -22,10 +22,7 @@ pub fn random_bucket() -> u8 {
 }
 
 /// Convert bucket to variant using cumulative weights.
-pub fn bucket_to_variant<'a>(
-    bucket: u8,
-    cumulative: &'a [(VariantLabel, u8)],
-) -> &'a VariantLabel {
+pub fn bucket_to_variant(bucket: u8, cumulative: &[(VariantLabel, u8)]) -> &VariantLabel {
     for (label, threshold) in cumulative {
         if bucket < *threshold {
             return label;
@@ -105,29 +102,11 @@ mod tests {
             (VariantLabel::new("c"), 100),
         ];
 
-        assert_eq!(
-            bucket_to_variant(0, &cumulative),
-            &VariantLabel::new("a")
-        );
-        assert_eq!(
-            bucket_to_variant(32, &cumulative),
-            &VariantLabel::new("a")
-        );
-        assert_eq!(
-            bucket_to_variant(33, &cumulative),
-            &VariantLabel::new("b")
-        );
-        assert_eq!(
-            bucket_to_variant(65, &cumulative),
-            &VariantLabel::new("b")
-        );
-        assert_eq!(
-            bucket_to_variant(66, &cumulative),
-            &VariantLabel::new("c")
-        );
-        assert_eq!(
-            bucket_to_variant(99, &cumulative),
-            &VariantLabel::new("c")
-        );
+        assert_eq!(bucket_to_variant(0, &cumulative), &VariantLabel::new("a"));
+        assert_eq!(bucket_to_variant(32, &cumulative), &VariantLabel::new("a"));
+        assert_eq!(bucket_to_variant(33, &cumulative), &VariantLabel::new("b"));
+        assert_eq!(bucket_to_variant(65, &cumulative), &VariantLabel::new("b"));
+        assert_eq!(bucket_to_variant(66, &cumulative), &VariantLabel::new("c"));
+        assert_eq!(bucket_to_variant(99, &cumulative), &VariantLabel::new("c"));
     }
 }

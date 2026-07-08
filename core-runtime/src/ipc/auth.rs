@@ -14,8 +14,8 @@ use thiserror::Error;
 use tokio::sync::RwLock;
 
 use super::auth_session::{
-    constant_time_compare, generate_session_id, RateLimiter, Session,
-    MAX_REQUESTS_PER_MINUTE, MIN_VALIDATION_TIME_MICROS, REQUEST_WINDOW,
+    constant_time_compare, generate_session_id, RateLimiter, Session, MAX_REQUESTS_PER_MINUTE,
+    MIN_VALIDATION_TIME_MICROS, REQUEST_WINDOW,
 };
 
 #[derive(Error, Debug)]
@@ -39,7 +39,9 @@ pub enum AuthError {
 pub struct SessionToken(pub(super) String);
 
 impl SessionToken {
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 /// Manages session authentication.
@@ -57,7 +59,8 @@ impl SessionAuth {
         let expected_token_hash: [u8; 32] = hasher.finalize().into();
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
-            expected_token_hash, session_timeout,
+            expected_token_hash,
+            session_timeout,
             rate_limiter: RateLimiter::new(),
         }
     }
@@ -78,8 +81,11 @@ impl SessionAuth {
 
         if !constant_time_compare(&token_hash, &self.expected_token_hash) {
             self.rate_limiter.record_failure();
-            log_security_event(SecurityEvent::AuthFailure, "Invalid handshake token",
-                &[("reason", "invalid_token")]);
+            log_security_event(
+                SecurityEvent::AuthFailure,
+                "Invalid handshake token",
+                &[("reason", "invalid_token")],
+            );
             return Err(AuthError::InvalidToken);
         }
 
@@ -88,15 +94,22 @@ impl SessionAuth {
         let session_token = SessionToken(session_id);
         let now = Instant::now();
 
-        self.sessions.write().await.insert(session_token.clone(), Session {
-            created_at: now, last_activity: now,
-            connection_count: AtomicUsize::new(0),
-            request_count: AtomicU64::new(0),
-            request_window_start: std::sync::Mutex::new(Some(now)),
-        });
+        self.sessions.write().await.insert(
+            session_token.clone(),
+            Session {
+                created_at: now,
+                last_activity: now,
+                connection_count: AtomicUsize::new(0),
+                request_count: AtomicU64::new(0),
+                request_window_start: std::sync::Mutex::new(Some(now)),
+            },
+        );
 
-        log_security_event(SecurityEvent::AuthSuccess, "Authentication successful",
-            &[("session_prefix", &session_token.as_str()[..8])]);
+        log_security_event(
+            SecurityEvent::AuthSuccess,
+            "Authentication successful",
+            &[("session_prefix", &session_token.as_str()[..8])],
+        );
         Ok(session_token)
     }
 
@@ -104,33 +117,48 @@ impl SessionAuth {
         let start = Instant::now();
         let mut sessions = self.sessions.write().await;
         let session = sessions.get_mut(token).ok_or_else(|| {
-            log_security_event(SecurityEvent::InvalidSession, "Invalid session token used",
-                &[("session_prefix", &token.as_str()[..8])]);
+            log_security_event(
+                SecurityEvent::InvalidSession,
+                "Invalid session token used",
+                &[("session_prefix", &token.as_str()[..8])],
+            );
             AuthError::SessionNotFound
         })?;
 
         if session.created_at.elapsed() > self.session_timeout {
             sessions.remove(token);
-            log_security_event(SecurityEvent::SessionExpired, "Session expired",
-                &[("session_prefix", &token.as_str()[..8])]);
+            log_security_event(
+                SecurityEvent::SessionExpired,
+                "Session expired",
+                &[("session_prefix", &token.as_str()[..8])],
+            );
             return Err(AuthError::SessionExpired);
         }
 
         let now = Instant::now();
         let should_reset = if let Ok(ws) = &session.request_window_start.lock() {
-            ws.map(|s| now.duration_since(s) > REQUEST_WINDOW).unwrap_or(true)
-        } else { false };
+            ws.map(|s| now.duration_since(s) > REQUEST_WINDOW)
+                .unwrap_or(true)
+        } else {
+            false
+        };
 
         if should_reset {
             session.request_count.store(1, Ordering::SeqCst);
-            if let Ok(mut ws) = session.request_window_start.lock() { *ws = Some(now); }
+            if let Ok(mut ws) = session.request_window_start.lock() {
+                *ws = Some(now);
+            }
         } else {
             let count = session.request_count.fetch_add(1, Ordering::SeqCst) + 1;
             if count > MAX_REQUESTS_PER_MINUTE {
-                log_security_event(SecurityEvent::RateLimited,
+                log_security_event(
+                    SecurityEvent::RateLimited,
                     "Session request rate limit exceeded",
-                    &[("session_prefix", &token.as_str()[..8]),
-                      ("request_count", &count.to_string())]);
+                    &[
+                        ("session_prefix", &token.as_str()[..8]),
+                        ("request_count", &count.to_string()),
+                    ],
+                );
                 return Err(AuthError::SessionRateLimited);
             }
         }
@@ -145,7 +173,10 @@ impl SessionAuth {
 
     pub async fn cleanup(&self) {
         let timeout = self.session_timeout;
-        self.sessions.write().await.retain(|_, s| s.created_at.elapsed() <= timeout);
+        self.sessions
+            .write()
+            .await
+            .retain(|_, s| s.created_at.elapsed() <= timeout);
     }
 
     pub async fn track_connection(&self, token: &SessionToken) -> Result<usize, AuthError> {

@@ -146,10 +146,7 @@ mod tests {
         // Just verify it doesn't panic and returns a valid variant
         for _ in 0..100 {
             let variant = splitter.select(None);
-            assert!(
-                variant == &VariantLabel::control()
-                    || variant == &VariantLabel::treatment()
-            );
+            assert!(variant == &VariantLabel::control() || variant == &VariantLabel::treatment());
         }
     }
 

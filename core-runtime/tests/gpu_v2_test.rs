@@ -3,10 +3,9 @@
 
 //! GPU Support Tests v2 - Tests for CUDA and Metal backends
 
-use std::sync::Arc;
-use gg_core::engine::FlashAttnGpuConfig;
 use gg_core::engine::{GpuBackend, GpuConfig, GpuDevice, GpuError, GpuManager};
-use gg_core::engine::{MultiGpuConfig, MultiGpuManager, MultiGpuStrategy};
+#[cfg(feature = "advanced")]
+use std::sync::Arc;
 
 // ============= Base GPU Tests =============
 
@@ -162,6 +161,7 @@ mod metal_tests {
 
 // ============= Multi-GPU Tests =============
 
+#[cfg(feature = "advanced")]
 fn create_test_gpu_devices() -> Vec<Arc<GpuDevice>> {
     vec![
         Arc::new(GpuDevice {
@@ -183,8 +183,10 @@ fn create_test_gpu_devices() -> Vec<Arc<GpuDevice>> {
     ]
 }
 
+#[cfg(feature = "advanced")]
 #[test]
 fn test_multi_gpu_manager_creation() {
+    use gg_core::engine::{MultiGpuConfig, MultiGpuManager};
     let devices = create_test_gpu_devices();
     let config = MultiGpuConfig::default();
 
@@ -195,8 +197,10 @@ fn test_multi_gpu_manager_creation() {
     assert_eq!(manager.num_gpus(), 2);
 }
 
+#[cfg(feature = "advanced")]
 #[test]
 fn test_multi_gpu_partition_by_layers() {
+    use gg_core::engine::{MultiGpuConfig, MultiGpuManager, MultiGpuStrategy};
     let devices = create_test_gpu_devices();
     let config = MultiGpuConfig {
         strategy: MultiGpuStrategy::LayerParallelism,
@@ -213,8 +217,10 @@ fn test_multi_gpu_partition_by_layers() {
     assert_eq!(total_layers, 80);
 }
 
+#[cfg(feature = "advanced")]
 #[test]
 fn test_multi_gpu_total_memory() {
+    use gg_core::engine::{MultiGpuConfig, MultiGpuManager};
     let devices = create_test_gpu_devices();
     let config = MultiGpuConfig::default();
 
@@ -224,8 +230,10 @@ fn test_multi_gpu_total_memory() {
     assert_eq!(total, 48_000_000_000); // 2 * 24GB
 }
 
+#[cfg(feature = "advanced")]
 #[test]
 fn test_multi_gpu_strategy_auto() {
+    use gg_core::engine::{MultiGpuConfig, MultiGpuManager, MultiGpuStrategy};
     let devices = create_test_gpu_devices();
     let config = MultiGpuConfig {
         strategy: MultiGpuStrategy::Auto,
@@ -246,8 +254,10 @@ fn test_multi_gpu_strategy_auto() {
 
 // ============= Flash Attention GPU Tests =============
 
+#[cfg(feature = "advanced")]
 #[test]
 fn test_flash_attn_gpu_config() {
+    use gg_core::engine::FlashAttnGpuConfig;
     let config = FlashAttnGpuConfig::new(4096, 32, 128);
 
     assert_eq!(config.seq_len, 4096);
@@ -256,8 +266,10 @@ fn test_flash_attn_gpu_config() {
     assert!((config.scale - 0.0884).abs() < 0.01); // 1/sqrt(128)
 }
 
+#[cfg(feature = "advanced")]
 #[test]
 fn test_flash_attn_gpu_memory_calculation() {
+    use gg_core::engine::FlashAttnGpuConfig;
     let config = FlashAttnGpuConfig::new(2048, 32, 128);
     let memory = config.memory_required(1);
 
@@ -266,16 +278,20 @@ fn test_flash_attn_gpu_memory_calculation() {
     assert!(memory < 100_000_000);
 }
 
+#[cfg(feature = "advanced")]
 #[test]
 fn test_flash_attn_gpu_gqa() {
+    use gg_core::engine::FlashAttnGpuConfig;
     let config = FlashAttnGpuConfig::new(2048, 32, 128).with_kv_heads(8);
 
     assert_eq!(config.num_heads, 32);
     assert_eq!(config.num_kv_heads, 8);
 }
 
+#[cfg(feature = "advanced")]
 #[test]
 fn test_flash_attn_gpu_num_blocks() {
+    use gg_core::engine::FlashAttnGpuConfig;
     let config = FlashAttnGpuConfig::new(2048, 32, 128);
     assert_eq!(config.num_blocks(), 16);
 

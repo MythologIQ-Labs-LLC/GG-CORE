@@ -11,7 +11,7 @@ use crate::engine::multi_gpu_exec::{
     LayerParallelExecutor, MockPartitionExecutor, PartitionExecutor, TensorData,
 };
 use crate::engine::multi_gpu_partition::{
-    CrossGpuCommunication, TransferMethod, cuda_can_access_peer,
+    cuda_can_access_peer, CrossGpuCommunication, TransferMethod,
 };
 use crate::engine::multi_gpu_pipeline::PipelineParallelExecutor;
 use crate::engine::multi_gpu_tensor::TensorParallelExecutor;
@@ -176,4 +176,3 @@ fn cuda_p2p_check_without_feature() {
     // Without the cuda feature, always returns false
     assert!(!cuda_can_access_peer(0, 1));
 }
-

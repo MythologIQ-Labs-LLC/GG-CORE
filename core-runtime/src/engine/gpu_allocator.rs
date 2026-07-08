@@ -45,7 +45,10 @@ impl MockGpuAllocator {
             capacity,
             device_index,
             next_id: AtomicU64::new(1),
-            state: Mutex::new(MockState { allocations: HashMap::new(), total: 0 }),
+            state: Mutex::new(MockState {
+                allocations: HashMap::new(),
+                total: 0,
+            }),
         }
     }
 
@@ -67,16 +70,24 @@ impl GpuAllocator for MockGpuAllocator {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         s.allocations.insert(id, size);
         s.total += size;
-        Ok(GpuAllocation { id, size, device_index: self.device_index })
+        Ok(GpuAllocation {
+            id,
+            size,
+            device_index: self.device_index,
+        })
     }
 
     fn deallocate(&self, allocation: &GpuAllocation) -> Result<(), GpuError> {
         let mut s = self.state.lock().unwrap();
         match s.allocations.remove(&allocation.id) {
-            Some(size) => { s.total -= size; Ok(()) }
-            None => Err(GpuError::AllocationFailed(
-                format!("double-free or unknown allocation id={}", allocation.id),
-            )),
+            Some(size) => {
+                s.total -= size;
+                Ok(())
+            }
+            None => Err(GpuError::AllocationFailed(format!(
+                "double-free or unknown allocation id={}",
+                allocation.id
+            ))),
         }
     }
 
@@ -101,7 +112,10 @@ impl CudaGpuAllocator {
         Self {
             device_index,
             next_id: AtomicU64::new(1),
-            state: Mutex::new(MockState { allocations: HashMap::new(), total: 0 }),
+            state: Mutex::new(MockState {
+                allocations: HashMap::new(),
+                total: 0,
+            }),
             capacity,
         }
     }
@@ -121,16 +135,24 @@ impl GpuAllocator for CudaGpuAllocator {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         s.allocations.insert(id, size);
         s.total += size;
-        Ok(GpuAllocation { id, size, device_index: self.device_index })
+        Ok(GpuAllocation {
+            id,
+            size,
+            device_index: self.device_index,
+        })
     }
 
     fn deallocate(&self, allocation: &GpuAllocation) -> Result<(), GpuError> {
         let mut s = self.state.lock().unwrap();
         match s.allocations.remove(&allocation.id) {
-            Some(size) => { s.total -= size; Ok(()) }
-            None => Err(GpuError::AllocationFailed(
-                format!("double-free id={}", allocation.id),
-            )),
+            Some(size) => {
+                s.total -= size;
+                Ok(())
+            }
+            None => Err(GpuError::AllocationFailed(format!(
+                "double-free id={}",
+                allocation.id
+            ))),
         }
     }
 
@@ -155,7 +177,10 @@ impl MetalGpuAllocator {
         Self {
             device_index,
             next_id: AtomicU64::new(1),
-            state: Mutex::new(MockState { allocations: HashMap::new(), total: 0 }),
+            state: Mutex::new(MockState {
+                allocations: HashMap::new(),
+                total: 0,
+            }),
             capacity,
         }
     }
@@ -175,16 +200,24 @@ impl GpuAllocator for MetalGpuAllocator {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         s.allocations.insert(id, size);
         s.total += size;
-        Ok(GpuAllocation { id, size, device_index: self.device_index })
+        Ok(GpuAllocation {
+            id,
+            size,
+            device_index: self.device_index,
+        })
     }
 
     fn deallocate(&self, allocation: &GpuAllocation) -> Result<(), GpuError> {
         let mut s = self.state.lock().unwrap();
         match s.allocations.remove(&allocation.id) {
-            Some(size) => { s.total -= size; Ok(()) }
-            None => Err(GpuError::AllocationFailed(
-                format!("double-free id={}", allocation.id),
-            )),
+            Some(size) => {
+                s.total -= size;
+                Ok(())
+            }
+            None => Err(GpuError::AllocationFailed(format!(
+                "double-free id={}",
+                allocation.id
+            ))),
         }
     }
 

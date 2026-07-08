@@ -163,9 +163,12 @@ fn v2_vs_v1_size_comparison() {
 
     // V2: 4 + 100*4 = 404 bytes
     // V1: "[1000,1001,...,1099]" = roughly 5 chars per token = ~500 bytes
-    assert!(v2_encoded.len() < v1_encoded.len(),
+    assert!(
+        v2_encoded.len() < v1_encoded.len(),
         "V2 ({} bytes) should be smaller than V1 ({} bytes)",
-        v2_encoded.len(), v1_encoded.len());
+        v2_encoded.len(),
+        v1_encoded.len()
+    );
 }
 
 #[test]

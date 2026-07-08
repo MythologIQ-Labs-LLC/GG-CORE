@@ -1,6 +1,5 @@
 //! Tests for the configurable thread pool.
 
-use super::super::thread_pool_types::*;
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -26,7 +25,10 @@ fn test_thread_pool_basic() {
 
 #[test]
 fn test_priority_tasks() {
-    let config = ThreadPoolConfig { enable_priority: true, ..Default::default() };
+    let config = ThreadPoolConfig {
+        enable_priority: true,
+        ..Default::default()
+    };
     let pool = ThreadPool::new(config);
 
     let results = Arc::new(Mutex::new(Vec::new()));
@@ -42,7 +44,8 @@ fn test_priority_tasks() {
         .unwrap();
     }
 
-    pool.submit_with_priority(Box::new(|| {}), TaskPriority::High).unwrap();
+    pool.submit_with_priority(Box::new(|| {}), TaskPriority::High)
+        .unwrap();
 
     thread::sleep(Duration::from_millis(100));
 
