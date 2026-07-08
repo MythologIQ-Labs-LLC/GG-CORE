@@ -5800,3 +5800,109 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: SUBSTANTIATION COMPLETE at local hold. Cycle 1 of runtime-optimization-hardening sealed: issue #54 lint fixes (behavior-preserving), Rust CI gate (B-15), F-40 test binding, tree reconciliation (fmt sweep isolated, main rebased). Green-CI dependency chain documented: PR #47 -> #56 -> #55/#57 -> this branch + style/cargo-fmt-sweep. Push/PR/merge/tag reserved for operator review. Cycle 2 candidate scoped: validate_path surface (#55/#57) + residual clippy (#56).
+
+---
+
+### Entry #82: GATE AUDIT (Runtime Hardening Cycle 2 — VETO)
+
+**Timestamp**: 2026-07-08T17:04:40Z
+**Phase**: AUDIT
+**Author**: Judge
+**Risk Grade**: L3
+
+**Verdict**: **VETO** (cycle-2 plan revision required; 3 HALLUCINATION findings)
+
+**Findings**:
+
+- **V1** (kv isolation, #58): proposed `page_ids` lookup does NOT fix the leak — `PageTable::allocate` dedups on a single global position-keyed `entries` map (`src/memory/paged.rs:94-104`), so two sequences at the same position share a page regardless. The PageTable is architecturally single-sequence; a real fix needs exclusive per-sequence page ownership or `(SequenceId, block)` keying, plus eviction use-after-free + data-remanence handling (`Page::reset` zeroes only `used_slots`, `paged.rs:64-66`).
+- **V2** (#58): `attention_from_pages` (`src/memory/kv_cache_ops.rs:96-101`) is a third leak channel on default features, unaddressed by the plan — D1 unfulfillable as scoped.
+- **V3** (clippy #56): plan's security-file lint map was fabricated. Real sites: `encryption_tests.rs:371` is a PBKDF2>=600k **security regression oracle** (rework to `const _: () = assert!(...)`, never delete); `prompt_injection.rs:189` is a `u8 as u8` cast in live `scan()` (behavior-preserving, was mis-described).
+
+**Content Hash**:
+
+```
+SHA256(AUDIT_REPORT.md)
+= c5a4d54f8156338e571fa53c15a87f7be0ca5afc8db75342ab9df54ddb0d813d
+```
+
+**Previous Hash**: 275bad75276680e620d8ef9299153f204aac5554cceffa525123eace2def9aff
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 636fa0d87acbaa9391f7bdba528582b78e5cec74f20f499b35b80cb01d3913cc
+```
+
+**Decision**: VETO. #58 (multi-tenant KV isolation) escalated out of cycle 2 as a dedicated L3 redesign (own ideation/design). Cycle 2 re-scoped to the judged-sound remainder: #55/#57 validate_path (with mmap error-variant + python/session.rs:105 caller corrections) and #56 clippy (corrected 13-site map, rework-not-remove for the PBKDF2 oracle). Revised plan returns to /qor-audit. Shadow Genome Entry #2 recorded by Judge.
+
+---
+
+### Entry #83: GATE AUDIT (Runtime Hardening Cycle 2 rev.2 — VETO)
+
+**Timestamp**: 2026-07-08T17:15:32Z
+**Phase**: AUDIT
+**Author**: Judge
+**Risk Grade**: L3
+
+**Verdict**: **VETO** (rev.2; V1/V2/V3 resolved but clippy map re-introduced mis-attribution)
+
+**Findings**:
+
+- V1/V2 (#58 KV isolation) — **RESOLVED**: fully escalated to backlog B-20; no KV page-lookup change remains.
+- V3 (named sites) — **RESOLVED**: encryption_tests.rs:371 PBKDF2 oracle reworked not deleted; prompt_injection.rs:189 confirmed no-op cast.
+- **F1** (new): plan mislabeled `cli/health.rs:94,95` as "manual checked division" — actual lint is constant-value assertion (`assert!(EXIT_HEALTHY == 0)` / `!= 0`).
+- **F2** (new): plan mislabeled `ab_testing/metrics/stats.rs:61,66` as field-reassign-after-Default — actual lint is the manual-checked-division site.
+- validate_path (#57/#55) substance PASS; mmap R3 correction honest.
+
+**Content Hash**:
+
+```
+SHA256(AUDIT_REPORT.md)
+= 01d7c48d76ab1ec8cd380928fe94cb8c564d16b8153ea2fe969a00312c8ff619
+```
+
+**Previous Hash**: 636fa0d87acbaa9391f7bdba528582b78e5cec74f20f499b35b80cb01d3913cc
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= c2464912460d24618379b045ebd4943556a652578f33d9de328b0117e1ca27e4
+```
+
+**Decision**: VETO. Recurring HALLUCINATION (clippy lint mis-attribution) logged as Shadow Genome Entry #3. rev.3 derives the 13-site clippy map from captured `cargo clippy` output (verbatim lint name per location); the three constant-assertion oracles (encryption_tests.rs:371, health.rs:94, health.rs:95) rework to `const _: () = assert!(...)`. Returns to /qor-audit.
+
+---
+
+### Entry #84: GATE AUDIT (Runtime Hardening Cycle 2 rev.3 — PASS)
+
+**Timestamp**: 2026-07-08T17:19:12Z
+**Phase**: AUDIT
+**Author**: Judge
+**Risk Grade**: L3
+
+**Verdict**: **PASS** (3rd plan-audit attempt; 2 prior VETOs cleared)
+
+**Decision**: rev.3 authorized. 13/13 clippy sites verified against source (F1/F2
+swap corrected); 3 constant-assertion oracles (PBKDF2_ITERATIONS, EXIT_HEALTHY,
+EXIT_UNHEALTHY) confirmed compile-time const, reworked to `const _: () = assert!(...)`
+(guarantee strengthened, not deleted). validate_path #57/#55 substance sound
+(mmap asserts is_err per R3; NUL sentinel; 3 callers safe). #58 remains escalated
+to B-20. Implementation of both phases authorized.
+
+**Content Hash**:
+
+```
+SHA256(AUDIT_REPORT.md)
+= fe75cdf2d1575292fafb1153b47ea09729e3dd291f2e385cdca0047f21914aa0
+```
+
+**Previous Hash**: c2464912460d24618379b045ebd4943556a652578f33d9de328b0117e1ca27e4
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 816999553aac806f0673be3130075db9c6797212d80b04c8696e3b197865dab5
+```

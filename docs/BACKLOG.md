@@ -21,7 +21,8 @@ it. Priority and status reflect observable state at reconstruction time.
 | B-01 | clippy `-D warnings` fails on Linux/macOS: dead code + lints in `sandbox/unix.rs` | issue #54 | P1 | in-progress | Fix landed on `chore/hardening-ci-sandbox-lints` (`7a00233`); verify via CI after operator push |
 | B-17 | Pre-existing default-feature test failures: gguf validate_path ×2, kv_cache multi-sequence | issue #55 | P1 | open | Blocks green `cargo test --workspace`; fix `validate_path` surface coherently with B-19 |
 | B-18 | 13 residual clippy errors on current stable toolchain (post-#47) | issue #56 | P1 | open | Blocks clippy CI leg on all OSes; mechanical fixes across 8 files |
-| B-19 | security: `validate_path()` does not reject NUL bytes (FFI truncation class) | issue #57 | P1 | open | L3 — needs audit before fix; candidate cycle 2 |
+| B-19 | security: `validate_path()` does not reject NUL bytes (FFI truncation class) | issue #57 | P1 | open | Scoped into cycle-2 rev.2 plan (Phase 1) |
+| B-20 | security: KV cache cross-sequence data leakage — PageTable is single-sequence (global position-keyed) | issue #58 | P1 | open | **Multi-tenant isolation redesign** — escalated out of cycle 2 by audit VETO (Entry #82); needs dedicated L3 ideation/design (per-seq page ownership or (SeqId,block) keying + eviction/remanence) |
 | B-02 | ADR: Backend Capability Contract & BitNet-compatible runtime adapter | issue #48 | P2 | open | Author ADR; parent of B-03..B-06 |
 | B-03 | Implement `RuntimeBackendCapabilities` schema | issue #49 | P2 | open | Define schema after ADR #48 lands |
 | B-04 | Add hardware profile & backend selection policy | issue #50 | P2 | open | Design policy over K8s hardware profiles (F-44) |

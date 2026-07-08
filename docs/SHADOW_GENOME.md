@@ -45,4 +45,83 @@ Governor must revise plan to:
 
 ---
 
+## Failure Entry #2
+
+**Date**: 2026-07-08
+**Verdict ID**: Session 2026-07-08T1651-6c68b6 (GATE, cycle 2)
+**Failure Mode**: HALLUCINATION
+
+### What Failed
+
+`docs/plan-runtime-hardening-cycle2-2026-07-08.md` — Phase 1 (KV isolation fix, #58) and Phase 3 (security-file clippy carve-out, #56).
+
+### Why It Failed
+
+1. **Fix asserted a false property of the code.** The plan claimed the
+   `page_table.allocate(seq_pos)` key "becomes irrelevant to correctness once
+   lookups go via page id." In reality `PageTable::allocate` (paged.rs:98-99)
+   dedups on a GLOBAL position-indexed map and returns the EXISTING page for a
+   colliding position — so two sequences at the same seq_pos receive the SAME
+   page id at allocation time. Routing lookups via `entry.page_ids` cannot fix a
+   collision baked in at allocation. The oracle test would still fail.
+2. **Isolation deliverable claimed completeness it did not have.** D1 promised
+   "no cross-sequence KV data visibility" while leaving `attention_from_pages`
+   (kv_cache_ops.rs:96-101) on the position-keyed lookup — the same leak channel.
+3. **Security-file lint map was fabricated.** The plan attributed a
+   field-reassign-with-Default lint to `encryption_tests.rs` (file has none; its
+   real lints are constant assertions including the PBKDF2 OWASP-floor oracle at
+   :371, which "remove" would delete) and a "constant-assertion removal" to
+   `prompt_injection.rs` (file has none; its real lint is a u8-as-u8 cast at :189
+   in LIVE `scan()` code).
+
+### Pattern to Avoid
+
+**Before asserting a fix is sufficient**:
+1. Trace the failing test through the PROPOSED code path end to end, not just the
+   diagnosed bug through the CURRENT path. A correct diagnosis does not imply a
+   correct fix.
+2. When claiming an allocation/lookup key is "irrelevant," read the allocator's
+   dedup/reuse logic — keys that gate reuse are never irrelevant.
+3. Enumerate ALL read paths over the shared state (read_kv AND attention) when
+   the deliverable promises isolation.
+4. Map each clippy lint to its exact file:line and code region (live vs test)
+   before classifying an edit as "test-only" or "behavior-preserving" — never
+   classify by filename.
+
+### Remediation Attempted
+
+Governor must revise the plan: exclusive page ownership at allocation (drop or
+per-sequence the entries dedup), route attention_from_pages via page_ids, specify
+lock discipline (resolve-drop-acquire; ticket the pre-existing
+page_table→sequences inversion in allocate_page_for_seq), correct the Phase 3
+lint map with rework-not-remove for security-invariant assertions, fix the mmap
+error-variant assertion, and complete the validate_path caller enumeration
+(python/session.rs:105). Full requirements: `.agent/staging/AUDIT_REPORT.md`
+(cycle 2, V1-V3 + R1-R5).
+
+---
+
+## Entry #3: Clippy lint mis-attribution (recurring hallucination)
+
+**Session**: 2026-07-08T1651-6c68b6 · **Phase**: PLAN→AUDIT (cycle 2, rev.1 + rev.2)
+
+**Pattern**: Authored the Phase-3 clippy fix map from memory instead of from
+`cargo clippy` output. rev.1 fabricated the security-file lint classes; rev.2
+corrected those but swapped two others — claimed `health.rs:94,95` were "manual
+checked division" (actually constant-value assertions) and `stats.rs:61,66` were
+"field-reassign-after-Default" (actually the manual-checked-division sites). Both
+VETO'd by the Judge (Entries #82, #83).
+
+**Root cause**: describing a mechanical lint's fix without reading the emitted
+diagnostic. The lint *name* and *location* are ground truth; guessing the
+transformation from the file name is a hallucination surface.
+
+**Countermeasure**: for any clippy-cleanup plan, derive the map from captured
+`cargo clippy` output — pair each `error:` line with its `-->` location, cite the
+verbatim lint name, and prescribe the machine suggestion (or `--fix`). Never
+infer the lint class from the file. Security/exit-convention **constant
+assertions are oracles** — rework to `const _: () = assert!(...)`, never delete.
+
+---
+
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._
