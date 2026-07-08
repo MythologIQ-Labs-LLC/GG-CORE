@@ -81,14 +81,13 @@ impl PrefillExecutor {
         for (i, _token) in tokens.iter().enumerate() {
             let seq_pos = start_pos + i;
             // Allocate a new page at each page boundary.
-            if seq_pos % PAGE_TOKENS == 0 {
-                let page_id =
-                    page_table
-                        .allocate_page()
-                        .ok_or_else(|| InferenceError::MemoryExceeded {
-                            used: seq_pos,
-                            limit: seq_pos,
-                        })?;
+            if seq_pos.is_multiple_of(PAGE_TOKENS) {
+                let page_id = page_table
+                    .allocate_page()
+                    .ok_or(InferenceError::MemoryExceeded {
+                        used: seq_pos,
+                        limit: seq_pos,
+                    })?;
                 current_page_id = Some(page_id);
             }
             let slot = PageTable::slot_in_page(seq_pos);
@@ -105,7 +104,7 @@ impl PrefillExecutor {
 
     /// Estimate pages needed for prompt length.
     pub fn estimate_pages(prompt_len: usize) -> usize {
-        (prompt_len + PAGE_TOKENS - 1) / PAGE_TOKENS
+        prompt_len.div_ceil(PAGE_TOKENS)
     }
 
     pub fn config(&self) -> &PrefillConfig {

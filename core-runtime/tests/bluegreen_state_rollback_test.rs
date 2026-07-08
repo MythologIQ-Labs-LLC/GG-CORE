@@ -94,8 +94,10 @@ fn bluegreen_cache_multiple_models() {
 
 #[test]
 fn bluegreen_cache_empty_not_warmed() {
-    let mut cache = ModelCache::default();
-    cache.warmed = true;
+    let cache = ModelCache {
+        warmed: true,
+        ..Default::default()
+    };
     // Empty cache should not be considered warmed
     assert!(!cache.is_warmed());
 }

@@ -162,13 +162,9 @@ fn canary_traffic_routing_accuracy() {
 
     // Allow 10% variance from expected
     assert!(
-        control_pct >= 65 && control_pct <= 85,
+        (65..=85).contains(&control_pct),
         "Control: {}%",
         control_pct
     );
-    assert!(
-        canary_pct >= 15 && canary_pct <= 35,
-        "Canary: {}%",
-        canary_pct
-    );
+    assert!((15..=35).contains(&canary_pct), "Canary: {}%", canary_pct);
 }

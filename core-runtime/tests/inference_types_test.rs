@@ -23,8 +23,10 @@ fn config_default_values_are_safe() {
 
 #[test]
 fn config_rejects_invalid_temperature() {
-    let mut config = InferenceConfig::default();
-    config.temperature = -0.1;
+    let config = InferenceConfig {
+        temperature: -0.1,
+        ..Default::default()
+    };
     assert!(matches!(
         config.validate(),
         Err(InferenceError::InputValidation(_))
@@ -33,8 +35,10 @@ fn config_rejects_invalid_temperature() {
 
 #[test]
 fn config_rejects_invalid_top_p() {
-    let mut config = InferenceConfig::default();
-    config.top_p = 0.0;
+    let mut config = InferenceConfig {
+        top_p: 0.0,
+        ..Default::default()
+    };
     assert!(config.validate().is_err());
 
     config.top_p = 1.5;

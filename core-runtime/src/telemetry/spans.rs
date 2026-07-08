@@ -42,6 +42,7 @@ impl RequestSpan {
     /// - `error.message`: To be filled in on error
     /// - `latency_ms`: To be filled in after completion
     /// - `tokens_generated`: To be filled in after generation
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(request_id: &str, model_id: &str) -> Span {
         info_span!(
             "inference_request",

@@ -84,14 +84,13 @@ impl DecodeExecutor {
         }
 
         // Allocate a new page at each page boundary.
-        if self.current_pos % PAGE_TOKENS == 0 {
-            let page_id =
-                page_table
-                    .allocate_page()
-                    .ok_or_else(|| InferenceError::MemoryExceeded {
-                        used: self.current_pos,
-                        limit: self.current_pos,
-                    })?;
+        if self.current_pos.is_multiple_of(PAGE_TOKENS) {
+            let page_id = page_table
+                .allocate_page()
+                .ok_or(InferenceError::MemoryExceeded {
+                    used: self.current_pos,
+                    limit: self.current_pos,
+                })?;
             self.current_page_id = Some(page_id);
         }
 
@@ -143,7 +142,7 @@ impl DecodeExecutor {
     /// Estimate pages needed for generation length.
     pub fn estimate_pages(current_pos: usize, max_tokens: usize) -> usize {
         let end_pos = current_pos + max_tokens;
-        (end_pos + PAGE_TOKENS - 1) / PAGE_TOKENS
+        end_pos.div_ceil(PAGE_TOKENS)
     }
 
     pub fn config(&self) -> &DecodeConfig {

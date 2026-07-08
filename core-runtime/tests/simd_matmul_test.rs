@@ -1,4 +1,5 @@
 //! Tests for SIMD matmul kernels.
+#![cfg(feature = "advanced")]
 
 use gg_core::engine::simd_matmul::{dot_q4, dot_q8, init_simd};
 

@@ -116,7 +116,7 @@ fn build_transformer_inputs(
 }
 
 /// Simple hash-based tokenizer for embedding models.
-#[cfg(any(feature = "onnx", test))]
+#[cfg(feature = "onnx")]
 fn simple_tokenize(text: &str) -> Vec<i64> {
     let mut ids = vec![101i64]; // [CLS]
     for word in text.split_whitespace() {

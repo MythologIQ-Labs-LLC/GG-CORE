@@ -53,7 +53,7 @@ fn generation_result_structure_valid() {
 #[test]
 fn stop_reason_variants_correct() {
     // Verify all FinishReason variants exist
-    let reasons = vec![
+    let reasons = [
         FinishReason::Stop,
         FinishReason::MaxTokens,
         FinishReason::Timeout,
@@ -110,7 +110,7 @@ fn chat_message_structure_valid() {
 
 #[test]
 fn chat_roles_all_variants() {
-    let roles = vec![ChatRole::System, ChatRole::User, ChatRole::Assistant];
+    let roles = [ChatRole::System, ChatRole::User, ChatRole::Assistant];
 
     assert_eq!(roles.len(), 3, "Should have 3 chat roles");
 }

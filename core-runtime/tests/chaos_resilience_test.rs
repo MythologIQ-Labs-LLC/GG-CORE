@@ -33,7 +33,7 @@ fn chaos_ipc_random_bytes() {
 
 #[test]
 fn chaos_ipc_truncated_json() {
-    let truncated = vec![
+    let truncated = [
         br#"{"type":"handshake","tok"#.to_vec(),
         br#"{"type":"inference_request","request_id":1"#.to_vec(),
         br#"{"type":"health_check","check_ty"#.to_vec(),
@@ -95,7 +95,7 @@ fn chaos_ipc_massive_prompt() {
 
 #[test]
 fn chaos_ipc_invalid_inference_params() {
-    let bad = vec![
+    let bad = [
         InferenceParams {
             max_tokens: 0,
             ..Default::default()

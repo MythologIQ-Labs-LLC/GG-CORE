@@ -296,7 +296,7 @@ async fn test_concurrent_classification_requests() {
     // Validate all requests completed
     assert_eq!(
         results.len(),
-        num_concurrent as usize,
+        num_concurrent,
         "All requests should complete"
     );
 

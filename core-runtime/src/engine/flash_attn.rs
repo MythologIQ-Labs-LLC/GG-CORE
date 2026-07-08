@@ -67,7 +67,7 @@ impl FlashAttn {
         let mut scores_buf = vec![0.0f32; block_size];
 
         // Process in tiles
-        let num_blocks = (seq_len + block_size - 1) / block_size;
+        let num_blocks = seq_len.div_ceil(block_size);
 
         for block_idx in 0..num_blocks {
             let start = block_idx * block_size;
@@ -111,10 +111,10 @@ impl FlashAttn {
         let head_dim = self.config.head_dim;
         let mut block_max = f32::NEG_INFINITY;
 
-        for i in 0..block_len {
+        for (i, score_slot) in scores_out.iter_mut().enumerate().take(block_len) {
             let key_offset = (start + i) * head_dim;
             let score = self.dot_product(query, &keys[key_offset..key_offset + head_dim]);
-            scores_out[i] = score;
+            *score_slot = score;
             block_max = block_max.max(score);
         }
 
@@ -122,6 +122,7 @@ impl FlashAttn {
     }
 
     /// Update accumulator with block contribution using online softmax.
+    #[allow(clippy::too_many_arguments)]
     fn update_accumulator(
         &self,
         scores: &[f32],

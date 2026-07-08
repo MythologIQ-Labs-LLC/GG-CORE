@@ -90,6 +90,7 @@ pub struct IpcHandler {
 }
 
 impl IpcHandler {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         auth: Arc<SessionAuth>,
         queue: Arc<RequestQueue>,
@@ -379,7 +380,7 @@ impl IpcHandler {
                 "Streaming requires GGUF feature. Rebuild with --features gguf.".into(),
             );
             sender.send(IpcMessage::StreamChunk(chunk)).await?;
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(feature = "gguf")]

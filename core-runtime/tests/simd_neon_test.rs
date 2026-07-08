@@ -2,6 +2,7 @@
 //!
 //! These tests verify NEON produces same results as scalar fallback.
 //! Note: Full NEON path only exercised on aarch64 hardware.
+#![cfg(feature = "advanced")]
 
 use gg_core::engine::{dot_q4, dot_q8, init_simd};
 

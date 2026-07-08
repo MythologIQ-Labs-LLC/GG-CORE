@@ -139,8 +139,8 @@ fn resource_limits_track_current_usage() {
     assert_eq!(limits.current_memory(), 0);
     assert_eq!(limits.current_concurrent(), 0);
 
-    let _guard1 = limits.try_acquire(1 * 1024 * 1024).unwrap();
-    assert_eq!(limits.current_memory(), 1 * 1024 * 1024);
+    let _guard1 = limits.try_acquire(1024 * 1024).unwrap();
+    assert_eq!(limits.current_memory(), 1024 * 1024);
     assert_eq!(limits.current_concurrent(), 1);
 
     let _guard2 = limits.try_acquire(2 * 1024 * 1024).unwrap();

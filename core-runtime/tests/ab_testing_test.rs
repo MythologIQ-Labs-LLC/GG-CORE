@@ -267,7 +267,7 @@ fn variant_creation_and_modification() {
 
 #[test]
 fn variant_label_ordering() {
-    let mut labels = vec![
+    let mut labels = [
         VariantLabel::new("z-variant"),
         VariantLabel::new("a-variant"),
         VariantLabel::control(),

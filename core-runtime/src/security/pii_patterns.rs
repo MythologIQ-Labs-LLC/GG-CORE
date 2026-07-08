@@ -93,7 +93,7 @@ pub fn luhn_check(number: &str) -> bool {
         sum += d;
         double = !double;
     }
-    sum % 10 == 0
+    sum.is_multiple_of(10)
 }
 
 /// Remove overlapping matches, keeping highest confidence.

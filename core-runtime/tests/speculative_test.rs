@@ -1,4 +1,5 @@
 //! TDD-Light tests for speculative decoding.
+#![cfg(feature = "advanced")]
 
 use async_trait::async_trait;
 use gg_core::engine::{

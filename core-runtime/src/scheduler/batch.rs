@@ -65,7 +65,7 @@ impl BatchProcessor {
         }
 
         // Estimate token count from prompt bytes (avg ~4 chars per token)
-        let estimated_tokens = (request.prompt.len() + 3) / 4;
+        let estimated_tokens = request.prompt.len().div_ceil(4);
         let new_total = batch.total_tokens + estimated_tokens;
         new_total <= self.config.max_total_tokens
     }
@@ -73,7 +73,7 @@ impl BatchProcessor {
     /// Add a request to the batch.
     pub fn add(&self, batch: &mut RequestBatch, request: QueuedRequest) {
         // Estimate token count from prompt bytes (avg ~4 chars per token)
-        let estimated_tokens = (request.prompt.len() + 3) / 4;
+        let estimated_tokens = request.prompt.len().div_ceil(4);
         batch.total_tokens += estimated_tokens;
         batch.requests.push(request);
     }
@@ -84,11 +84,9 @@ impl BatchProcessor {
         let mut current_batch = RequestBatch::new();
 
         for request in requests {
-            if !self.can_add(&current_batch, &request) {
-                if !current_batch.is_empty() {
-                    batches.push(current_batch);
-                    current_batch = RequestBatch::new();
-                }
+            if !self.can_add(&current_batch, &request) && !current_batch.is_empty() {
+                batches.push(current_batch);
+                current_batch = RequestBatch::new();
             }
             self.add(&mut current_batch, request);
         }

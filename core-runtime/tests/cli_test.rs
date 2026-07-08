@@ -132,7 +132,7 @@ fn test_cli_error_all_variants_have_display() {
         CliError::ConnectionFailed("test".to_string()),
         CliError::Timeout,
         CliError::Protocol("test".to_string()),
-        CliError::Io(std::io::Error::new(std::io::ErrorKind::Other, "test")),
+        CliError::Io(std::io::Error::other("test")),
         CliError::Unhealthy,
     ];
 

@@ -275,7 +275,7 @@ fn tier_progression_reasonable() {
         .generation_tok_per_sec
         / baseline.tier_targets.tier_1_minimum.generation_tok_per_sec;
     assert!(
-        gen_improvement >= 2.0 && gen_improvement <= 5.0,
+        (2.0..=5.0).contains(&gen_improvement),
         "Tier 2 generation should be 2-5x Tier 1 (got {:.1}x)",
         gen_improvement
     );

@@ -6,6 +6,7 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 use gg_core::memory::kv_cache::{KvCacheConfig, KvCacheManager};
+#[cfg(feature = "advanced")]
 use gg_core::memory::kv_quant::{compute_scale, dequantize, quantize_to, Q8KvStore};
 
 fn make_config(max_pages: usize) -> KvCacheConfig {
@@ -102,6 +103,7 @@ fn bench_eviction_pressure(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "advanced")]
 fn bench_q8_encode(c: &mut Criterion) {
     let mut group = c.benchmark_group("q8_encode");
 
@@ -118,6 +120,7 @@ fn bench_q8_encode(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "advanced")]
 fn bench_q8_decode(c: &mut Criterion) {
     let mut group = c.benchmark_group("q8_decode");
 
@@ -133,6 +136,7 @@ fn bench_q8_decode(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "advanced")]
 fn bench_q8_store_append(c: &mut Criterion) {
     let mut group = c.benchmark_group("q8_store_append");
 
@@ -155,6 +159,7 @@ fn bench_q8_store_append(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "advanced")]
 criterion_group!(
     benches,
     bench_insert_throughput,
@@ -163,5 +168,12 @@ criterion_group!(
     bench_q8_encode,
     bench_q8_decode,
     bench_q8_store_append,
+);
+#[cfg(not(feature = "advanced"))]
+criterion_group!(
+    benches,
+    bench_insert_throughput,
+    bench_lookup_throughput,
+    bench_eviction_pressure,
 );
 criterion_main!(benches);

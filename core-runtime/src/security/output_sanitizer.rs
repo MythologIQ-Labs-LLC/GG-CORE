@@ -164,18 +164,10 @@ impl OutputSanitizer {
 }
 
 /// State for streaming sanitization
+#[derive(Default)]
 pub struct StreamingSanitizerState {
     pub(crate) buffer: String,
     pub(crate) processed_until: usize,
-}
-
-impl Default for StreamingSanitizerState {
-    fn default() -> Self {
-        Self {
-            buffer: String::new(),
-            processed_until: 0,
-        }
-    }
 }
 
 impl Default for OutputSanitizer {

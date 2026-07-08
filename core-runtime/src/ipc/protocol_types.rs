@@ -30,16 +30,11 @@ pub const CURRENT_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion::V1;
 pub const MIN_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion::V1;
 
 /// Protocol version for negotiating encoding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ProtocolVersion {
+    #[default]
     V1,
     V2,
-}
-
-impl Default for ProtocolVersion {
-    fn default() -> Self {
-        Self::V1
-    }
 }
 
 impl ProtocolVersion {

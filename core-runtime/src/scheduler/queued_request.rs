@@ -71,7 +71,7 @@ impl QueuedRequest {
 
     /// Check if request has exceeded its deadline.
     pub fn is_expired(&self) -> bool {
-        self.deadline.map_or(false, |d| Instant::now() > d)
+        self.deadline.is_some_and(|d| Instant::now() > d)
     }
 
     /// Mark the request as cancelled.

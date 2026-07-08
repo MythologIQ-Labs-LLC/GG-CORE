@@ -3,19 +3,30 @@
 //! Measures partition executor overhead for LayerParallel, TensorParallel,
 //! and Pipeline strategies with varying GPU counts, plus transfer overhead.
 
+use criterion::{criterion_group, criterion_main, Criterion};
+
+#[cfg(feature = "advanced")]
 use std::sync::Arc;
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+#[cfg(feature = "advanced")]
+use criterion::BenchmarkId;
 
+#[cfg(feature = "advanced")]
 use gg_core::engine::gpu::{GpuBackend, GpuDevice};
+#[cfg(feature = "advanced")]
 use gg_core::engine::multi_gpu::GpuPartition;
+#[cfg(feature = "advanced")]
 use gg_core::engine::multi_gpu_exec::{
     LayerParallelExecutor, MockPartitionExecutor, PartitionExecutor, TensorData,
 };
+#[cfg(feature = "advanced")]
 use gg_core::engine::multi_gpu_partition::CrossGpuCommunication;
+#[cfg(feature = "advanced")]
 use gg_core::engine::multi_gpu_pipeline::PipelineParallelExecutor;
+#[cfg(feature = "advanced")]
 use gg_core::engine::multi_gpu_tensor::TensorParallelExecutor;
 
+#[cfg(feature = "advanced")]
 fn make_devices(n: usize) -> Vec<Arc<GpuDevice>> {
     (0..n)
         .map(|i| {
@@ -31,6 +42,7 @@ fn make_devices(n: usize) -> Vec<Arc<GpuDevice>> {
         .collect()
 }
 
+#[cfg(feature = "advanced")]
 fn make_partitions(n: usize, layers: usize) -> Vec<GpuPartition> {
     let per = layers / n;
     let extra = layers % n;
@@ -50,6 +62,7 @@ fn make_partitions(n: usize, layers: usize) -> Vec<GpuPartition> {
         .collect()
 }
 
+#[cfg(feature = "advanced")]
 fn bench_mock_executor_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group("mock_executor_scaling");
     group.sample_size(20);
@@ -67,6 +80,7 @@ fn bench_mock_executor_scaling(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "advanced")]
 fn bench_layer_parallel_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group("layer_parallel_scaling");
     group.sample_size(20);
@@ -84,6 +98,7 @@ fn bench_layer_parallel_scaling(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "advanced")]
 fn bench_tensor_parallel_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group("tensor_parallel_scaling");
     group.sample_size(20);
@@ -100,6 +115,7 @@ fn bench_tensor_parallel_scaling(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "advanced")]
 fn bench_pipeline_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group("pipeline_scaling");
     group.sample_size(20);
@@ -116,6 +132,7 @@ fn bench_pipeline_scaling(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "advanced")]
 fn bench_transfer_overhead(c: &mut Criterion) {
     let mut group = c.benchmark_group("transfer_overhead");
     let data: Vec<f32> = vec![1.0; 4096];
@@ -133,6 +150,7 @@ fn bench_transfer_overhead(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "advanced")]
 criterion_group!(
     benches,
     bench_mock_executor_scaling,
@@ -141,4 +159,10 @@ criterion_group!(
     bench_pipeline_scaling,
     bench_transfer_overhead,
 );
+
+#[cfg(not(feature = "advanced"))]
+fn stub_bench(_c: &mut Criterion) {}
+#[cfg(not(feature = "advanced"))]
+criterion_group!(benches, stub_bench);
+
 criterion_main!(benches);

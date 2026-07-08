@@ -113,7 +113,7 @@ impl SmartLoader {
     /// Predict most likely next model (most-used that isn't the active tier).
     async fn predict_next(&self) -> Option<String> {
         let models = self.models.read().await;
-        let active = self.active_tier.read().await.clone();
+        let active = *self.active_tier.read().await;
         models
             .iter()
             .filter(|(_, m)| Some(m.tier) != active)
@@ -217,7 +217,7 @@ impl SmartLoader {
     /// Get current status.
     pub async fn status(&self) -> SmartLoaderStatus {
         let models = self.models.read().await;
-        let active_tier = self.active_tier.read().await.clone();
+        let active_tier = *self.active_tier.read().await;
 
         let loaded: Vec<_> = models
             .iter()
