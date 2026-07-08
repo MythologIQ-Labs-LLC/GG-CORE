@@ -1,0 +1,25 @@
+{
+  "phase": "audit",
+  "ts": "2026-07-08T20:53:00Z",
+  "session_id": "2026-07-08T2050-129262",
+  "issue": "#61",
+  "risk_grade": "L2",
+  "verdict": "PASS",
+  "dimensions": {
+    "scope_containment": "PASS (new file + one export line; no existing code changed)",
+    "core_boundary": "PASS (config struct only; no network/agent/authority)",
+    "forbidden_modules": "PASS (0)",
+    "forbidden_deps": "PASS (serde is already in Cargo.toml)",
+    "feature_gate": "PASS (advanced feature, consistent with existing speculative code)",
+    "section4_razor_plan": "PASS (speculative_config.rs target <= 250 lines)",
+    "safe_defaults": "PASS (enabled=false is plan-specified)",
+    "disable_path": "PASS (enabled field is the disable path)",
+    "serde_contract": "PASS (no sensitive data in config; safe for IPC serialization)"
+  },
+  "findings": [],
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2050-129262"
+  }
+}

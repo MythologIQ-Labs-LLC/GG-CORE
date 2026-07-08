@@ -76,6 +76,7 @@ judgment.
 | F-45 | Veritas shim (rate-limit/service-tier) | core-runtime/src/shim/ | docs/META_LEDGER.md | n/a | unverified |
 | F-46 | Chaos resilience harness | core-runtime/src/deployment/ | docs/architecture/ADR-006-DEPLOYMENT-STRATEGIES.md | core-runtime/tests/chaos_resilience_test.rs | verified |
 | F-47 | Benchmark suite | core-runtime/benches/ | docs/BENCHMARKS.md | core-runtime/tests/bench_fixtures_test.rs | verified |
+| F-48 | Adaptive speculative config (AdaptiveSpeculativeConfig) | core-runtime/src/models/speculative_config.rs | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/models/speculative_config.rs (inline tests) | verified |
 
 ## Open coverage gaps
 

@@ -6077,3 +6077,53 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #68 ADR-007 consolidation audit complete: in-tree `tier_synergy.rs` affirmed canonical; 3 follow-up items identified (Section 4 Razor refactor, stale engine comment cleanup, integration test + FEATURE_INDEX entry for #64); operator action required for standalone repo verification/archive. Push/PR reserved for operator.
+
+---
+
+### Entry #88: SESSION SEAL (Issue #61 — AdaptiveSpeculativeConfig)
+
+**Entry ID**: `129262610001`
+**Timestamp**: 2026-07-08T20:56:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2050-129262
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`speculative_config.rs` created, `mod.rs` exports added) |
+| Default speculation off | **PASS** (`enabled: false`, `mode: Disabled`, `is_active()` returns false) |
+| Serde round-trips | **PASS** (2 serde tests: default + enabled_balanced) |
+| Disable path | **PASS** (`enabled` field is the master kill-switch) |
+| Feature gate | **PASS** (`cfg(feature = "advanced")` on mod + export) |
+| Section 4 Razor | **PASS** (173 lines ≤ 250) |
+| C.O.R.E. boundary | **PASS** (config struct only; no network/agent/authority) |
+| Tests | **PASS** (7/7 unit tests: default-off, active logic, clamp helpers, serde ×2) |
+| Compile check | **PASS** (both with and without `advanced` feature) |
+
+**Content Hash**:
+
+```
+SHA256(speculative_config.rs + mod.rs)
+= 12fc8417bcacfedac97c0275864b7aa69d33310635ed6766393e61439c84ecb5
+```
+
+**Previous Hash**: 89f7216f8fcbfa4d8223e876c0df09d9857a0ea8c1b83750a811c89703b3ac8f
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 1eef1ee0cbc75478fb0615a5ee73b5017e16c1ee92994dd0eaf41e81d709add8
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= d23e112a7f0bd610b38148e56f9b86497c979304b3b41ad7e1a2d7755a521c27
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #61 complete: `AdaptiveSpeculativeConfig` + `AdaptiveMode` enum created under `advanced` feature; 173 lines; speculation off by default; serde serializable; 7 unit tests green. Feature gate name `advanced` locked for #62–#67.
