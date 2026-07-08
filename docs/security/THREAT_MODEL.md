@@ -394,3 +394,170 @@ Goal: Override system instructions or extract system prompt
 | `fuzz_prompt_injection` | `scan()`, `sanitize()` | HIGH |
 | `fuzz_pii_detection` | `detect()`, `redact()` | MEDIUM |
 | `fuzz_output_sanitizer` | `sanitize()`, `validate_format()` | MEDIUM |
+
+---
+
+## 12. Speculative Decoding Threat Model (ADR-007)
+
+**Scope:** `advanced` feature gate — `engine/adaptive_speculative/`, `engine/speculative.rs`,
+`models/speculative_config.rs`, `models/tier_synergy_speculative.rs`.
+
+**Version:** 0.8.2 | **Date:** 2026-07-08 | **Issue:** #67
+
+### 12.1 Threat Summary
+
+| ID | Title | STRIDE | Impact | Status |
+|----|-------|--------|--------|--------|
+| T1 | Draft model loading — malicious/corrupt file | Tampering | HIGH | MITIGATED |
+| T2 | Target verification bypass — premature commit | Tampering | CRITICAL | MITIGATED |
+| T3 | Telemetry leakage — PII in speculative stats | Information Disclosure | HIGH | MITIGATED |
+| T4 | Incompatible tokenizer pairing | Tampering | HIGH | MITIGATED |
+| T5 | Auto-disable evasion via adversarial input | Elevation of Privilege | MEDIUM | MITIGATED |
+
+---
+
+### 12.2 T1 — Draft Model Loading: Malicious or Corrupt File
+
+**Description:** A draft model file placed in `models/` has been tampered with to contain
+a malicious payload, an oversized tensor that exhausts GPU memory, or structurally corrupt
+GGUF/ONNX data designed to exploit the parser.
+
+**Attack Vector:** Supply-chain compromise of the model directory, or a rogue process with
+write access to `models/` (outside the sandbox boundary — TB1). The draft model path is
+specified at configuration time, before `GgufDraftModel::new` is called.
+
+**Mitigation:**
+- Model file path is validated against the `models/` allowlist (no `..` traversal).
+- GGUF/ONNX parsers enforce tensor size bounds before allocation.
+- AES-256-GCM authenticated encryption detects any byte-level modification.
+- Draft model is loaded through the same `ModelLoader` path as the target model; no
+  separate, unvalidated code path exists.
+
+**Test Binding:** `security_speculative_test::t1_draft_model_path_enforces_allowlist`
+(structural — verifies the load path shares the common loader).
+
+---
+
+### 12.3 T2 — Target Verification Bypass: Rejected Tokens Committed Before Verification
+
+**Description:** An implementation bug or a crafted `VerificationResult` causes the executor
+to emit draft tokens beyond `accepted_count` into the output stream before the target model
+has confirmed them. The caller receives semantically invalid tokens that appear authoritative.
+
+**Attack Vector:** A malformed `VerificationResult` (e.g., `accepted_count` larger than
+the draft length, or a missing correction token after rejection) reaching the output
+assembly logic in `VerificationResult::into_tokens`.
+
+**Mitigation:**
+- `VerificationResult::into_tokens` slices `draft` with `.take(accepted_count)`, which
+  saturates at `draft.len()` — overflows are structurally impossible.
+- Correction token (T+1 at rejection point) is appended only when `correction_token`
+  is `Some`; tokens at positions `> accepted_count` are never read.
+- The speculative step in `SpeculativeDecoder::accept_tokens` (`speculative.rs`) applies
+  the same slice-then-append contract.
+
+**Test Binding:** `security_speculative_test::t2_rejected_suffix_never_emitted`
+
+---
+
+### 12.4 T3 — Telemetry Leakage: Prompt Text or PII in Speculative Stats
+
+**Description:** Speculative decoding statistics structs (counters, acceptance rates, timing)
+accumulate numeric data over many requests. If prompt text or token identifiers that
+reconstruct sensitive input are stored in these structs, they become an ambient PII store
+that outlives the request.
+
+**Attack Vector:** A future developer adds a `last_prompt: String` or `context_snapshot`
+field to `AdaptiveSpeculativeConfig` or `SpeculativeStats` for debugging. The field is then
+exposed via the telemetry subsystem or an IPC introspection call.
+
+**Mitigation:**
+- `AdaptiveSpeculativeConfig` contains only numeric and boolean configuration values —
+  no `String`, `Vec<u8>`, or `Box<dyn Any>` fields.
+- `SpeculativeStats` (`speculative_v2.rs`) stores only aggregate counters and
+  timing durations — no per-request or per-token content.
+- Field-level structural test (`t3_config_has_no_string_fields`) enforces this at compile
+  time by exhaustive field enumeration; any added `String` field will cause a type mismatch
+  in the test.
+
+**Test Binding:** `security_speculative_test::t3_config_fields_contain_no_pii_types`
+
+---
+
+### 12.5 T4 — Incompatible Tokenizer Pairing: Misaligned Verification
+
+**Description:** A draft model and target model that use different tokenizer vocabularies
+(e.g., a Mistral-3 draft paired with a Llama-3 target) produce token ids that are
+semantically misaligned. The target model verifies draft tokens against the wrong
+distribution, silently producing corrupt output that appears accepted.
+
+**Attack Vector:** `TierSpeculativePlan::select` is called with two available tiers that
+appear compatible by tier name but whose underlying tokenizer families differ. The
+`CompatibilityCheck` defaults to `Unknown`, and an operator skips the required runtime
+verification step.
+
+**Mitigation:**
+- `TierSpeculativePlan` carries a `CompatibilityCheck` field. A `FamilyMismatch` result
+  must cause the caller to fall back to `is_speculative = false`.
+- When `config.enabled = false` or `config.is_active()` returns `false`, `select` returns
+  a single-model plan with `is_speculative = false`, removing the pairing risk entirely.
+- `CompatibilityCheck::Unknown` is treated conservatively in the executor (requires
+  explicit opt-in from the runtime layer before a speculative step proceeds).
+
+**Test Binding:** `security_speculative_test::t4_disabled_config_yields_single_model_plan`
+
+---
+
+### 12.6 T5 — Auto-Disable Evasion: Adversarial Input Prevents Self-Disable
+
+**Description:** The `AdaptiveVerificationScheduler` monitors rolling acceptance rate and
+calls `VerificationPlan::fallback()` when the speedup drops below `auto_disable_threshold`.
+An adversary controlling the prompt could craft inputs that keep the acceptance rate
+artificially high — suppressing auto-disable while the draft model continues to generate
+plausible-but-wrong completions for non-adversarial requests.
+
+**Attack Vector:** Adversarial prompts are structured such that the draft model's distribution
+closely mirrors the target's, maintaining a high acceptance rate. The scheduler never fires
+`auto_disable`, keeping speculation enabled even when the quality guarantee would otherwise
+require single-model decoding.
+
+**Mitigation:**
+- Auto-disable threshold (`auto_disable_threshold`) defaults to `1.05` (requiring at least
+  5% net speedup). The threshold is configured at deployment time by the operator and is
+  not overridable by request content.
+- `AdaptiveVerificationScheduler::plan` evaluates `should_auto_disable` before any
+  window computation; `is_active()` (which checks both `enabled` and mode) is the first
+  gate. When the mode is `AdaptiveMode::Disabled`, `mode_multiplier` returns `0.0` and
+  the window is clamped to zero, forcing `VerificationPlan::fallback()`.
+- Fallback returns `window = 0`, preventing any unchecked draft tokens from being emitted.
+
+**Test Binding:** `security_speculative_test::t5_auto_disable_fires_below_threshold`,
+`security_speculative_test::t5_fallback_plan_has_zero_window`
+
+---
+
+### 12.7 Speculative Decoding Attack Tree
+
+```
+Goal: Emit unverified tokens to the caller
+├── T2: accepted_count overflow
+│   └── BLOCKED: .take(accepted_count) saturates at draft.len()
+├── T2: correction token skipped
+│   └── BLOCKED: into_tokens() appends correction unconditionally when Some(_)
+├── T4: incompatible tokenizer bypasses verification
+│   └── MITIGATED: CompatibilityCheck::Unknown; config.enabled=false → single-model
+├── T5: suppress auto-disable via crafted prompt
+│   └── MITIGATED: threshold operator-controlled; window=0 blocks emission
+└── T1: malicious draft model alters token stream
+    └── MITIGATED: AES-GCM auth tag; path allowlist; shared loader validation
+```
+
+### 12.8 Speculative Decoding Test Coverage
+
+| Test | Threat | File |
+|------|--------|------|
+| `t2_rejected_suffix_never_emitted` | T2 | `tests/security_speculative_test.rs` |
+| `t3_config_fields_contain_no_pii_types` | T3 | `tests/security_speculative_test.rs` |
+| `t5_auto_disable_fires_below_threshold` | T5 | `tests/security_speculative_test.rs` |
+| `t5_fallback_plan_has_zero_window` | T5 | `tests/security_speculative_test.rs` |
+| `t4_disabled_config_yields_single_model_plan` | T4 | `tests/security_speculative_test.rs` |
