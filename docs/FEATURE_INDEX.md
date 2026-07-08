@@ -68,7 +68,7 @@ judgment.
 | F-37 | Security: prompt-injection guard | core-runtime/src/security/prompt_injection.rs | docs/security | core-runtime/src/security/sanitizer_tests.rs | verified |
 | F-38 | Sandbox isolation | core-runtime/src/sandbox/ | docs/CONCEPT.md | core-runtime/tests/sandbox_test.rs | unverified |
 | F-39 | C FFI bindings | core-runtime/src/ffi/ | docs/USAGE_GUIDE.md | core-runtime/tests/ffi_test.rs | verified |
-| F-40 | Python (PyO3) bindings | core-runtime/src/python/ | docs/USAGE_GUIDE.md | n/a | unverified |
+| F-40 | Python (PyO3) bindings | core-runtime/src/python/ | docs/USAGE_GUIDE.md | core-runtime/tests/python_binding_test.rs | unverified |
 | F-41 | CLI (health/status/config/models) | core-runtime/src/cli/ | docs/USAGE_GUIDE.md | core-runtime/tests/cli_test.rs | verified |
 | F-42 | Health probe | core-runtime/src/health.rs | docs/USAGE_GUIDE.md | core-runtime/tests/health_test.rs | verified |
 | F-43 | Config & resource limits | core-runtime/src/config.rs | docs/CONCEPT.md | core-runtime/tests/limits_test.rs | verified |
@@ -81,10 +81,13 @@ judgment.
 
 Tracked as backlog items in `docs/BACKLOG.md`:
 
-- **F-38 Sandbox** — `unverified`: open defect in `core-runtime/src/sandbox/unix.rs`
-  (clippy `-D warnings` failure, dead code) blocks a clean gate on Linux/macOS.
-  Canonical: GitHub issue #54.
-- **F-40 Python bindings** — `unverified`: no dedicated integration test binding
-  found under `core-runtime/tests/`.
+- **F-38 Sandbox** — `unverified`: lint-only fix for issue #54 landed on
+  `chore/hardening-ci-sandbox-lints` (cycle 1, session 2026-07-08T1556-3b7852);
+  flip to `verified` is gated on a green Linux/macOS CI run after operator push
+  (`.github/workflows/rust.yml`). Canonical: GitHub issue #54.
+- **F-40 Python bindings** — `unverified`: behavior test binding added
+  (`core-runtime/tests/python_binding_test.rs`, cfg-gated on the `python`
+  feature); flip to `verified` once the test executes green with the feature
+  enabled.
 - **F-45 Veritas shim** — `unverified`: sealed at ledger Entry #79 but without a
   standalone test binding in the integration suite.
