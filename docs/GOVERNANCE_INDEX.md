@@ -49,6 +49,10 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 |----------|------|------|
 | Cycle-1 hardening plan | `docs/plan-runtime-hardening-cycle1-2026-07-08.md` | runtime-hardening-cycle1 |
 | Cycle-1 research brief | `docs/research-brief-runtime-optimization-hardening-2026-07-08.md` | runtime-hardening-cycle1 |
+| Cycle-2 hardening plan (rev.3) | `docs/plan-runtime-hardening-cycle2-2026-07-08.md` | runtime-hardening-cycle2 |
+| B-20 KV isolation redesign spec | `docs/plan-b20-kv-isolation-redesign.md` | b20-kv-isolation |
+| ADR-007 epic execution plan | `docs/plan-adr007-epic-execution.md` | adr007-epic |
+| Merge/integration runbook | `docs/runbook-merge-integration-sequence.md` | integration-sequence |
 
 ## Tier 5 — Reference Material
 
