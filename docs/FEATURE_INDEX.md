@@ -49,7 +49,7 @@ judgment.
 | F-18 | Speculative decoding | core-runtime/src/engine/speculative.rs | docs/architecture/V0.6.0_TRADE_OFFS.md | core-runtime/tests/speculative_test.rs | verified |
 | F-19 | Quantization & KV quant | core-runtime/src/engine/quantize.rs | docs/architecture/V0.6.0_TRADE_OFFS.md | core-runtime/tests/kv_quant_test.rs | verified |
 | F-20 | SIMD matmul / NEON | core-runtime/src/engine/simd_matmul.rs | docs/architecture/V0.6.0_TRADE_OFFS.md | core-runtime/tests/simd_matmul_test.rs | verified |
-| F-21 | KV cache & paged/continuous | core-runtime/src/engine/ | docs/architecture/SCALABILITY_REMEDIATION_UPGRADE_PATH.md | core-runtime/tests/kv_cache_test.rs | unverified |
+| F-21 | KV cache & paged/continuous | core-runtime/src/memory/ | docs/architecture/SCALABILITY_REMEDIATION_UPGRADE_PATH.md | core-runtime/tests/kv_cache_test.rs | verified |
 | F-22 | Memory pool | core-runtime/src/memory/ | docs/CONCEPT.md | core-runtime/tests/memory_test.rs | verified |
 | F-23 | Prompt cache | core-runtime/src/engine/ | docs/CONCEPT.md | core-runtime/tests/prompt_cache_test.rs | verified |
 | F-24 | Model loader/registry/hot-swap | core-runtime/src/models/ | docs/CONCEPT.md | core-runtime/tests/integration_gguf_test.rs | verified |

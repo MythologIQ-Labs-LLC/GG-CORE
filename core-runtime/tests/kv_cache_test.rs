@@ -397,3 +397,50 @@ fn test_stats_tracking() {
     let stats = manager.stats();
     assert!(stats.memory_bytes_used > 0 || manager.memory_usage() > 0);
 }
+
+#[test]
+fn test_two_sequences_same_position_distinct_pages() {
+    let manager = KvCacheManager::new(test_config());
+
+    let seq1 = manager.allocate_sequence();
+    let seq2 = manager.allocate_sequence();
+
+    // Both sequences append at position 0 — must allocate distinct pages.
+    let k1 = vec![11.0f32; 128];
+    let v1 = vec![111.0f32; 128];
+    manager.append_kv(seq1, &k1, &v1).unwrap();
+
+    let k2 = vec![22.0f32; 128];
+    let v2 = vec![222.0f32; 128];
+    manager.append_kv(seq2, &k2, &v2).unwrap();
+
+    // Each sequence must have exactly one page, and they must be distinct.
+    assert_eq!(manager.sequence_page_count(seq1), 1);
+    assert_eq!(manager.sequence_page_count(seq2), 1);
+
+    // Reading back must return the values written, not the other sequence's data.
+    let mut k1_out = vec![0.0f32; 128];
+    let mut v1_out = vec![0.0f32; 128];
+    manager.read_kv(seq1, 0, &mut k1_out, &mut v1_out).unwrap();
+
+    let mut k2_out = vec![0.0f32; 128];
+    let mut v2_out = vec![0.0f32; 128];
+    manager.read_kv(seq2, 0, &mut k2_out, &mut v2_out).unwrap();
+
+    assert!(
+        (k1_out[0] - 11.0).abs() < 0.01,
+        "seq1 key contaminated: got {}", k1_out[0]
+    );
+    assert!(
+        (k2_out[0] - 22.0).abs() < 0.01,
+        "seq2 key contaminated: got {}", k2_out[0]
+    );
+    assert!(
+        (v1_out[0] - 111.0).abs() < 0.01,
+        "seq1 value contaminated: got {}", v1_out[0]
+    );
+    assert!(
+        (v2_out[0] - 222.0).abs() < 0.01,
+        "seq2 value contaminated: got {}", v2_out[0]
+    );
+}
