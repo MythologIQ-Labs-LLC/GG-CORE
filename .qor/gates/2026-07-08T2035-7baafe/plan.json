@@ -1,0 +1,40 @@
+{
+  "phase": "plan",
+  "ts": "2026-07-08T20:40:00Z",
+  "session_id": "2026-07-08T2035-7baafe",
+  "issue": "#68",
+  "title": "ADR-007 consolidation audit (design/docs only)",
+  "plan_path": "docs/architecture/ADR-007-CONSOLIDATION-AUDIT.md",
+  "change_class": "docs",
+  "risk_grade": "L1",
+  "files_to_create": [
+    "docs/architecture/ADR-007-CONSOLIDATION-AUDIT.md"
+  ],
+  "files_to_modify": [],
+  "acceptance_criteria": [
+    "Documented inventory of all in-tree TierSynergy artifacts",
+    "Migrate-or-reject decision per artifact",
+    "Section 4 Razor violations identified (tier_synergy.rs is 397 lines)",
+    "Canonical status affirmed (in-tree is canonical)",
+    "Deprecation notice for standalone repo if it exists",
+    "Follow-up issues identified"
+  ],
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-21",
+      "operation": "n/a",
+      "status": "no change"
+    }
+  ],
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2035-7baafe"
+  }
+}

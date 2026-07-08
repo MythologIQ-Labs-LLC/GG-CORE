@@ -1,0 +1,20 @@
+{
+  "phase": "substantiate",
+  "ts": "2026-07-08T20:45:00Z",
+  "session_id": "2026-07-08T2035-7baafe",
+  "issue": "#68",
+  "ledger_entry": 87,
+  "verdict": "PASS",
+  "merkle_seal": "dd16c3997b26233596dab31274d6b2feaf4430e8eb24f8792582628c06b265fb",
+  "dimensions_pass": 8,
+  "dimensions_fail": 0,
+  "disclosed_skips": [
+    "version bump/tag: operator action",
+    "standalone repo archive: operator action"
+  ],
+  "ai_provenance": {
+    "model": "claude-sonnet-4-6",
+    "human_oversight": "PASS",
+    "session": "2026-07-08T2035-7baafe"
+  }
+}
