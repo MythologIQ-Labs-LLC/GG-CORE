@@ -140,10 +140,7 @@ impl KvCacheManager {
                 .entries
                 .get(&seq_id)
                 .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
-            *entry
-                .page_ids
-                .last()
-                .ok_or(KvCacheError::PageNotFound)?
+            *entry.page_ids.last().ok_or(KvCacheError::PageNotFound)?
         };
         self.write_to_page(page_id, seq_pos % PAGE_TOKENS, keys, values);
         let mut store = write_or_recover(&self.sequences);

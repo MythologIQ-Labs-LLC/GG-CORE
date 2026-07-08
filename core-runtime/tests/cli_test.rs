@@ -18,7 +18,7 @@ use gg_core::ipc::protocol::HealthCheckType;
 #[test]
 fn test_default_socket_path_platform_specific() {
     #[cfg(unix)]
-    assert_eq!(DEFAULT_SOCKET_PATH, "/var/run/veritas/GG-CORE.sock");
+    assert_eq!(DEFAULT_SOCKET_PATH, "/var/run/gg-core/GG-CORE.sock");
 
     #[cfg(windows)]
     assert_eq!(DEFAULT_SOCKET_PATH, r"\\.\pipe\GG-CORE");

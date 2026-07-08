@@ -513,6 +513,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "installs a real seccomp filter into the test process which cannot be removed; run in isolation only"]
     fn test_sandbox_enabled_returns_proper_error() {
         let config = SandboxConfig {
             enabled: true,
