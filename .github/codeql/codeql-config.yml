@@ -1,0 +1,10 @@
+name: "Security analysis"
+
+# Exclude hard-coded-cryptographic-value for this repository.
+# All instances of this rule are NIST test vectors, empty-password boundary
+# tests, or zero-initialized read buffers in test files — not production code.
+# Rust does not support CodeQL inline suppression comments, so this
+# config-level exclusion is the correct mechanism.
+query-filters:
+  - exclude:
+      id: rust/hard-coded-cryptographic-value
