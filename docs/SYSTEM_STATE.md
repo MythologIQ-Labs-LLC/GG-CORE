@@ -1,9 +1,9 @@
 # System State Snapshot
 
-**Generated**: 2026-07-08 (runtime-hardening cycle 1)
-**Phase**: SUBSTANTIATE (Runtime Hardening Cycle 1)
-**Status**: SEALED (local hold — Review Boundary; no push/tag/version bump)
-**Session ID**: 2026-07-08T1556-3b7852
+**Generated**: 2026-07-08 (ADR-007 epic + /qor-refactor cycle)
+**Phase**: SUBSTANTIATE (Hardening Cycle 2 + Refactor)
+**Status**: SEALED (push authorized — user approved 2026-07-08)
+**Session ID**: 2026-07-08T2300-b36127 (Entry #95)
 
 ## Delta since prior seal (p8t9h0b1, 2026-02-14)
 
@@ -81,14 +81,21 @@ core-runtime/
 │   │       ├── mod.rs
 │   │       └── generator.rs
 │   ├── models/
-│   │   ├── mod.rs                   [Hot-Swap - exports updated]
+│   │   ├── mod.rs                   [Hot-Swap + ADR-007 exports]
 │   │   ├── loader.rs                [Tier 2 - MappedModel]
 │   │   ├── manifest.rs
 │   │   ├── registry.rs              [Hot-Swap - ModelHandle::new()]
 │   │   ├── router.rs                [Hot-Swap - atomic routing]
 │   │   ├── drain.rs                 [Hot-Swap - flight tracking]
 │   │   ├── preload.rs               [Hot-Swap - preload validation]
-│   │   └── swap.rs                  [Hot-Swap - orchestration]
+│   │   ├── swap.rs                  [Hot-Swap - orchestration]
+│   │   ├── speculative_config.rs    [ADR-007/#61 — AdaptiveSpeculativeConfig] **advanced**
+│   │   ├── tier_synergy/            [ADR-007 — refactored from 397-line flat file] **advanced**
+│   │   │   ├── mod.rs               (230 lines — TierSynergy orchestration)
+│   │   │   ├── mode.rs              (29 lines — SynergyMode + SynergyResult)
+│   │   │   ├── status.rs            (16 lines — SynergyStatus)
+│   │   │   └── tests.rs             (112 lines — unit tests, cfg(test))
+│   │   └── tier_synergy_speculative.rs [ADR-007/#64 — TierSpeculativePlan] **advanced**
 │   ├── memory/
 │   │   ├── mod.rs                   [Tier 3/4/5 - Arena, Paged, Q8KvStore, PromptCache exports]
 │   │   ├── arena.rs                 [Tier 3]

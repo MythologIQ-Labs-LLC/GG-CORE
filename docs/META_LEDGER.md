@@ -6427,3 +6427,66 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #66 complete: `speculative_matrix.rs` benchmarks 5 scenarios across both feature modes; BENCHMARKS.md §Speculative Decoding Overhead added with ESTIMATED results table and honest-reporting note. No GPU required for CPU-path benchmarks.
+
+---
+
+### Entry #95: SESSION SEAL (qor-refactor — tier_synergy.rs Razor fix)
+
+**Entry ID**: `b36127950001`
+**Timestamp**: 2026-07-08T23:00:00Z
+**Phase**: IMPLEMENT (maintenance — /qor-refactor)
+**Author**: Specialist
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2300-b36127
+
+**Target**: `core-runtime/src/models/tier_synergy.rs` (397 lines — Section 4 Razor violation F1 from ADR-007-CONSOLIDATION-AUDIT.md)
+
+**Refactor Actions**:
+
+| Action | Detail |
+| --- | --- |
+| File split | `tier_synergy.rs` (397 lines) → `tier_synergy/` module directory |
+| `tier_synergy/mode.rs` | `SynergyMode` + `SynergyResult` — 29 lines ≤ 60 ✓ |
+| `tier_synergy/status.rs` | `SynergyStatus` — 16 lines ≤ 40 ✓ |
+| `tier_synergy/mod.rs` | `TierSynergy` orchestration — 230 lines ≤ 250 ✓ |
+| `tier_synergy/tests.rs` | Extracted unit tests — 112 lines ≤ 150 ✓ |
+| Function decomposition | `request()` (88 lines) split into 4 helpers: `request_complex_speculative`, `request_quick_query_inner`, `request_batch_speculative` (each ≤ 25 lines), dispatcher ≤ 24 lines |
+| Old file removed | `tier_synergy.rs` deleted |
+| Behavior | Unchanged — public API identical, 12/12 tests pass |
+| External callers | `tier_synergy_speculative.rs:32` `use crate::models::tier_synergy::SynergyMode` still resolves ✓ |
+
+**Compliance Check**:
+
+| Rule | Before | After | Status |
+| --- | --- | --- | --- |
+| Files ≤ 250 lines | 397 FAIL | max 230 | **PASS** |
+| Functions ≤ 40 lines | `request()` 88 FAIL | max 25 | **PASS** |
+| Nesting ≤ 3 levels | 2 | 2 | **PASS** |
+| Nested ternaries | 0 | 0 | **PASS** |
+| Orphan detection | n/a | all wired | **PASS** |
+| Tests | 12 pass | 12 pass | **PASS** |
+
+**Content Hash**:
+
+```
+SHA256(mod.rs + mode.rs + status.rs + tests.rs)
+= b361276fc562451fce9bd6b5e7094ca164b1ce10887f5acf76aa2027d3bb6249
+```
+
+**Previous Hash**: 6e7d6724eb81df4048874dddec289a5c0ab24cdc736b467295519bac134c8db2
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 53bb56939d2c91f2d822ac6836fd29a8fa546d66d4ce4a0451af124abf7eb419
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= d0c90b70efa96b04bc56d963848f93035fe9f0f1d3fd7699d293c529ee493efa
+```
+
+**Decision**: REFACTOR COMPLETE. `tier_synergy.rs` F1 Razor violation (397 lines) resolved. Split into 4-file module directory; all Section 4 constraints satisfied. Behavior preserved — public API unchanged, 12/12 unit tests pass. Chain tip: `53bb56939d2c91f2d822ac6836fd29a8fa546d66d4ce4a0451af124abf7eb419`.
