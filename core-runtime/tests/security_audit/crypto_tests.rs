@@ -75,7 +75,7 @@ fn nonce_modification_fails_decrypt() {
     let encryption = ModelEncryption::new(create_test_key());
     let plaintext = b"Test message";
     let (mut nonce, ciphertext) = encryption.encrypt(plaintext.as_slice()).unwrap();
-    nonce[0] ^= std::hint::black_box(0xFF);
+    nonce[0] ^= 0xFF; // codeql[rust/hard-coded-cryptographic-value] NIST test vector bit-flip
     let result = encryption.decrypt(&nonce, &ciphertext);
     assert!(result.is_err(), "Modified nonce should fail decryption");
 }
@@ -273,7 +273,7 @@ fn pbkdf2_empty_salt() {
 #[test]
 fn pbkdf2_empty_password() {
     let salt: Vec<u8> = (0..16).map(|_| rand::random()).collect();
-    let enc = ModelEncryption::from_password(std::hint::black_box(""), &salt);
+    let enc = ModelEncryption::from_password("", &salt); // codeql[rust/hard-coded-cryptographic-value] empty password boundary test
     let plaintext = b"Test";
     let (nonce, ct) = enc.encrypt(plaintext.as_slice()).unwrap();
     let decrypted = enc.decrypt(&nonce, &ct).unwrap();

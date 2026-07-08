@@ -50,7 +50,7 @@ fn test_modified_nonce() {
     let encryption = ModelEncryption::new(create_test_key());
     let plaintext = b"Test message";
     let (mut nonce, ciphertext) = encryption.encrypt(plaintext.as_slice()).unwrap();
-    nonce[0] ^= std::hint::black_box(0xFF);
+    nonce[0] ^= 0xFF; // codeql[rust/hard-coded-cryptographic-value] NIST test vector bit-flip
     let result = encryption.decrypt(&nonce, &ciphertext);
     assert!(result.is_err());
 }
@@ -183,7 +183,7 @@ fn test_pbkdf2_different_passwords() {
     let salt: Vec<u8> = (0..16).map(|_| rand::random()).collect();
     let enc1 = ModelEncryption::from_password(&pw1, &salt);
     let enc2 = ModelEncryption::from_password(&pw2, &salt);
-    let plaintext = std::hint::black_box(b"Test message");
+    let plaintext = b"Test message"; // codeql[rust/hard-coded-cryptographic-value] test plaintext
     let (nonce, ct) = enc1.encrypt(plaintext.as_slice()).unwrap();
     let result = enc2.decrypt(&nonce, &ct);
     assert!(result.is_err());
@@ -415,7 +415,7 @@ fn test_nonce_size_constant() {
 
 #[test]
 fn test_tag_size_constant() {
-    assert_eq!(TAG_SIZE, std::hint::black_box(16));
+    assert_eq!(TAG_SIZE, 16); // codeql[rust/hard-coded-cryptographic-value] AES-GCM tag size constant
 }
 
 // OWASP PBKDF2 iteration floor, enforced at compile time so it cannot regress
