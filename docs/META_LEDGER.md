@@ -5715,3 +5715,30 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: SUBSTANTIATION COMPLETE. Reality matches Promise. Veritas-Shim implementation verified across all 8 audit dimensions. Session sealed.
+
+---
+
+### Entry #80: RESEARCH BRIEF (Runtime Optimization + Hardening)
+
+**Timestamp**: 2026-07-08T16:05:13Z
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3
+
+**Content Hash**:
+
+```
+SHA256(research-brief-runtime-optimization-hardening-2026-07-08.md)
+= f3d61468617117e82ac10c0659b92d617406bd18e946bb9352bd9cb8415101ce
+```
+
+**Previous Hash**: 0c9b7cf87abffa8307a1ac606122fa231a7eecec8b34ba09fe5c9fca491eb472
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 58d9fc70449d3421572a767e7ab800b142666573e65defb4f2a891c0543cc962
+```
+
+**Decision**: Research complete for runtime-optimization-hardening (session 2026-07-08T1556-3b7852; ideation gate sealed same session). Key findings: (1) PR #47 and issue #54 are disjoint -- PR branch tip b661403 is the exact commit where COREFORGE observed the 23 sandbox/unix.rs lints; (2) working tree is a 193-file cargo fmt sweep (fmt --check clean), local main diverged ahead 1/behind 1, plus a 6-commit worktree branch refactoring shim/; (3) CRITICAL DRIFT: no Rust CI exists (CodeQL only) -- fmt/clippy/test workflow is prerequisite for all hardening evidence; (4) coverage gaps F-38/F-40/F-45 confirmed with F-45 deferred behind in-flight shim refactor. Recommendations: merge #47 -> add CI -> fix #54 -> rebase + land fmt sweep -> close index gaps. Findings advisory; routing to /qor-plan.

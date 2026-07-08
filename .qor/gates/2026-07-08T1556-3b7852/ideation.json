@@ -1,0 +1,153 @@
+{
+  "phase": "ideation",
+  "session_id": "2026-07-08T1556-3b7852",
+  "ts": "2026-07-08T15:58:43Z",
+  "concept_name": "runtime-optimization-hardening",
+  "spark": {
+    "observation": "2026-07-08 governance remediation reconstructed BACKLOG.md and FEATURE_INDEX.md, surfacing untriaged runtime debt: issue #54 (clippy -D warnings fails on Linux/macOS in sandbox/unix.rs), PR #47 stale ~7 weeks with overlapping clippy cleanup, backend-capability epic #48-52 unstarted, degraded-mode policy #53 undefined, and FEATURE_INDEX coverage gaps F-38 (sandbox unverified), F-40 (python bindings untested), F-45 (veritas shim untested).",
+    "initial_question": "How should GG-CORE sequence runtime optimization and security hardening work, and how should remediation progress be reported back into GitHub issues #48-54 and PR #47?",
+    "why_now": "Operator-directed 2026-07-08 immediately after governance repair. Issue #54 blocks clean cross-platform gates; PR #47 has been mergeable-but-idle since 2026-05-22; a ~50-file uncommitted working tree carries in-flight runtime changes that need a verified base to land on."
+  },
+  "problem_frame": {
+    "affected_actors": [
+      "GG-CORE maintainers",
+      "COREFORGE stack integrators (Vault/Construct IPC callers)",
+      "CI/release pipeline (Linux/macOS gates)",
+      "multi-tenant inference consumers relying on sandbox isolation"
+    ],
+    "failure_mode": "Hardening and performance debt accumulates untriaged: the cross-platform lint gate fails (issue #54), sandbox isolation ships unverified (F-38), a mergeable PR rots (#47), and two runtime surfaces (F-40 python bindings, F-45 veritas shim) have no test binding -- leaving a security-boundary runtime with unverified isolation and no evidenced performance posture.",
+    "cost_of_failure": "Worst case: sandbox escape in a multi-tenant compute runtime. Ongoing: blocked releases on Linux/macOS, erosion of the FEATURE_INDEX verified surface (44/47), duplicate fix effort across PR #47 and issue #54, and an audit trail that cannot evidence hardening claims."
+  },
+  "transformation_statement": "GG-CORE maintainers move from an untriaged set of hardening and optimization debts (issues #48-54, PR #47, FEATURE_INDEX gaps F-38/F-40/F-45) to a researched, prioritized, and GitHub-reported remediation program without destabilizing the sealed L3 runtime or expanding scope beyond compute-only C.O.R.E. boundaries.",
+  "assumptions": [
+    {
+      "statement": "Issue #54 clippy failures (dead code + lints in sandbox/unix.rs) are resolvable without functional sandbox changes.",
+      "category": "technical",
+      "confidence": "high",
+      "impact_if_wrong": "medium",
+      "validation_method": "cargo clippy --all-targets -D warnings on Linux CI after fix; sandbox_test.rs + security_sandbox_escape_test.rs pass unchanged.",
+      "blocking": false
+    },
+    {
+      "statement": "PR #47 still merges cleanly and its clippy cleanup overlaps issue #54; landing it first reduces duplicate work.",
+      "category": "workflow",
+      "confidence": "medium",
+      "impact_if_wrong": "medium",
+      "validation_method": "gh pr view 47 --json mergeable,statusCheckRollup; diff its branch against a candidate #54 fix.",
+      "blocking": false
+    },
+    {
+      "statement": "Performance work can be baselined on the existing Criterion bench suite (F-47) before the issue #52 harness exists.",
+      "category": "technical",
+      "confidence": "medium",
+      "impact_if_wrong": "low",
+      "validation_method": "Run core-runtime/benches/ suite to establish baseline; compare against docs/BENCHMARKS.md claims.",
+      "blocking": false
+    },
+    {
+      "statement": "Reporting remediation as GitHub issue comments (not closures) satisfies the fleet autonomous-lane contract.",
+      "category": "governance",
+      "confidence": "high",
+      "impact_if_wrong": "low",
+      "validation_method": "Fleet standing instruction: comment progress/evidence allowed; closing issues reserved for the operator.",
+      "blocking": false
+    }
+  ],
+  "boundaries": {
+    "non_goals": [
+      "Shipping new backend adapters (BitNet #51 stays a separate experimental track).",
+      "Defining the full Backend Capability Contract (ADR #48 is its own initiative).",
+      "General refactoring beyond what lint/hardening fixes require."
+    ],
+    "limitations": [
+      "C.O.R.E. constraints: contained, offline, IPC-only, pure compute -- no new I/O surfaces.",
+      "Section 4 Razor: functions <=40 lines, files <=250 lines, nesting <=3.",
+      "Primary dev environment is Windows; Linux/macOS verification only via CI.",
+      "~50-file uncommitted working tree must be settled before hardening changes land."
+    ],
+    "exclusions": [
+      "Closing GitHub issues or changing priority labels (reserved for operator).",
+      "Merging PR #47 without operator review.",
+      "Adding dependencies from the forbidden list (reqwest, hyper, websockets, fs-traversal)."
+    ],
+    "forbidden_interpretations": [
+      "Optimization does not license weakening or bypassing security checks for speed.",
+      "Hardening does not license new auth/, vault/, synapse/, plugins/, or network/ modules.",
+      "Remediation reporting does not mean autonomously closing issues -- comments with evidence only."
+    ]
+  },
+  "options": [
+    {
+      "name": "Hardening-first, then optimization",
+      "summary": "Resolve issue #54 + triage PR #47 first to restore a clean cross-platform gate and flip F-38 to verified; then baseline benches and pursue optimization on a verified base; report each step as issue comments.",
+      "selected": true
+    },
+    {
+      "name": "Optimization-first",
+      "summary": "Baseline and optimize the inference path immediately; defer sandbox lint debt.",
+      "selected": false,
+      "rejection_reason": "A failing clippy gate on Linux/macOS blocks clean CI evidence for any perf change; optimizing atop an unverified sandbox compounds risk in an L3 runtime."
+    },
+    {
+      "name": "Parallel hardening + optimization tracks",
+      "summary": "Run both tracks concurrently in separate branches/worktrees.",
+      "selected": false,
+      "rejection_reason": "The ~50-file uncommitted working tree makes parallel tracks collision-prone; sequencing is required until the tree is committed and PR #47 is triaged."
+    }
+  ],
+  "governance_profile": {
+    "risk_grade": "L3",
+    "evidence_required": [
+      "cargo clippy --all-targets -- -D warnings clean on Linux/macOS CI",
+      "Full cargo test suite pass including security_* and sandbox tests",
+      "FEATURE_INDEX F-38 flipped to verified with named test binding in same commit",
+      "/qor-audit PASS gate artifact before any implementation touching ipc/, sandbox/, security/",
+      "GitHub issue comments citing commit/CI evidence, [agent @ GG-CORE] identity, per fleet lane",
+      "Criterion baseline vs post-change results for any optimization commit"
+    ],
+    "escalation_triggers": [
+      "Any diff touching ipc/, sandbox/, or security/ without a prior audit PASS",
+      "Reappearance of clippy -D warnings failures after fix",
+      "Unexplained >10% regression in any Criterion benchmark",
+      "Appearance of forbidden modules or dependencies"
+    ]
+  },
+  "failure_remediation": [
+    {
+      "failure_class": "lint fix alters sandbox behavior",
+      "detection_signal": "sandbox_test.rs or security_sandbox_escape_test.rs failures post-fix",
+      "containment_action": "Revert the fix commit; log Shadow Genome entry",
+      "return_phase": "implement"
+    },
+    {
+      "failure_class": "optimization regresses correctness",
+      "detection_signal": "Integration test failures or FEATURE_INDEX verified->unverified flip at seal",
+      "containment_action": "Revert optimization commit; record bench + test evidence",
+      "return_phase": "plan"
+    },
+    {
+      "failure_class": "scope creep into forbidden territory",
+      "detection_signal": "New auth/vault/synapse/plugins/network modules or forbidden deps in Cargo.toml",
+      "containment_action": "ABORT per CLAUDE.md forbidden-modules rule; strip the change",
+      "return_phase": "ideation"
+    },
+    {
+      "failure_class": "PR #47 / issue #54 fix collision",
+      "detection_signal": "Merge conflict or duplicated clippy fix between branch and new work",
+      "containment_action": "Halt; escalate rebase/merge decision to operator",
+      "return_phase": "plan"
+    }
+  ],
+  "readiness": {
+    "status": "ready",
+    "recommended_next_phase": "research"
+  },
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "unknown",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-08T15:58:43Z"
+  }
+}

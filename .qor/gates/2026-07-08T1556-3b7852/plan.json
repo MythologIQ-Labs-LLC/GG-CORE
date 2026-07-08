@@ -1,0 +1,64 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-08T1556-3b7852",
+  "ts": "2026-07-08T16:16:45Z",
+  "plan_path": "docs/plan-runtime-hardening-cycle1-2026-07-08.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "high_risk_target": false,
+  "open_questions": [
+    "When to flip FEATURE_INDEX F-38 to clean verified (needs green Linux CI after operator push)",
+    "Whether .claude/.codex/.gemini/.kilo host installs should be committed (left untracked)"
+  ],
+  "boundaries": {
+    "limitations": [
+      "Windows dev host: cfg(unix) lint fixes compile-verified only via CI after operator push",
+      "No remote mutation this cycle (Review Boundary)"
+    ],
+    "non_goals": [
+      "PR #47 merge (operator)",
+      "worktree-branch fate (operator)",
+      "backend-capability epic #48-52",
+      "bench re-baselining",
+      "README.md rework (pre-existing operator edit)"
+    ],
+    "exclusions": [
+      "No changes under ipc/ or security/",
+      "sandbox/unix.rs edits are lint-only: no control-flow, constant-value, or syscall-filter changes"
+    ]
+  },
+  "phases": [
+    "Phase 0: Tree & Branch Reconciliation (git topology only)",
+    "Phase 1: Rust CI workflow (B-15) -> .github/workflows/rust.yml",
+    "Phase 2: Issue #54 sandbox lint fixes -> core-runtime/src/sandbox/unix.rs",
+    "Phase 3: F-40 python-bindings test binding -> core-runtime/tests/python_binding_test.rs + docs/FEATURE_INDEX.md"
+  ],
+  "ci_commands": [
+    "cargo fmt --check",
+    "cargo clippy --all-targets -- -D warnings",
+    "cargo test --workspace",
+    "cargo check --features python --tests"
+  ],
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-38",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/tests/sandbox_test.rs",
+      "test_descriptor": "sandbox config/apply surface behaves identically after lint-only fixes (suite passes unchanged)"
+    },
+    {
+      "entry_id": "F-40",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/tests/python_binding_test.rs",
+      "test_descriptor": "InferenceParams::default() converts losslessly into engine params; result roundtrip preserves output fields"
+    }
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "unknown",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-08T16:16:45Z"
+  }
+}

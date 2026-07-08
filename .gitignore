@@ -50,3 +50,6 @@ core-runtime/src/engine/quantize.rs
 
 # Benchmark comparisons (reveals performance advantages)
 core-runtime/benches/llama_cpp_comparison.rs
+# qor:seed -- do not edit between markers
+.qor/session/
+# qor:seed/end

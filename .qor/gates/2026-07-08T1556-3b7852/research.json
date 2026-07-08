@@ -1,0 +1,58 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-08T1556-3b7852",
+  "ts": "2026-07-08T16:05:13Z",
+  "questions": [
+    "What are the actual clippy failures in sandbox/unix.rs (#54) and do they overlap PR #47?",
+    "What is the real state of the uncommitted working tree and unpushed commits?",
+    "Is the Criterion bench baseline healthy and do BENCHMARKS.md claims hold?",
+    "What are the concrete hardening gaps behind FEATURE_INDEX F-38/F-40/F-45?",
+    "Which GitHub issues/PRs should receive remediation evidence comments?"
+  ],
+  "findings": [
+    {
+      "id": "T1",
+      "summary": "23 cfg(unix) lints verified at sandbox/unix.rs:20,98-110,~180,~423; no PR addresses #54; PR #47 tip b661403 == COREFORGE-pinned failing commit -> disjoint surfaces",
+      "status": "verified"
+    },
+    {
+      "id": "T2",
+      "summary": "Working tree = 193-file cargo fmt sweep (fmt --check RC=0); main ahead 1/behind 1 of origin; worktree branch claude/affectionate-edison-7e6b8a carries 6 commits incl. shim refactors",
+      "status": "verified"
+    },
+    {
+      "id": "T3",
+      "summary": "BENCHMARKS.md Windows-only baseline (40 tok/s release, Qwen2.5-0.5B Q4); orphan [[bench]] decl on unrebased local main fixed upstream at 575d703",
+      "status": "verified"
+    },
+    {
+      "id": "T4",
+      "summary": "DRIFT: no Rust CI (.github/workflows = codeql.yml only); F-38 unix path never exercised; F-40 no test binding; F-45 churning on worktree branch",
+      "status": "verified"
+    },
+    {
+      "id": "T5",
+      "summary": "Reporting map: evidence comment -> #54; triage comment -> PR #47; optional note -> #52; none -> #48-51,#53",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/sandbox/unix.rs",
+    "gh issue view 54 / gh pr view 47 (files, status)",
+    "git log --graph --all; git fetch; git branch -vv",
+    "cargo fmt --check (RC=0)",
+    "docs/BENCHMARKS.md",
+    ".github/workflows/codeql.yml",
+    "docs/FEATURE_INDEX.md",
+    "docs/BACKLOG.md"
+  ],
+  "brief_path": "docs/research-brief-runtime-optimization-hardening-2026-07-08.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "unknown",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-08T16:05:13Z"
+  }
+}
