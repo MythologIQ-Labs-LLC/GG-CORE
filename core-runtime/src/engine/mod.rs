@@ -54,6 +54,8 @@ pub mod speculative;
 pub mod speculative_v2;
 #[cfg(feature = "advanced")]
 pub mod multi_gpu;
+#[cfg(feature = "advanced")]
+pub mod adaptive_speculative;
 
 // --- GPU backend modules (conditionally compiled) ---
 #[cfg(feature = "cuda")]

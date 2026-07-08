@@ -6127,3 +6127,54 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #61 complete: `AdaptiveSpeculativeConfig` + `AdaptiveMode` enum created under `advanced` feature; 173 lines; speculation off by default; serde serializable; 7 unit tests green. Feature gate name `advanced` locked for #62–#67.
+
+---
+
+### Entry #89: SESSION SEAL (Issue #62 — Adaptive Speculative Decoder Interfaces)
+
+**Entry ID**: `d8657e620001`
+**Timestamp**: 2026-07-08T21:10:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2110-d8657e
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (4 traits + 4 types created; mod.rs export added) |
+| Traits delivered | **PASS** (`BlockDraftModel`, `ConfidenceEstimator`, `VerificationScheduler`, `TargetVerifier`) |
+| Types delivered | **PASS** (`DraftBlock`, `SurvivalProfile`, `VerificationPlan`, `VerificationResult`) |
+| No learned confidence heads | **PASS** (`SurvivalProfile::uniform()` satisfies v1 no-confidence contract) |
+| Single-model fallback | **PASS** (`VerificationPlan::fallback()` + zero-window path to `generate_one`) |
+| Feature gate | **PASS** (`#![cfg(feature = "advanced")]` at module root) |
+| Section 4 Razor | **PASS** (`mod.rs` 224 lines, `tests.rs` 185 lines) |
+| Tests | **PASS** (9/9: success, rejection, fallback ×2, token assembly, profiles) |
+| Compile | **PASS** (0 errors with and without `advanced`) |
+| C.O.R.E. boundary | **PASS** (no network/agent/authority) |
+
+**Content Hash**:
+
+```
+SHA256(adaptive_speculative/mod.rs + tests.rs + engine/mod.rs)
+= c03d5256ab6c02445e1d4e156177448514c39cc97c58bcf46af6120be415e571
+```
+
+**Previous Hash**: 1eef1ee0cbc75478fb0615a5ee73b5017e16c1ee92994dd0eaf41e81d709add8
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 93b42b484686968afd8015064c2c66cba8183bbd41cb6052e4045212452d418a
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= dce5d52a08f6b2fdd66fb2d08aad14d3356072fcf018e51864f857a0c2584ea4
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #62 complete: backend-agnostic adaptive speculative decoder trait surface (`BlockDraftModel`, `ConfidenceEstimator`, `VerificationScheduler`, `TargetVerifier`) + types (`DraftBlock`, `SurvivalProfile`, `VerificationPlan`, `VerificationResult`) delivered. 9/9 tests green. GGUF wrappers can implement `TargetVerifier` without duplicate logic.
