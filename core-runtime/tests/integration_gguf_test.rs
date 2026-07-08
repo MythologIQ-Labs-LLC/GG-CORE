@@ -58,9 +58,10 @@ fn stop_reason_variants_correct() {
         FinishReason::MaxTokens,
         FinishReason::Timeout,
         FinishReason::ContentFiltered,
+        FinishReason::Cancelled,
     ];
 
-    assert_eq!(reasons.len(), 4, "Should have 4 finish reasons");
+    assert_eq!(reasons.len(), 5, "Should have 5 finish reasons");
 }
 
 #[test]

@@ -57,6 +57,7 @@ fn bench_finish_reason_matching(c: &mut Criterion) {
         FinishReason::MaxTokens,
         FinishReason::Timeout,
         FinishReason::ContentFiltered,
+        FinishReason::Cancelled,
     ];
 
     group.bench_function("pattern_match", |b| {
@@ -67,6 +68,7 @@ fn bench_finish_reason_matching(c: &mut Criterion) {
                     FinishReason::MaxTokens => 1,
                     FinishReason::Timeout => 2,
                     FinishReason::ContentFiltered => 3,
+                    FinishReason::Cancelled => 4,
                 });
             }
         })
