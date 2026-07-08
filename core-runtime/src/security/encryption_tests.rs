@@ -366,10 +366,9 @@ fn test_tag_size_constant() {
     assert_eq!(TAG_SIZE, 16);
 }
 
-#[test]
-fn test_pbkdf2_iterations_owasp_compliant() {
-    assert!(ModelEncryption::PBKDF2_ITERATIONS >= 600_000);
-}
+// OWASP PBKDF2 iteration floor, enforced at compile time so it cannot regress
+// (clippy flagged the runtime assert as having a constant value).
+const _: () = assert!(ModelEncryption::PBKDF2_ITERATIONS >= 600_000);
 
 #[test]
 fn test_multiple_encrypt_same_key_different_ciphertext() {

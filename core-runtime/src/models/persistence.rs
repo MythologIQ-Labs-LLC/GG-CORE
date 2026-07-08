@@ -192,9 +192,11 @@ mod tests {
         let state_path = temp_dir.join("registry_state.json");
         let persistence = RegistryPersistence::new(state_path);
 
-        let mut state = RegistryState::default();
-        state.saved_at = timestamp();
-        state.default_model = Some("test-model".to_string());
+        let mut state = RegistryState {
+            saved_at: timestamp(),
+            default_model: Some("test-model".to_string()),
+            ..Default::default()
+        };
         state.models.insert(
             "test-model".to_string(),
             PersistedModel {
@@ -270,9 +272,11 @@ mod tests {
 
     #[test]
     fn test_registry_state_serialization() {
-        let mut state = RegistryState::default();
-        state.saved_at = 1234567890;
-        state.default_model = Some("default".to_string());
+        let state = RegistryState {
+            saved_at: 1234567890,
+            default_model: Some("default".to_string()),
+            ..Default::default()
+        };
 
         let json = serde_json::to_string(&state).unwrap();
         let deserialized: RegistryState = serde_json::from_str(&json).unwrap();
@@ -332,13 +336,17 @@ mod tests {
         let persistence = RegistryPersistence::new(state_path);
 
         // Save first state
-        let mut state1 = RegistryState::default();
-        state1.default_model = Some("model1".to_string());
+        let state1 = RegistryState {
+            default_model: Some("model1".to_string()),
+            ..Default::default()
+        };
         persistence.save(&state1).unwrap();
 
         // Save second state (overwrite)
-        let mut state2 = RegistryState::default();
-        state2.default_model = Some("model2".to_string());
+        let state2 = RegistryState {
+            default_model: Some("model2".to_string()),
+            ..Default::default()
+        };
         persistence.save(&state2).unwrap();
 
         // Load and verify latest

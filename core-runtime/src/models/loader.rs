@@ -73,6 +73,13 @@ impl ModelLoader {
 
     /// Validate and create a ModelPath if within allowed directories.
     pub fn validate_path(&self, relative_path: &str) -> Result<ModelPath, LoadError> {
+        // Reject NUL bytes at the validation seam: a path that is one string in
+        // Rust but truncates at the first NUL across the C FFI boundary is a
+        // validation-bypass class (the validated and used paths could differ).
+        // The error payload is a fixed sentinel -- never echo a NUL-bearing path.
+        if relative_path.contains('\0') {
+            return Err(LoadError::PathNotAllowed(PathBuf::from("<nul-byte rejected>")));
+        }
         let full_path = self.base_path.join(relative_path);
 
         // Lexically normalize the requested path to prevent path traversal
@@ -208,5 +215,8 @@ mod tests {
         // Dangerous traversal attempts
         assert!(loader.validate_path("models/../../etc/passwd").is_err());
         assert!(loader.validate_path("../../../etc/shadow").is_err());
+
+        // NUL-byte injection is rejected at the seam (FFI truncation class).
+        assert!(loader.validate_path("models/test\0../../etc/passwd").is_err());
     }
 }

@@ -401,7 +401,7 @@ mod tests {
             CliError::ConnectionFailed("test".into()),
             CliError::Timeout,
             CliError::Protocol("test".into()),
-            CliError::Io(std::io::Error::new(std::io::ErrorKind::Other, "test")),
+            CliError::Io(std::io::Error::other("test")),
             CliError::Unhealthy,
         ];
 

@@ -27,9 +27,13 @@ fn gguf_config_defaults_valid() {
 fn gguf_model_requires_valid_path() {
     let loader = create_test_loader();
 
-    // Attempting to load non-existent model should fail
-    let result = loader.validate_path("models/nonexistent.gguf");
-    assert!(result.is_err(), "Should fail for non-existent model");
+    // validate_path is lexical: a well-formed in-scope path validates OK even
+    // when the file does not exist. Existence is checked at the load step.
+    let validated = loader
+        .validate_path("models/nonexistent.gguf")
+        .expect("lexically valid path should validate");
+    let result = loader.load_metadata(&validated);
+    assert!(result.is_err(), "load should fail for non-existent model");
 }
 
 #[test]
@@ -178,9 +182,13 @@ fn mmap_load_missing_file() {
     std::fs::create_dir_all(base.join("models")).ok();
     let loader = ModelLoader::new(base.clone());
 
-    // validate_path will fail for missing file
-    let result = loader.validate_path("models/nonexistent.bin");
-    assert!(result.is_err(), "Should fail for non-existent file");
+    // Lexically valid path validates OK; the mmap load surfaces the missing
+    // file as an Io error (do not pin the variant -- File::open yields Io).
+    let validated = loader
+        .validate_path("models/nonexistent.bin")
+        .expect("lexically valid path should validate");
+    let result = loader.load_mapped(&validated);
+    assert!(result.is_err(), "mmap load should fail for non-existent file");
 
     // Cleanup
     std::fs::remove_dir_all(&base).ok();

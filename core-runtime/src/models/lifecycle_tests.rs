@@ -16,6 +16,8 @@ struct MockModel {
 }
 
 impl MockModel {
+    // Constructs a trait object rather than Self by design (test mock factory).
+    #[allow(clippy::new_ret_no_self)]
     fn new(id: &str, memory: usize) -> Arc<dyn GgufModel> {
         Arc::new(Self { id: id.to_string(), memory })
     }

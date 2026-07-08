@@ -1,6 +1,5 @@
 //! Tests for the configurable thread pool.
 
-use super::super::thread_pool_types::*;
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
