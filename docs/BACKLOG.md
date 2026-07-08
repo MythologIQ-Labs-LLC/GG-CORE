@@ -18,14 +18,17 @@ it. Priority and status reflect observable state at reconstruction time.
 
 | ID | Item | Canonical source | Priority | Status | Next action |
 |----|------|------------------|----------|--------|-------------|
-| B-01 | clippy `-D warnings` fails on Linux/macOS: dead code + lints in `sandbox/unix.rs` | issue #54 | P1 | open | Resolve dead-code/lints; unblocks F-38 sandbox verification |
+| B-01 | clippy `-D warnings` fails on Linux/macOS: dead code + lints in `sandbox/unix.rs` | issue #54 | P1 | in-progress | Fix landed on `chore/hardening-ci-sandbox-lints` (`7a00233`); verify via CI after operator push |
+| B-17 | Pre-existing default-feature test failures: gguf validate_path ×2, kv_cache multi-sequence | issue #55 | P1 | open | Blocks green `cargo test --workspace`; fix `validate_path` surface coherently with B-19 |
+| B-18 | 13 residual clippy errors on current stable toolchain (post-#47) | issue #56 | P1 | open | Blocks clippy CI leg on all OSes; mechanical fixes across 8 files |
+| B-19 | security: `validate_path()` does not reject NUL bytes (FFI truncation class) | issue #57 | P1 | open | L3 — needs audit before fix; candidate cycle 2 |
 | B-02 | ADR: Backend Capability Contract & BitNet-compatible runtime adapter | issue #48 | P2 | open | Author ADR; parent of B-03..B-06 |
 | B-03 | Implement `RuntimeBackendCapabilities` schema | issue #49 | P2 | open | Define schema after ADR #48 lands |
 | B-04 | Add hardware profile & backend selection policy | issue #50 | P2 | open | Design policy over K8s hardware profiles (F-44) |
 | B-05 | Create experimental BitNet backend adapter wrapper | issue #51 | P3 | open | Prototype behind an experimental feature flag |
 | B-06 | Build benchmark harness for backend perf & wrapper overhead | issue #52 | P2 | open | Extend existing `core-runtime/benches/` (F-47) |
 | B-07 | Define degraded-mode policy for constrained local inference | issue #53 | P2 | open | Specify governance + runtime behavior under resource pressure |
-| B-15 | Add Rust CI workflow (fmt --check, clippy -D warnings, cargo test; ubuntu/macos/windows matrix) | research brief 2026-07-08 | P1 | open | Prerequisite for verifying B-01/#54 fix and all hardening evidence |
+| B-15 | Add Rust CI workflow (fmt --check, clippy -D warnings, cargo test; ubuntu/macos/windows matrix) | research brief 2026-07-08 | P1 | in-progress | Landed on `chore/hardening-ci-sandbox-lints` (`7a00233`); goes green only after PR #47 + B-17/B-18/B-19 + fmt sweep merge |
 | B-16 | `sandbox/unix.rs` exceeds Section 4 Razor (523 lines > 250) — pre-existing debt | audit 2026-07-08 (R2) | P3 | open | Future `/qor-refactor` under its own L3 audit; out of scope for lint-only cycle |
 
 ## In-flight delivery

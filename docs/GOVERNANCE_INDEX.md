@@ -47,7 +47,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 
 | Artifact | Path | Plan |
 |----------|------|------|
-| _none open_ | `docs/plan-*.md` | — |
+| Cycle-1 hardening plan | `docs/plan-runtime-hardening-cycle1-2026-07-08.md` | runtime-hardening-cycle1 |
+| Cycle-1 research brief | `docs/research-brief-runtime-optimization-hardening-2026-07-08.md` | runtime-hardening-cycle1 |
 
 ## Tier 5 — Reference Material
 

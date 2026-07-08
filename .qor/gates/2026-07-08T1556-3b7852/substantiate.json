@@ -1,0 +1,20 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-08T1556-3b7852",
+  "ts": "2026-07-08T16:50:13Z",
+  "verdict": "PASS",
+  "merkle_seal": "06638c94fe8840aa04008d3a0185b748534eea8e499cb39ce0cb0917609e854a",
+  "content_hash": "83f86389c0a785a2b39fbde2e967822ae49c365ea7c9ebbf12fc9388a37f41d1",
+  "chain_hash": "275bad75276680e620d8ef9299153f204aac5554cceffa525123eace2def9aff",
+  "ledger_entry": 81,
+  "plan_path": "docs/plan-runtime-hardening-cycle1-2026-07-08.md",
+  "notes": "Local hold per Review Boundary: no push/PR/merge/tag/version bump. Verification on integration/preview-cycle1 (b661403 + 7a00233). Disclosed SKIPs recorded in ledger entry body.",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "unknown",
+    "model_family": "claude",
+    "human_oversight": "pass",
+    "ts": "2026-07-08T16:50:13Z"
+  }
+}
