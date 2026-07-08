@@ -49,9 +49,8 @@ impl CallbackInvoker {
 
         // SAFETY: callback and user_data are provided by the FFI caller who guarantees
         // the function pointer is valid and user_data lifetime spans this call.
-        let cont = unsafe {
-            (self.callback)(self.user_data, text_cstr.as_ptr(), is_final, error_ptr)
-        };
+        let cont =
+            unsafe { (self.callback)(self.user_data, text_cstr.as_ptr(), is_final, error_ptr) };
 
         if !cont {
             self.cancelled.store(true, Ordering::SeqCst);
@@ -85,9 +84,10 @@ pub unsafe extern "C" fn core_infer_streaming(
     let rt = &*runtime;
     let sess = &*session;
 
-    if let Err(e) = rt.tokio.block_on(async {
-        rt.inner.ipc_handler.auth.validate(&sess.token).await
-    }) {
+    if let Err(e) = rt
+        .tokio
+        .block_on(async { rt.inner.ipc_handler.auth.validate(&sess.token).await })
+    {
         return e.into();
     }
 
@@ -108,7 +108,11 @@ pub unsafe extern "C" fn core_infer_streaming(
     };
 
     let default_params = CoreInferenceParams::default();
-    let c_params = if params.is_null() { &default_params } else { &*params };
+    let c_params = if params.is_null() {
+        &default_params
+    } else {
+        &*params
+    };
     let rust_params = params_from_c(c_params);
 
     let cancelled = Arc::new(AtomicBool::new(false));
@@ -119,7 +123,9 @@ pub unsafe extern "C" fn core_infer_streaming(
     };
 
     let result = rt.tokio.block_on(async {
-        let (_id, rx) = rt.inner.request_queue
+        let (_id, rx) = rt
+            .inner
+            .request_queue
             .enqueue_with_response(
                 model_str.to_string(),
                 prompt_str.to_string(),

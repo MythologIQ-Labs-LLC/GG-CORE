@@ -11,6 +11,7 @@ pub mod metrics;
 pub mod thresholds;
 
 pub use canary::{CanaryConfig, CanaryController, CanaryDecision, CanaryPhase, CanaryState};
-pub use metrics::{compare_metrics, DeploymentMetrics, MetricsCollector, MetricsSnapshot, StatisticalComparison};
+pub use metrics::{
+    compare_metrics, DeploymentMetrics, MetricsCollector, MetricsSnapshot, StatisticalComparison,
+};
 pub use thresholds::{analyze_thresholds, AlertLevel, AnalysisThresholds, ThresholdResult};
-

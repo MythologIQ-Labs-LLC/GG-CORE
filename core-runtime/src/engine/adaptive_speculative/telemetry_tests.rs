@@ -59,7 +59,10 @@ fn auto_disable_reason_recorded() {
     t.record_auto_disable(&AutoDisableReason::AcceptanceRateLow);
     let s = t.snapshot();
     assert_eq!(s.auto_disable_count, 1);
-    assert_eq!(s.auto_disable_reason.as_deref(), Some("ACCEPTANCE_RATE_LOW"));
+    assert_eq!(
+        s.auto_disable_reason.as_deref(),
+        Some("ACCEPTANCE_RATE_LOW")
+    );
 }
 
 #[test]
@@ -69,7 +72,10 @@ fn auto_disable_reason_overwritten_by_latest() {
     t.record_auto_disable(&AutoDisableReason::SpeedupBelowThreshold);
     let s = t.snapshot();
     assert_eq!(s.auto_disable_count, 2);
-    assert_eq!(s.auto_disable_reason.as_deref(), Some("SPEEDUP_BELOW_THRESHOLD"));
+    assert_eq!(
+        s.auto_disable_reason.as_deref(),
+        Some("SPEEDUP_BELOW_THRESHOLD")
+    );
 }
 
 #[test]
@@ -115,8 +121,20 @@ fn mean_latencies_compute_correctly() {
 
 #[test]
 fn all_auto_disable_reason_codes_are_stable() {
-    assert_eq!(AutoDisableReason::AcceptanceRateLow.as_code(), "ACCEPTANCE_RATE_LOW");
-    assert_eq!(AutoDisableReason::SpeedupBelowThreshold.as_code(), "SPEEDUP_BELOW_THRESHOLD");
-    assert_eq!(AutoDisableReason::PairingIncompatible.as_code(), "PAIRING_INCOMPATIBLE");
-    assert_eq!(AutoDisableReason::ExplicitDisable.as_code(), "EXPLICIT_DISABLE");
+    assert_eq!(
+        AutoDisableReason::AcceptanceRateLow.as_code(),
+        "ACCEPTANCE_RATE_LOW"
+    );
+    assert_eq!(
+        AutoDisableReason::SpeedupBelowThreshold.as_code(),
+        "SPEEDUP_BELOW_THRESHOLD"
+    );
+    assert_eq!(
+        AutoDisableReason::PairingIncompatible.as_code(),
+        "PAIRING_INCOMPATIBLE"
+    );
+    assert_eq!(
+        AutoDisableReason::ExplicitDisable.as_code(),
+        "EXPLICIT_DISABLE"
+    );
 }

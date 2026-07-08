@@ -77,15 +77,19 @@ impl OutputCache {
         if self.entries.len() >= self.max_entries {
             self.evict_oldest();
         }
-        self.entries.insert(key, CachedOutput {
-            output_tokens,
-            cached_at: Instant::now(),
-        });
+        self.entries.insert(
+            key,
+            CachedOutput {
+                output_tokens,
+                cached_at: Instant::now(),
+            },
+        );
     }
 
     /// Remove expired entries.
     pub fn cleanup(&mut self) {
-        self.entries.retain(|_, entry| entry.cached_at.elapsed() <= self.ttl);
+        self.entries
+            .retain(|_, entry| entry.cached_at.elapsed() <= self.ttl);
     }
 
     /// Number of entries in cache.

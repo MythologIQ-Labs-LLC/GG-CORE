@@ -83,7 +83,8 @@ impl OutputFilter {
             // Apply blocklist with pre-computed normalized entries
             for (i, normalized_blocked) in self.normalized_blocklist.iter().enumerate() {
                 if lower.contains(normalized_blocked) {
-                    let new_str = result.replace(&self.config.blocklist[i], &self.config.replacement);
+                    let new_str =
+                        result.replace(&self.config.blocklist[i], &self.config.replacement);
                     result = std::borrow::Cow::Owned(new_str);
                 }
             }

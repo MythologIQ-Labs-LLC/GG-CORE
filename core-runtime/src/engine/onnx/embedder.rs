@@ -5,8 +5,8 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::engine::{
-    EmbeddingResult, InferenceCapability, InferenceConfig, InferenceError,
-    InferenceInput, InferenceOutput,
+    EmbeddingResult, InferenceCapability, InferenceConfig, InferenceError, InferenceInput,
+    InferenceOutput,
 };
 
 /// ONNX embedding model using Candle.
@@ -63,14 +63,9 @@ impl OnnxEmbedder {
 
     /// Run ONNX inference to produce an embedding vector.
     #[cfg(feature = "onnx")]
-    fn embed_text_onnx(
-        &self,
-        text: &str,
-    ) -> Result<EmbeddingResult, InferenceError> {
+    fn embed_text_onnx(&self, text: &str) -> Result<EmbeddingResult, InferenceError> {
         let model = self.model.as_ref().ok_or_else(|| {
-            InferenceError::ModelError(
-                format!("model '{}' not loaded", self.model_id),
-            )
+            InferenceError::ModelError(format!("model '{}' not loaded", self.model_id))
         })?;
 
         let device = candle_core::Device::Cpu;
@@ -80,12 +75,13 @@ impl OnnxEmbedder {
         let outputs = candle_onnx::simple_eval(model, inputs)
             .map_err(|e| InferenceError::ModelError(format!("eval: {e}")))?;
 
-        let tensor = outputs.values().next().ok_or_else(|| {
-            InferenceError::ModelError("no output tensor".into())
-        })?;
+        let tensor = outputs
+            .values()
+            .next()
+            .ok_or_else(|| InferenceError::ModelError("no output tensor".into()))?;
 
-        let pooled = mean_pool(tensor)
-            .map_err(|e| InferenceError::ModelError(format!("pool: {e}")))?;
+        let pooled =
+            mean_pool(tensor).map_err(|e| InferenceError::ModelError(format!("pool: {e}")))?;
 
         let vector: Vec<f32> = pooled
             .to_vec1()
@@ -135,9 +131,7 @@ fn simple_tokenize(text: &str) -> Vec<i64> {
 
 /// Mean-pool across sequence dimension (dim 1) and squeeze batch.
 #[cfg(feature = "onnx")]
-fn mean_pool(
-    tensor: &candle_core::Tensor,
-) -> candle_core::Result<candle_core::Tensor> {
+fn mean_pool(tensor: &candle_core::Tensor) -> candle_core::Result<candle_core::Tensor> {
     // tensor shape: [1, seq_len, hidden_dim] -> [hidden_dim]
     tensor.mean(1)?.squeeze(0)
 }
@@ -169,18 +163,14 @@ impl super::OnnxModel for OnnxEmbedder {
             }
             InferenceInput::TextBatch(batch) => {
                 let text = batch.first().ok_or_else(|| {
-                    InferenceError::InputValidation(
-                        "batch cannot be empty".into(),
-                    )
+                    InferenceError::InputValidation("batch cannot be empty".into())
                 })?;
                 let result = self.embed_text(text)?;
                 Ok(InferenceOutput::Embedding(result))
             }
-            InferenceInput::ChatMessages(_) => {
-                Err(InferenceError::CapabilityNotSupported(
-                    "chat not supported for embedding".into(),
-                ))
-            }
+            InferenceInput::ChatMessages(_) => Err(InferenceError::CapabilityNotSupported(
+                "chat not supported for embedding".into(),
+            )),
         }
     }
 
@@ -206,8 +196,7 @@ mod tests {
 
     #[test]
     fn load_and_embed() {
-        let model = candle_onnx::read_file(model_path())
-            .expect("load model");
+        let model = candle_onnx::read_file(model_path()).expect("load model");
         let embedder = OnnxEmbedder::with_model("test".into(), 384, model);
         let result = embedder.embed_text("file.write").expect("embed");
         assert_eq!(result.vector.len(), 384);

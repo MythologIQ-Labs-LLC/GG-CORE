@@ -168,7 +168,11 @@ pub struct CrossGpuCommunication {
 impl CrossGpuCommunication {
     /// Create a new cross-GPU communication channel.
     pub fn new(source: usize, destination: usize, p2p_enabled: bool) -> Self {
-        Self { source, destination, p2p_enabled }
+        Self {
+            source,
+            destination,
+            p2p_enabled,
+        }
     }
 
     /// Check if direct P2P transfer is possible.
@@ -178,7 +182,11 @@ impl CrossGpuCommunication {
 
     /// Get transfer method description.
     pub fn transfer_method(&self) -> &'static str {
-        if self.p2p_enabled { "P2P Direct" } else { "Host Staging" }
+        if self.p2p_enabled {
+            "P2P Direct"
+        } else {
+            "Host Staging"
+        }
     }
 
     /// Transfer `data` from source to destination GPU.
@@ -236,7 +244,13 @@ pub struct TransferResult {
 /// Check CUDA P2P access between two devices (stub without `cuda` feature).
 pub fn cuda_can_access_peer(src: usize, dst: usize) -> bool {
     #[cfg(feature = "cuda")]
-    { let _ = (src, dst); return true; }
+    {
+        let _ = (src, dst);
+        return true;
+    }
     #[cfg(not(feature = "cuda"))]
-    { let _ = (src, dst); false }
+    {
+        let _ = (src, dst);
+        false
+    }
 }

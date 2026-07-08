@@ -153,7 +153,10 @@ mod tests {
 
     #[test]
     fn clamp_draft_tokens_respects_max() {
-        let cfg = AdaptiveSpeculativeConfig { max_draft_tokens: 4, ..Default::default() };
+        let cfg = AdaptiveSpeculativeConfig {
+            max_draft_tokens: 4,
+            ..Default::default()
+        };
         assert_eq!(cfg.clamp_draft_tokens(10), 4);
         assert_eq!(cfg.clamp_draft_tokens(2), 2);
         assert_eq!(cfg.clamp_draft_tokens(0), 1);

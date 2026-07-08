@@ -35,8 +35,14 @@ mod t2_verification_bypass {
         // Total length: accepted_count + 1 correction; rejected suffix absent
         assert_eq!(out.len(), 3, "no tokens beyond accepted_count + correction");
         // Explicit absence of rejected tokens
-        assert!(!out.contains(&30), "draft[2] (rejected) must not appear in output");
-        assert!(!out.contains(&40), "draft[3] (rejected) must not appear in output");
+        assert!(
+            !out.contains(&30),
+            "draft[2] (rejected) must not appear in output"
+        );
+        assert!(
+            !out.contains(&40),
+            "draft[3] (rejected) must not appear in output"
+        );
     }
 
     /// Full acceptance: output equals the entire draft; no spurious tokens.
@@ -58,8 +64,15 @@ mod t2_verification_bypass {
 
         let out = result.into_tokens(&draft);
 
-        assert_eq!(out, vec![42], "zero accepted tokens: only correction is emitted");
-        assert!(!out.contains(&5), "draft[0] must not appear when accepted_count=0");
+        assert_eq!(
+            out,
+            vec![42],
+            "zero accepted tokens: only correction is emitted"
+        );
+        assert!(
+            !out.contains(&5),
+            "draft[0] must not appear when accepted_count=0"
+        );
     }
 
     /// accepted_count larger than draft length saturates at draft.len().
@@ -77,7 +90,11 @@ mod t2_verification_bypass {
         let out = result.into_tokens(&draft);
 
         // .take(999) on a 2-element slice must yield at most 2 elements.
-        assert_eq!(out.len(), 2, "output bounded by draft length regardless of accepted_count");
+        assert_eq!(
+            out.len(),
+            2,
+            "output bounded by draft length regardless of accepted_count"
+        );
         assert_eq!(out, draft);
     }
 }
@@ -149,8 +166,14 @@ mod t3_telemetry_pii {
     fn t3_default_config_telemetry_safe_defaults() {
         let cfg = AdaptiveSpeculativeConfig::default();
 
-        assert!(cfg.telemetry_enabled, "telemetry counters should be on by default");
-        assert!(!cfg.cost_profiling, "per-step cost profiling is off by default (overhead risk)");
+        assert!(
+            cfg.telemetry_enabled,
+            "telemetry counters should be on by default"
+        );
+        assert!(
+            !cfg.cost_profiling,
+            "per-step cost profiling is off by default (overhead risk)"
+        );
     }
 }
 
@@ -164,10 +187,10 @@ mod t3_telemetry_pii {
 
 #[cfg(feature = "advanced")]
 mod t4_incompatible_pairing {
+    use gg_core::models::SmartModelTier as ModelTier;
     use gg_core::models::{
         AdaptiveMode, AdaptiveSpeculativeConfig, HardwareProfile, TierSpeculativePlan,
     };
-    use gg_core::models::SmartModelTier as ModelTier;
 
     fn disabled_config() -> AdaptiveSpeculativeConfig {
         AdaptiveSpeculativeConfig {
@@ -197,8 +220,14 @@ mod t4_incompatible_pairing {
             &disabled_config(),
         );
 
-        assert!(!plan.is_speculative, "disabled config must yield single-model plan");
-        assert!(plan.draft_tier.is_none(), "single-model plan must not carry a draft tier");
+        assert!(
+            !plan.is_speculative,
+            "disabled config must yield single-model plan"
+        );
+        assert!(
+            plan.draft_tier.is_none(),
+            "single-model plan must not carry a draft tier"
+        );
         assert!(
             plan.fallback_reason.is_some(),
             "single-model plan must carry a fallback reason"
@@ -222,7 +251,10 @@ mod t4_incompatible_pairing {
             &cfg,
         );
 
-        assert!(!plan.is_speculative, "Disabled mode must yield single-model plan");
+        assert!(
+            !plan.is_speculative,
+            "Disabled mode must yield single-model plan"
+        );
     }
 
     /// When acceptance rate is below the configured floor, pairing falls back.
@@ -238,7 +270,10 @@ mod t4_incompatible_pairing {
             &cfg,
         );
 
-        assert!(!plan.is_speculative, "acceptance below floor must fall back to single-model");
+        assert!(
+            !plan.is_speculative,
+            "acceptance below floor must fall back to single-model"
+        );
     }
 
     /// When no compatible tier pair is available, plan is single-model.
@@ -253,7 +288,10 @@ mod t4_incompatible_pairing {
             &cfg,
         );
 
-        assert!(!plan.is_speculative, "single available tier must yield single-model plan");
+        assert!(
+            !plan.is_speculative,
+            "single available tier must yield single-model plan"
+        );
     }
 }
 
@@ -263,10 +301,10 @@ mod t4_incompatible_pairing {
 
 #[cfg(feature = "advanced")]
 mod t5_auto_disable {
+    use gg_core::engine::adaptive_speculative::heuristic::AdaptiveVerificationScheduler;
     use gg_core::engine::adaptive_speculative::{
         DraftBlock, SurvivalProfile, VerificationPlan, VerificationScheduler,
     };
-    use gg_core::engine::adaptive_speculative::heuristic::AdaptiveVerificationScheduler;
     use gg_core::models::{AdaptiveMode, AdaptiveSpeculativeConfig};
 
     fn scheduler_with_threshold(threshold: f32) -> AdaptiveVerificationScheduler {
@@ -323,7 +361,7 @@ mod t5_auto_disable {
     #[test]
     fn t5_auto_disable_does_not_fire_above_threshold() {
         let scheduler = scheduler_with_threshold(1.05); // requires only 5% speedup
-        // Record high-acceptance history.
+                                                        // Record high-acceptance history.
         for _ in 0..32 {
             scheduler.record_result(4, 4); // all 4 tokens accepted
         }
@@ -349,7 +387,10 @@ mod t5_auto_disable {
         let plan = VerificationPlan::fallback();
 
         assert_eq!(plan.window, 0, "fallback plan window must be zero");
-        assert!(plan.is_fallback(), "is_fallback() must return true for fallback plan");
+        assert!(
+            plan.is_fallback(),
+            "is_fallback() must return true for fallback plan"
+        );
         assert!(
             !plan.emit_correction,
             "fallback plan must not request a correction token"

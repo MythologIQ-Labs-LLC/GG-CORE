@@ -79,9 +79,7 @@ impl InferenceEngine {
 
         let cancel = Arc::clone(&is_cancelled);
         let check = move || cancel.load(Ordering::Acquire);
-        let result = Self::infer_cancellable(
-            &model, prompt, params, None, Some(&check),
-        ).await?;
+        let result = Self::infer_cancellable(&model, prompt, params, None, Some(&check)).await?;
 
         Ok(result)
     }
@@ -110,22 +108,20 @@ impl InferenceEngine {
 
         let cancel = Arc::clone(&is_cancelled);
         let check = move || cancel.load(Ordering::Acquire);
-        let result = Self::infer_cancellable(
-            &model, prompt, params, Some(max_memory_bytes), Some(&check),
-        ).await?;
+        let result =
+            Self::infer_cancellable(&model, prompt, params, Some(max_memory_bytes), Some(&check))
+                .await?;
 
         Ok(result)
     }
 
     /// Look up a model by ID, cloning the Arc (drops the read lock).
-    async fn get_model(
-        &self,
-        model_id: &str,
-    ) -> Result<Arc<dyn GgufModel>, InferenceError> {
+    async fn get_model(&self, model_id: &str) -> Result<Arc<dyn GgufModel>, InferenceError> {
         let models = self.models.read().await;
-        models.get(model_id).cloned().ok_or_else(|| {
-            InferenceError::ModelNotLoaded(model_id.to_string())
-        })
+        models
+            .get(model_id)
+            .cloned()
+            .ok_or_else(|| InferenceError::ModelNotLoaded(model_id.to_string()))
     }
 
     /// Conservative bytes-per-token estimate for context check.
@@ -199,7 +195,11 @@ impl InferenceEngine {
 
     /// Return the memory usage reported by a registered model, or None if not found.
     pub async fn model_memory_usage(&self, model_id: &str) -> Option<usize> {
-        self.models.read().await.get(model_id).map(|m| m.memory_usage())
+        self.models
+            .read()
+            .await
+            .get(model_id)
+            .map(|m| m.memory_usage())
     }
 
     /// Run streaming inference, sending tokens to the provided sender.
@@ -220,16 +220,21 @@ impl InferenceEngine {
         let rt = tokio::runtime::Handle::current();
         let model = {
             let models = rt.block_on(self.models.read());
-            models.get(model_id).cloned().ok_or_else(|| {
-                InferenceError::ModelNotLoaded(model_id.to_string())
-            })?
+            models
+                .get(model_id)
+                .cloned()
+                .ok_or_else(|| InferenceError::ModelNotLoaded(model_id.to_string()))?
         };
 
-        let generator = model.as_any().downcast_ref::<GgufGenerator>().ok_or_else(|| {
-            InferenceError::ExecutionFailed("model does not support streaming".into())
-        })?;
+        let generator = model
+            .as_any()
+            .downcast_ref::<GgufGenerator>()
+            .ok_or_else(|| {
+                InferenceError::ExecutionFailed("model does not support streaming".into())
+            })?;
 
-        generator.generate_stream(prompt, config, sender, None)
+        generator
+            .generate_stream(prompt, config, sender, None)
             .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))
     }
 }

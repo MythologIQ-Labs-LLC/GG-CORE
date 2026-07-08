@@ -5,8 +5,8 @@ use std::sync::Arc;
 use super::*;
 use crate::engine::gguf::GgufModel;
 use crate::engine::{
-    InferenceCapability, InferenceConfig, InferenceError as EngineError,
-    InferenceInput, InferenceOutput, GenerationResult,
+    GenerationResult, InferenceCapability, InferenceConfig, InferenceError as EngineError,
+    InferenceInput, InferenceOutput,
 };
 
 /// Mock model for testing lifecycle without real GGUF backend.
@@ -19,19 +19,26 @@ impl MockModel {
     // Constructs a trait object rather than Self by design (test mock factory).
     #[allow(clippy::new_ret_no_self)]
     fn new(id: &str, memory: usize) -> Arc<dyn GgufModel> {
-        Arc::new(Self { id: id.to_string(), memory })
+        Arc::new(Self {
+            id: id.to_string(),
+            memory,
+        })
     }
 }
 
 #[async_trait::async_trait]
 impl GgufModel for MockModel {
-    fn model_id(&self) -> &str { &self.id }
+    fn model_id(&self) -> &str {
+        &self.id
+    }
 
     fn capabilities(&self) -> &[InferenceCapability] {
         &[InferenceCapability::TextGeneration]
     }
 
-    fn memory_usage(&self) -> usize { self.memory }
+    fn memory_usage(&self) -> usize {
+        self.memory
+    }
 
     async fn infer(
         &self,
@@ -45,13 +52,20 @@ impl GgufModel for MockModel {
         }))
     }
 
-    async fn unload(&mut self) -> Result<(), EngineError> { Ok(()) }
+    async fn unload(&mut self) -> Result<(), EngineError> {
+        Ok(())
+    }
 
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 fn make_metadata(name: &str, size: u64) -> ModelMetadata {
-    ModelMetadata { name: name.to_string(), size_bytes: size }
+    ModelMetadata {
+        name: name.to_string(),
+        size_bytes: size,
+    }
 }
 
 fn make_lifecycle() -> ModelLifecycle {
@@ -161,8 +175,12 @@ async fn multiple_models_independent() {
     let m1 = MockModel::new("a", 100);
     let m2 = MockModel::new("b", 200);
 
-    lc.load("a".into(), make_metadata("a", 100), m1).await.unwrap();
-    lc.load("b".into(), make_metadata("b", 200), m2).await.unwrap();
+    lc.load("a".into(), make_metadata("a", 100), m1)
+        .await
+        .unwrap();
+    lc.load("b".into(), make_metadata("b", 200), m2)
+        .await
+        .unwrap();
 
     assert_eq!(lc.count().await, 2);
 

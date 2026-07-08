@@ -2,8 +2,8 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::engine::{InferenceConfig, InferenceParams};
     use crate::engine::TokenStream;
+    use crate::engine::{InferenceConfig, InferenceParams};
     use crate::scheduler::{Priority, RequestQueue, RequestQueueConfig};
 
     fn small_queue() -> RequestQueue {
@@ -18,8 +18,10 @@ mod tests {
         let q = small_queue();
         let result = q
             .enqueue_with_response(
-                "model".into(), "hello".into(),
-                InferenceParams::default(), Priority::Normal,
+                "model".into(),
+                "hello".into(),
+                InferenceParams::default(),
+                Priority::Normal,
             )
             .await;
         assert!(result.is_ok());
@@ -31,11 +33,22 @@ mod tests {
     async fn queue_full_rejects_enqueue() {
         let q = small_queue();
         for _ in 0..2 {
-            q.enqueue("m".into(), "p".into(), InferenceParams::default(), Priority::Normal)
-                .await.unwrap();
+            q.enqueue(
+                "m".into(),
+                "p".into(),
+                InferenceParams::default(),
+                Priority::Normal,
+            )
+            .await
+            .unwrap();
         }
         let err = q
-            .enqueue("m".into(), "p".into(), InferenceParams::default(), Priority::Normal)
+            .enqueue(
+                "m".into(),
+                "p".into(),
+                InferenceParams::default(),
+                Priority::Normal,
+            )
             .await;
         assert!(err.is_err());
     }
@@ -48,19 +61,28 @@ mod tests {
         let (tx1, _rx1) = TokenStream::new(4);
         let (tx2, _rx2) = TokenStream::new(4);
         q.enqueue_streaming("m".into(), "a".into(), InferenceConfig::default(), tx1)
-            .await.unwrap();
+            .await
+            .unwrap();
         q.enqueue_streaming("m".into(), "b".into(), InferenceConfig::default(), tx2)
-            .await.unwrap();
+            .await
+            .unwrap();
 
         // Regular enqueue should fail
         let err = q
-            .enqueue("m".into(), "p".into(), InferenceParams::default(), Priority::Normal)
+            .enqueue(
+                "m".into(),
+                "p".into(),
+                InferenceParams::default(),
+                Priority::Normal,
+            )
             .await;
         assert!(err.is_err());
 
         // Third streaming should also fail
         let (tx3, _rx3) = TokenStream::new(4);
-        let err = q.enqueue_streaming("m".into(), "c".into(), InferenceConfig::default(), tx3).await;
+        let err = q
+            .enqueue_streaming("m".into(), "c".into(), InferenceConfig::default(), tx3)
+            .await;
         assert!(err.is_err());
     }
 
@@ -69,8 +91,14 @@ mod tests {
         let q = small_queue();
         let (tx, _rx) = TokenStream::new(4);
         let id = q
-            .enqueue_streaming("model".into(), "hello".into(), InferenceConfig::default(), tx)
-            .await.unwrap();
+            .enqueue_streaming(
+                "model".into(),
+                "hello".into(),
+                InferenceConfig::default(),
+                tx,
+            )
+            .await
+            .unwrap();
 
         let req = q.dequeue_streaming().await;
         assert!(req.is_some());
@@ -84,16 +112,20 @@ mod tests {
         let (tx1, _rx1) = TokenStream::new(4);
         let (tx2, _rx2) = TokenStream::new(4);
         q.enqueue_streaming("m".into(), "a".into(), InferenceConfig::default(), tx1)
-            .await.unwrap();
+            .await
+            .unwrap();
         q.enqueue_streaming("m".into(), "b".into(), InferenceConfig::default(), tx2)
-            .await.unwrap();
+            .await
+            .unwrap();
 
         // Dequeue one streaming request
         let _req = q.dequeue_streaming().await.unwrap();
 
         // Now there's space for one more
         let (tx3, _rx3) = TokenStream::new(4);
-        let ok = q.enqueue_streaming("m".into(), "c".into(), InferenceConfig::default(), tx3).await;
+        let ok = q
+            .enqueue_streaming("m".into(), "c".into(), InferenceConfig::default(), tx3)
+            .await;
         assert!(ok.is_ok());
     }
 
@@ -106,7 +138,9 @@ mod tests {
         // 44 bytes / 4 = 11 > 10 max
         let big = "a".repeat(44);
         let (tx, _rx) = TokenStream::new(4);
-        let err = q.enqueue_streaming("m".into(), big, InferenceConfig::default(), tx).await;
+        let err = q
+            .enqueue_streaming("m".into(), big, InferenceConfig::default(), tx)
+            .await;
         assert!(err.is_err());
     }
 }

@@ -1,6 +1,3 @@
-[build]
-target = "x86_64-pc-windows-msvc"
-
 # Note: RUSTFLAGS for target-cpu=native must be set at build time
 # to avoid conflicts with bindgen/llama-cpp-sys build.
 # Use: cargo build --release --features gguf

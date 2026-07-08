@@ -57,7 +57,10 @@ pub struct GgufEnvConfig {
 
 impl Default for GgufEnvConfig {
     fn default() -> Self {
-        Self { n_ctx: 2048, n_threads: 0 }
+        Self {
+            n_ctx: 2048,
+            n_threads: 0,
+        }
     }
 }
 
@@ -107,7 +110,10 @@ fn load_queue_config() -> RequestQueueConfig {
     let max_context_tokens = parse_usize("GG_CORE_MAX_CONTEXT_TOKENS", 4096);
     let max_pending = max_pending.max(1);
     let max_context_tokens = max_context_tokens.max(1);
-    RequestQueueConfig { max_pending, max_context_tokens }
+    RequestQueueConfig {
+        max_pending,
+        max_context_tokens,
+    }
 }
 
 /// Load resource limits configuration from environment.
@@ -116,7 +122,7 @@ fn load_resource_limits() -> ResourceLimitsConfig {
     let total = parse_usize("GG_CORE_MAX_TOTAL_MEMORY", 2 * 1024 * 1024 * 1024);
     let concurrent = parse_usize("GG_CORE_MAX_CONCURRENT", 2);
     let per_call = per_call.max(1024 * 1024); // floor: 1MB
-    let total = total.max(per_call);          // total >= per_call
+    let total = total.max(per_call); // total >= per_call
     let concurrent = concurrent.max(1);
     ResourceLimitsConfig {
         max_memory_per_call: per_call,
@@ -131,7 +137,10 @@ fn load_batch_config() -> BatchConfig {
     let max_total_tokens = parse_usize("GG_CORE_BATCH_MAX_TOKENS", 4096);
     let max_batch_size = max_batch_size.max(1);
     let max_total_tokens = max_total_tokens.max(1);
-    BatchConfig { max_batch_size, max_total_tokens }
+    BatchConfig {
+        max_batch_size,
+        max_total_tokens,
+    }
 }
 
 /// Load GGUF engine configuration from environment.
@@ -278,7 +287,10 @@ mod tests {
         clear_env_vars();
         std::env::set_var("GG_CORE_IPC_FRAME_LIMIT", "0");
         let cfg = load();
-        assert!(cfg.ipc_server.max_frame_size >= 4096, "frame limit must have floor");
+        assert!(
+            cfg.ipc_server.max_frame_size >= 4096,
+            "frame limit must have floor"
+        );
         clear_env_vars();
     }
 
@@ -320,7 +332,10 @@ mod tests {
         clear_env_vars();
         std::env::set_var("GG_CORE_MAX_CONTEXT", "0");
         let cfg = load();
-        assert!(cfg.max_context_length >= 1, "max_context_length must be > 0");
+        assert!(
+            cfg.max_context_length >= 1,
+            "max_context_length must be > 0"
+        );
 
         std::env::set_var("GG_CORE_MAX_CONTEXT", "9999999");
         let cfg = load();

@@ -37,7 +37,9 @@ pub enum ProtocolVersion {
 }
 
 impl Default for ProtocolVersion {
-    fn default() -> Self { Self::V1 }
+    fn default() -> Self {
+        Self::V1
+    }
 }
 
 impl ProtocolVersion {
@@ -47,7 +49,11 @@ impl ProtocolVersion {
 
     pub fn negotiate(client_requested: Option<ProtocolVersion>) -> ProtocolVersion {
         let requested = client_requested.unwrap_or_default();
-        if requested.is_supported() { requested } else { CURRENT_PROTOCOL_VERSION }
+        if requested.is_supported() {
+            requested
+        } else {
+            CURRENT_PROTOCOL_VERSION
+        }
     }
 }
 
@@ -109,21 +115,41 @@ pub struct InferenceResponse {
 }
 
 impl InferenceResponse {
-    pub fn success(request_id: RequestId, output: String, tokens_generated: usize, finished: bool) -> Self {
-        Self { request_id, output, tokens_generated, finished, error: None, error_code: None }
+    pub fn success(
+        request_id: RequestId,
+        output: String,
+        tokens_generated: usize,
+        finished: bool,
+    ) -> Self {
+        Self {
+            request_id,
+            output,
+            tokens_generated,
+            finished,
+            error: None,
+            error_code: None,
+        }
     }
 
     pub fn error(request_id: RequestId, error: String) -> Self {
         Self {
-            request_id, output: String::new(), tokens_generated: 0, finished: true,
-            error: Some(error), error_code: Some(InferenceErrorCode::ExecutionFailed),
+            request_id,
+            output: String::new(),
+            tokens_generated: 0,
+            finished: true,
+            error: Some(error),
+            error_code: Some(InferenceErrorCode::ExecutionFailed),
         }
     }
 
     pub fn error_coded(request_id: RequestId, error: String, code: InferenceErrorCode) -> Self {
         Self {
-            request_id, output: String::new(), tokens_generated: 0, finished: true,
-            error: Some(error), error_code: Some(code),
+            request_id,
+            output: String::new(),
+            tokens_generated: 0,
+            finished: true,
+            error: Some(error),
+            error_code: Some(code),
         }
     }
 }
@@ -140,23 +166,53 @@ pub struct StreamChunk {
 
 impl StreamChunk {
     pub fn token(request_id: RequestId, token: u32) -> Self {
-        Self { request_id, token, text: None, is_final: false, error: None }
+        Self {
+            request_id,
+            token,
+            text: None,
+            is_final: false,
+            error: None,
+        }
     }
 
     pub fn token_with_text(request_id: RequestId, token: u32, text: String) -> Self {
-        Self { request_id, token, text: Some(text), is_final: false, error: None }
+        Self {
+            request_id,
+            token,
+            text: Some(text),
+            is_final: false,
+            error: None,
+        }
     }
 
     pub fn final_token(request_id: RequestId, token: u32) -> Self {
-        Self { request_id, token, text: None, is_final: true, error: None }
+        Self {
+            request_id,
+            token,
+            text: None,
+            is_final: true,
+            error: None,
+        }
     }
 
     pub fn final_token_with_text(request_id: RequestId, token: u32, text: String) -> Self {
-        Self { request_id, token, text: Some(text), is_final: true, error: None }
+        Self {
+            request_id,
+            token,
+            text: Some(text),
+            is_final: true,
+            error: None,
+        }
     }
 
     pub fn error(request_id: RequestId, error: String) -> Self {
-        Self { request_id, token: 0, text: None, is_final: true, error: Some(error) }
+        Self {
+            request_id,
+            token: 0,
+            text: None,
+            is_final: true,
+            error: Some(error),
+        }
     }
 }
 
@@ -167,7 +223,9 @@ pub struct WarmupRequest {
     pub tokens: usize,
 }
 
-fn default_warmup_tokens() -> usize { 1 }
+fn default_warmup_tokens() -> usize {
+    1
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WarmupResponse {
@@ -179,16 +237,30 @@ pub struct WarmupResponse {
 
 impl WarmupResponse {
     pub fn success(model_id: String, elapsed_ms: u64) -> Self {
-        Self { model_id, success: true, error: None, elapsed_ms }
+        Self {
+            model_id,
+            success: true,
+            error: None,
+            elapsed_ms,
+        }
     }
 
     pub fn error(model_id: String, error: String, elapsed_ms: u64) -> Self {
-        Self { model_id, success: false, error: Some(error), elapsed_ms }
+        Self {
+            model_id,
+            success: false,
+            error: Some(error),
+            elapsed_ms,
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HealthCheckType { Liveness, Readiness, Full }
+pub enum HealthCheckType {
+    Liveness,
+    Readiness,
+    Full,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthCheckResponse {
@@ -201,9 +273,17 @@ pub struct HealthCheckResponse {
 #[serde(tag = "type")]
 pub enum IpcMessage {
     #[serde(rename = "handshake")]
-    Handshake { token: String, #[serde(default)] protocol_version: Option<ProtocolVersion> },
+    Handshake {
+        token: String,
+        #[serde(default)]
+        protocol_version: Option<ProtocolVersion>,
+    },
     #[serde(rename = "handshake_ack")]
-    HandshakeAck { session_id: String, #[serde(default)] protocol_version: ProtocolVersion },
+    HandshakeAck {
+        session_id: String,
+        #[serde(default)]
+        protocol_version: ProtocolVersion,
+    },
     #[serde(rename = "inference_request")]
     InferenceRequest(InferenceRequest),
     #[serde(rename = "inference_response")]
@@ -229,7 +309,10 @@ pub enum IpcMessage {
     #[serde(rename = "cancel_request")]
     CancelRequest { request_id: RequestId },
     #[serde(rename = "cancel_response")]
-    CancelResponse { request_id: RequestId, cancelled: bool },
+    CancelResponse {
+        request_id: RequestId,
+        cancelled: bool,
+    },
     #[serde(rename = "warmup_request")]
     WarmupRequest(WarmupRequest),
     #[serde(rename = "warmup_response")]

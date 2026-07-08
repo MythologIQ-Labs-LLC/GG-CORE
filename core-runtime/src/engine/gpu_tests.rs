@@ -74,13 +74,18 @@ fn test_device_placement_default_is_cpu() {
 
 #[test]
 fn test_device_placement_gpu_variant() {
-    let placement = DevicePlacement::Gpu { device_index: 0, layers: Some(32) };
+    let placement = DevicePlacement::Gpu {
+        device_index: 0,
+        layers: Some(32),
+    };
     assert!(matches!(placement, DevicePlacement::Gpu { .. }));
 }
 
 #[test]
 fn test_device_placement_split_variant() {
-    let placement = DevicePlacement::Split { devices: vec![0, 1] };
+    let placement = DevicePlacement::Split {
+        devices: vec![0, 1],
+    };
     assert!(matches!(placement, DevicePlacement::Split { .. }));
 }
 

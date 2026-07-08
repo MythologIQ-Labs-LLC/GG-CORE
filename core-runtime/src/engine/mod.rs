@@ -18,11 +18,9 @@ pub mod gpu;
 pub mod gpu_allocator;
 pub mod gpu_manager;
 pub mod gpu_pool;
+pub mod inference;
+pub mod inference_types;
 pub mod input;
-pub mod onnx;
-pub mod output;
-pub mod prefill;
-pub mod simd_tokenizer;
 pub mod moe;
 #[cfg(feature = "advanced")]
 pub mod multi_gpu_exec;
@@ -32,14 +30,20 @@ pub mod multi_gpu_partition;
 pub mod multi_gpu_pipeline;
 #[cfg(feature = "advanced")]
 pub mod multi_gpu_tensor;
-pub mod inference;
-pub mod inference_types;
+pub mod onnx;
+pub mod output;
+pub mod prefill;
+pub mod simd_tokenizer;
 mod streaming;
 mod tokenizer;
 
 // --- Advanced modules (requires `advanced` feature, provided by TierSynergy) ---
 #[cfg(feature = "advanced")]
+pub mod adaptive_speculative;
+#[cfg(feature = "advanced")]
 pub mod flash_attn_gpu;
+#[cfg(feature = "advanced")]
+pub mod multi_gpu;
 #[cfg(feature = "advanced")]
 pub mod quantize;
 #[cfg(feature = "advanced")]
@@ -52,10 +56,6 @@ pub mod simd_tokenizer_v2;
 pub mod speculative;
 #[cfg(feature = "advanced")]
 pub mod speculative_v2;
-#[cfg(feature = "advanced")]
-pub mod multi_gpu;
-#[cfg(feature = "advanced")]
-pub mod adaptive_speculative;
 
 // --- GPU backend modules (conditionally compiled) ---
 #[cfg(feature = "cuda")]
@@ -80,15 +80,15 @@ pub use streaming::{StreamingOutput, TokenStream, TokenStreamSender};
 pub use tokenizer::{TokenizerError, TokenizerWrapper};
 
 // Backend re-exports
-pub use gguf::{GgufConfig, GgufGenerator, GgufModel};
 #[cfg(feature = "gguf")]
 pub use gguf::LlamaBackendInner;
+pub use gguf::{GgufConfig, GgufGenerator, GgufModel};
 pub use gpu::{DevicePlacement, GpuBackend, GpuConfig, GpuDevice, GpuError, GpuMemory};
-pub use gpu_allocator::{GpuAllocation, GpuAllocator, MockGpuAllocator};
 #[cfg(feature = "cuda")]
 pub use gpu_allocator::CudaGpuAllocator;
 #[cfg(feature = "metal")]
 pub use gpu_allocator::MetalGpuAllocator;
+pub use gpu_allocator::{GpuAllocation, GpuAllocator, MockGpuAllocator};
 pub use gpu_manager::GpuManager;
 pub use gpu_pool::GpuMemoryPool;
 pub use onnx::{OnnxClassifier, OnnxConfig, OnnxEmbedder, OnnxModel};
@@ -96,6 +96,10 @@ pub use onnx::{OnnxClassifier, OnnxConfig, OnnxEmbedder, OnnxModel};
 // --- Advanced re-exports (behind feature gate) ---
 #[cfg(feature = "advanced")]
 pub use flash_attn_gpu::{FlashAttnGpuConfig, FlashAttnGpuError, FlashAttnGpuKernel};
+#[cfg(feature = "advanced")]
+pub use multi_gpu::{
+    GpuPartition, MultiGpuConfig, MultiGpuError, MultiGpuManager, MultiGpuStrategy,
+};
 #[cfg(feature = "advanced")]
 pub use quantize::{QuantFormat, QuantizedTensor, QUANT_BLOCK_SIZE};
 #[cfg(feature = "advanced")]
@@ -113,8 +117,6 @@ pub use speculative_v2::{
     SpeculativeConfig as SpeculativeV2Config, SpeculativeDecoder as SpeculativeV2Decoder,
     SpeculativeStats,
 };
-#[cfg(feature = "advanced")]
-pub use multi_gpu::{GpuPartition, MultiGpuConfig, MultiGpuError, MultiGpuManager, MultiGpuStrategy};
 
 // Adaptive speculative telemetry (requires `advanced` feature)
 #[cfg(feature = "advanced")]

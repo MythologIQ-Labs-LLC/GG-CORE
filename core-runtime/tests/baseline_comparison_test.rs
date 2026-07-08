@@ -34,16 +34,18 @@ struct Thresholds {
 
 fn load_baseline() -> Result<BaselineMetrics, String> {
     let path = Path::new("fixtures/baselines/baseline_metrics.json");
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("Failed to load baseline: {}", e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse baseline: {}", e))
+    let content =
+        fs::read_to_string(path).map_err(|e| format!("Failed to load baseline: {}", e))?;
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse baseline: {}", e))
 }
 
 #[test]
 fn baseline_file_exists_and_valid() {
     let baseline = load_baseline();
-    assert!(baseline.is_ok(), "Baseline file should exist and be valid JSON");
+    assert!(
+        baseline.is_ok(),
+        "Baseline file should exist and be valid JSON"
+    );
 
     let baseline = baseline.unwrap();
     assert_eq!(baseline.version, "1.1.0");

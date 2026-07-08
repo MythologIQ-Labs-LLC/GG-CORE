@@ -78,15 +78,16 @@ impl ModelLoader {
         // validation-bypass class (the validated and used paths could differ).
         // The error payload is a fixed sentinel -- never echo a NUL-bearing path.
         if relative_path.contains('\0') {
-            return Err(LoadError::PathNotAllowed(PathBuf::from("<nul-byte rejected>")));
+            return Err(LoadError::PathNotAllowed(PathBuf::from(
+                "<nul-byte rejected>",
+            )));
         }
         let full_path = self.base_path.join(relative_path);
 
         // Lexically normalize the requested path to prevent path traversal
         // without relying on the OS/filesystem which could be vulnerable to TOCTOU.
-        let normalized = normalize_path(&full_path).ok_or_else(|| {
-            LoadError::PathNotAllowed(full_path.clone())
-        })?;
+        let normalized = normalize_path(&full_path)
+            .ok_or_else(|| LoadError::PathNotAllowed(full_path.clone()))?;
 
         let is_allowed = ALLOWED_DIRS.iter().any(|dir| {
             let allowed = self.base_path.join(dir);
@@ -120,7 +121,10 @@ impl ModelLoader {
             .unwrap_or("unknown")
             .to_string();
 
-        Ok(ModelMetadata { name, size_bytes: size })
+        Ok(ModelMetadata {
+            name,
+            size_bytes: size,
+        })
     }
 
     /// Load model using memory-mapping (zero-copy).
@@ -206,7 +210,9 @@ mod tests {
         assert!(loader.validate_path("tokenizers/tok1.json").is_ok());
 
         // Allowed paths using safe traversals
-        assert!(loader.validate_path("models/../tokenizers/tok1.json").is_ok());
+        assert!(loader
+            .validate_path("models/../tokenizers/tok1.json")
+            .is_ok());
 
         // Invalid paths (outside allowed directories)
         assert!(loader.validate_path("other/file.bin").is_err());
@@ -217,6 +223,8 @@ mod tests {
         assert!(loader.validate_path("../../../etc/shadow").is_err());
 
         // NUL-byte injection is rejected at the seam (FFI truncation class).
-        assert!(loader.validate_path("models/test\0../../etc/passwd").is_err());
+        assert!(loader
+            .validate_path("models/test\0../../etc/passwd")
+            .is_err());
     }
 }

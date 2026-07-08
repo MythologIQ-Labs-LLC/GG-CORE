@@ -60,11 +60,9 @@ fn bench_mock_executor_scaling(c: &mut Criterion) {
 
     for &gpus in &[1, 2, 4, 8] {
         let parts = make_partitions(gpus, 32);
-        group.bench_with_input(
-            BenchmarkId::new("mock_gpus", gpus),
-            &parts,
-            |b, p| b.iter(|| exec.execute(p, &input).unwrap()),
-        );
+        group.bench_with_input(BenchmarkId::new("mock_gpus", gpus), &parts, |b, p| {
+            b.iter(|| exec.execute(p, &input).unwrap())
+        });
     }
     group.finish();
 }
@@ -79,11 +77,9 @@ fn bench_layer_parallel_scaling(c: &mut Criterion) {
         let exec = LayerParallelExecutor::new(devices, 50);
         let parts = make_partitions(gpus, 32);
 
-        group.bench_with_input(
-            BenchmarkId::new("layer_gpus", gpus),
-            &parts,
-            |b, p| b.iter(|| exec.execute(p, &input).unwrap()),
-        );
+        group.bench_with_input(BenchmarkId::new("layer_gpus", gpus), &parts, |b, p| {
+            b.iter(|| exec.execute(p, &input).unwrap())
+        });
     }
     group.finish();
 }
@@ -97,11 +93,9 @@ fn bench_tensor_parallel_scaling(c: &mut Criterion) {
         let parts = make_partitions(gpus, 32);
         let exec = TensorParallelExecutor::new(50, true);
 
-        group.bench_with_input(
-            BenchmarkId::new("tensor_gpus", gpus),
-            &parts,
-            |b, p| b.iter(|| exec.execute(p, &input).unwrap()),
-        );
+        group.bench_with_input(BenchmarkId::new("tensor_gpus", gpus), &parts, |b, p| {
+            b.iter(|| exec.execute(p, &input).unwrap())
+        });
     }
     group.finish();
 }
@@ -115,11 +109,9 @@ fn bench_pipeline_scaling(c: &mut Criterion) {
         let exec = PipelineParallelExecutor::new(50);
         let parts = make_partitions(gpus, 32);
 
-        group.bench_with_input(
-            BenchmarkId::new("pipeline_gpus", gpus),
-            &parts,
-            |b, p| b.iter(|| exec.execute(p, &input).unwrap()),
-        );
+        group.bench_with_input(BenchmarkId::new("pipeline_gpus", gpus), &parts, |b, p| {
+            b.iter(|| exec.execute(p, &input).unwrap())
+        });
     }
     group.finish();
 }

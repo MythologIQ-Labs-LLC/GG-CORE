@@ -5,9 +5,9 @@
 
 use std::sync::Arc;
 
+use super::GgufGenerator;
 use crate::engine::speculative::{DraftModel, TargetModel, VerifyResult};
 use crate::engine::InferenceError;
-use super::GgufGenerator;
 
 /// Wrapper for using GgufGenerator as a draft model.
 pub struct GgufDraftModel {
@@ -54,9 +54,10 @@ impl TargetModel for GgufTargetModel {
 
     async fn generate_one(&self, context: &[u32]) -> Result<u32, InferenceError> {
         let tokens = self.generator.generate_tokens(context, 1).await?;
-        tokens.into_iter().next().ok_or_else(|| {
-            InferenceError::ModelError("failed to generate token".into())
-        })
+        tokens
+            .into_iter()
+            .next()
+            .ok_or_else(|| InferenceError::ModelError("failed to generate token".into()))
     }
 
     fn eos_token(&self) -> Option<u32> {

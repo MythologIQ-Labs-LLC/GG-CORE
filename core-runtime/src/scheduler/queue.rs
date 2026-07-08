@@ -30,7 +30,10 @@ pub struct RequestQueueConfig {
 
 impl Default for RequestQueueConfig {
     fn default() -> Self {
-        Self { max_pending: 256, max_context_tokens: 4096 }
+        Self {
+            max_pending: 256,
+            max_context_tokens: 4096,
+        }
     }
 }
 
@@ -62,7 +65,8 @@ impl RequestQueue {
         params: InferenceParams,
         priority: Priority,
     ) -> Result<(u64, usize), QueueError> {
-        self.enqueue_inner(model_id, prompt, params, priority, None).await
+        self.enqueue_inner(model_id, prompt, params, priority, None)
+            .await
     }
 
     /// Enqueue with a response channel. Returns (id, receiver).
@@ -99,9 +103,7 @@ impl RequestQueue {
         }
 
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        let request = QueuedRequest::with_tx(
-            id, model_id, prompt, params, response_tx,
-        );
+        let request = QueuedRequest::with_tx(id, model_id, prompt, params, response_tx);
         let position = queue.len();
         queue.push(request, priority);
         drop(queue);
@@ -194,9 +196,7 @@ impl RequestQueue {
     }
 
     /// Dequeue a streaming request, skipping cancelled/expired.
-    pub async fn dequeue_streaming(
-        &self,
-    ) -> Option<StreamingQueuedRequest> {
+    pub async fn dequeue_streaming(&self) -> Option<StreamingQueuedRequest> {
         let mut streaming = self.streaming.lock().await;
         loop {
             let request = streaming.pop_front()?;
@@ -234,8 +234,14 @@ impl std::fmt::Display for QueueError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::QueueFull => write!(f, "request queue is full"),
-            Self::ContextTooLarge { estimated_tokens, max } => {
-                write!(f, "prompt too large: ~{estimated_tokens} tokens (max {max})")
+            Self::ContextTooLarge {
+                estimated_tokens,
+                max,
+            } => {
+                write!(
+                    f,
+                    "prompt too large: ~{estimated_tokens} tokens (max {max})"
+                )
             }
         }
     }

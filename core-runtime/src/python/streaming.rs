@@ -54,7 +54,10 @@ pub struct StreamingIterator {
 
 impl StreamingIterator {
     pub fn new(text: String) -> Self {
-        Self { text: Some(text), done: false }
+        Self {
+            text: Some(text),
+            done: false,
+        }
     }
 }
 
@@ -87,7 +90,10 @@ pub struct AsyncStreamingIterator {
 impl AsyncStreamingIterator {
     #[allow(dead_code)]
     pub fn new(text: String) -> Self {
-        Self { text: Some(text), done: false }
+        Self {
+            text: Some(text),
+            done: false,
+        }
     }
 }
 

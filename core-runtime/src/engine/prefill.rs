@@ -82,9 +82,13 @@ impl PrefillExecutor {
             let seq_pos = start_pos + i;
             // Allocate a new page at each page boundary.
             if seq_pos % PAGE_TOKENS == 0 {
-                let page_id = page_table.allocate_page().ok_or_else(|| {
-                    InferenceError::MemoryExceeded { used: seq_pos, limit: seq_pos }
-                })?;
+                let page_id =
+                    page_table
+                        .allocate_page()
+                        .ok_or_else(|| InferenceError::MemoryExceeded {
+                            used: seq_pos,
+                            limit: seq_pos,
+                        })?;
                 current_page_id = Some(page_id);
             }
             let slot = PageTable::slot_in_page(seq_pos);
@@ -104,5 +108,7 @@ impl PrefillExecutor {
         (prompt_len + PAGE_TOKENS - 1) / PAGE_TOKENS
     }
 
-    pub fn config(&self) -> &PrefillConfig { &self.config }
+    pub fn config(&self) -> &PrefillConfig {
+        &self.config
+    }
 }

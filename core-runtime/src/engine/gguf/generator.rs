@@ -5,8 +5,8 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::engine::{
-    GenerationResult, InferenceCapability, InferenceConfig,
-    InferenceError, InferenceInput, InferenceOutput,
+    GenerationResult, InferenceCapability, InferenceConfig, InferenceError, InferenceInput,
+    InferenceOutput,
 };
 
 /// GGUF text generation model using llama-cpp-2.
@@ -145,11 +145,12 @@ impl GgufGenerator {
         messages: &[crate::engine::ChatMessage],
     ) -> Result<String, InferenceError> {
         const MAX_ROLE_TAG_LEN: usize = 13; // "<|assistant|>"
-        const END_TAG_LEN: usize = 8;      // "<|end|>\n"
-        const FINAL_TAG_LEN: usize = 13;    // "<|assistant|>"
+        const END_TAG_LEN: usize = 8; // "<|end|>\n"
+        const FINAL_TAG_LEN: usize = 13; // "<|assistant|>"
 
         let total_content_len: usize = messages.iter().map(|m| m.content.len()).sum();
-        let capacity = total_content_len + (messages.len() * (MAX_ROLE_TAG_LEN + END_TAG_LEN)) + FINAL_TAG_LEN;
+        let capacity =
+            total_content_len + (messages.len() * (MAX_ROLE_TAG_LEN + END_TAG_LEN)) + FINAL_TAG_LEN;
         let mut prompt = String::with_capacity(capacity);
 
         for msg in messages {
@@ -199,11 +200,9 @@ impl super::GgufModel for GgufGenerator {
                 let result = self.generate_text(&prompt, config)?;
                 Ok(InferenceOutput::Generation(result))
             }
-            InferenceInput::TextBatch(_) => {
-                Err(InferenceError::CapabilityNotSupported(
-                    "batch generation not supported".into(),
-                ))
-            }
+            InferenceInput::TextBatch(_) => Err(InferenceError::CapabilityNotSupported(
+                "batch generation not supported".into(),
+            )),
         }
     }
 

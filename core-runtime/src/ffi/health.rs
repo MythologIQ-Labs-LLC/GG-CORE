@@ -25,11 +25,18 @@ pub unsafe extern "C" fn core_health_check(
 
     // Gather health data
     let shutdown_state = rt.tokio.block_on(async { rt.inner.shutdown.state().await });
-    let models = rt.tokio.block_on(async { rt.inner.model_registry.count().await });
-    let queue = rt.tokio.block_on(async { rt.inner.request_queue.len().await });
+    let models = rt
+        .tokio
+        .block_on(async { rt.inner.model_registry.count().await });
+    let queue = rt
+        .tokio
+        .block_on(async { rt.inner.request_queue.len().await });
     let memory = rt.inner.memory_pool.available();
 
-    let report = rt.inner.health.report(shutdown_state, models, memory, queue);
+    let report = rt
+        .inner
+        .health
+        .report(shutdown_state, models, memory, queue);
 
     (*out_report).state = match report.state {
         HealthState::Healthy => CoreHealthState::Healthy,
@@ -66,8 +73,12 @@ pub unsafe extern "C" fn core_is_ready(runtime: *mut CoreRuntime) -> bool {
 
     let rt = &*runtime;
     let shutdown_state = rt.tokio.block_on(async { rt.inner.shutdown.state().await });
-    let models = rt.tokio.block_on(async { rt.inner.model_registry.count().await });
-    let queue = rt.tokio.block_on(async { rt.inner.request_queue.len().await });
+    let models = rt
+        .tokio
+        .block_on(async { rt.inner.model_registry.count().await });
+    let queue = rt
+        .tokio
+        .block_on(async { rt.inner.request_queue.len().await });
 
     rt.inner.health.is_ready(shutdown_state, models, queue)
 }

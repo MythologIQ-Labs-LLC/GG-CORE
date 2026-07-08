@@ -1,8 +1,8 @@
 //! Tests for the output sanitizer.
 
 use super::super::output_sanitizer::*;
-use super::super::sanitizer_rules::*;
 use super::super::pii_detector::PIIType;
+use super::super::sanitizer_rules::*;
 
 #[test]
 fn test_pii_redaction() {
@@ -25,7 +25,10 @@ fn test_no_modification_needed() {
 
 #[test]
 fn test_length_truncation() {
-    let config = SanitizerConfig { max_length: 50, ..Default::default() };
+    let config = SanitizerConfig {
+        max_length: 50,
+        ..Default::default()
+    };
     let sanitizer = OutputSanitizer::new(config);
     let output = "This is a very long output that should be truncated to fit within the limit.";
     let result = sanitizer.sanitize(output);
@@ -70,7 +73,10 @@ fn test_streaming_sanitization() {
 
 #[test]
 fn test_confidence_threshold() {
-    let config = SanitizerConfig { pii_confidence_threshold: 0.99, ..Default::default() };
+    let config = SanitizerConfig {
+        pii_confidence_threshold: 0.99,
+        ..Default::default()
+    };
     let sanitizer = OutputSanitizer::new(config);
     let output = "Email: test@example.com";
     let _result = sanitizer.sanitize(output);
@@ -78,7 +84,10 @@ fn test_confidence_threshold() {
 
 #[test]
 fn test_selective_pii_types() {
-    let config = SanitizerConfig { redact_types: vec![PIIType::Email], ..Default::default() };
+    let config = SanitizerConfig {
+        redact_types: vec![PIIType::Email],
+        ..Default::default()
+    };
     let sanitizer = OutputSanitizer::new(config);
     let output = "Email: test@example.com, Phone: 555-123-4567";
     let result = sanitizer.sanitize(output);
@@ -89,20 +98,32 @@ fn test_selective_pii_types() {
 #[test]
 fn test_performance() {
     let sanitizer = OutputSanitizer::default_sanitizer();
-    let output = "Contact support@example.com for help. Call 555-123-4567. SSN: 123-45-6789.".repeat(100);
+    let output =
+        "Contact support@example.com for help. Call 555-123-4567. SSN: 123-45-6789.".repeat(100);
     let start = std::time::Instant::now();
     for _ in 0..100 {
         let _ = sanitizer.sanitize(&output);
     }
     let duration = start.elapsed();
-    assert!(duration.as_millis() < 10000, "Sanitization too slow: {:?}", duration);
+    assert!(
+        duration.as_millis() < 10000,
+        "Sanitization too slow: {:?}",
+        duration
+    );
 }
 
 #[test]
 fn test_streaming_pii_split_attack() {
     let sanitizer = OutputSanitizer::default_sanitizer();
     let mut state = StreamingSanitizerState::default();
-    let chunks = ["My email is j", "ohn.sm", "ith@example.com", " and my phone is 5", "55-1", "23-4567"];
+    let chunks = [
+        "My email is j",
+        "ohn.sm",
+        "ith@example.com",
+        " and my phone is 5",
+        "55-1",
+        "23-4567",
+    ];
     let mut outputs = Vec::new();
     for chunk in &chunks {
         outputs.push(sanitizer.sanitize_chunk(chunk, &mut state));
@@ -131,6 +152,7 @@ fn test_streaming_buffer_does_not_lose_pii() {
     sanitizer.sanitize_chunk("Contact j", &mut state);
     sanitizer.sanitize_chunk("ohn.doe@test", &mut state);
     sanitizer.sanitize_chunk(".com for help", &mut state);
-    let has_email = state.buffer.contains("john.doe@test.com") || state.buffer.contains("[REDACTED");
+    let has_email =
+        state.buffer.contains("john.doe@test.com") || state.buffer.contains("[REDACTED");
     assert!(has_email || state.buffer.len() >= 50);
 }

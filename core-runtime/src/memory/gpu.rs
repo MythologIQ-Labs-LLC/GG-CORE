@@ -55,7 +55,8 @@ impl GpuMemory {
 
     /// Release previously reserved memory.
     pub fn release(&self, reservation: GpuReservation) {
-        self.allocated.fetch_sub(reservation.bytes, Ordering::SeqCst);
+        self.allocated
+            .fetch_sub(reservation.bytes, Ordering::SeqCst);
     }
 
     pub fn allocated(&self) -> usize {

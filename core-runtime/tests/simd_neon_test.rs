@@ -99,11 +99,17 @@ fn dot_q8_large_vector() {
     let result = dot_q8(&q_data, &input, scale);
 
     // Compute expected value
-    let expected: f32 = q_data.iter().zip(input.iter())
+    let expected: f32 = q_data
+        .iter()
+        .zip(input.iter())
         .map(|(&q, &x)| (q as i8 as f32) * x)
-        .sum::<f32>() * scale;
+        .sum::<f32>()
+        * scale;
 
-    assert!((result - expected).abs() < 0.1, "Expected {expected}, got {result}");
+    assert!(
+        (result - expected).abs() < 0.1,
+        "Expected {expected}, got {result}"
+    );
 }
 
 #[test]
@@ -115,12 +121,17 @@ fn dot_q4_large_vector() {
     // After Q4 decode: each nibble becomes (nibble - 8), range -8 to +7
     // Per 16-byte cycle: sum = 2 * (-8 + -7 + ... + 7) = 2 * -8 = -16
     // 128 bytes = 8 cycles, total = 8 * -16 = -128
-    let q_data: Vec<u8> = (0..128).map(|i| ((i % 16) | ((i % 16) << 4)) as u8).collect();
+    let q_data: Vec<u8> = (0..128)
+        .map(|i| ((i % 16) | ((i % 16) << 4)) as u8)
+        .collect();
     let input: Vec<f32> = (0..256).map(|_| 1.0).collect();
     let scale = 1.0;
 
     let result = dot_q4(&q_data, &input, scale);
 
     // Expected: -128 (verified mathematically)
-    assert!((result - (-128.0)).abs() < 1.0, "Expected -128, got {result}");
+    assert!(
+        (result - (-128.0)).abs() < 1.0,
+        "Expected -128, got {result}"
+    );
 }

@@ -15,7 +15,9 @@ async fn pool_preload_and_switch() {
         handle,
         ModelTier::Testing,
         500_000_000,
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
 
     assert!(pool.contains("qwen-0.5b").await);
 
@@ -34,11 +36,32 @@ async fn pool_eviction_by_tier() {
     };
     let pool = ModelPool::new(config, registry.clone());
 
-    pool.preload("ci".to_string(), ModelHandle::new(1), ModelTier::Testing, 100).await.unwrap();
-    pool.preload("prod".to_string(), ModelHandle::new(2), ModelTier::Quality, 100).await.unwrap();
+    pool.preload(
+        "ci".to_string(),
+        ModelHandle::new(1),
+        ModelTier::Testing,
+        100,
+    )
+    .await
+    .unwrap();
+    pool.preload(
+        "prod".to_string(),
+        ModelHandle::new(2),
+        ModelTier::Quality,
+        100,
+    )
+    .await
+    .unwrap();
 
     // Third model should evict testing tier
-    pool.preload("default".to_string(), ModelHandle::new(3), ModelTier::Default, 100).await.unwrap();
+    pool.preload(
+        "default".to_string(),
+        ModelHandle::new(3),
+        ModelTier::Default,
+        100,
+    )
+    .await
+    .unwrap();
 
     assert!(!pool.contains("ci").await);
     assert!(pool.contains("prod").await);
@@ -50,7 +73,14 @@ async fn pool_switch_latency_under_1ms() {
     let registry = Arc::new(ModelRegistry::new());
     let pool = ModelPool::new(PoolConfig::default(), registry.clone());
 
-    pool.preload("test".to_string(), ModelHandle::new(1), ModelTier::Default, 100).await.unwrap();
+    pool.preload(
+        "test".to_string(),
+        ModelHandle::new(1),
+        ModelTier::Default,
+        100,
+    )
+    .await
+    .unwrap();
 
     for _ in 0..100 {
         let result = pool.switch_to("test").await.unwrap();
@@ -63,7 +93,14 @@ async fn pool_warmup_tracking() {
     let registry = Arc::new(ModelRegistry::new());
     let pool = ModelPool::new(PoolConfig::default(), registry.clone());
 
-    pool.preload("test".to_string(), ModelHandle::new(1), ModelTier::Default, 100).await.unwrap();
+    pool.preload(
+        "test".to_string(),
+        ModelHandle::new(1),
+        ModelTier::Default,
+        100,
+    )
+    .await
+    .unwrap();
 
     let result = pool.switch_to("test").await.unwrap();
     assert!(!result.was_warmed);
@@ -79,8 +116,14 @@ async fn pool_switch_emits_latency_metric() {
     let registry = Arc::new(ModelRegistry::new());
     let pool = ModelPool::new(PoolConfig::default(), registry.clone());
 
-    pool.preload("metric-test".to_string(), ModelHandle::new(42), ModelTier::Default, 100)
-        .await.unwrap();
+    pool.preload(
+        "metric-test".to_string(),
+        ModelHandle::new(42),
+        ModelTier::Default,
+        100,
+    )
+    .await
+    .unwrap();
 
     let result = pool.switch_to("metric-test").await.unwrap();
     assert!(result.switch_latency < Duration::from_millis(10));

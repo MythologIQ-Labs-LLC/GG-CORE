@@ -80,7 +80,11 @@ impl HeuristicConfidenceEstimator {
         if log_probs.len() < 2 {
             return 0.0;
         }
-        let valid: Vec<f32> = log_probs.iter().copied().filter(|p| p.is_finite()).collect();
+        let valid: Vec<f32> = log_probs
+            .iter()
+            .copied()
+            .filter(|p| p.is_finite())
+            .collect();
         if valid.is_empty() {
             return 0.0;
         }
@@ -161,13 +165,20 @@ impl AdaptiveVerificationScheduler {
     /// Call this after every `verify` call.  `accepted` / `window` is
     /// stored as the acceptance fraction for that step.
     pub fn record_result(&self, accepted: usize, window: usize) {
-        let fraction = if window == 0 { 0.0 } else { accepted as f32 / window as f32 };
+        let fraction = if window == 0 {
+            0.0
+        } else {
+            accepted as f32 / window as f32
+        };
         self.history.push(fraction);
     }
 
     /// Returns `true` when auto-disable has fired for this scheduler instance.
     pub fn auto_disable_fired(&self) -> bool {
-        *self.auto_disable_fired.lock().unwrap_or_else(|e| e.into_inner())
+        *self
+            .auto_disable_fired
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
     }
 
     fn mode_multiplier(mode: AdaptiveMode) -> f32 {
@@ -205,14 +216,20 @@ impl VerificationScheduler for AdaptiveVerificationScheduler {
             return VerificationPlan::fallback();
         }
         if self.should_auto_disable() {
-            *self.auto_disable_fired.lock().unwrap_or_else(|e| e.into_inner()) = true;
+            *self
+                .auto_disable_fired
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = true;
             return VerificationPlan::fallback();
         }
         let window = self.compute_window(draft.tokens.len(), profile);
         if window == 0 {
             return VerificationPlan::fallback();
         }
-        VerificationPlan { window, emit_correction: true }
+        VerificationPlan {
+            window,
+            emit_correction: true,
+        }
     }
 }
 

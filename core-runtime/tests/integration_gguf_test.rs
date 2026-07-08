@@ -3,8 +3,8 @@
 //! Tests GGUF model configuration, generation structures, and memory-mapped loading.
 
 use gg_core::engine::{
-    FinishReason, GenerationResult, GgufConfig, InferenceOutput,
-    InferenceParams, ChatMessage, ChatRole,
+    ChatMessage, ChatRole, FinishReason, GenerationResult, GgufConfig, InferenceOutput,
+    InferenceParams,
 };
 use gg_core::models::ModelLoader;
 
@@ -110,11 +110,7 @@ fn chat_message_structure_valid() {
 
 #[test]
 fn chat_roles_all_variants() {
-    let roles = vec![
-        ChatRole::System,
-        ChatRole::User,
-        ChatRole::Assistant,
-    ];
+    let roles = vec![ChatRole::System, ChatRole::User, ChatRole::Assistant];
 
     assert_eq!(roles.len(), 3, "Should have 3 chat roles");
 }
@@ -167,7 +163,8 @@ fn mmap_load_valid_file() {
     let (base, _test_file) = create_test_file_for_mmap("load_valid");
     let loader = ModelLoader::new(base.clone());
 
-    let model_path = loader.validate_path("models/test_model.bin")
+    let model_path = loader
+        .validate_path("models/test_model.bin")
         .expect("Should validate test file path");
     let mapped = loader.load_mapped(&model_path);
 
@@ -189,7 +186,10 @@ fn mmap_load_missing_file() {
         .validate_path("models/nonexistent.bin")
         .expect("lexically valid path should validate");
     let result = loader.load_mapped(&validated);
-    assert!(result.is_err(), "mmap load should fail for non-existent file");
+    assert!(
+        result.is_err(),
+        "mmap load should fail for non-existent file"
+    );
 
     // Cleanup
     std::fs::remove_dir_all(&base).ok();
@@ -200,13 +200,16 @@ fn mmap_data_accessible() {
     let (base, _test_file) = create_test_file_for_mmap("data_accessible");
     let loader = ModelLoader::new(base.clone());
 
-    let model_path = loader.validate_path("models/test_model.bin")
+    let model_path = loader
+        .validate_path("models/test_model.bin")
         .expect("Should validate test file path");
-    let mapped = loader.load_mapped(&model_path)
-        .expect("Should map file");
+    let mapped = loader.load_mapped(&model_path).expect("Should map file");
 
     let data = mapped.as_bytes();
-    assert!(data.starts_with(b"GGUF"), "Should be able to read mapped data");
+    assert!(
+        data.starts_with(b"GGUF"),
+        "Should be able to read mapped data"
+    );
 
     // Cleanup
     std::fs::remove_dir_all(&base).ok();
@@ -217,16 +220,20 @@ fn mmap_len_matches_file_size() {
     let (base, test_file) = create_test_file_for_mmap("len_matches");
     let loader = ModelLoader::new(base.clone());
 
-    let model_path = loader.validate_path("models/test_model.bin")
+    let model_path = loader
+        .validate_path("models/test_model.bin")
         .expect("Should validate test file path");
-    let mapped = loader.load_mapped(&model_path)
-        .expect("Should map file");
+    let mapped = loader.load_mapped(&model_path).expect("Should map file");
 
     let file_size = std::fs::metadata(&test_file)
-        .expect("Should read file metadata").len();
+        .expect("Should read file metadata")
+        .len();
 
-    assert_eq!(mapped.len(), file_size as usize,
-        "Mapped length should match file size");
+    assert_eq!(
+        mapped.len(),
+        file_size as usize,
+        "Mapped length should match file size"
+    );
     assert!(!mapped.is_empty(), "Mapped model should not be empty");
 
     // Cleanup

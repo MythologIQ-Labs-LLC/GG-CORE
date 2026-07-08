@@ -75,11 +75,7 @@ pub fn load_onnx_model(
 ) -> Result<Arc<dyn OnnxModel>, InferenceError> {
     let model = candle_onnx::read_file(path)
         .map_err(|e| InferenceError::ModelError(format!("load {path:?}: {e}")))?;
-    let embedder = OnnxEmbedder::with_model(
-        model_id.to_string(),
-        DEFAULT_EMBEDDING_DIM,
-        model,
-    );
+    let embedder = OnnxEmbedder::with_model(model_id.to_string(), DEFAULT_EMBEDDING_DIM, model);
     Ok(Arc::new(embedder))
 }
 

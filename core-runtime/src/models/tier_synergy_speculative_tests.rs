@@ -85,7 +85,11 @@ fn disabled_config_falls_back() {
         &cfg,
     );
     assert!(!plan.is_speculative);
-    assert!(plan.fallback_reason.as_deref().unwrap().contains("disabled"));
+    assert!(plan
+        .fallback_reason
+        .as_deref()
+        .unwrap()
+        .contains("disabled"));
 }
 
 #[test]
@@ -98,7 +102,11 @@ fn low_acceptance_rate_forces_fallback() {
         &enabled_cfg(),
     );
     assert!(!plan.is_speculative);
-    assert!(plan.fallback_reason.as_deref().unwrap().contains("acceptance"));
+    assert!(plan
+        .fallback_reason
+        .as_deref()
+        .unwrap()
+        .contains("acceptance"));
 }
 
 #[test]

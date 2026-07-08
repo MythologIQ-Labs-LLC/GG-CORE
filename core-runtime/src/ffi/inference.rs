@@ -37,9 +37,10 @@ pub unsafe extern "C" fn core_infer(
     let sess = &*session;
 
     // Validate session
-    if let Err(e) = rt.tokio.block_on(async {
-        rt.inner.ipc_handler.auth.validate(&sess.token).await
-    }) {
+    if let Err(e) = rt
+        .tokio
+        .block_on(async { rt.inner.ipc_handler.auth.validate(&sess.token).await })
+    {
         return e.into();
     }
 
@@ -60,11 +61,17 @@ pub unsafe extern "C" fn core_infer(
     };
 
     let default_params = CoreInferenceParams::default();
-    let c_params = if params.is_null() { &default_params } else { &*params };
+    let c_params = if params.is_null() {
+        &default_params
+    } else {
+        &*params
+    };
     let rust_params = params_from_c(c_params);
 
     let result = rt.tokio.block_on(async {
-        let (_id, rx) = rt.inner.request_queue
+        let (_id, rx) = rt
+            .inner
+            .request_queue
             .enqueue_with_response(
                 model_str.to_string(),
                 prompt_str.to_string(),
@@ -111,7 +118,14 @@ pub unsafe extern "C" fn core_infer_with_timeout(
     };
     timed_params.timeout_ms = timeout_ms;
 
-    core_infer(runtime, session, model_id, prompt, &timed_params, out_result)
+    core_infer(
+        runtime,
+        session,
+        model_id,
+        prompt,
+        &timed_params,
+        out_result,
+    )
 }
 
 /// Free inference result text. # Safety: `result` must be null or from `core_infer`.
@@ -134,15 +148,16 @@ pub(super) fn params_from_c(c: &CoreInferenceParams) -> InferenceParams {
         top_p: c.top_p,
         top_k: c.top_k as usize,
         stream: c.stream,
-        timeout_ms: if c.timeout_ms == 0 { None } else { Some(c.timeout_ms) },
+        timeout_ms: if c.timeout_ms == 0 {
+            None
+        } else {
+            Some(c.timeout_ms)
+        },
     }
 }
 
 /// Write inference result to C struct
-fn write_inference_result(
-    result: &crate::engine::InferenceResult,
-    out: &mut CoreInferenceResult,
-) {
+fn write_inference_result(result: &crate::engine::InferenceResult, out: &mut CoreInferenceResult) {
     let cstr = CString::new(result.output.clone()).unwrap_or_default();
     out.output_text = cstr.into_raw();
     out.tokens_generated = result.tokens_generated as u32;
@@ -174,9 +189,10 @@ pub unsafe extern "C" fn core_infer_bounded(
     let rt = &*runtime;
     let sess = &*session;
 
-    if let Err(e) = rt.tokio.block_on(async {
-        rt.inner.ipc_handler.auth.validate(&sess.token).await
-    }) {
+    if let Err(e) = rt
+        .tokio
+        .block_on(async { rt.inner.ipc_handler.auth.validate(&sess.token).await })
+    {
         return e.into();
     }
 
@@ -199,11 +215,17 @@ pub unsafe extern "C" fn core_infer_bounded(
     };
 
     let default_params = CoreInferenceParams::default();
-    let c_params = if params.is_null() { &default_params } else { &*params };
+    let c_params = if params.is_null() {
+        &default_params
+    } else {
+        &*params
+    };
     let rust_params = params_from_c(c_params);
 
     let result = rt.tokio.block_on(async {
-        let (_id, rx) = rt.inner.request_queue
+        let (_id, rx) = rt
+            .inner
+            .request_queue
             .enqueue_with_response(
                 model_str.to_string(),
                 prompt_str.to_string(),

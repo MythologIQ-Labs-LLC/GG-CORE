@@ -1,11 +1,11 @@
 //! Integration tests for SwapManager - zero-downtime model hot-swap.
 
-use std::sync::Arc;
-use std::time::Duration;
 use gg_core::models::{
     FlightTracker, ModelArchitecture, ModelCapability, ModelManifest, ModelRegistry, ModelRouter,
     SwapError, SwapManager,
 };
+use std::sync::Arc;
+use std::time::Duration;
 
 fn test_manifest(model_id: &str) -> ModelManifest {
     ModelManifest {

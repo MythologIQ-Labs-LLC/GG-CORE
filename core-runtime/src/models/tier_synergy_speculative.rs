@@ -156,11 +156,7 @@ impl TierSpeculativePlan {
 
     // ── Private constructors ─────────────────────────────────────────────────
 
-    fn speculative(
-        primary: ModelTier,
-        draft: ModelTier,
-        pairing: SynergyMode,
-    ) -> Self {
+    fn speculative(primary: ModelTier, draft: ModelTier, pairing: SynergyMode) -> Self {
         Self {
             primary_tier: primary,
             draft_tier: Some(draft),

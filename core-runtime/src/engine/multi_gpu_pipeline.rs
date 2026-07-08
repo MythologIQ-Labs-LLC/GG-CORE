@@ -34,11 +34,7 @@ impl PipelineParallelExecutor {
     }
 
     /// Simulate one pipeline stage processing a micro-batch.
-    fn run_stage(
-        &self,
-        stage_layers: usize,
-        micro_batch: &mut [f32],
-    ) {
+    fn run_stage(&self, stage_layers: usize, micro_batch: &mut [f32]) {
         let scale = 1.0 + (stage_layers as f32 * 1e-6);
         for v in micro_batch.iter_mut() {
             *v *= scale;

@@ -1,7 +1,7 @@
 //! Tests for the status command.
 
-use super::*;
 use super::super::status_format::*;
+use super::*;
 
 #[test]
 fn test_format_uptime() {

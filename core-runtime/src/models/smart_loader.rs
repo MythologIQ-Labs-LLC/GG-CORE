@@ -88,9 +88,7 @@ impl SmartLoader {
             LoadHint::BatchIncoming { count } if count > 10 => {
                 self.find_model_by_tier(ModelTier::Quality).await
             }
-            LoadHint::BatchIncoming { .. } => {
-                self.find_model_by_tier(ModelTier::Balanced).await
-            }
+            LoadHint::BatchIncoming { .. } => self.find_model_by_tier(ModelTier::Balanced).await,
             LoadHint::UserIdle => self.predict_next().await,
             LoadHint::PreferModel { tier } => self.find_model_by_tier(tier).await,
         };

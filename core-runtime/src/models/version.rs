@@ -37,7 +37,12 @@ pub struct ModelVersion {
 impl ModelVersion {
     /// Create a new version.
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
-        Self { major, minor, patch, prerelease: None }
+        Self {
+            major,
+            minor,
+            patch,
+            prerelease: None,
+        }
     }
 
     /// Create a version with prerelease tag.
@@ -64,7 +69,8 @@ impl ModelVersion {
         }
 
         let parse_part = |p: &str| -> Result<u32, VersionError> {
-            p.parse().map_err(|_| VersionError::InvalidComponent(p.to_string()))
+            p.parse()
+                .map_err(|_| VersionError::InvalidComponent(p.to_string()))
         };
 
         Ok(Self {
@@ -166,17 +172,29 @@ impl VersionRange {
 
     /// Match versions >= min.
     pub fn at_least(min: ModelVersion) -> Self {
-        Self { min: Some(min), max: None, include_prerelease: false }
+        Self {
+            min: Some(min),
+            max: None,
+            include_prerelease: false,
+        }
     }
 
     /// Match versions < max.
     pub fn below(max: ModelVersion) -> Self {
-        Self { min: None, max: Some(max), include_prerelease: false }
+        Self {
+            min: None,
+            max: Some(max),
+            include_prerelease: false,
+        }
     }
 
     /// Match versions in range [min, max].
     pub fn between(min: ModelVersion, max: ModelVersion) -> Self {
-        Self { min: Some(min), max: Some(max), include_prerelease: false }
+        Self {
+            min: Some(min),
+            max: Some(max),
+            include_prerelease: false,
+        }
     }
 }
 
@@ -211,10 +229,7 @@ mod tests {
     #[test]
     fn test_range_matching() {
         let v = ModelVersion::parse("1.5.0").unwrap();
-        let range = VersionRange::between(
-            ModelVersion::new(1, 0, 0),
-            ModelVersion::new(2, 0, 0),
-        );
+        let range = VersionRange::between(ModelVersion::new(1, 0, 0), ModelVersion::new(2, 0, 0));
         assert!(v.satisfies(&range));
     }
 
@@ -413,10 +428,7 @@ mod tests {
 
     #[test]
     fn test_range_between() {
-        let range = VersionRange::between(
-            ModelVersion::new(1, 0, 0),
-            ModelVersion::new(2, 0, 0),
-        );
+        let range = VersionRange::between(ModelVersion::new(1, 0, 0), ModelVersion::new(2, 0, 0));
 
         assert!(!ModelVersion::new(0, 9, 9).satisfies(&range));
         assert!(ModelVersion::new(1, 0, 0).satisfies(&range));
@@ -430,7 +442,10 @@ mod tests {
         let range = VersionRange::at_least(ModelVersion::new(1, 0, 0));
         let prerelease = ModelVersion::with_prerelease(2, 0, 0, "alpha");
 
-        assert!(!prerelease.satisfies(&range), "prerelease should be excluded by default");
+        assert!(
+            !prerelease.satisfies(&range),
+            "prerelease should be excluded by default"
+        );
     }
 
     #[test]
@@ -447,7 +462,10 @@ mod tests {
         let exact = ModelVersion::with_prerelease(1, 0, 0, "beta");
         let range = VersionRange::exact(exact.clone());
 
-        assert!(exact.satisfies(&range), "exact range should include prerelease");
+        assert!(
+            exact.satisfies(&range),
+            "exact range should include prerelease"
+        );
     }
 
     #[test]
@@ -480,10 +498,7 @@ mod tests {
 
     #[test]
     fn test_range_serialization() {
-        let range = VersionRange::between(
-            ModelVersion::new(1, 0, 0),
-            ModelVersion::new(2, 0, 0),
-        );
+        let range = VersionRange::between(ModelVersion::new(1, 0, 0), ModelVersion::new(2, 0, 0));
         let json = serde_json::to_string(&range).unwrap();
         let deserialized: VersionRange = serde_json::from_str(&json).unwrap();
         assert_eq!(range.min, deserialized.min);

@@ -192,10 +192,7 @@ mod tests {
 
     #[test]
     fn test_version_history_entry_new() {
-        let entry = VersionHistoryEntry::new(
-            ModelVersion::new(1, 0, 0),
-            VersionSource::Initial,
-        );
+        let entry = VersionHistoryEntry::new(ModelVersion::new(1, 0, 0), VersionSource::Initial);
 
         assert!(entry.is_active());
         assert!(entry.deactivated_at.is_none());
@@ -205,10 +202,8 @@ mod tests {
 
     #[test]
     fn test_version_history_entry_deactivate() {
-        let mut entry = VersionHistoryEntry::new(
-            ModelVersion::new(1, 0, 0),
-            VersionSource::Initial,
-        );
+        let mut entry =
+            VersionHistoryEntry::new(ModelVersion::new(1, 0, 0), VersionSource::Initial);
 
         assert!(entry.is_active());
         entry.deactivate();
@@ -301,10 +296,7 @@ mod tests {
 
     #[test]
     fn test_version_history_entry_serialization() {
-        let entry = VersionHistoryEntry::new(
-            ModelVersion::new(1, 2, 3),
-            VersionSource::Rollback,
-        );
+        let entry = VersionHistoryEntry::new(ModelVersion::new(1, 2, 3), VersionSource::Rollback);
 
         let json = serde_json::to_string(&entry).unwrap();
         let deserialized: VersionHistoryEntry = serde_json::from_str(&json).unwrap();

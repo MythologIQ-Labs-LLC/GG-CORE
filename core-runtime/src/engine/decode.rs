@@ -2,9 +2,9 @@
 //!
 //! Generates tokens sequentially with minimal latency per step.
 
-use crate::engine::{FinishReason, InferenceError};
 #[cfg(feature = "advanced")]
 use crate::engine::SpeculativeConfig;
+use crate::engine::{FinishReason, InferenceError};
 use crate::memory::paged::{PageId, PageTable, PAGE_TOKENS};
 
 /// Result from a single decode step.
@@ -85,12 +85,13 @@ impl DecodeExecutor {
 
         // Allocate a new page at each page boundary.
         if self.current_pos % PAGE_TOKENS == 0 {
-            let page_id = page_table.allocate_page().ok_or_else(|| {
-                InferenceError::MemoryExceeded {
-                    used: self.current_pos,
-                    limit: self.current_pos,
-                }
-            })?;
+            let page_id =
+                page_table
+                    .allocate_page()
+                    .ok_or_else(|| InferenceError::MemoryExceeded {
+                        used: self.current_pos,
+                        limit: self.current_pos,
+                    })?;
             self.current_page_id = Some(page_id);
         }
 
@@ -145,7 +146,13 @@ impl DecodeExecutor {
         (end_pos + PAGE_TOKENS - 1) / PAGE_TOKENS
     }
 
-    pub fn config(&self) -> &DecodeConfig { &self.config }
-    pub fn tokens_generated(&self) -> usize { self.tokens_generated }
-    pub fn current_pos(&self) -> usize { self.current_pos }
+    pub fn config(&self) -> &DecodeConfig {
+        &self.config
+    }
+    pub fn tokens_generated(&self) -> usize {
+        self.tokens_generated
+    }
+    pub fn current_pos(&self) -> usize {
+        self.current_pos
+    }
 }

@@ -54,7 +54,10 @@ pub struct LayerParallelExecutor {
 
 impl LayerParallelExecutor {
     pub fn new(devices: Vec<Arc<GpuDevice>>, per_layer_us: u64) -> Self {
-        Self { devices, per_layer_us }
+        Self {
+            devices,
+            per_layer_us,
+        }
     }
 }
 
@@ -111,8 +114,7 @@ impl PartitionExecutor for MockPartitionExecutor {
 
         // Simulate speedup: latency inversely proportional to GPU count
         // with 85% parallel efficiency to be realistic
-        let effective = self.base_latency_us as f64
-            / (gpu_count as f64 * 0.85);
+        let effective = self.base_latency_us as f64 / (gpu_count as f64 * 0.85);
         simulate_latency(effective as u64);
 
         // Deterministic output: sum layer counts into a scaling factor

@@ -17,7 +17,10 @@ pub struct AuditLogger {
 
 impl AuditLogger {
     pub fn new(config: AuditConfig) -> Self {
-        Self { config, events: Arc::new(RwLock::new(Vec::new())) }
+        Self {
+            config,
+            events: Arc::new(RwLock::new(Vec::new())),
+        }
     }
 
     pub async fn log(&self, event: AuditEvent) {
@@ -36,12 +39,19 @@ impl AuditLogger {
     }
 
     pub async fn log_event(
-        &self, severity: AuditSeverity, category: AuditCategory,
-        event_type: &str, message: &str, source: &str,
+        &self,
+        severity: AuditSeverity,
+        category: AuditCategory,
+        event_type: &str,
+        message: &str,
+        source: &str,
     ) {
         if let Ok(event) = AuditEvent::builder()
-            .severity(severity).category(category)
-            .event_type(event_type).message(message).source(source)
+            .severity(severity)
+            .category(category)
+            .event_type(event_type)
+            .message(message)
+            .source(source)
             .build()
         {
             self.log(event).await;
@@ -53,32 +63,57 @@ impl AuditLogger {
     }
 
     pub async fn get_events_by_category(&self, category: AuditCategory) -> Vec<AuditEvent> {
-        self.events.read().await.iter()
-            .filter(|e| e.category == category).cloned().collect()
+        self.events
+            .read()
+            .await
+            .iter()
+            .filter(|e| e.category == category)
+            .cloned()
+            .collect()
     }
 
     pub async fn get_events_by_severity(&self, severity: AuditSeverity) -> Vec<AuditEvent> {
-        self.events.read().await.iter()
-            .filter(|e| e.severity >= severity).cloned().collect()
+        self.events
+            .read()
+            .await
+            .iter()
+            .filter(|e| e.severity >= severity)
+            .cloned()
+            .collect()
     }
 
-    pub async fn get_events_by_time(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Vec<AuditEvent> {
-        self.events.read().await.iter()
-            .filter(|e| e.timestamp >= start && e.timestamp <= end).cloned().collect()
+    pub async fn get_events_by_time(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Vec<AuditEvent> {
+        self.events
+            .read()
+            .await
+            .iter()
+            .filter(|e| e.timestamp >= start && e.timestamp <= end)
+            .cloned()
+            .collect()
     }
 
-    pub async fn clear(&self) { self.events.write().await.clear(); }
+    pub async fn clear(&self) {
+        self.events.write().await.clear();
+    }
 
     pub async fn export_json(&self) -> Result<String, serde_json::Error> {
         let events = self.events.read().await;
         serde_json::to_string_pretty(&*events)
     }
 
-    pub async fn event_count(&self) -> usize { self.events.read().await.len() }
+    pub async fn event_count(&self) -> usize {
+        self.events.read().await.len()
+    }
 }
 
 impl Default for AuditLogger {
-    fn default() -> Self { Self::new(AuditConfig::default()) }
+    fn default() -> Self {
+        Self::new(AuditConfig::default())
+    }
 }
 
 /// Global audit logger instance
@@ -98,7 +133,9 @@ macro_rules! audit_log {
     ($severity:expr, $category:expr, $event_type:expr, $message:expr, $source:expr) => {
         if let Some(logger) = $crate::security::audit::audit_logger() {
             tokio::spawn(async move {
-                logger.log_event($severity, $category, $event_type, $message, $source).await;
+                logger
+                    .log_event($severity, $category, $event_type, $message, $source)
+                    .await;
             });
         }
     };

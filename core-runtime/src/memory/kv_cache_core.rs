@@ -41,7 +41,10 @@ pub(super) struct SequenceStore {
 
 impl SequenceStore {
     fn new() -> Self {
-        Self { entries: HashMap::new(), access_order: VecDeque::new() }
+        Self {
+            entries: HashMap::new(),
+            access_order: VecDeque::new(),
+        }
     }
 
     /// Move a sequence to the back of the LRU order (most recent).
@@ -81,13 +84,19 @@ impl KvCacheManager {
         let id = SequenceId(self.next_seq_id.fetch_add(1, Ordering::SeqCst));
         #[cfg(feature = "advanced")]
         let quant_store = if self.config.enable_quantization {
-            Some(Q8KvStore::new(self.config.hidden_dim, self.config.max_seq_len))
+            Some(Q8KvStore::new(
+                self.config.hidden_dim,
+                self.config.max_seq_len,
+            ))
         } else {
             None
         };
         let entry = SequenceEntry {
-            id, page_ids: Vec::new(), seq_len: 0,
-            last_access: Instant::now(), access_count: 0,
+            id,
+            page_ids: Vec::new(),
+            seq_len: 0,
+            last_access: Instant::now(),
+            access_count: 0,
             #[cfg(feature = "advanced")]
             quant_store,
         };
@@ -108,7 +117,8 @@ impl KvCacheManager {
         let (seq_pos, needs_page) = {
             let mut store = write_or_recover(&self.sequences);
             store.touch(seq_id);
-            let entry = store.entries
+            let entry = store
+                .entries
                 .get_mut(&seq_id)
                 .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
             entry.last_access = Instant::now();
@@ -124,14 +134,21 @@ impl KvCacheManager {
         // Phase 3: resolve page_id from per-sequence page_ids, then write.
         let page_id = {
             let store = read_or_recover(&self.sequences);
-            let entry = store.entries.get(&seq_id)
+            let entry = store
+                .entries
+                .get(&seq_id)
                 .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
             let page_idx = seq_pos / PAGE_TOKENS;
-            *entry.page_ids.get(page_idx).ok_or(KvCacheError::PageNotFound)?
+            *entry
+                .page_ids
+                .get(page_idx)
+                .ok_or(KvCacheError::PageNotFound)?
         };
         self.write_to_page(page_id, seq_pos % PAGE_TOKENS, keys, values);
         let mut store = write_or_recover(&self.sequences);
-        let entry = store.entries.get_mut(&seq_id)
+        let entry = store
+            .entries
+            .get_mut(&seq_id)
             .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
         #[cfg(feature = "advanced")]
         Self::write_to_quant_store(entry, keys, values);
@@ -182,7 +199,8 @@ impl KvCacheManager {
     /// Free a sequence and its pages.
     pub fn free_sequence(&self, seq_id: SequenceId) -> Result<(), KvCacheError> {
         let mut store = write_or_recover(&self.sequences);
-        let entry = store.entries
+        let entry = store
+            .entries
             .remove(&seq_id)
             .ok_or(KvCacheError::SequenceNotFound(seq_id.0))?;
         store.access_order.retain(|&id| id != seq_id);

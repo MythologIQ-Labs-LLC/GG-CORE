@@ -429,18 +429,22 @@ fn test_two_sequences_same_position_distinct_pages() {
 
     assert!(
         (k1_out[0] - 11.0).abs() < 0.01,
-        "seq1 key contaminated: got {}", k1_out[0]
+        "seq1 key contaminated: got {}",
+        k1_out[0]
     );
     assert!(
         (k2_out[0] - 22.0).abs() < 0.01,
-        "seq2 key contaminated: got {}", k2_out[0]
+        "seq2 key contaminated: got {}",
+        k2_out[0]
     );
     assert!(
         (v1_out[0] - 111.0).abs() < 0.01,
-        "seq1 value contaminated: got {}", v1_out[0]
+        "seq1 value contaminated: got {}",
+        v1_out[0]
     );
     assert!(
         (v2_out[0] - 222.0).abs() < 0.01,
-        "seq2 value contaminated: got {}", v2_out[0]
+        "seq2 value contaminated: got {}",
+        v2_out[0]
     );
 }

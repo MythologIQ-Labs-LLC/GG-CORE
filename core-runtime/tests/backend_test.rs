@@ -3,11 +3,9 @@
 //! Note: Tests that require actual inference return errors since no model is loaded.
 //! This is the correct behavior - no mock fallbacks.
 
-use gg_core::engine::{
-    InferenceCapability, InferenceConfig, InferenceError, InferenceInput,
-};
-use gg_core::engine::onnx::{OnnxClassifier, OnnxEmbedder, OnnxModel};
 use gg_core::engine::gguf::{GgufGenerator, GgufModel};
+use gg_core::engine::onnx::{OnnxClassifier, OnnxEmbedder, OnnxModel};
+use gg_core::engine::{InferenceCapability, InferenceConfig, InferenceError, InferenceInput};
 
 // ============================================================================
 // ONNX Classifier Tests
@@ -27,10 +25,7 @@ async fn onnx_classifier_has_correct_capabilities() {
 
 #[tokio::test]
 async fn onnx_classifier_returns_model_id() {
-    let classifier = OnnxClassifier::new(
-        "test-model-001".to_string(),
-        vec!["label".to_string()],
-    );
+    let classifier = OnnxClassifier::new("test-model-001".to_string(), vec!["label".to_string()]);
 
     assert_eq!(classifier.model_id(), "test-model-001");
 }
@@ -52,10 +47,7 @@ async fn onnx_classifier_infers_text_requires_loaded_model() {
 
 #[tokio::test]
 async fn onnx_classifier_rejects_empty_text() {
-    let classifier = OnnxClassifier::new(
-        "test-classifier".to_string(),
-        vec!["label".to_string()],
-    );
+    let classifier = OnnxClassifier::new("test-classifier".to_string(), vec!["label".to_string()]);
 
     let input = InferenceInput::Text(String::new());
     let config = InferenceConfig::for_classification();
@@ -66,10 +58,7 @@ async fn onnx_classifier_rejects_empty_text() {
 
 #[tokio::test]
 async fn onnx_classifier_rejects_chat_messages() {
-    let classifier = OnnxClassifier::new(
-        "test-classifier".to_string(),
-        vec!["label".to_string()],
-    );
+    let classifier = OnnxClassifier::new("test-classifier".to_string(), vec!["label".to_string()]);
 
     let input = InferenceInput::ChatMessages(vec![]);
     let config = InferenceConfig::for_classification();
@@ -166,7 +155,10 @@ async fn gguf_generator_rejects_batch_input() {
     let config = InferenceConfig::default();
 
     let result = generator.infer(&input, &config).await;
-    assert!(matches!(result, Err(InferenceError::CapabilityNotSupported(_))));
+    assert!(matches!(
+        result,
+        Err(InferenceError::CapabilityNotSupported(_))
+    ));
 }
 
 #[tokio::test]

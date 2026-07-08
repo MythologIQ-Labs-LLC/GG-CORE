@@ -35,7 +35,10 @@ fn test_credit_card_luhn_rejects_invalid() {
     let detector = PIIDetector::new();
     let text = "Card: 1234-5678-9012-3456";
     let matches = detector.detect(text);
-    let cc_matches: Vec<_> = matches.iter().filter(|m| m.pii_type == PIIType::CreditCard).collect();
+    let cc_matches: Vec<_> = matches
+        .iter()
+        .filter(|m| m.pii_type == PIIType::CreditCard)
+        .collect();
     assert!(cc_matches.is_empty());
 }
 
@@ -95,9 +98,15 @@ fn test_performance() {
     let detector = PIIDetector::new();
     let text = "Email: test@example.com Phone: 555-123-4567 IP: 192.168.1.1".repeat(100);
     let start = std::time::Instant::now();
-    for _ in 0..100 { let _ = detector.detect(&text); }
+    for _ in 0..100 {
+        let _ = detector.detect(&text);
+    }
     let duration = start.elapsed();
-    assert!(duration.as_millis() < 5000, "PII detection too slow: {:?}", duration);
+    assert!(
+        duration.as_millis() < 5000,
+        "PII detection too slow: {:?}",
+        duration
+    );
 }
 
 #[test]

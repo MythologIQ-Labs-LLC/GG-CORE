@@ -92,37 +92,52 @@ async fn test_audit_logger() {
 
 #[tokio::test]
 async fn test_audit_logger_severity_filter() {
-    let config = AuditConfig { min_severity: AuditSeverity::Warning, ..Default::default() };
+    let config = AuditConfig {
+        min_severity: AuditSeverity::Warning,
+        ..Default::default()
+    };
     let logger = AuditLogger::new(config);
 
     let info_event = AuditEvent::builder()
         .severity(AuditSeverity::Info)
         .category(AuditCategory::System)
-        .event_type("test").message("Info event").source("test")
-        .build().unwrap();
+        .event_type("test")
+        .message("Info event")
+        .source("test")
+        .build()
+        .unwrap();
     logger.log(info_event).await;
     assert_eq!(logger.event_count().await, 0);
 
     let warning_event = AuditEvent::builder()
         .severity(AuditSeverity::Warning)
         .category(AuditCategory::System)
-        .event_type("test").message("Warning event").source("test")
-        .build().unwrap();
+        .event_type("test")
+        .message("Warning event")
+        .source("test")
+        .build()
+        .unwrap();
     logger.log(warning_event).await;
     assert_eq!(logger.event_count().await, 1);
 }
 
 #[tokio::test]
 async fn test_audit_logger_max_events() {
-    let config = AuditConfig { max_events: 5, ..Default::default() };
+    let config = AuditConfig {
+        max_events: 5,
+        ..Default::default()
+    };
     let logger = AuditLogger::new(config);
 
     for i in 0..10 {
         let event = AuditEvent::builder()
             .severity(AuditSeverity::Info)
             .category(AuditCategory::System)
-            .event_type("test").message(format!("Event {}", i)).source("test")
-            .build().unwrap();
+            .event_type("test")
+            .message(format!("Event {}", i))
+            .source("test")
+            .build()
+            .unwrap();
         logger.log(event).await;
     }
     assert_eq!(logger.event_count().await, 5);
@@ -134,14 +149,25 @@ async fn test_get_events_by_category() {
     for i in 0..5 {
         let event = AuditEvent::builder()
             .severity(AuditSeverity::Info)
-            .category(if i % 2 == 0 { AuditCategory::Authentication } else { AuditCategory::DataAccess })
-            .event_type("test").message(format!("Event {}", i)).source("test")
-            .build().unwrap();
+            .category(if i % 2 == 0 {
+                AuditCategory::Authentication
+            } else {
+                AuditCategory::DataAccess
+            })
+            .event_type("test")
+            .message(format!("Event {}", i))
+            .source("test")
+            .build()
+            .unwrap();
         logger.log(event).await;
     }
-    let auth_events = logger.get_events_by_category(AuditCategory::Authentication).await;
+    let auth_events = logger
+        .get_events_by_category(AuditCategory::Authentication)
+        .await;
     assert_eq!(auth_events.len(), 3);
-    let data_events = logger.get_events_by_category(AuditCategory::DataAccess).await;
+    let data_events = logger
+        .get_events_by_category(AuditCategory::DataAccess)
+        .await;
     assert_eq!(data_events.len(), 2);
 }
 
@@ -151,8 +177,11 @@ async fn test_export_json() {
     let event = AuditEvent::builder()
         .severity(AuditSeverity::Info)
         .category(AuditCategory::System)
-        .event_type("test").message("Test event").source("test")
-        .build().unwrap();
+        .event_type("test")
+        .message("Test event")
+        .source("test")
+        .build()
+        .unwrap();
     logger.log(event).await;
     let json = logger.export_json().await.unwrap();
     assert!(json.starts_with("["));

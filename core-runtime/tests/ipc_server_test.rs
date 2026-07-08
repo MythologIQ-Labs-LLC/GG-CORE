@@ -7,17 +7,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use gg_core::ipc::{ConnectionConfig, ConnectionPool};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 // ---------------------------------------------------------------------------
 // Framing helpers (mirrors server.rs read_frame / write_frame)
 // ---------------------------------------------------------------------------
 
-async fn write_frame<W: AsyncWriteExt + Unpin>(
-    w: &mut W,
-    data: &[u8],
-) {
+async fn write_frame<W: AsyncWriteExt + Unpin>(w: &mut W, data: &[u8]) {
     let len = data.len() as u32;
     w.write_all(&len.to_le_bytes()).await.unwrap();
     w.write_all(data).await.unwrap();
@@ -101,9 +98,7 @@ async fn test_framing_multiple_messages() {
 
 #[test]
 fn test_owned_guard_acquire_and_release() {
-    let pool = Arc::new(ConnectionPool::new(ConnectionConfig {
-        max_connections: 2,
-    }));
+    let pool = Arc::new(ConnectionPool::new(ConnectionConfig { max_connections: 2 }));
 
     let g1 = pool.try_acquire_owned();
     assert!(g1.is_some());
@@ -122,9 +117,7 @@ fn test_owned_guard_acquire_and_release() {
 
 #[test]
 fn test_owned_guard_rejects_at_limit() {
-    let pool = Arc::new(ConnectionPool::new(ConnectionConfig {
-        max_connections: 1,
-    }));
+    let pool = Arc::new(ConnectionPool::new(ConnectionConfig { max_connections: 1 }));
 
     let _g = pool.try_acquire_owned();
     assert!(pool.try_acquire_owned().is_none());
@@ -155,9 +148,7 @@ mod windows_server_tests {
     async fn test_server_health_roundtrip() {
         let pipe = unique_pipe_name("health-rt");
         let handler = test_handler();
-        let pool = Arc::new(ConnectionPool::new(ConnectionConfig {
-            max_connections: 4,
-        }));
+        let pool = Arc::new(ConnectionPool::new(ConnectionConfig { max_connections: 4 }));
 
         let (tx, rx) = tokio::sync::watch::channel(false);
 
@@ -166,7 +157,10 @@ mod windows_server_tests {
         let server_pool = Arc::clone(&pool);
         let server = tokio::spawn(async move {
             gg_core::ipc::server::run_server(
-                server_pipe, server_handler, server_pool, rx,
+                server_pipe,
+                server_handler,
+                server_pool,
+                rx,
                 gg_core::ipc::IpcServerConfig::default(),
             )
             .await
@@ -198,16 +192,21 @@ mod windows_server_tests {
     async fn test_server_multiple_requests() {
         let pipe = unique_pipe_name("multi-req");
         let handler = test_handler();
-        let pool = Arc::new(ConnectionPool::new(ConnectionConfig {
-            max_connections: 4,
-        }));
+        let pool = Arc::new(ConnectionPool::new(ConnectionConfig { max_connections: 4 }));
 
         let (tx, rx) = tokio::sync::watch::channel(false);
         let sp = pipe.clone();
         let sh = Arc::clone(&handler);
         let sc = Arc::clone(&pool);
         let server = tokio::spawn(async move {
-            gg_core::ipc::server::run_server(sp, sh, sc, rx, gg_core::ipc::IpcServerConfig::default()).await
+            gg_core::ipc::server::run_server(
+                sp,
+                sh,
+                sc,
+                rx,
+                gg_core::ipc::IpcServerConfig::default(),
+            )
+            .await
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -232,16 +231,21 @@ mod windows_server_tests {
     async fn test_server_sequential_connections() {
         let pipe = unique_pipe_name("sequential");
         let handler = test_handler();
-        let pool = Arc::new(ConnectionPool::new(ConnectionConfig {
-            max_connections: 8,
-        }));
+        let pool = Arc::new(ConnectionPool::new(ConnectionConfig { max_connections: 8 }));
 
         let (tx, rx) = tokio::sync::watch::channel(false);
         let sp = pipe.clone();
         let sh = Arc::clone(&handler);
         let sc = Arc::clone(&pool);
         let server = tokio::spawn(async move {
-            gg_core::ipc::server::run_server(sp, sh, sc, rx, gg_core::ipc::IpcServerConfig::default()).await
+            gg_core::ipc::server::run_server(
+                sp,
+                sh,
+                sc,
+                rx,
+                gg_core::ipc::IpcServerConfig::default(),
+            )
+            .await
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -268,16 +272,21 @@ mod windows_server_tests {
     async fn test_server_graceful_shutdown() {
         let pipe = unique_pipe_name("shutdown");
         let handler = test_handler();
-        let pool = Arc::new(ConnectionPool::new(ConnectionConfig {
-            max_connections: 4,
-        }));
+        let pool = Arc::new(ConnectionPool::new(ConnectionConfig { max_connections: 4 }));
 
         let (tx, rx) = tokio::sync::watch::channel(false);
         let sp = pipe.clone();
         let sh = Arc::clone(&handler);
         let sc = Arc::clone(&pool);
         let server = tokio::spawn(async move {
-            gg_core::ipc::server::run_server(sp, sh, sc, rx, gg_core::ipc::IpcServerConfig::default()).await
+            gg_core::ipc::server::run_server(
+                sp,
+                sh,
+                sc,
+                rx,
+                gg_core::ipc::IpcServerConfig::default(),
+            )
+            .await
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -298,16 +307,21 @@ mod windows_server_tests {
     async fn test_server_client_disconnect() {
         let pipe = unique_pipe_name("disconnect");
         let handler = test_handler();
-        let pool = Arc::new(ConnectionPool::new(ConnectionConfig {
-            max_connections: 4,
-        }));
+        let pool = Arc::new(ConnectionPool::new(ConnectionConfig { max_connections: 4 }));
 
         let (tx, rx) = tokio::sync::watch::channel(false);
         let sp = pipe.clone();
         let sh = Arc::clone(&handler);
         let sc = Arc::clone(&pool);
         let server = tokio::spawn(async move {
-            gg_core::ipc::server::run_server(sp, sh, sc, rx, gg_core::ipc::IpcServerConfig::default()).await
+            gg_core::ipc::server::run_server(
+                sp,
+                sh,
+                sc,
+                rx,
+                gg_core::ipc::IpcServerConfig::default(),
+            )
+            .await
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -339,20 +353,14 @@ mod windows_server_tests {
 #[test]
 fn test_server_error_io_display() {
     use gg_core::ipc::server::ServerError;
-    let err = ServerError::Io(std::io::Error::new(
-        std::io::ErrorKind::AddrInUse,
-        "in use",
-    ));
+    let err = ServerError::Io(std::io::Error::new(std::io::ErrorKind::AddrInUse, "in use"));
     assert!(err.to_string().contains("in use"));
 }
 
 #[test]
 fn test_server_error_frame_too_large_display() {
     use gg_core::ipc::server::ServerError;
-    let err = ServerError::FrameTooLarge {
-        size: 100,
-        max: 50,
-    };
+    let err = ServerError::FrameTooLarge { size: 100, max: 50 };
     let msg = err.to_string();
     assert!(msg.contains("100"));
     assert!(msg.contains("50"));

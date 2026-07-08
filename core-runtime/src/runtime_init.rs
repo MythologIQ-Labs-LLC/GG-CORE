@@ -76,23 +76,32 @@ pub async fn run_inference(args: &[String]) -> i32 {
     }
 
     if model_id.is_empty() || prompt.is_empty() {
-        eprintln!("Usage: GG-CORE infer --model <MODEL> --prompt <PROMPT> [--max-tokens N] [--stream]");
+        eprintln!(
+            "Usage: GG-CORE infer --model <MODEL> --prompt <PROMPT> [--max-tokens N] [--stream]"
+        );
         return 1;
     }
 
     let socket_path = get_socket_path();
     let client = CliIpcClient::new(socket_path);
-    let params = InferenceParams { max_tokens, ..Default::default() };
+    let params = InferenceParams {
+        max_tokens,
+        ..Default::default()
+    };
 
     let result = if stream {
-        client.send_streaming_inference(&model_id, &prompt, &params).await
+        client
+            .send_streaming_inference(&model_id, &prompt, &params)
+            .await
     } else {
         client.send_inference(&model_id, &prompt, &params).await
     };
 
     match result {
         Ok(output) => {
-            if !stream { println!("{}", output); }
+            if !stream {
+                println!("{}", output);
+            }
             0
         }
         Err(e) => {
@@ -124,7 +133,11 @@ pub async fn run_ipc_server(runtime: Runtime) -> Result<(), Box<dyn std::error::
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
     let server_handle = tokio::spawn(server::run_server(
-        socket_path, handler, connections, shutdown_rx, ipc_config,
+        socket_path,
+        handler,
+        connections,
+        shutdown_rx,
+        ipc_config,
     ));
 
     tokio::signal::ctrl_c().await?;

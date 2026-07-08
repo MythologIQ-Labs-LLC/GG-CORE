@@ -62,7 +62,9 @@ impl InferenceInput {
 
 fn validate_text(text: &str) -> Result<(), InferenceError> {
     if text.is_empty() {
-        return Err(InferenceError::InputValidation("text cannot be empty".into()));
+        return Err(InferenceError::InputValidation(
+            "text cannot be empty".into(),
+        ));
     }
     if text.len() > MAX_TEXT_BYTES {
         return Err(InferenceError::InputValidation(format!(
@@ -76,7 +78,9 @@ fn validate_text(text: &str) -> Result<(), InferenceError> {
 
 fn validate_batch(batch: &[String]) -> Result<(), InferenceError> {
     if batch.is_empty() {
-        return Err(InferenceError::InputValidation("batch cannot be empty".into()));
+        return Err(InferenceError::InputValidation(
+            "batch cannot be empty".into(),
+        ));
     }
     if batch.len() > MAX_BATCH_SIZE {
         return Err(InferenceError::InputValidation(format!(
@@ -98,7 +102,9 @@ fn validate_batch(batch: &[String]) -> Result<(), InferenceError> {
 
 fn validate_messages(messages: &[ChatMessage]) -> Result<(), InferenceError> {
     if messages.is_empty() {
-        return Err(InferenceError::InputValidation("messages cannot be empty".into()));
+        return Err(InferenceError::InputValidation(
+            "messages cannot be empty".into(),
+        ));
     }
     let total_bytes: usize = messages.iter().map(|m| m.content.len()).sum();
     if total_bytes > MAX_TEXT_BYTES {

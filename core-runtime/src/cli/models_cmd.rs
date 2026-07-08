@@ -54,7 +54,11 @@ pub fn print_models(response: &ModelsListResponse) {
 
     let total_mb = response.total_memory_bytes / (1024 * 1024);
     println!("{}", "-".repeat(84));
-    println!("Total memory: {} MB  |  {} model(s) loaded", total_mb, response.models.len());
+    println!(
+        "Total memory: {} MB  |  {} model(s) loaded",
+        total_mb,
+        response.models.len()
+    );
 }
 
 fn truncate(s: &str, max: usize) -> &str {
@@ -86,7 +90,10 @@ mod tests {
 
     #[test]
     fn test_print_models_empty() {
-        let response = ModelsListResponse { models: vec![], total_memory_bytes: 0 };
+        let response = ModelsListResponse {
+            models: vec![],
+            total_memory_bytes: 0,
+        };
         // Smoke-test: must not panic.
         print_models(&response);
     }

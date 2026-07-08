@@ -11,9 +11,9 @@
 //! ```
 //! Without `advanced`, a trivial `bench_noop` group is compiled instead.
 
-use criterion::{criterion_group, criterion_main};
 #[cfg(not(feature = "advanced"))]
 use criterion::Criterion;
+use criterion::{criterion_group, criterion_main};
 
 // ── Without `advanced`: trivial stub so the binary always compiles ────────────
 
@@ -33,13 +33,11 @@ criterion_group!(benches, bench_noop);
 mod advanced_benches {
     use criterion::{black_box, BenchmarkId, Criterion};
 
-    use gg_core::engine::adaptive_speculative::{
-        DraftBlock, SurvivalProfile, VerificationPlan,
-    };
+    use gg_core::engine::adaptive_speculative::{DraftBlock, SurvivalProfile, VerificationPlan};
+    use gg_core::models::SmartModelTier as ModelTier;
     use gg_core::models::{
         AdaptiveMode, AdaptiveSpeculativeConfig, HardwareProfile, TierSpeculativePlan,
     };
-    use gg_core::models::SmartModelTier as ModelTier;
 
     // ── bench_speculative_config_creation ─────────────────────────────────────
 
@@ -88,23 +86,23 @@ mod advanced_benches {
             ..AdaptiveSpeculativeConfig::default()
         };
 
-        for hw in [HardwareProfile::NoGpu, HardwareProfile::SingleGpu, HardwareProfile::MultiGpu] {
+        for hw in [
+            HardwareProfile::NoGpu,
+            HardwareProfile::SingleGpu,
+            HardwareProfile::MultiGpu,
+        ] {
             let label = format!("{hw:?}");
-            group.bench_with_input(
-                BenchmarkId::new("hardware", &label),
-                &hw,
-                |b, &hw| {
-                    b.iter(|| {
-                        black_box(TierSpeculativePlan::select(
-                            black_box(tiers),
-                            None,
-                            hw,
-                            black_box(0.75_f32),
-                            &config,
-                        ))
-                    })
-                },
-            );
+            group.bench_with_input(BenchmarkId::new("hardware", &label), &hw, |b, &hw| {
+                b.iter(|| {
+                    black_box(TierSpeculativePlan::select(
+                        black_box(tiers),
+                        None,
+                        hw,
+                        black_box(0.75_f32),
+                        &config,
+                    ))
+                })
+            });
         }
 
         group.finish();
@@ -146,11 +144,9 @@ mod advanced_benches {
         let mut group = c.benchmark_group("survival_profile_uniform");
 
         for &n in &[4_usize, 8, 16] {
-            group.bench_with_input(
-                BenchmarkId::new("tokens", n),
-                &n,
-                |b, &len| b.iter(|| black_box(SurvivalProfile::uniform(black_box(len)))),
-            );
+            group.bench_with_input(BenchmarkId::new("tokens", n), &n, |b, &len| {
+                b.iter(|| black_box(SurvivalProfile::uniform(black_box(len))))
+            });
         }
 
         group.finish();
@@ -163,13 +159,9 @@ mod advanced_benches {
 
         for &n in &[4_usize, 8, 16, 32] {
             let tokens: Vec<u32> = (0..n as u32).collect();
-            group.bench_with_input(
-                BenchmarkId::new("draft_len", n),
-                &tokens,
-                |b, toks| {
-                    b.iter(|| black_box(DraftBlock::from_tokens(black_box(toks.clone()))))
-                },
-            );
+            group.bench_with_input(BenchmarkId::new("draft_len", n), &tokens, |b, toks| {
+                b.iter(|| black_box(DraftBlock::from_tokens(black_box(toks.clone()))))
+            });
         }
 
         group.finish();

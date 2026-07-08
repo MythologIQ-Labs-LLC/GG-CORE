@@ -72,7 +72,9 @@ fn test_auth_error_display() {
     assert!(AuthError::SessionExpired.to_string().contains("expired"));
     assert!(AuthError::NotAuthenticated.to_string().contains("required"));
     assert!(AuthError::RateLimited.to_string().contains("try again"));
-    assert!(AuthError::SessionRateLimited.to_string().contains("rate limit"));
+    assert!(AuthError::SessionRateLimited
+        .to_string()
+        .contains("rate limit"));
 }
 
 #[test]

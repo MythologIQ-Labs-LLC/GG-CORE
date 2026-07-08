@@ -11,7 +11,10 @@ use crate::models::speculative_config::{AdaptiveMode, AdaptiveSpeculativeConfig}
 
 fn make_draft(log_probs: Vec<f32>) -> DraftBlock {
     let n = log_probs.len();
-    DraftBlock { tokens: vec![1u32; n], log_probs }
+    DraftBlock {
+        tokens: vec![1u32; n],
+        log_probs,
+    }
 }
 
 fn balanced_config() -> AdaptiveSpeculativeConfig {
@@ -60,7 +63,11 @@ fn high_confidence_draft_scores_near_one() {
     let draft = make_draft(vec![-0.05, -0.02, -0.08]);
     let profile = est.estimate(&[], &draft);
     assert_eq!(profile.scores.len(), 3);
-    assert!(profile.scores.iter().all(|&s| s > 0.85), "scores: {:?}", profile.scores);
+    assert!(
+        profile.scores.iter().all(|&s| s > 0.85),
+        "scores: {:?}",
+        profile.scores
+    );
 }
 
 #[test]
@@ -69,7 +76,11 @@ fn low_confidence_draft_scores_near_zero() {
     let est = HeuristicConfidenceEstimator::neutral();
     let draft = make_draft(vec![-12.0, -11.5, -10.5]);
     let profile = est.estimate(&[], &draft);
-    assert!(profile.scores.iter().all(|&s| s < 0.2), "scores: {:?}", profile.scores);
+    assert!(
+        profile.scores.iter().all(|&s| s < 0.2),
+        "scores: {:?}",
+        profile.scores
+    );
 }
 
 #[test]
@@ -113,10 +124,20 @@ fn high_confidence_profile_selects_wide_window() {
     let sched = AdaptiveVerificationScheduler::new(balanced_config());
     warm_scheduler(&sched);
     let draft = make_draft(vec![-0.05; 6]);
-    let profile = SurvivalProfile { scores: vec![0.95; 6] };
+    let profile = SurvivalProfile {
+        scores: vec![0.95; 6],
+    };
     let plan = sched.plan(&draft, &profile);
-    assert!(!plan.is_fallback(), "expected non-fallback plan, got {:?}", plan);
-    assert!(plan.window >= 4, "expected wide window, got {}", plan.window);
+    assert!(
+        !plan.is_fallback(),
+        "expected non-fallback plan, got {:?}",
+        plan
+    );
+    assert!(
+        plan.window >= 4,
+        "expected wide window, got {}",
+        plan.window
+    );
 }
 
 #[test]
@@ -125,9 +146,15 @@ fn low_confidence_profile_selects_narrow_window() {
     let sched = AdaptiveVerificationScheduler::new(balanced_config());
     warm_scheduler(&sched);
     let draft = make_draft(vec![-0.05; 6]);
-    let profile = SurvivalProfile { scores: vec![0.1; 6] };
+    let profile = SurvivalProfile {
+        scores: vec![0.1; 6],
+    };
     let plan = sched.plan(&draft, &profile);
-    assert!(plan.window <= 2, "expected narrow window, got {}", plan.window);
+    assert!(
+        plan.window <= 2,
+        "expected narrow window, got {}",
+        plan.window
+    );
 }
 
 #[test]

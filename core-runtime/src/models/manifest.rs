@@ -53,23 +53,23 @@ pub enum ModelArchitecture {
 impl ModelManifest {
     /// Load manifest from a JSON file.
     pub fn from_file(path: &Path) -> Result<Self, InferenceError> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            InferenceError::ModelError(format!("failed to read manifest: {}", e))
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| InferenceError::ModelError(format!("failed to read manifest: {}", e)))?;
         Self::from_json(&content)
     }
 
     /// Parse manifest from JSON string.
     pub fn from_json(json: &str) -> Result<Self, InferenceError> {
-        serde_json::from_str(json).map_err(|e| {
-            InferenceError::ModelError(format!("invalid manifest JSON: {}", e))
-        })
+        serde_json::from_str(json)
+            .map_err(|e| InferenceError::ModelError(format!("invalid manifest JSON: {}", e)))
     }
 
     /// Validate manifest fields for correctness.
     pub fn validate(&self) -> Result<(), InferenceError> {
         if self.model_id.is_empty() {
-            return Err(InferenceError::ModelError("model_id cannot be empty".into()));
+            return Err(InferenceError::ModelError(
+                "model_id cannot be empty".into(),
+            ));
         }
         if self.sha256.len() != 64 {
             return Err(InferenceError::ModelError(

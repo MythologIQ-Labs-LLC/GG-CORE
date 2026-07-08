@@ -58,9 +58,15 @@ impl Page {
         &self.values[offset..offset + self.hidden_dim]
     }
 
-    pub fn id(&self) -> PageId { self.id }
-    pub fn used_slots(&self) -> usize { self.used_slots }
-    pub fn is_full(&self) -> bool { self.used_slots >= PAGE_TOKENS }
+    pub fn id(&self) -> PageId {
+        self.id
+    }
+    pub fn used_slots(&self) -> usize {
+        self.used_slots
+    }
+    pub fn is_full(&self) -> bool {
+        self.used_slots >= PAGE_TOKENS
+    }
 
     /// Reset page for reuse, zeroing prior-tenant bytes (remanence hygiene).
     pub fn reset(&mut self) {
@@ -138,8 +144,12 @@ impl PageTable {
         Some(id)
     }
 
-    pub fn page_count(&self) -> usize { self.pages.len() }
-    pub fn free_count(&self) -> usize { self.free_pages.len() }
+    pub fn page_count(&self) -> usize {
+        self.pages.len()
+    }
+    pub fn free_count(&self) -> usize {
+        self.free_pages.len()
+    }
 }
 
 #[cfg(test)]
@@ -213,7 +223,13 @@ mod tests {
         let id2 = pt.allocate_page().unwrap();
         assert_eq!(id, id2, "reused same slot");
         let page = pt.page(id2).unwrap();
-        assert!(page.read_keys(0).iter().all(|&v| v == 0.0), "remanence: keys not zeroed");
-        assert!(page.read_values(0).iter().all(|&v| v == 0.0), "remanence: values not zeroed");
+        assert!(
+            page.read_keys(0).iter().all(|&v| v == 0.0),
+            "remanence: keys not zeroed"
+        );
+        assert!(
+            page.read_values(0).iter().all(|&v| v == 0.0),
+            "remanence: values not zeroed"
+        );
     }
 }

@@ -75,9 +75,7 @@ impl GpuManager {
         let device = self
             .devices
             .iter()
-            .find(|d| {
-                d.backend == self.config.backend && d.index == self.config.device_index
-            })
+            .find(|d| d.backend == self.config.backend && d.index == self.config.device_index)
             .cloned();
 
         match device {

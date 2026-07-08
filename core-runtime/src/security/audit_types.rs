@@ -82,8 +82,13 @@ impl AuditEvent {
         format!(
             "[{}] {} [{}] {} - {} (actor={:?}, resource={:?}, success={})",
             self.timestamp.format("%Y-%m-%d %H:%M:%S UTC"),
-            self.severity, self.category, self.event_type,
-            self.message, self.actor, self.resource, self.success
+            self.severity,
+            self.category,
+            self.event_type,
+            self.message,
+            self.actor,
+            self.resource,
+            self.success
         )
     }
 }
@@ -105,34 +110,44 @@ pub struct AuditEventBuilder {
 
 impl AuditEventBuilder {
     pub fn severity(mut self, severity: AuditSeverity) -> Self {
-        self.severity = Some(severity); self
+        self.severity = Some(severity);
+        self
     }
     pub fn category(mut self, category: AuditCategory) -> Self {
-        self.category = Some(category); self
+        self.category = Some(category);
+        self
     }
     pub fn event_type(mut self, event_type: impl Into<String>) -> Self {
-        self.event_type = Some(event_type.into()); self
+        self.event_type = Some(event_type.into());
+        self
     }
     pub fn message(mut self, message: impl Into<String>) -> Self {
-        self.message = Some(message.into()); self
+        self.message = Some(message.into());
+        self
     }
     pub fn source(mut self, source: impl Into<String>) -> Self {
-        self.source = Some(source.into()); self
+        self.source = Some(source.into());
+        self
     }
     pub fn actor(mut self, actor: impl Into<String>) -> Self {
-        self.actor = Some(actor.into()); self
+        self.actor = Some(actor.into());
+        self
     }
     pub fn resource(mut self, resource: impl Into<String>) -> Self {
-        self.resource = Some(resource.into()); self
+        self.resource = Some(resource.into());
+        self
     }
     pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.metadata.insert(key.into(), value.into()); self
+        self.metadata.insert(key.into(), value.into());
+        self
     }
     pub fn correlation_id(mut self, id: impl Into<String>) -> Self {
-        self.correlation_id = Some(id.into()); self
+        self.correlation_id = Some(id.into());
+        self
     }
     pub fn success(mut self, success: bool) -> Self {
-        self.success = success; self
+        self.success = success;
+        self
     }
 
     pub fn build(self) -> Result<AuditEvent, &'static str> {

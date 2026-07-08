@@ -51,7 +51,8 @@ pub fn check_and_register_nonce(nonce: &[u8; NONCE_SIZE]) -> Result<(), Encrypti
     }
 
     if guard.len() >= MAX_NONCE_HISTORY {
-        let to_remove: Vec<[u8; NONCE_SIZE]> = guard.iter().take(MAX_NONCE_HISTORY / 2).copied().collect();
+        let to_remove: Vec<[u8; NONCE_SIZE]> =
+            guard.iter().take(MAX_NONCE_HISTORY / 2).copied().collect();
         for key in to_remove {
             guard.remove(&key);
         }
@@ -158,14 +159,22 @@ impl ModelEncryption {
     }
 
     /// Encrypt a file
-    pub fn encrypt_file(&self, input_path: &Path, output_path: &Path) -> Result<(), EncryptionError> {
+    pub fn encrypt_file(
+        &self,
+        input_path: &Path,
+        output_path: &Path,
+    ) -> Result<(), EncryptionError> {
         let plaintext = encryption_io::read_file_bytes(input_path)?;
         let (nonce, ciphertext) = self.encrypt(&plaintext)?;
         encryption_io::write_encrypted_file(output_path, &nonce, &ciphertext)
     }
 
     /// Decrypt a file
-    pub fn decrypt_file(&self, input_path: &Path, output_path: &Path) -> Result<(), EncryptionError> {
+    pub fn decrypt_file(
+        &self,
+        input_path: &Path,
+        output_path: &Path,
+    ) -> Result<(), EncryptionError> {
         let plaintext = encryption_io::read_and_decrypt_file(self, input_path)?;
         std::fs::write(output_path, &plaintext).map_err(|e| EncryptionError::IoError(e.to_string()))
     }
@@ -184,10 +193,14 @@ impl ModelEncryption {
 
     /// Legacy ECB decryption (deprecated, migration only)
     #[deprecated(note = "ECB mode is insecure. Only use for migrating legacy encrypted files.")]
-    pub(crate) fn decrypt_legacy(&self, _nonce: &[u8], _ct: &[u8], _tag: &[u8]) -> Result<Vec<u8>, EncryptionError> {
+    pub(crate) fn decrypt_legacy(
+        &self,
+        _nonce: &[u8],
+        _ct: &[u8],
+        _tag: &[u8],
+    ) -> Result<Vec<u8>, EncryptionError> {
         Err(EncryptionError::DecryptionFailed(
             "Legacy ECB format no longer supported. Please re-encrypt your files.".to_string(),
         ))
     }
 }
-

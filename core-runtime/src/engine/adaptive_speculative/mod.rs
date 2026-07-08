@@ -69,7 +69,9 @@ pub struct SurvivalProfile {
 impl SurvivalProfile {
     /// All-ones profile — use when confidence estimation is unavailable.
     pub fn uniform(len: usize) -> Self {
-        Self { scores: vec![1.0; len] }
+        Self {
+            scores: vec![1.0; len],
+        }
     }
 }
 
@@ -89,7 +91,10 @@ pub struct VerificationPlan {
 impl VerificationPlan {
     /// Plan requesting fallback to single-token generation.
     pub fn fallback() -> Self {
-        Self { window: 0, emit_correction: false }
+        Self {
+            window: 0,
+            emit_correction: false,
+        }
     }
 
     /// Returns `true` when the plan requests standard (non-speculative) decoding.
@@ -152,11 +157,8 @@ impl VerificationResult {
 #[async_trait::async_trait]
 pub trait BlockDraftModel: Send + Sync {
     /// Generate up to `max_tokens` draft tokens from `context`.
-    async fn draft(
-        &self,
-        context: &[u32],
-        max_tokens: usize,
-    ) -> Result<DraftBlock, InferenceError>;
+    async fn draft(&self, context: &[u32], max_tokens: usize)
+        -> Result<DraftBlock, InferenceError>;
 }
 
 /// Estimates per-token confidence for a proposed [`DraftBlock`].
@@ -170,11 +172,7 @@ pub trait BlockDraftModel: Send + Sync {
 /// the scheduler to clamp or pad.
 pub trait ConfidenceEstimator: Send + Sync {
     /// Estimate per-token confidence for the given draft.
-    fn estimate(
-        &self,
-        context: &[u32],
-        draft: &DraftBlock,
-    ) -> SurvivalProfile;
+    fn estimate(&self, context: &[u32], draft: &DraftBlock) -> SurvivalProfile;
 }
 
 /// Decides how many draft tokens to submit for verification.
@@ -188,11 +186,7 @@ pub trait ConfidenceEstimator: Send + Sync {
 /// [`AdaptiveMode`]: crate::models::speculative_config::AdaptiveMode
 pub trait VerificationScheduler: Send + Sync {
     /// Produce a verification plan for the current step.
-    fn plan(
-        &self,
-        draft: &DraftBlock,
-        profile: &SurvivalProfile,
-    ) -> VerificationPlan;
+    fn plan(&self, draft: &DraftBlock, profile: &SurvivalProfile) -> VerificationPlan;
 }
 
 /// Verifies a draft block against the target model distribution.

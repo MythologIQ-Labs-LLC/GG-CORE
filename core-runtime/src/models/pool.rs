@@ -8,8 +8,8 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
 
-use super::registry::{ModelHandle, ModelRegistry};
 pub use super::pool_types::*;
+use super::registry::{ModelHandle, ModelRegistry};
 
 /// Pooled model entry with usage tracking.
 #[derive(Debug)]
@@ -87,9 +87,14 @@ impl ModelPool {
         models.insert(
             model_id.clone(),
             PooledModel {
-                handle, model_id, tier, memory_bytes,
-                loaded_at: now, last_used: now,
-                use_count: 0, warmup_complete: false,
+                handle,
+                model_id,
+                tier,
+                memory_bytes,
+                loaded_at: now,
+                last_used: now,
+                use_count: 0,
+                warmup_complete: false,
             },
         );
 
@@ -114,18 +119,21 @@ impl ModelPool {
         *self.active_model.write().await = Some(model_id.to_string());
         let switch_latency = start.elapsed();
 
-        crate::telemetry::record_model_switch_latency(
-            model_id,
-            switch_latency.as_secs_f64(),
-        );
+        crate::telemetry::record_model_switch_latency(model_id, switch_latency.as_secs_f64());
 
         let mut metrics = self.metrics.write().await;
         metrics.pool_hits += 1;
         let total = metrics.pool_hits;
-        metrics.avg_switch_latency_ns =
-            (metrics.avg_switch_latency_ns * (total - 1) + switch_latency.as_nanos() as u64) / total;
+        metrics.avg_switch_latency_ns = (metrics.avg_switch_latency_ns * (total - 1)
+            + switch_latency.as_nanos() as u64)
+            / total;
 
-        Ok(SwitchResult { handle, switch_latency, was_preloaded: true, was_warmed })
+        Ok(SwitchResult {
+            handle,
+            switch_latency,
+            was_preloaded: true,
+            was_warmed,
+        })
     }
 
     /// Mark a model as warmed up (after running warmup inference).
@@ -160,7 +168,13 @@ impl ModelPool {
     /// Evict models until we have enough memory.
     async fn evict_for_memory(&self, needed_bytes: usize) -> Result<(), PoolError> {
         loop {
-            let current: usize = self.models.read().await.values().map(|m| m.memory_bytes).sum();
+            let current: usize = self
+                .models
+                .read()
+                .await
+                .values()
+                .map(|m| m.memory_bytes)
+                .sum();
             if current + needed_bytes <= self.config.max_memory_bytes {
                 return Ok(());
             }

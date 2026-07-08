@@ -6,13 +6,13 @@
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 
+use super::queue::{QueuedRequest, RequestQueue};
+use super::worker_streaming;
 use crate::engine::InferenceEngine;
 use crate::memory::ResourceLimits;
 use crate::models::lifecycle::ModelLifecycle;
 use crate::models::registry::ModelRegistry;
 use crate::telemetry;
-use super::queue::{QueuedRequest, RequestQueue};
-use super::worker_streaming;
 
 /// Spawn the worker loop. Returns a handle for shutdown.
 pub fn spawn_worker(
@@ -34,9 +34,12 @@ pub fn spawn_worker_with_registry(
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         worker_loop(
-            &queue, &engine,
-            lifecycle.as_deref(), registry.as_deref(),
-            resource_limits.as_ref(), shutdown,
+            &queue,
+            &engine,
+            lifecycle.as_deref(),
+            registry.as_deref(),
+            resource_limits.as_ref(),
+            shutdown,
         )
         .await;
     })
@@ -95,9 +98,14 @@ async fn execute_request(
 
     let start = std::time::Instant::now();
     let result = run_inference(
-        engine, resource_limits, &model_id,
-        &request.prompt, &request.params, cancelled,
-    ).await;
+        engine,
+        resource_limits,
+        &model_id,
+        &request.prompt,
+        &request.params,
+        cancelled,
+    )
+    .await;
     let latency_ms = start.elapsed().as_millis() as u64;
 
     record_result(&result, &model_id, latency_ms, lifecycle, registry).await;
@@ -111,7 +119,9 @@ pub(super) async fn acquire_guard(
     limits: Option<&ResourceLimits>,
     model_id: &str,
 ) -> GuardResult {
-    let Some(limits) = limits else { return Ok(None) };
+    let Some(limits) = limits else {
+        return Ok(None);
+    };
     let mem = estimate_memory(engine, model_id).await;
     limits.try_acquire(mem).map(Some).map_err(|e| e.to_string())
 }
@@ -127,17 +137,25 @@ async fn run_inference(
     if let Some(limits) = resource_limits {
         engine
             .run_cancellable_with_memory_limit(
-                model_id, prompt, params, cancelled,
+                model_id,
+                prompt,
+                params,
+                cancelled,
                 limits.max_memory_per_call(),
             )
             .await
     } else {
-        engine.run_cancellable(model_id, prompt, params, cancelled).await
+        engine
+            .run_cancellable(model_id, prompt, params, cancelled)
+            .await
     }
 }
 
 async fn record_result(
-    result: &Result<crate::engine::inference::InferenceResult, crate::engine::inference::InferenceError>,
+    result: &Result<
+        crate::engine::inference::InferenceResult,
+        crate::engine::inference::InferenceError,
+    >,
     model_id: &str,
     latency_ms: u64,
     lifecycle: Option<&ModelLifecycle>,
@@ -145,9 +163,7 @@ async fn record_result(
 ) {
     match result {
         Ok(r) => {
-            telemetry::record_request_success(
-                model_id, latency_ms, r.tokens_generated as u64,
-            );
+            telemetry::record_request_success(model_id, latency_ms, r.tokens_generated as u64);
             if let (Some(lc), Some(reg)) = (lifecycle, registry) {
                 if let Some(handle) = lc.get_handle(model_id).await {
                     reg.record_request(handle, latency_ms as f64).await;
@@ -162,7 +178,10 @@ async fn record_result(
 
 async fn estimate_memory(engine: &InferenceEngine, model_id: &str) -> usize {
     const FALLBACK_BYTES: usize = 256 * 1024 * 1024;
-    engine.model_memory_usage(model_id).await.unwrap_or(FALLBACK_BYTES)
+    engine
+        .model_memory_usage(model_id)
+        .await
+        .unwrap_or(FALLBACK_BYTES)
 }
 
 fn send_response(

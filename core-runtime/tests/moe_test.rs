@@ -144,7 +144,11 @@ fn router_weights_sum_to_one() {
     let decision = router.route(&hidden, 1, &config).unwrap();
 
     let sum: f32 = decision.routing_weights[0].iter().sum();
-    assert!((sum - 1.0).abs() < 1e-5, "Weights sum {} should be 1.0", sum);
+    assert!(
+        (sum - 1.0).abs() < 1e-5,
+        "Weights sum {} should be 1.0",
+        sum
+    );
 }
 
 #[test]
@@ -251,7 +255,11 @@ fn combiner_aux_loss_balanced() {
     };
 
     let aux_loss = ExpertCombiner::compute_aux_loss(&routing, 4);
-    assert!(aux_loss < 0.01, "Balanced load should have low aux_loss: {}", aux_loss);
+    assert!(
+        aux_loss < 0.01,
+        "Balanced load should have low aux_loss: {}",
+        aux_loss
+    );
 }
 
 #[test]
@@ -263,7 +271,11 @@ fn combiner_aux_loss_imbalanced() {
     };
 
     let aux_loss = ExpertCombiner::compute_aux_loss(&routing, 4);
-    assert!(aux_loss > 1.0, "Imbalanced load should have high aux_loss: {}", aux_loss);
+    assert!(
+        aux_loss > 1.0,
+        "Imbalanced load should have high aux_loss: {}",
+        aux_loss
+    );
 }
 
 // ============================================================================

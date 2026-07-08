@@ -15,11 +15,7 @@ struct MockDraft {
 
 #[async_trait::async_trait]
 impl BlockDraftModel for MockDraft {
-    async fn draft(
-        &self,
-        _ctx: &[u32],
-        max: usize,
-    ) -> Result<DraftBlock, InferenceError> {
+    async fn draft(&self, _ctx: &[u32], max: usize) -> Result<DraftBlock, InferenceError> {
         let tokens = self.tokens.iter().take(max).copied().collect::<Vec<_>>();
         Ok(DraftBlock::from_tokens(tokens))
     }
@@ -44,10 +40,7 @@ impl TargetVerifier for MockTarget {
         Ok(if accepted == window {
             VerificationResult::accept_all(accepted)
         } else {
-            VerificationResult::reject_at(
-                accepted,
-                self.correction.unwrap_or(self.fallback_token),
-            )
+            VerificationResult::reject_at(accepted, self.correction.unwrap_or(self.fallback_token))
         })
     }
 
@@ -65,7 +58,10 @@ struct FixedScheduler(usize);
 
 impl VerificationScheduler for FixedScheduler {
     fn plan(&self, _draft: &DraftBlock, _profile: &SurvivalProfile) -> VerificationPlan {
-        VerificationPlan { window: self.0, emit_correction: self.0 > 0 }
+        VerificationPlan {
+            window: self.0,
+            emit_correction: self.0 > 0,
+        }
     }
 }
 
@@ -107,21 +103,47 @@ async fn run_step(
 
 #[tokio::test]
 async fn success_path_all_tokens_accepted() {
-    let drafter = MockDraft { tokens: vec![10, 20, 30, 40] };
-    let target = MockTarget { accept_count: 4, correction: None, fallback_token: 99 };
-    let out = run_step(&drafter, &target, &FixedScheduler(4), &UnitEstimator, &[1, 2], 4)
-        .await
-        .unwrap();
+    let drafter = MockDraft {
+        tokens: vec![10, 20, 30, 40],
+    };
+    let target = MockTarget {
+        accept_count: 4,
+        correction: None,
+        fallback_token: 99,
+    };
+    let out = run_step(
+        &drafter,
+        &target,
+        &FixedScheduler(4),
+        &UnitEstimator,
+        &[1, 2],
+        4,
+    )
+    .await
+    .unwrap();
     assert_eq!(out, vec![10, 20, 30, 40]);
 }
 
 #[tokio::test]
 async fn rejection_path_emits_correction() {
-    let drafter = MockDraft { tokens: vec![10, 20, 30, 40] };
-    let target = MockTarget { accept_count: 2, correction: Some(77), fallback_token: 99 };
-    let out = run_step(&drafter, &target, &FixedScheduler(4), &UnitEstimator, &[1, 2], 4)
-        .await
-        .unwrap();
+    let drafter = MockDraft {
+        tokens: vec![10, 20, 30, 40],
+    };
+    let target = MockTarget {
+        accept_count: 2,
+        correction: Some(77),
+        fallback_token: 99,
+    };
+    let out = run_step(
+        &drafter,
+        &target,
+        &FixedScheduler(4),
+        &UnitEstimator,
+        &[1, 2],
+        4,
+    )
+    .await
+    .unwrap();
     // draft[0..2] + correction
     assert_eq!(out, vec![10, 20, 77]);
 }
@@ -129,21 +151,45 @@ async fn rejection_path_emits_correction() {
 #[tokio::test]
 async fn fallback_path_when_draft_empty() {
     let drafter = MockDraft { tokens: vec![] };
-    let target = MockTarget { accept_count: 0, correction: None, fallback_token: 55 };
-    let out = run_step(&drafter, &target, &FixedScheduler(4), &UnitEstimator, &[1], 4)
-        .await
-        .unwrap();
+    let target = MockTarget {
+        accept_count: 0,
+        correction: None,
+        fallback_token: 55,
+    };
+    let out = run_step(
+        &drafter,
+        &target,
+        &FixedScheduler(4),
+        &UnitEstimator,
+        &[1],
+        4,
+    )
+    .await
+    .unwrap();
     assert_eq!(out, vec![55]);
 }
 
 #[tokio::test]
 async fn fallback_path_when_scheduler_returns_zero_window() {
-    let drafter = MockDraft { tokens: vec![10, 20, 30] };
-    let target = MockTarget { accept_count: 3, correction: None, fallback_token: 55 };
+    let drafter = MockDraft {
+        tokens: vec![10, 20, 30],
+    };
+    let target = MockTarget {
+        accept_count: 3,
+        correction: None,
+        fallback_token: 55,
+    };
     // Zero-window scheduler forces fallback even when draft has tokens.
-    let out = run_step(&drafter, &target, &FixedScheduler(0), &UnitEstimator, &[1], 4)
-        .await
-        .unwrap();
+    let out = run_step(
+        &drafter,
+        &target,
+        &FixedScheduler(0),
+        &UnitEstimator,
+        &[1],
+        4,
+    )
+    .await
+    .unwrap();
     assert_eq!(out, vec![55]);
 }
 
@@ -153,7 +199,10 @@ async fn fallback_path_when_scheduler_returns_zero_window() {
 fn draft_block_from_tokens_fills_log_probs() {
     let b = DraftBlock::from_tokens(vec![1, 2, 3]);
     assert_eq!(b.tokens.len(), b.log_probs.len());
-    assert!(b.log_probs.iter().all(|p| p.is_infinite() && p.is_sign_negative()));
+    assert!(b
+        .log_probs
+        .iter()
+        .all(|p| p.is_infinite() && p.is_sign_negative()));
 }
 
 #[test]

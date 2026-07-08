@@ -46,7 +46,12 @@ impl SimdTokenizer {
             });
         }
 
-        Ok(Self { vocab, vocab_map, eos_token, bos_token })
+        Ok(Self {
+            vocab,
+            vocab_map,
+            eos_token,
+            bos_token,
+        })
     }
 
     /// Find whitespace positions using AVX2 SIMD (x86_64 only).

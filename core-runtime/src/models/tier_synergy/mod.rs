@@ -126,7 +126,11 @@ impl TierSynergy {
         let quality_id = tiers.quality.as_ref().unwrap();
         let light_id = tiers.light.as_ref().unwrap();
         let primary = self.loader.get(quality_id).await?;
-        self.loader.hint(LoadHint::PreferModel { tier: ModelTier::Light }).await;
+        self.loader
+            .hint(LoadHint::PreferModel {
+                tier: ModelTier::Light,
+            })
+            .await;
         let status = self.loader.status().await;
         let draft_ready = status.loaded_models.iter().any(|(id, _)| id == light_id);
         let draft_handle = if draft_ready {
@@ -134,7 +138,12 @@ impl TierSynergy {
         } else {
             None
         };
-        Ok(SynergyResult { primary_handle: primary, draft_handle, mode, draft_ready })
+        Ok(SynergyResult {
+            primary_handle: primary,
+            draft_handle,
+            mode,
+            draft_ready,
+        })
     }
 
     async fn request_quick_query_inner(

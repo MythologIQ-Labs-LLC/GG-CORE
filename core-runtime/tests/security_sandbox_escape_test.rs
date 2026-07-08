@@ -2,8 +2,8 @@
 //!
 //! Tests that sandbox boundaries are properly enforced and escape attempts fail.
 
-use gg_core::sandbox::{SandboxConfig, create_sandbox};
 use gg_core::memory::{ResourceLimits, ResourceLimitsConfig};
+use gg_core::sandbox::{create_sandbox, SandboxConfig};
 
 #[test]
 fn sandbox_config_defaults_enforced() {
@@ -45,7 +45,7 @@ fn sandbox_disabled_is_noop() {
 #[test]
 fn resource_limits_reject_exceeding_per_call() {
     let config = ResourceLimitsConfig {
-        max_memory_per_call: 1024 * 1024, // 1MB
+        max_memory_per_call: 1024 * 1024,   // 1MB
         max_total_memory: 10 * 1024 * 1024, // 10MB
         max_concurrent: 2,
     };
@@ -66,7 +66,7 @@ fn resource_limits_reject_exceeding_per_call() {
 fn resource_limits_reject_exceeding_total() {
     let config = ResourceLimitsConfig {
         max_memory_per_call: 5 * 1024 * 1024, // 5MB
-        max_total_memory: 8 * 1024 * 1024, // 8MB
+        max_total_memory: 8 * 1024 * 1024,    // 8MB
         max_concurrent: 10,
     };
     let limits = ResourceLimits::new(config);

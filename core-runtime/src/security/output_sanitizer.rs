@@ -3,7 +3,7 @@
 //! Sanitizes model outputs for security and safety.
 //! Combines PII detection, content filtering, and format validation.
 
-use crate::security::{PIIDetector, pii_detector::PIIType};
+use crate::security::{pii_detector::PIIType, PIIDetector};
 use std::sync::Arc;
 
 use super::sanitizer_rules;
@@ -26,9 +26,14 @@ impl Default for SanitizerConfig {
             max_length: 100_000,
             pii_confidence_threshold: 0.7,
             redact_types: vec![
-                PIIType::SSN, PIIType::CreditCard, PIIType::Email,
-                PIIType::Phone, PIIType::APIKey, PIIType::Passport,
-                PIIType::BankAccount, PIIType::MedicalRecord,
+                PIIType::SSN,
+                PIIType::CreditCard,
+                PIIType::Email,
+                PIIType::Phone,
+                PIIType::APIKey,
+                PIIType::Passport,
+                PIIType::BankAccount,
+                PIIType::MedicalRecord,
             ],
         }
     }
@@ -52,10 +57,15 @@ pub struct OutputSanitizer {
 
 impl OutputSanitizer {
     pub fn new(config: SanitizerConfig) -> Self {
-        Self { pii_detector: Arc::new(PIIDetector::new()), config }
+        Self {
+            pii_detector: Arc::new(PIIDetector::new()),
+            config,
+        }
     }
 
-    pub fn default_sanitizer() -> Self { Self::new(SanitizerConfig::default()) }
+    pub fn default_sanitizer() -> Self {
+        Self::new(SanitizerConfig::default())
+    }
 
     pub fn sanitize(&self, output: &str) -> SanitizationResult {
         let mut result = output.to_string();
@@ -65,15 +75,22 @@ impl OutputSanitizer {
 
         if result.len() > self.config.max_length {
             result.truncate(self.config.max_length);
-            warnings.push(format!("Output truncated to {} characters", self.config.max_length));
+            warnings.push(format!(
+                "Output truncated to {} characters",
+                self.config.max_length
+            ));
             modified = true;
         }
 
         if self.config.redact_pii {
             let matches = self.pii_detector.detect(&result);
             for m in matches {
-                if !self.config.redact_types.contains(&m.pii_type) { continue; }
-                if m.confidence < self.config.pii_confidence_threshold { continue; }
+                if !self.config.redact_types.contains(&m.pii_type) {
+                    continue;
+                }
+                if m.confidence < self.config.pii_confidence_threshold {
+                    continue;
+                }
                 result = self.redact_pii(&result, &m);
                 pii_redacted += 1;
                 modified = true;
@@ -83,10 +100,20 @@ impl OutputSanitizer {
         let mut content_filtered = 0;
         if self.config.filter_content {
             let (filtered, count) = sanitizer_rules::filter_content_patterns(&result);
-            if count > 0 { result = filtered; content_filtered = count; modified = true; }
+            if count > 0 {
+                result = filtered;
+                content_filtered = count;
+                modified = true;
+            }
         }
 
-        SanitizationResult { output: result, modified, pii_redacted, content_filtered, warnings }
+        SanitizationResult {
+            output: result,
+            modified,
+            pii_redacted,
+            content_filtered,
+            warnings,
+        }
     }
 
     pub fn sanitize_chunk(&self, chunk: &str, state: &mut StreamingSanitizerState) -> String {
@@ -143,11 +170,18 @@ pub struct StreamingSanitizerState {
 }
 
 impl Default for StreamingSanitizerState {
-    fn default() -> Self { Self { buffer: String::new(), processed_until: 0 } }
+    fn default() -> Self {
+        Self {
+            buffer: String::new(),
+            processed_until: 0,
+        }
+    }
 }
 
 impl Default for OutputSanitizer {
-    fn default() -> Self { Self::default_sanitizer() }
+    fn default() -> Self {
+        Self::default_sanitizer()
+    }
 }
 
 #[cfg(test)]

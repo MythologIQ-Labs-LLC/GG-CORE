@@ -4,8 +4,8 @@
 //! - `protocol_types`: Message types, enums, structs
 //! - `protocol_codec`: Encode/decode functions
 
-pub use super::protocol_types::*;
 pub use super::protocol_codec::*;
+pub use super::protocol_types::*;
 
 #[cfg(test)]
 #[path = "protocol_tests.rs"]

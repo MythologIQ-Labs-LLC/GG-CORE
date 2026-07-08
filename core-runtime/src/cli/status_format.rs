@@ -1,8 +1,6 @@
 //! Formatting helpers for the status command display.
 
-use super::status::{
-    EventSeverity, GpuStatus, HealthState, SystemStatus,
-};
+use super::status::{EventSeverity, GpuStatus, HealthState, SystemStatus};
 
 #[cfg(feature = "advanced")]
 use crate::engine::SpeculativeSessionStats;
@@ -28,7 +26,10 @@ fn print_header(status: &SystemStatus) {
     };
 
     println!("====================================================");
-    println!("  GG-CORE Status                         v{}", status.version.version);
+    println!(
+        "  GG-CORE Status                         v{}",
+        status.version.version
+    );
     println!("====================================================");
     println!(
         "  Health: {} {:10}  Uptime: {}",
@@ -189,8 +190,7 @@ fn print_speculative(stats: Option<&SpeculativeSessionStats>) {
             );
             println!(
                 "  Mean draft latency: {:.1} us   Mean verify latency: {:.1} us",
-                s.mean_draft_latency_us,
-                s.mean_verify_latency_us,
+                s.mean_draft_latency_us, s.mean_verify_latency_us,
             );
             if s.auto_disable_count > 0 {
                 println!("  Auto-disable events: {}", s.auto_disable_count);

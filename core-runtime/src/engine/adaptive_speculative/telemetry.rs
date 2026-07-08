@@ -126,7 +126,9 @@ impl Default for SpeculativeTelemetry {
 impl SpeculativeTelemetry {
     /// Construct a zeroed telemetry accumulator.
     pub fn new() -> Self {
-        Self { inner: Mutex::new(Inner::default()) }
+        Self {
+            inner: Mutex::new(Inner::default()),
+        }
     }
 
     /// Record one draft-verify cycle.
@@ -169,12 +171,21 @@ impl SpeculativeTelemetry {
         } else {
             g.accepted_tokens as f32 / g.draft_tokens_generated as f32
         };
-        let mean_accepted_length =
-            if steps == 0 { 0.0_f32 } else { g.accepted_tokens as f32 / steps_f };
-        let mean_draft_latency_us =
-            if steps == 0 { 0.0_f32 } else { g.total_draft_latency_us as f32 / steps_f };
-        let mean_verify_latency_us =
-            if steps == 0 { 0.0_f32 } else { g.total_verify_latency_us as f32 / steps_f };
+        let mean_accepted_length = if steps == 0 {
+            0.0_f32
+        } else {
+            g.accepted_tokens as f32 / steps_f
+        };
+        let mean_draft_latency_us = if steps == 0 {
+            0.0_f32
+        } else {
+            g.total_draft_latency_us as f32 / steps_f
+        };
+        let mean_verify_latency_us = if steps == 0 {
+            0.0_f32
+        } else {
+            g.total_verify_latency_us as f32 / steps_f
+        };
         // Values > 1.0 mean speculative decoding is beneficial.
         let net_speedup = mean_accepted_length.max(1.0);
 

@@ -5,8 +5,8 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::engine::{
-    ClassificationResult, InferenceCapability, InferenceConfig, InferenceError,
-    InferenceInput, InferenceOutput,
+    ClassificationResult, InferenceCapability, InferenceConfig, InferenceError, InferenceInput,
+    InferenceOutput,
 };
 
 /// ONNX classification model using Candle.

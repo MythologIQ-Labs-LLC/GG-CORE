@@ -1,7 +1,7 @@
 //! Tests for IPC protocol types and codec.
 
-use super::super::protocol_types::*;
 use super::super::protocol_codec::*;
+use super::super::protocol_types::*;
 use crate::engine::InferenceParams;
 
 #[test]
@@ -22,25 +22,41 @@ fn test_protocol_version_negotiate_none() {
 
 #[test]
 fn test_protocol_version_negotiate_v1() {
-    assert_eq!(ProtocolVersion::negotiate(Some(ProtocolVersion::V1)), ProtocolVersion::V1);
+    assert_eq!(
+        ProtocolVersion::negotiate(Some(ProtocolVersion::V1)),
+        ProtocolVersion::V1
+    );
 }
 
 #[test]
 fn test_protocol_version_negotiate_v2() {
-    assert_eq!(ProtocolVersion::negotiate(Some(ProtocolVersion::V2)), ProtocolVersion::V2);
+    assert_eq!(
+        ProtocolVersion::negotiate(Some(ProtocolVersion::V2)),
+        ProtocolVersion::V2
+    );
 }
 
 #[test]
 fn test_encode_decode_message() {
-    let msg = IpcMessage::HealthCheck { check_type: HealthCheckType::Liveness };
+    let msg = IpcMessage::HealthCheck {
+        check_type: HealthCheckType::Liveness,
+    };
     let encoded = encode_message(&msg).unwrap();
     let decoded = decode_message(&encoded).unwrap();
-    assert!(matches!(decoded, IpcMessage::HealthCheck { check_type: HealthCheckType::Liveness }));
+    assert!(matches!(
+        decoded,
+        IpcMessage::HealthCheck {
+            check_type: HealthCheckType::Liveness
+        }
+    ));
 }
 
 #[test]
 fn test_encode_response_within_limit() {
-    let msg = IpcMessage::Error { code: 500, message: "test".to_string() };
+    let msg = IpcMessage::Error {
+        code: 500,
+        message: "test".to_string(),
+    };
     let result = encode_response(&msg).unwrap();
     assert!(!result.is_empty());
 }
@@ -54,10 +70,17 @@ fn test_decode_message_too_large() {
 
 #[test]
 fn test_encode_message_binary_roundtrip() {
-    let msg = IpcMessage::HealthCheck { check_type: HealthCheckType::Readiness };
+    let msg = IpcMessage::HealthCheck {
+        check_type: HealthCheckType::Readiness,
+    };
     let encoded = encode_message_binary(&msg).unwrap();
     let decoded = decode_message_binary(&encoded).unwrap();
-    assert!(matches!(decoded, IpcMessage::HealthCheck { check_type: HealthCheckType::Readiness }));
+    assert!(matches!(
+        decoded,
+        IpcMessage::HealthCheck {
+            check_type: HealthCheckType::Readiness
+        }
+    ));
 }
 
 #[test]
@@ -110,7 +133,10 @@ fn test_inference_response_error() {
     assert!(response.finished);
     assert!(response.error.is_some());
     assert!(response.output.is_empty());
-    assert_eq!(response.error_code, Some(InferenceErrorCode::ExecutionFailed));
+    assert_eq!(
+        response.error_code,
+        Some(InferenceErrorCode::ExecutionFailed)
+    );
 }
 
 #[test]
@@ -123,7 +149,9 @@ fn test_inference_response_success_has_no_error_code() {
 #[test]
 fn test_inference_response_error_coded_admission_rejected() {
     let r = InferenceResponse::error_coded(
-        RequestId(3), "Memory limit exceeded".into(), InferenceErrorCode::AdmissionRejected,
+        RequestId(3),
+        "Memory limit exceeded".into(),
+        InferenceErrorCode::AdmissionRejected,
     );
     assert_eq!(r.error_code, Some(InferenceErrorCode::AdmissionRejected));
     assert!(r.error.is_some());
@@ -131,7 +159,11 @@ fn test_inference_response_error_coded_admission_rejected() {
 
 #[test]
 fn test_inference_error_code_serializes() {
-    let r = InferenceResponse::error_coded(RequestId(4), "err".into(), InferenceErrorCode::ModelNotLoaded);
+    let r = InferenceResponse::error_coded(
+        RequestId(4),
+        "err".into(),
+        InferenceErrorCode::ModelNotLoaded,
+    );
     let msg = IpcMessage::InferenceResponse(r);
     let encoded = encode_message(&msg).unwrap();
     let decoded = decode_message(&encoded).unwrap();
@@ -180,7 +212,13 @@ fn test_handshake_message_encoding() {
     };
     let encoded = encode_message(&msg).unwrap();
     let decoded: IpcMessage = serde_json::from_slice(&encoded).unwrap();
-    assert!(matches!(decoded, IpcMessage::Handshake { protocol_version: Some(ProtocolVersion::V2), .. }));
+    assert!(matches!(
+        decoded,
+        IpcMessage::Handshake {
+            protocol_version: Some(ProtocolVersion::V2),
+            ..
+        }
+    ));
 }
 
 #[test]

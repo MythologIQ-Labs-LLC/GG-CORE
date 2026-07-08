@@ -44,21 +44,21 @@ pub unsafe extern "C" fn core_model_load(
     let model_id = metadata.name.clone();
 
     // Load GGUF model (or stub if feature disabled)
-    let model = match gguf::load_gguf_model(
-        validated.as_path(),
-        &model_id,
-        &gguf::GgufConfig::default(),
-    ) {
-        Ok(m) => m,
-        Err(e) => {
-            set_last_error(format!("model load: {}", e));
-            return CoreErrorCode::ModelLoadFailed;
-        }
-    };
+    let model =
+        match gguf::load_gguf_model(validated.as_path(), &model_id, &gguf::GgufConfig::default()) {
+            Ok(m) => m,
+            Err(e) => {
+                set_last_error(format!("model load: {}", e));
+                return CoreErrorCode::ModelLoadFailed;
+            }
+        };
 
     // Atomic load via lifecycle coordinator
     let result = rt.tokio.block_on(async {
-        rt.inner.model_lifecycle.load(model_id, metadata, model).await
+        rt.inner
+            .model_lifecycle
+            .load(model_id, metadata, model)
+            .await
     });
 
     match result {
@@ -87,9 +87,9 @@ pub unsafe extern "C" fn core_model_unload(
     let rt = &*runtime;
 
     // Resolve handle -> model_id via lifecycle index
-    let model_id = rt.tokio.block_on(async {
-        rt.inner.model_lifecycle.get_model_id(handle_id).await
-    });
+    let model_id = rt
+        .tokio
+        .block_on(async { rt.inner.model_lifecycle.get_model_id(handle_id).await });
 
     let model_id = match model_id {
         Some(id) => id,
@@ -99,9 +99,9 @@ pub unsafe extern "C" fn core_model_unload(
         }
     };
 
-    let result = rt.tokio.block_on(async {
-        rt.inner.model_lifecycle.unload(&model_id).await
-    });
+    let result = rt
+        .tokio
+        .block_on(async { rt.inner.model_lifecycle.unload(&model_id).await });
 
     match result {
         Ok(_) => CoreErrorCode::Ok,
@@ -127,9 +127,9 @@ pub unsafe extern "C" fn core_model_info(
     let rt = &*runtime;
     let handle = crate::models::ModelHandle::new(handle_id);
 
-    let metadata = rt.tokio.block_on(async {
-        rt.inner.model_registry.get_metadata(handle).await
-    });
+    let metadata = rt
+        .tokio
+        .block_on(async { rt.inner.model_registry.get_metadata(handle).await });
 
     match metadata {
         Some(m) => {
@@ -148,9 +148,7 @@ pub unsafe extern "C" fn core_model_info(
 
 /// Free model metadata. # Safety: `metadata` must be null or from `core_model_info`.
 #[no_mangle]
-pub unsafe extern "C" fn core_free_model_metadata(
-    metadata: *mut CoreModelMetadata,
-) {
+pub unsafe extern "C" fn core_free_model_metadata(metadata: *mut CoreModelMetadata) {
     if !metadata.is_null() {
         let m = &mut *metadata;
         if !m.name.is_null() {
@@ -175,9 +173,9 @@ pub unsafe extern "C" fn core_model_list(
 
     let rt = &*runtime;
 
-    let models = rt.tokio.block_on(async {
-        rt.inner.model_registry.list_models().await
-    });
+    let models = rt
+        .tokio
+        .block_on(async { rt.inner.model_registry.list_models().await });
 
     let write_count = models.len().min(max_count as usize);
     for (i, info) in models.iter().take(write_count).enumerate() {
@@ -200,9 +198,9 @@ pub unsafe extern "C" fn core_model_count(
     }
 
     let rt = &*runtime;
-    let count = rt.tokio.block_on(async {
-        rt.inner.model_registry.count().await
-    });
+    let count = rt
+        .tokio
+        .block_on(async { rt.inner.model_registry.count().await });
     *out_count = count as u32;
 
     CoreErrorCode::Ok

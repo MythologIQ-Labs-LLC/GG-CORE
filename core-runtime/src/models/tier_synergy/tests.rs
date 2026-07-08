@@ -23,7 +23,10 @@ fn create_test_model(size: usize) -> NamedTempFile {
 
 #[tokio::test]
 async fn test_synergy_auto_detect_mode() {
-    let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default(), test_callback()));
+    let loader = Arc::new(SmartLoader::new(
+        SmartLoaderConfig::default(),
+        test_callback(),
+    ));
     let synergy = TierSynergy::new(loader.clone());
 
     let light = create_test_model(100);
@@ -34,7 +37,11 @@ async fn test_synergy_auto_detect_mode() {
         .await
         .unwrap();
     loader
-        .register("quality".into(), quality.path().to_path_buf(), ModelTier::Quality)
+        .register(
+            "quality".into(),
+            quality.path().to_path_buf(),
+            ModelTier::Quality,
+        )
         .await
         .unwrap();
 
@@ -46,7 +53,10 @@ async fn test_synergy_auto_detect_mode() {
 
 #[tokio::test]
 async fn test_synergy_request_quick_query() {
-    let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default(), test_callback()));
+    let loader = Arc::new(SmartLoader::new(
+        SmartLoaderConfig::default(),
+        test_callback(),
+    ));
     let synergy = TierSynergy::new(loader.clone());
 
     let light = create_test_model(100);
@@ -63,7 +73,10 @@ async fn test_synergy_request_quick_query() {
 
 #[tokio::test]
 async fn test_synergy_complex_task_speculative() {
-    let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default(), test_callback()));
+    let loader = Arc::new(SmartLoader::new(
+        SmartLoaderConfig::default(),
+        test_callback(),
+    ));
     let synergy = TierSynergy::new(loader.clone());
 
     let light = create_test_model(100);
@@ -74,7 +87,11 @@ async fn test_synergy_complex_task_speculative() {
         .await
         .unwrap();
     loader
-        .register("quality".into(), quality.path().to_path_buf(), ModelTier::Quality)
+        .register(
+            "quality".into(),
+            quality.path().to_path_buf(),
+            ModelTier::Quality,
+        )
         .await
         .unwrap();
 
@@ -87,12 +104,19 @@ async fn test_synergy_complex_task_speculative() {
 
 #[tokio::test]
 async fn test_synergy_fallback_single_tier() {
-    let loader = Arc::new(SmartLoader::new(SmartLoaderConfig::default(), test_callback()));
+    let loader = Arc::new(SmartLoader::new(
+        SmartLoaderConfig::default(),
+        test_callback(),
+    ));
     let synergy = TierSynergy::new(loader.clone());
 
     let balanced = create_test_model(150);
     loader
-        .register("balanced".into(), balanced.path().to_path_buf(), ModelTier::Balanced)
+        .register(
+            "balanced".into(),
+            balanced.path().to_path_buf(),
+            ModelTier::Balanced,
+        )
         .await
         .unwrap();
     synergy.register_tier("balanced", ModelTier::Balanced).await;
