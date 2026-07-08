@@ -79,6 +79,8 @@ judgment.
 | F-48 | Adaptive speculative config (AdaptiveSpeculativeConfig) | core-runtime/src/models/speculative_config.rs | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/models/speculative_config.rs (inline tests) | verified |
 | F-49 | Adaptive speculative decoder interfaces (traits + types) | core-runtime/src/engine/adaptive_speculative/ | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/engine/adaptive_speculative/tests.rs | verified |
 | F-50 | Heuristic confidence estimator + adaptive verification scheduler | core-runtime/src/engine/adaptive_speculative/heuristic/ | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/engine/adaptive_speculative/heuristic/tests.rs | verified |
+| F-51 | TierSynergy speculative execution plan (TierSpeculativePlan) | core-runtime/src/models/tier_synergy_speculative.rs | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/models/tier_synergy_speculative_tests.rs | verified |
+| F-52 | Speculative decoding threat model + security oracles | docs/security/THREAT_MODEL.md | docs/security/THREAT_MODEL.md | core-runtime/tests/security_speculative_test.rs | verified |
 
 ## Open coverage gaps
 

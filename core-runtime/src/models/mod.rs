@@ -12,6 +12,8 @@ pub mod smart_loader_types;
 pub mod speculative_config;
 #[cfg(feature = "advanced")]
 pub mod tier_synergy;
+#[cfg(feature = "advanced")]
+pub mod tier_synergy_speculative;
 
 mod drain;
 pub mod lifecycle;
@@ -46,4 +48,8 @@ pub use swap::{SwapError, SwapManager, SwapResult};
 pub use speculative_config::{AdaptiveMode, AdaptiveSpeculativeConfig};
 #[cfg(feature = "advanced")]
 pub use tier_synergy::{SynergyMode, SynergyResult, SynergyStatus, TierSynergy};
+#[cfg(feature = "advanced")]
+pub use tier_synergy_speculative::{
+    CompatibilityCheck, HardwareProfile, TierSpeculativePlan,
+};
 pub use version::{ModelVersion, VersionRange};

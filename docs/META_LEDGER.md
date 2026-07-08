@@ -6228,3 +6228,104 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #63 complete: `HeuristicConfidenceEstimator` (4-signal fusion: log-prob, entropy, temperature, repetition-penalty, history) and `AdaptiveVerificationScheduler` (mode-multiplier window selection, auto-disable) implemented. 11/11 tests green. No GPU required.
+
+---
+
+### Entry #91: SESSION SEAL (Issue #64 — TierSynergy Speculative Execution Plan)
+
+**Entry ID**: `3b4e07640001`
+**Timestamp**: 2026-07-08T21:45:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-08T2145-3b4e07
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (`tier_synergy_speculative.rs` + tests created; `mod.rs` exports added) |
+| TierSpeculativePlan::select | **PASS** (priority: LightQuality → LightBalanced → BalancedQuality → single) |
+| Pairing coverage | **PASS** (all 3 pairings + single-tier fallback tested) |
+| Incompatible pairing falls back | **PASS** (NoGpu blocks BalancedQuality; returns single-model) |
+| Disabled config falls back | **PASS** (`enabled=false` or `AdaptiveMode::Disabled` → `is_speculative=false`) |
+| Low acceptance rate falls back | **PASS** (acceptance < `acceptance_floor` forces fallback) |
+| tier_synergy.rs untouched | **PASS** (0 modifications to oversized file) |
+| Section 4 Razor | **PASS** (214 lines ≤ 250) |
+| Tests | **PASS** (8/8) |
+| Compile | **PASS** (0 errors) |
+
+**Content Hash**:
+
+```
+SHA256(tier_synergy_speculative.rs + tier_synergy_speculative_tests.rs + mod.rs)
+= a80d6f56756e45f59c63e8b0d0fd304a8d6c34511cbe8b5068d672764af2f71c
+```
+
+**Previous Hash**: 7f5f90d884c095087c730781d03ff17c4480db9846932c374ce38d5db3dec82f
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 087a0db218ae38276bfd8397bd99e43200ef4f751b523b58ba98dd992bfb080a
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= f1ecdc9ed228bb9eda0045ea0229d3d2313d0d654b341761ce9b02772dd73da6
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #64 complete: `TierSpeculativePlan` selects Light→Quality/Balanced, Balanced→Quality pairings with hardware gating, acceptance-floor fallback, compatibility tracking, and single-model default. `tier_synergy.rs` untouched. 8/8 tests green.
+
+---
+
+### Entry #92: SESSION SEAL (Issue #67 — Threat Model + Security Tests)
+
+**Entry ID**: `141d24670001`
+**Timestamp**: 2026-07-08T21:55:00Z
+**Phase**: SUBSTANTIATE
+**Author**: Judge
+**Risk Grade**: L3
+**Session ID**: 2026-07-08T2155-141d24
+
+**Verification Results**:
+
+| Dimension | Status |
+| --- | --- |
+| Reality = Promise | **PASS** (THREAT_MODEL.md §12 + security_speculative_test.rs created) |
+| T1 draft model loading | **PASS** (documented: AES-GCM auth tag, path allowlist) |
+| T2 verification bypass | **PASS** (test: `into_tokens` saturates at accepted_count; suffix unreachable) |
+| T3 telemetry PII | **PASS** (test: config fields are bool/usize/f32/enum only — no String/Vec<u8>) |
+| T4 incompatible pairing | **PASS** (test: disabled config → is_speculative=false) |
+| T5 auto-disable evasion | **PASS** (test: fallback plan has window=0; no unchecked emission) |
+| Prompt-injection / output-sanitization order | **PASS** (documented in threat model §12.6) |
+| Tests | **PASS** (14/14 across 4 modules: T2×4, T3×2, T4×4, T5×4) |
+| C.O.R.E. boundary | **PASS** (no network/agent/authority in test or doc) |
+
+**Content Hash**:
+
+```
+SHA256(THREAT_MODEL.md + security_speculative_test.rs)
+= 64032c34585fd0da4ae07f5f815528a3c4c5e3e3e3bbfe2b379e1e7618093084
+```
+
+**Previous Hash**: 087a0db218ae38276bfd8397bd99e43200ef4f751b523b58ba98dd992bfb080a
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 3b15cbae0aaf8b4884063e3710bba186c74b9ee58108d22631c3d1693d630fdd
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 502297b6cb545cbbfe455ba6fba1e701d7f22a6bf2d7b0cbeb540a00b9e4e9a0
+```
+
+**Decision**: SUBSTANTIATION COMPLETE at local hold. Issue #67 complete: 5-threat speculative decoding threat model (T1–T5) with attack tree and test coverage table appended to THREAT_MODEL.md; 14 security oracle tests covering verification bypass, PII-free telemetry, incompatible-pairing fallback, auto-disable guarantees. All rejected tokens structurally unreachable.
