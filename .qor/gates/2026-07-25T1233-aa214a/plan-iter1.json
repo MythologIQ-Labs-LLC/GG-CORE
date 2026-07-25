@@ -1,0 +1,68 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-25T1233-aa214a",
+  "ts": "2026-07-25T17:01:06Z",
+  "plan_path": "docs/plan-security-chain-wiring-2026-07-25.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "high_risk_target": false,
+  "open_questions": [],
+  "boundaries": {
+    "limitations": [
+      "Streaming egress not sanitized this cycle: streaming channel carries u32 token IDs, not text; requires detokenization + IPC protocol decision (follow-up filed)",
+      "Metric emission observability verified by issue #52 harness cycle (D4.d waiver)"
+    ],
+    "non_goals": [
+      "No IPC protocol changes; no edits under ipc/",
+      "engine/filter.rs (F-34) untouched",
+      "No model-encryption work"
+    ],
+    "exclusions": [
+      "config.rs not modified (pre-existing Razor overage; SecurityConfig::from_env colocated with type in security/mod.rs)"
+    ]
+  },
+  "phases": [
+    "Phase 1: SecurityPipeline pure core -> src/security/pipeline.rs + pipeline_tests.rs + mod.rs exports",
+    "Phase 2: Worker wiring both paths -> scheduler/worker.rs, worker_streaming.rs, worker_tests.rs, runtime_init.rs + worker_security_tests.rs + tests/security_pipeline_wiring_test.rs",
+    "Phase 3: Telemetry + governance surfaces -> telemetry/metrics.rs, FEATURE_INDEX.md, ARCHITECTURE_PLAN.md, BACKLOG.md"
+  ],
+  "ci_commands": [
+    "cargo fmt --check",
+    "cargo clippy --all-targets -- -D warnings",
+    "cargo test --workspace"
+  ],
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-55",
+      "operation": "NEW",
+      "test_path": "core-runtime/tests/security_pipeline_wiring_test.rs",
+      "test_descriptor": "Worker with blocking pipeline returns Err security-policy for injection prompt and routes clean prompts onward; fails if wiring silently broken"
+    },
+    {
+      "entry_id": "F-36",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/src/scheduler/worker_security_tests.rs",
+      "test_descriptor": "apply_egress on InferenceResult containing SSN returns output without SSN literal; fails if PII redaction unwired"
+    },
+    {
+      "entry_id": "F-37",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/tests/security_pipeline_wiring_test.rs",
+      "test_descriptor": "End-to-end injection rejection through queue/worker proves pre-inference guard invocation"
+    },
+    {
+      "entry_id": "F-34",
+      "operation": "n/a-justified",
+      "test_path": "core-runtime/tests/filter_test.rs",
+      "test_descriptor": "engine/filter.rs untouched; declared for neighborhood traceability"
+    }
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-25T17:01:06Z"
+  }
+}

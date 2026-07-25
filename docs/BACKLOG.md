@@ -26,6 +26,7 @@ it. Priority and status reflect observable state at reconstruction time.
 | B-21 | ADR-007 epic: TierSynergy consolidation + DSpark adaptive speculative decoding | issues #60–68, PR #59 | P2 | open | Forward-looking design epic. Decomposition + per-issue briefs: `docs/plan-adr007-epic-execution.md`. One issue per governed cycle |
 | B-22 | `cargo clippy --all-targets`: non-exhaustive `FinishReason::Cancelled` match (test + bench) + 1 field-assign | issue #69 | P1 | done | Fixed `626f034`: added `Cancelled` arm to bench match; updated gguf test vec+count (4→5) |
 | B-23 | Seal runtime-hardening cycle 2 (session 2026-07-08T1651-6c68b6) | this session | P2 | open | Code+governance committed (`43cc89c`/`bc0c70c`); needs `/qor-substantiate` Entry #85. Steps: `docs/runbook-merge-integration-sequence.md` §4 |
+| B-24 | Streaming egress sanitization: in-runtime detokenization + IPC protocol decision (streaming channel carries u32 token IDs; also rejection frame indistinguishable from completion) | plan-security-chain-wiring-2026-07-25 audit advisory | P2 | open | Decide detokenize-in-runtime vs client-side contract; then plan under its own gate |
 | B-02 | ADR: Backend Capability Contract & BitNet-compatible runtime adapter | issue #48 | P2 | open | Author ADR; parent of B-03..B-06 |
 | B-03 | Implement `RuntimeBackendCapabilities` schema | issue #49 | P2 | open | Define schema after ADR #48 lands |
 | B-04 | Add hardware profile & backend selection policy | issue #50 | P2 | open | Design policy over K8s hardware profiles (F-44) |

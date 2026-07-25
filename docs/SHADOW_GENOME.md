@@ -124,4 +124,81 @@ assertions are oracles** — rework to `const _: () = assert!(...)`, never delet
 
 ---
 
+## Entry #4: Stale-local-main issue-state drift (near-miss)
+
+**Session**: 2026-07-25T1224-38ccc6 · **Phase**: RESEARCH (Step 2.5 pre-check)
+
+**Pattern**: Local `main` (`354d41d`) was ~2 weeks behind `origin/main`
+(`11bf0ac`, PR #71 merge). Ancestor checks against local `main` reported the
+fixes for issues #55/#56/#57/#69 as unmerged, which would have shipped a
+research brief classifying four resolved issues as live P1 work. Issue bodies
+and BACKLOG rows (B-17/B-18/B-19/B-22) also still described the pre-merge
+state — pointer layers go stale silently after a merge.
+
+**Root cause**: treating the local clone and issue text as ground truth for
+merge state. Merge state lives on the remote; issue bodies are written once
+and rot.
+
+**Countermeasure**: during any issue-state pre-check, run `git fetch` first
+and ancestor-check fix commits against `origin/main` (never local `main`);
+cross-check `gh pr list --state merged` and the CI run on the merge commit
+before classifying an issue as open work.
+
+---
+
+## Entry #5: "Exists and tested" mistaken for "wired into production" (latent blueprint drift)
+
+**Session**: 2026-07-25T1233 (research) · **Phase**: RESEARCH
+
+**Pattern**: Two subsystem families were represented — in ARCHITECTURE_PLAN's
+data flow, FEATURE_INDEX narrative, and the same-day ledger-#96 research
+brief — as active production machinery, but production-path call-site
+verification shows zero callers: (1) the in-house perf kernels
+(`engine/flash_attn.rs`, `engine/simd_matmul.rs`, `memory/paged.rs`,
+`memory/kv_quant.rs`) are `advanced`-gated and never invoked by the GGUF
+decode path, which runs entirely inside llama-cpp-2 (`backend.rs:296`); and
+(2) the security interception chain (`PromptInjectionFilter`, `PIIDetector`,
+`OutputSanitizer`) has no call sites in `engine/` — only admission control
+runs (`worker.rs:117-127`). Modules compile, unit tests pass, FEATURE_INDEX
+rows read "verified" — yet the production request never touches them.
+
+**Root cause**: verification bound to "module has a passing test binding,"
+not "production call path reaches the module." Documentation then compounds
+the error by describing intent as behavior.
+
+**Countermeasure**: before citing any module as active in a brief, plan, or
+index row, grep for production call sites (who calls it, from which entry
+point) and cite the call chain — not the module's existence or its tests.
+This is the concrete execution of BACKLOG B-14 / SG-035 (deep-verify
+FEATURE_INDEX `verified` rows). Security-surface instances of this pattern
+are L3 findings, not documentation nits.
+
+---
+
+## Entry #6: Regex-only PII redaction has a permanent NER-class blind spot
+
+**Session**: 2026-07-25T1354 (research) · **Phase**: RESEARCH
+
+**Pattern**: GG-CORE's egress PII redaction is documented as "enhanced
+security," but the detector is pure regex + Luhn + NFKC over 13
+format-structured types (`pii_patterns.rs:7-33`). It is *structurally
+incapable* of catching the PII class that has no fixed format — PERSON names,
+prose LOCATION/GPE references, NRP — which is precisely the PII most common in
+free-form LLM output. Microsoft Presidio catches these only via an NER model
+(spaCy `en_core_web_lg`); no regex can. Asserting "we redact PII" without
+qualifying it as regex-grade, and without a measured precision/recall number,
+overstates the protection.
+
+**Root cause**: conflating "a redaction stage exists" with "PII is reliably
+removed." Format-tractable PII (SSN, card, email) ≠ all PII.
+
+**Countermeasure**: qualify egress-redaction claims as regex-grade until a
+span-level precision/recall/F1-per-type harness (Presidio-standard, over a
+vendored offline corpus) puts a number on them. The NER-class gap closes only
+with a model — an offline ONNX NER model on the candle-onnx path (couples to
+issue #72's tokenizer work), never an in-process Python or HTTP-sidecar
+Presidio (both violate the offline/no-network/no-in-process-Python charter).
+
+---
+
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._

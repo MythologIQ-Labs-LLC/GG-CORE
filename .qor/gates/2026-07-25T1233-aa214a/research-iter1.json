@@ -1,0 +1,58 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-25T1233-aa214a",
+  "ts": "2026-07-25T16:43:38Z",
+  "questions": [
+    "Can GG-CORE link or mine mistral.rs for performance, given forbidden-dependency rules?",
+    "Which Rust inference engines offer security-compatible performance upgrades (candle, llama-cpp-2, burn, ort, tract, candle-vllm)?",
+    "What is GG-CORE's actual backend-integration baseline (llama-cpp-2 knob usage, batching, sampling, streaming, ONNX path)?",
+    "Are GG-CORE's in-house perf kernels and security interception actually wired into the production path?"
+  ],
+  "findings": [
+    {
+      "id": "S1",
+      "summary": "L3-relevant DRIFT: OutputSanitizer/PIIDetector/PromptInjectionFilter have zero call sites in engine path; only admission control runs (worker.rs:117-127, inference.rs:156-164); ARCHITECTURE_PLAN data flow overstates behavior; wire + measure governance overhead before perf claims",
+      "status": "verified"
+    },
+    {
+      "id": "S2",
+      "summary": "DRIFT: paged KV/Q8 KV/flash-attn/SIMD matmul are advanced-gated with zero GGUF-path callers; production decode runs inside llama-cpp-2 black box (backend.rs:296); corrects ledger-#96 'real optimizations' narrative",
+      "status": "verified"
+    },
+    {
+      "id": "M1",
+      "summary": "mistral.rs BLOCKED for linking: mistralrs-core unconditionally deps reqwest, tokio-tungstenite (WebSocket), hf-hub, mistralrs-mcp; plus git-candle 0.11 pin vs our 0.8; runtime-offline capable but link-time incompatible",
+      "status": "verified"
+    },
+    {
+      "id": "M2",
+      "summary": "mistral.rs = pattern donor: speculative proposer/verifier/staging/driver (maps ~1:1 to ADR-007 traits; interleaved verify-then-draft; stochastic rejection sampling), scheduler length-bucketing continuous batching, PrefixCacheManagerV2, ISQ, FP8 paged-KV, decode-only CUDA graphs",
+      "status": "verified"
+    },
+    {
+      "id": "B1",
+      "summary": "GGUF backend sets only n_ctx/n_threads/n_threads_batch/n_gpu_layers (backend.rs:229-232, 37); flash-attn policy, type_k/type_v Q8_0 KV, n_batch/n_ubatch, offload_kqv, mmap all available at pinned 0.1.133 and unused; all LlamaBatch n_seq=1; scheduler RequestBatch dead code (worker.rs:68-70); sampler seed hardcoded 42 (backend.rs:315)",
+      "status": "verified"
+    },
+    {
+      "id": "E1",
+      "summary": "Upgrade lane: llama-cpp-2 0.1.133->0.1.152 (MTP spec decode, state_seq_save/load, fit_params, Windows CRT fix, llguidance; vendored source, no downloads); candle 0.8->0.11 (no default features, no hf-hub, clean); tract-onnx 0.23 pure-Rust ONNX bench candidate; ort BLOCKED by default download-binaries feature; burn/ratchet/kalosm/rustformers not candidates; no TRT-LLM bindings exist",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "github.com/EricLBuehler/mistral.rs @ master v0.9.0 (Cargo.tomls, pipeline/hf.rs, gguf/gguf_tokenizer.rs, prefix_cacher.rs, scheduler/, speculative/, docs/guides/perf+quantization)",
+    "crates.io + docs.rs: candle-core 0.11.0, llama-cpp-2 0.1.152 + 0.1.133 LlamaContextParams, ort 2.0.0-rc.12 Cargo.toml, tract-onnx 0.23.4, burn 0.21",
+    "core-runtime/src/engine/gguf/{mod,backend,generator}.rs; scheduler/{worker,queue,batch}.rs; engine/{streaming,inference}.rs; ipc/protocol_codec.rs; engine/onnx/embedder.rs; security/ grep sweep; Cargo.toml+lock",
+    "docs/ARCHITECTURE_PLAN.md (data flow cross-reference)"
+  ],
+  "brief_path": "docs/research-brief-mistral-rs-rust-inference-perf-2026-07-25.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-25T16:43:38Z"
+  }
+}

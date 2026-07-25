@@ -1,0 +1,64 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-25T1224-38ccc6",
+  "ts": "2026-07-25T16:30:01Z",
+  "questions": [
+    "Which open issues are already resolved on origin/main (issue-state pre-check)?",
+    "Open compatibility: what backend capability/selection machinery already exists vs issues #48-#53, #72?",
+    "Wide range of support: which platform/binding/feature surfaces are stubbed, unverified, or CI-untested?",
+    "Performance optimization: what does the bench/telemetry surface cover vs issue #52, and is ADR-007 speculation execution-wired?",
+    "How do the three lenses interact (sequencing/cross-impact)?"
+  ],
+  "findings": [
+    {
+      "id": "A1",
+      "summary": "Issues #55/#56/#57/#69 stale-open: fixes on origin/main via PR #71 merge 11bf0ac, Rust CI green 3-OS (run 28982209959); operator close candidates",
+      "status": "verified"
+    },
+    {
+      "id": "B1",
+      "summary": "DRIFT #72: ONNX embedder real (candle_onnx::read_file, engine/onnx/mod.rs:71-80, commit b048869); classifier still stub (classifier.rs:13-42)",
+      "status": "verified"
+    },
+    {
+      "id": "B2",
+      "summary": "No RuntimeBackendCapabilities schema; dispatch is format-based at call sites (manifest.rs:43-50, router.rs:34-36); #48/#49 premise confirmed; two HardwareProfile precursors to unify (k8s/profiles.rs:8-15, tier_synergy_speculative.rs:101-155); BitNet zero presence; no degraded-mode policy layer",
+      "status": "verified"
+    },
+    {
+      "id": "C1",
+      "summary": "Sandbox real both platforms (windows.rs:102-171 Job Objects; unix.rs:159-393 cgroups+seccomp); F-38 flip evidence exists (green CI) but index lags; CI matrix 3-OS default-features-only -- gguf/onnx/cuda/metal/python/ffi never compiled in CI; F-40/F-45 unverified; no MSRV pinned",
+      "status": "verified"
+    },
+    {
+      "id": "D1",
+      "summary": "11 Criterion benches; #52 gaps: cold/warm start, e2e tokens/sec, governance/audit overhead, raw-vs-wrapped mode, JSON export; ADR-007 speculation plan/heuristic/telemetry complete but NOT wired into decode path (no production BlockDraftModel/TargetVerifier impls; decode.rs config-slot only)",
+      "status": "verified"
+    },
+    {
+      "id": "X1",
+      "summary": "Cross-impact: #49 capability schema is keystone (#50/#53/#72-integration/#51 + COREFORGE filter-lift depend on it); #52 harness is shared evidence gate for #51 and ADR-007 enablement; CI feature legs are prerequisite-quality P1; capability resolution must stay cold-path",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "gh issue list/view (#48-#53, #55-#57, #69, #70, #72); gh pr list; gh run list",
+    "git fetch + merge-base --is-ancestor vs origin/main (11bf0ac)",
+    "core-runtime/src/engine/onnx/{mod,embedder,classifier}.rs",
+    "core-runtime/src/models/{manifest,router,smart_loader,tier_synergy_speculative,speculative_config}.rs",
+    "core-runtime/src/engine/adaptive_speculative/{mod,heuristic/mod,telemetry}.rs",
+    "core-runtime/src/sandbox/{windows,unix}.rs; src/ffi/; src/python/; src/engine/{cuda,metal,gpu}.rs",
+    "core-runtime/benches/ (11 targets); core-runtime/src/telemetry/{metrics,prometheus}.rs",
+    ".github/workflows/rust.yml; core-runtime/Cargo.toml",
+    "docs/{ARCHITECTURE_PLAN,BACKLOG,FEATURE_INDEX,BENCHMARKS}.md; docs/COREFORGE Integration Notes.txt"
+  ],
+  "brief_path": "docs/research-brief-open-issues-compat-support-perf-2026-07-25.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-25T16:30:01Z"
+  }
+}

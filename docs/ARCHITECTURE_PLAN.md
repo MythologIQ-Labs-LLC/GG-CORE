@@ -134,6 +134,13 @@ security/ (output sanitize, PII redact)
 ipc/ (stream response frames back to caller)
 ```
 
+**Enforcement (SecurityPipeline)**: the `security/` stage is enforced in
+`scheduler/worker.rs`. The ingress prompt-injection scan runs before the
+resource guard on both the streaming and non-streaming paths; egress output
+sanitization (PII redact) runs on the non-streaming response path. Streaming
+egress carries u32 token IDs, not text, and is not sanitized in-runtime
+(follow-up: `docs/BACKLOG.md` B-24).
+
 ---
 
 ## Dependencies

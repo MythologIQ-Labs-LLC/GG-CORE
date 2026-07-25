@@ -64,8 +64,8 @@ judgment.
 | F-33 | Security: path-traversal defense | core-runtime/src/security/ | docs/security | core-runtime/tests/security_path_traversal_test.rs | verified |
 | F-34 | Security: output filter | core-runtime/src/engine/filter.rs | docs/security | core-runtime/tests/filter_test.rs | verified |
 | F-35 | Security: encryption & FIPS | core-runtime/src/security/encryption.rs | docs/security | core-runtime/src/security/fips_tests.rs | verified |
-| F-36 | Security: PII detection | core-runtime/src/security/pii_detector.rs | docs/security | core-runtime/src/security/pii_tests.rs | verified |
-| F-37 | Security: prompt-injection guard | core-runtime/src/security/prompt_injection.rs | docs/security | core-runtime/src/security/sanitizer_tests.rs | verified |
+| F-36 | Security: PII detection | core-runtime/src/security/pii_detector.rs | docs/security | core-runtime/src/security/pii_tests.rs; core-runtime/src/scheduler/worker_security_tests.rs | verified |
+| F-37 | Security: prompt-injection guard | core-runtime/src/security/prompt_injection.rs | docs/security | core-runtime/src/security/sanitizer_tests.rs; core-runtime/tests/security_pipeline_wiring_test.rs | verified |
 | F-38 | Sandbox isolation | core-runtime/src/sandbox/ | docs/CONCEPT.md | core-runtime/tests/sandbox_test.rs | unverified |
 | F-39 | C FFI bindings | core-runtime/src/ffi/ | docs/USAGE_GUIDE.md | core-runtime/tests/ffi_test.rs | verified |
 | F-40 | Python (PyO3) bindings | core-runtime/src/python/ | docs/USAGE_GUIDE.md | core-runtime/tests/python_binding_test.rs | unverified |
@@ -83,6 +83,7 @@ judgment.
 | F-52 | Speculative decoding threat model + security oracles | docs/security/THREAT_MODEL.md | docs/security/THREAT_MODEL.md | core-runtime/tests/security_speculative_test.rs | verified |
 | F-53 | Speculative telemetry + auto-disable + CLI surface (SpeculativeTelemetry) | core-runtime/src/engine/adaptive_speculative/telemetry.rs | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/engine/adaptive_speculative/telemetry_tests.rs | verified |
 | F-54 | Speculative benchmark matrix | core-runtime/benches/speculative_matrix.rs | docs/BENCHMARKS.md | core-runtime/benches/speculative_matrix.rs | verified |
+| F-55 | Security: pipeline wiring (ingress scan + egress sanitize) | core-runtime/src/security/pipeline.rs | docs/security | core-runtime/tests/security_pipeline_wiring_test.rs | verified |
 
 ## Open coverage gaps
 

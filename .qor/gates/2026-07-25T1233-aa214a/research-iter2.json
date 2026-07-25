@@ -1,0 +1,52 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-25T1233-aa214a",
+  "ts": "2026-07-25T18:02:25Z",
+  "questions": [
+    "Can GG-CORE link, sidecar, or reimplement Microsoft Presidio given the offline/no-network/no-in-process-Python charter?",
+    "What is the honest capability gap between Presidio and GG-CORE's regex-only PII detector?",
+    "What offline, Rust-compatible path reaches Presidio-grade detection (ONNX NER, pure-Rust patterns, eval)?"
+  ],
+  "findings": [
+    {
+      "id": "P1",
+      "summary": "Presidio charter-illegal: Python+spaCy, only in-process Python API (inverts PyO3) or Flask HTTP :5002 (no C ABI/gRPC); no-network + IPC-only rules forbid both link and sidecar. MIT, ~10.2k stars",
+      "status": "verified"
+    },
+    {
+      "id": "P2",
+      "summary": "DRIFT: GG-CORE egress redaction regex+Luhn+NFKC over 13 format-structured types (pii_patterns.rs:7-33), structurally blind to NER-class PII (PERSON/LOCATION/NRP) which is Presidio's NER-only trio; 'enhanced security' overstated until measured",
+      "status": "verified"
+    },
+    {
+      "id": "P3",
+      "summary": "Offline Rust path: ONNX NER dslim/distilbert-NER (Apache-2.0, F1 0.9217) via candle-onnx simple_eval (CPU, already used) needs tokenizers crate v0.23 (http off) replacing simple_tokenize (embedder.rs:120) -> couples to issue #72; avoid Piiranha (cc-by-nc-nd + mDeBERTa op risk); reject rust-bert/ort/tch (libtorch/onnxruntime C++/network)",
+      "status": "verified"
+    },
+    {
+      "id": "P4",
+      "summary": "pii-vault v0.2.0 (MIT, 2026-04) = closest Rust artifact: regex + context scoring, 40+ types incl IBAN/crypto, zero network; dependency or pattern donor",
+      "status": "verified"
+    },
+    {
+      "id": "P5",
+      "summary": "Eval: span-level precision/recall/F1-per-type (presidio-research standard); offline corpora ai4privacy/pii-masking-openpii-1m (CC-BY-4.0) + presidio-research synthetic JSON generated-once-then-vendored; turns issue #52 governance metrics into a number",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "github.com/microsoft/presidio; presidio.dataprivacystack.org (analyzer, supported_entities, anonymizer, evaluation); presidio-analyzer conf/default.yaml + pyproject.toml",
+    "huggingface.co: dslim/distilbert-NER, onnx-community distilbert conll03 ONNX, iiiorg/piiranha (license), spacy/en_core_web_lg; ai4privacy pii-masking-openpii-1m",
+    "docs.rs/tokenizers 0.23.1; lib.rs/crates/pii-vault; github.com/guillaume-be/rust-bert; docs.rs/redact-ner; candle issues #1361, PR #2231; onnx #7858",
+    "core-runtime/src/security/{pii_detector,pii_patterns,output_sanitizer}.rs; engine/onnx/embedder.rs; CLAUDE.md; docs/ARCHITECTURE_PLAN.md"
+  ],
+  "brief_path": "docs/research-brief-presidio-pii-comparison-2026-07-25.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-25T18:02:25Z"
+  }
+}

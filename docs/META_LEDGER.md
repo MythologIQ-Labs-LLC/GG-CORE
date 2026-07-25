@@ -6490,3 +6490,245 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: REFACTOR COMPLETE. `tier_synergy.rs` F1 Razor violation (397 lines) resolved. Split into 4-file module directory; all Section 4 constraints satisfied. Behavior preserved — public API unchanged, 12/12 unit tests pass. Chain tip: `53bb56939d2c91f2d822ac6836fd29a8fa546d66d4ce4a0451af124abf7eb419`.
+
+---
+
+### Entry #96: RESEARCH BRIEF
+
+**Timestamp**: 2026-07-25T12:24:23-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1 (research artifact only; findings touch L2/L3 surfaces)
+**Session ID**: 2026-07-25T1224-38ccc6
+
+**Target**: Open GitHub issues + pending architectural intent, three lenses
+(open compatibility / wide range of support / performance optimization),
+investigated independently then cross-impact analyzed.
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-open-issues-compat-support-perf-2026-07-25.md)
+= 38ccc6c55b2df5e8703ac89199e18b39a3e402aea4888c20092bd03fdc3ba3e1
+```
+
+**Previous Hash**: 53bb56939d2c91f2d822ac6836fd29a8fa546d66d4ce4a0451af124abf7eb419
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 93249da49a1f92d2a88d0226aebd24d7f0f976c682a9cd14c50056f1f2dad5b0
+```
+
+**Decision**: Research complete; 4 drift findings. (1) Issues #55/#56/#57/#69
+are stale-open — fixes merged to origin/main via PR #71 (`11bf0ac`) with green
+3-OS Rust CI; operator close recommended. (2) Issue #72 premise partially
+superseded: ONNX embedder loads via candle-onnx (`b048869`); classifier remains
+the stub. (3) ADR-007 speculative decoding is plan/heuristic/telemetry-complete
+but not wired into the engine decode path — performance claims unmeasured.
+(4) F-38 sandbox flip evidence now exists (green Linux/macOS CI) but index and
+ARCHITECTURE_PLAN:199 lag. Keystone sequencing: #48 ADR → #49 capability schema
+→ {#50, #53, #72-integration} → #51; #52 benchmark harness is the shared
+evidence gate; CI lacks feature legs (gguf/onnx/python untested). Shadow Genome
+Entry #4 added (stale-local-main near-miss). Chain tip:
+`93249da49a1f92d2a88d0226aebd24d7f0f976c682a9cd14c50056f1f2dad5b0`.
+
+---
+
+### Entry #97: RESEARCH BRIEF
+
+**Timestamp**: 2026-07-25T12:32:59-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1 (research artifact; one finding is L3-relevant — security
+chain unwired — and routes to /qor-audit before any remediation)
+**Session ID**: 2026-07-25T1233-aa214a
+
+**Target**: mistral.rs v0.9.0 + Rust inference ecosystem (candle, llama-cpp-2,
+burn, ort, tract, candle-vllm et al.) vs GG-CORE's actual backend integration.
+Goal: performance optimization without sacrificing security posture.
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-mistral-rs-rust-inference-perf-2026-07-25.md)
+= aa214ac7e38d10954086705cb30ffc8ad866a4fa10e85ea9e750ea9c2fd05588
+```
+
+**Previous Hash**: 93249da49a1f92d2a88d0226aebd24d7f0f976c682a9cd14c50056f1f2dad5b0
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 2679f9a6faafaf47157ed40b5d61d69a86416b8ea3c99dd268ff141dddcc0e99
+```
+
+**Decision**: Research complete; 4 drift findings, 2 severe. (1) L3-relevant
+DRIFT: documented security interception (OutputSanitizer/PIIDetector/prompt-
+injection) has zero production call sites — only admission control runs;
+ARCHITECTURE_PLAN data flow overstates behavior; wire + measure (issue #52
+governance metrics) before any perf claims. (2) DRIFT: in-house perf kernels
+(paged KV, Q8 KV, flash-attn, SIMD matmul) are `advanced`-gated bench-only
+code — production GGUF decode runs entirely inside llama-cpp-2; corrects
+ledger-#96 narrative. (3) mistral.rs BLOCKED for linking (unconditional
+reqwest/tokio-tungstenite/hf-hub/MCP in core + git-candle 0.11 pin) but is the
+pattern donor for ADR-007 wiring (proposer/verifier/staging/driver, stochastic
+rejection sampling), scheduler length-bucketing, prefix caching. (4) GGUF
+backend sets only 4 of llama-cpp-2 0.1.133's perf params and single-sequences
+every batch — flash-attn, Q8_0 KV, n_batch/n_ubatch knobs are available today
+with zero dependency delta. Upgrade lane: llama-cpp-2 0.1.133→0.1.152 (MTP
+spec-decode, state_seq persistence, Windows CRT fix), candle 0.8→0.11 (clean
+offline posture), tract-onnx as pure-Rust ONNX bench candidate; ort blocked
+by default build-time binary download. Shadow Genome Entry #5 added
+("exists+tested ≠ wired"). Chain tip:
+`2679f9a6faafaf47157ed40b5d61d69a86416b8ea3c99dd268ff141dddcc0e99`.
+
+---
+
+### Entry #98: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-25T13:05:00-04:00
+**Phase**: GATE
+**Author**: Judge (Option B independent fresh-context subagent)
+**Risk Grade**: L3
+**Session ID**: 2026-07-25T1233-aa214a
+
+**Target**: docs/plan-security-chain-wiring-2026-07-25.md (iteration 1)
+
+**Verdict**: PASS
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= e5933f5989d300854023e0291f621241523328aabf55a99768c555917c526f47
+```
+
+**Previous Hash**: 2679f9a6faafaf47157ed40b5d61d69a86416b8ea3c99dd268ff141dddcc0e99
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 03a615beca560c7e53ed8f94b8b363ba5a86ad47f230987c1b5895d451e548e0
+```
+
+**Decision**: GATE TRIBUNAL PASS on first iteration. All passes cleared:
+Security L3 (single-choke-point independently verified across worker/IPC/FFI/
+Python surfaces; fail-closed defaults), OWASP, Razor (post-delta measurements),
+Test Functionality (9/9 behavior-asserting), Dependency (zero new), Orphan,
+Macro-Architecture, Filter-Stage Ordering, Infrastructure Alignment (all LD
+grep-claims reproduced; 7-site caller enumeration complete). 8 advisory
+findings carried to implementation (test-module registration convention,
+env-test hygiene, apply_egress visibility, spawn_worker doc-warning, et al.).
+Gate Status: OPEN — /qor-implement authorized. Review Boundary in force.
+Chain tip: `03a615beca560c7e53ed8f94b8b363ba5a86ad47f230987c1b5895d451e548e0`.
+
+---
+
+### Entry #99: SESSION SEAL (security-chain wiring — local hold)
+
+**Timestamp**: 2026-07-25T13:55:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local, Review Boundary honored)
+**Author**: Specialist (agent team) + Judge (observer/devil's-advocate)
+**Risk Grade**: L3
+**Session ID**: 2026-07-25T1233-aa214a
+
+**Target**: docs/plan-security-chain-wiring-2026-07-25.md — wire
+`SecurityPipeline` (ingress prompt-injection scan + egress PII sanitize) into
+the production request path on branch `feat/security-chain-wiring`.
+
+**Reality vs Promise**: MATCH. All 3 phases implemented; objective observer
+confirmed every changed file maps to plan/logged-deviation; single-choke-point
+verified across worker/IPC/FFI/Python surfaces. Devil's advocate found 2
+BLOCKING defects the wiring activated (NFKC coordinate-space redaction panic/
+leak; block-mode-any-match false positives) + truncate panic + silent detect
+mode + streaming-loop test gap — ALL REMEDIATED and re-verified.
+
+**Verification (authoritative, run at seal)**:
+- `cargo fmt --check` → exit 0
+- `cargo clippy --all-targets -- -D warnings` → exit 0
+- `cargo test --workspace` → all suites pass, 0 failed (incl. 6 pipeline unit,
+  3 worker-security, 3 integration, 2 NBSP/expand sanitizer-leak oracles,
+  incidental-substring-allowed oracle)
+- Section 4 Razor: worker.rs 230 ≤250; all touched files ≤250; all new/edited
+  fns ≤40 lines
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/src/security/pipeline.rs)
+= a323af3dc1ff0b44c20ff7e7c64a0330baab2c480a885f1ed2857c768e4ed024
+```
+
+**Previous Hash**: 03a615beca560c7e53ed8f94b8b363ba5a86ad47f230987c1b5895d451e548e0
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= c5f8097fed7d1ac23617a64da76752faf6def2eb133ad03328bc5164e7d61e05
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 29b4672d66576b4b95869b6218ce0a9bfa9e1e407a971f19cacd61c6ba81e75f
+```
+
+**Decision**: Security chain WIRED and verified locally. The documented
+data-flow contract (engine → security → ipc) is now true for ingress (both
+paths) and non-streaming egress. Two governance-overhead metrics
+(`core_security_scan_latency_us`, `core_sanitize_latency_us`) + detection/
+rejection/redaction counters seed issue #52. Follow-ups: BACKLOG B-24
+(streaming egress sanitization), pattern-engine word-boundary precision
+(recorded in handoff). REVIEW BOUNDARY HONORED — no commit/stage/push/PR;
+operator decides delivery. Chain tip:
+`c5f8097fed7d1ac23617a64da76752faf6def2eb133ad03328bc5164e7d61e05`.
+
+---
+
+### Entry #100: RESEARCH BRIEF
+
+**Timestamp**: 2026-07-25T13:54:18-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1 (research artifact; findings touch the L3 `security/` egress
+surface — remediation routes through /qor-plan + /qor-audit)
+**Session ID**: 2026-07-25T1233-aa214a
+
+**Target**: Microsoft Presidio as a comparative PII-detection reference +
+the offline Rust-native route to Presidio-grade detection.
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-presidio-pii-comparison-2026-07-25.md)
+= e3b2c3e9918b0e1643a10b010354fd905e7d143ddecad459e724ad4ecccf93f1
+```
+
+**Previous Hash**: c5f8097fed7d1ac23617a64da76752faf6def2eb133ad03328bc5164e7d61e05
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= fefc7c916a740d961125731dd6d209251626271b1cf5a1e38940ab9eda5d64f1
+```
+
+**Decision**: Research complete; 2 drift findings. Presidio is charter-illegal
+to adopt — Python + spaCy, exposing only in-process Python (inverts GG-CORE's
+PyO3 model) or Flask HTTP (violates no-network/IPC-only rule); no C ABI or
+gRPC, so a sidecar is not sandbox-legal. DRIFT: GG-CORE's egress redaction is
+regex-only and structurally blind to NER-class PII (PERSON, prose LOCATION,
+NRP) — "enhanced security" overstated until measured. Sandbox-legal path is
+pure Rust: (1) offline span-level precision/recall/F1 eval harness first
+(issue #52 thread), (2) port Presidio's context-word scoring + international
+patterns / evaluate `pii-vault` MIT, (3) offline ONNX NER via candle-onnx
+(`dslim/distilbert-NER` Apache-2.0 + `tokenizers` crate; couples to issue #72;
+avoid license-blocked Piiranha, reject rust-bert/ort/tch). Shadow Genome
+Entry #6 added. Chain tip:
+`fefc7c916a740d961125731dd6d209251626271b1cf5a1e38940ab9eda5d64f1`.

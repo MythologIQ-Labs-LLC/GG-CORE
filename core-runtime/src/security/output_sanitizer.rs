@@ -5,6 +5,7 @@
 
 use crate::security::{pii_detector::PIIType, PIIDetector};
 use std::sync::Arc;
+use unicode_normalization::UnicodeNormalization;
 
 use super::sanitizer_rules;
 
@@ -73,8 +74,7 @@ impl OutputSanitizer {
         let mut pii_redacted = 0;
         let mut warnings = Vec::new();
 
-        if result.len() > self.config.max_length {
-            result.truncate(self.config.max_length);
+        if self.truncate_to_limit(&mut result) {
             warnings.push(format!(
                 "Output truncated to {} characters",
                 self.config.max_length
@@ -83,16 +83,10 @@ impl OutputSanitizer {
         }
 
         if self.config.redact_pii {
-            let matches = self.pii_detector.detect(&result);
-            for m in matches {
-                if !self.config.redact_types.contains(&m.pii_type) {
-                    continue;
-                }
-                if m.confidence < self.config.pii_confidence_threshold {
-                    continue;
-                }
-                result = self.redact_pii(&result, &m);
-                pii_redacted += 1;
+            let (redacted, n) = self.redact_all(&result);
+            if n > 0 {
+                result = redacted;
+                pii_redacted = n;
                 modified = true;
             }
         }
@@ -147,11 +141,59 @@ impl OutputSanitizer {
         result
     }
 
-    fn redact_pii(&self, text: &str, m: &crate::security::pii_detector::PIIMatch) -> String {
-        let mut result = text.to_string();
-        let replacement = format!("[REDACTED:{}]", m.pii_type.name());
-        result.replace_range(m.start..m.end, &replacement);
-        result
+    /// Truncate `text` to `max_length`, cutting on a char boundary so
+    /// `String::truncate` cannot panic mid-UTF-8. Returns whether a cut
+    /// was applied.
+    fn truncate_to_limit(&self, text: &mut String) -> bool {
+        if text.len() <= self.config.max_length {
+            return false;
+        }
+        let mut cut = self.config.max_length;
+        while cut > 0 && !text.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        text.truncate(cut);
+        true
+    }
+
+    /// Redact all qualifying PII in `text`, operating in a single consistent
+    /// coordinate space (NFKC-normalized). `PIIDetector::detect` returns
+    /// offsets in normalized space, so redaction must be applied to the
+    /// normalized string — never the raw input, whose byte offsets differ
+    /// whenever NFKC changes byte lengths (panic / PII-leak hazard).
+    ///
+    /// Returns `(text, 0)` unchanged (raw, unnormalized) when no PII passes
+    /// the `redact_types` / `pii_confidence_threshold` filters, so clean
+    /// output preserves its exact bytes.
+    fn redact_all(&self, text: &str) -> (String, usize) {
+        let normalized: String = text.nfkc().collect();
+        let matches = self.pii_detector.detect(&normalized);
+        let mut result = normalized;
+        let mut offset = 0isize;
+        let mut count = 0usize;
+        for m in matches {
+            if !self.config.redact_types.contains(&m.pii_type)
+                || m.confidence < self.config.pii_confidence_threshold
+            {
+                continue;
+            }
+            let start = (m.start as isize + offset) as usize;
+            let end = (m.end as isize + offset) as usize;
+            if start < result.len()
+                && end <= result.len()
+                && result.is_char_boundary(start)
+                && result.is_char_boundary(end)
+            {
+                let replacement = format!("[REDACTED:{}]", m.pii_type.name());
+                result.replace_range(start..end, &replacement);
+                offset += replacement.len() as isize - (m.end - m.start) as isize;
+                count += 1;
+            }
+        }
+        if count == 0 {
+            return (text.to_string(), 0);
+        }
+        (result, count)
     }
 
     pub fn validate_format(&self, output: &str) -> Result<(), String> {

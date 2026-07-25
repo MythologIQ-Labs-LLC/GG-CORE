@@ -1,0 +1,30 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-25T1233-aa214a",
+  "ts": "2026-07-25T17:52:16Z",
+  "target": "docs/plan-security-chain-wiring-2026-07-25.md",
+  "verdict": "PASS",
+  "merkle_seal": "29b4672d66576b4b95869b6218ce0a9bfa9e1e407a971f19cacd61c6ba81e75f",
+  "reality_matches_promise": true,
+  "verification": {
+    "fmt": "pass",
+    "clippy_d_warnings": "pass",
+    "cargo_test_workspace": "pass",
+    "razor": "worker.rs 230<=250"
+  },
+  "blocking_findings_remediated": [
+    "nfkc-coordinate-space redaction panic/leak (output_sanitizer.rs redact_all)",
+    "block-mode any-match false-positive brick (pipeline.rs risk-threshold + high-severity)"
+  ],
+  "review_boundary": "honored: no commit/stage/push/PR",
+  "chain_tip": "c5f8097fed7d1ac23617a64da76752faf6def2eb133ad03328bc5164e7d61e05",
+  "brief_path": "docs/plan-security-chain-wiring-2026-07-25.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "pass",
+    "ts": "2026-07-25T17:52:16Z"
+  }
+}

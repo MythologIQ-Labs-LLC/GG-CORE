@@ -134,6 +134,35 @@ fn test_streaming_pii_split_attack() {
 }
 
 #[test]
+fn test_sanitize_pii_after_nbsp_no_leak_no_panic() {
+    // NBSP (U+00A0, 2 bytes) collapses to a space (1 byte) under NFKC,
+    // shifting downstream offsets. Redacting in raw space would mis-slice
+    // or panic mid-UTF-8. The SSN must be redacted, not leaked.
+    let sanitizer = OutputSanitizer::default_sanitizer();
+    let result = sanitizer.sanitize("contact\u{00A0}123-45-6789 now");
+    assert!(
+        !result.output.contains("123-45-6789"),
+        "SSN leaked: {}",
+        result.output
+    );
+    assert!(result.pii_redacted > 0);
+}
+
+#[test]
+fn test_sanitize_pii_after_expand_char_no_leak_no_panic() {
+    // '½' (U+00BD, 2 bytes) expands to "1⁄2" (5 bytes) under NFKC, so
+    // normalized offsets run AHEAD of raw offsets — the opposite direction.
+    let sanitizer = OutputSanitizer::default_sanitizer();
+    let result = sanitizer.sanitize("value ½ then SSN 123-45-6789 end");
+    assert!(
+        !result.output.contains("123-45-6789"),
+        "SSN leaked: {}",
+        result.output
+    );
+    assert!(result.pii_redacted > 0);
+}
+
+#[test]
 fn test_safe_trim_point() {
     let buffer = "This is a test sentence with a word boundary. And more text follows here to make it longer. We need at least 100 characters for the trim logic to work properly. Adding more padding text now.";
     assert!(buffer.len() > 100);
