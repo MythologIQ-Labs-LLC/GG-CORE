@@ -157,7 +157,11 @@ pub unsafe extern "C" fn core_infer_streaming(
     }
 }
 
-/// Free string allocated by core functions. # Safety: `s` must be null or from core APIs.
+/// Free string allocated by core functions.
+/// # Safety
+/// `s` must be null or a C string previously returned by a core API (e.g.
+/// `core_get_metrics_json`) and not yet freed. After this call the pointer is dangling
+/// and must not be used again (double-free is undefined behavior).
 #[no_mangle]
 pub unsafe extern "C" fn core_free_string(s: *mut c_char) {
     if !s.is_null() {

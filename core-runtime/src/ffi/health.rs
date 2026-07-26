@@ -10,7 +10,11 @@ use super::runtime::CoreRuntime;
 use super::types::{CoreHealthReport, CoreHealthState};
 use crate::health::HealthState;
 
-/// Health check (no authentication required). # Safety: pointers must be valid.
+/// Health check (no authentication required).
+/// # Safety
+/// `runtime` and `out_report` must be valid non-null pointers for the duration of
+/// the call; `out_report` must be writable. The `CoreErrorCode` return indicates
+/// success or failure.
 #[no_mangle]
 pub unsafe extern "C" fn core_health_check(
     runtime: *mut CoreRuntime,
@@ -53,7 +57,10 @@ pub unsafe extern "C" fn core_health_check(
     CoreErrorCode::Ok
 }
 
-/// Liveness check. # Safety: `runtime` must be null or valid.
+/// Liveness check.
+/// # Safety
+/// `runtime` must be null or a valid pointer from `core_runtime_create`, live for
+/// the duration of the call. Returns false if `runtime` is null.
 #[no_mangle]
 pub unsafe extern "C" fn core_is_alive(runtime: *mut CoreRuntime) -> bool {
     if runtime.is_null() {
@@ -64,7 +71,10 @@ pub unsafe extern "C" fn core_is_alive(runtime: *mut CoreRuntime) -> bool {
     rt.inner.health.is_alive()
 }
 
-/// Readiness check. # Safety: `runtime` must be null or valid.
+/// Readiness check.
+/// # Safety
+/// `runtime` must be null or a valid pointer from `core_runtime_create`, live for
+/// the duration of the call. Returns false if `runtime` is null.
 #[no_mangle]
 pub unsafe extern "C" fn core_is_ready(runtime: *mut CoreRuntime) -> bool {
     if runtime.is_null() {
@@ -83,7 +93,11 @@ pub unsafe extern "C" fn core_is_ready(runtime: *mut CoreRuntime) -> bool {
     rt.inner.health.is_ready(shutdown_state, models, queue)
 }
 
-/// Get metrics JSON (free with `core_free_string`). # Safety: pointers must be valid.
+/// Get metrics JSON (free with `core_free_string`).
+/// # Safety
+/// `runtime` and `out_json` must be valid non-null pointers for the duration of the
+/// call; `out_json` must be writable. On success `*out_json` receives an owned C
+/// string that the caller must free with `core_free_string`.
 #[no_mangle]
 pub unsafe extern "C" fn core_get_metrics_json(
     runtime: *mut CoreRuntime,

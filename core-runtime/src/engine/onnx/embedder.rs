@@ -50,7 +50,7 @@ impl OnnxEmbedder {
     fn embed_text(&self, text: &str) -> Result<EmbeddingResult, InferenceError> {
         #[cfg(feature = "onnx")]
         {
-            return self.embed_text_onnx(text);
+            self.embed_text_onnx(text)
         }
         #[cfg(not(feature = "onnx"))]
         {
@@ -98,7 +98,7 @@ fn build_transformer_inputs(
     tokens: &[i64],
     device: &candle_core::Device,
 ) -> Result<std::collections::HashMap<String, candle_core::Tensor>, InferenceError> {
-    let ids = candle_core::Tensor::new(&tokens[..], device)
+    let ids = candle_core::Tensor::new(tokens, device)
         .and_then(|t| t.unsqueeze(0))
         .map_err(|e| InferenceError::ModelError(format!("input: {e}")))?;
 

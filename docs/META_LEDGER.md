@@ -6876,3 +6876,147 @@ rejection (security + UX). Two prior VETOs (Entry #98 was a different cycle;
 #101 this cycle) hardened the plan; the operator-directed descope kept the
 work CI-verifiable. Chain tip:
 `b53d56f5fefa869773396eb958505d1edd71a2ece6d300c7c0143252991c5ba7`.
+
+---
+
+### Entry #104: RESEARCH BRIEF
+
+**Timestamp**: 2026-07-26T11:40:12-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1 (research artifact; scopes an L2 CI-foundation cycle + a
+deferred L3 reroute cycle)
+**Session ID**: 2026-07-26T0030-b25ffi
+
+**Target**: BACKLOG B-25 — CI feature legs + FFI/Python defect remediation +
+inference reroute.
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-b25-ci-legs-ffi-python-2026-07-26.md)
+= 7609a6778c8c394cfc6c1ddb9214745303ac76863f873dfc9ebd3160ad76ac41
+```
+
+**Previous Hash**: b53d56f5fefa869773396eb958505d1edd71a2ece6d300c7c0143252991c5ba7
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= c888253e62a9845ebf2a8e35611bcc5d86d63314fe39005161dd8f39f2a7a025
+```
+
+**Decision**: Research complete; ground truth from compiling each feature.
+CI is default-features-only, so every optional surface carries invisible
+clippy debt: ffi 18 errors (17 missing_safety_doc + 1 raw-ptr-not-unsafe) +
+ffi/inference.rs 272-line Razor overage; onnx 2; python 3 (builds clean); gguf
+6. `--features ffi` compiles (ffi/error.rs exhaustiveness already fixed);
+only clippy `-D warnings` fails. B-25 splits: (1) CI-foundation cycle [next] —
+clippy-clean all 4 features + Razor-extract ffi/inference.rs + add 4 CI legs
+(L2, mechanical, no behavior change); (2) FFI/Python reroute [deferred, L3] —
+route the 5 deadlocking entry points through Runtime::infer/infer_stream.
+DRIFT: FEATURE_INDEX F-39 (FFI) "verified" overstates a surface with 18 clippy
+errors + deadlocks. Chain tip:
+`c888253e62a9845ebf2a8e35611bcc5d86d63314fe39005161dd8f39f2a7a025`.
+
+---
+
+### Entry #105: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-26T12:10:00-04:00
+**Phase**: GATE
+**Author**: Judge (independent fresh-context subagent)
+**Risk Grade**: L2
+**Session ID**: 2026-07-26T0030-b25ffi
+
+**Target**: docs/plan-b25-ci-foundation-2026-07-26.md (iteration 1)
+
+**Verdict**: PASS
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= 4e35ecf127ebde522860925422cd96ca2472433ad15100f8a26e7d1b75ad6c26
+```
+
+**Previous Hash**: c888253e62a9845ebf2a8e35611bcc5d86d63314fe39005161dd8f39f2a7a025
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= cbc1699add3fb8ae916a99b765fc5bb15f2064a52024332b59e79b3e5fc4e6b5
+```
+
+**Decision**: GATE TRIBUNAL PASS (L2). CI-foundation cycle: clippy-clean 4
+features + Razor-extract ffi/inference.rs + 4 additive CI legs. Semantics-
+preserving only; reroute deferred (L3). Key risk disproven: gguf/onnx tests
+skip on missing fixtures, ffi_test.rs uses null-only core_infer (no CI hang),
+python test is conversion-only. 3 advisories (re-capture clippy fresh per LD-1;
+proactive setup-python; CI-minute budget). Gate Status: OPEN — /qor-implement
+authorized. Chain tip:
+`cbc1699add3fb8ae916a99b765fc5bb15f2064a52024332b59e79b3e5fc4e6b5`.
+
+---
+
+### Entry #106: SESSION SEAL (B-25 CI foundation)
+
+**Timestamp**: 2026-07-26T12:45:00-04:00
+**Phase**: IMPLEMENT -> SUBSTANTIATE (local; commits directed by operator)
+**Author**: Specialist (4-agent team) + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-26T0030-b25ffi
+
+**Target**: docs/plan-b25-ci-foundation-2026-07-26.md — make gguf/onnx/ffi/python
+clippy-clean, Razor-extract ffi/inference.rs, add CI feature legs.
+
+**Reality vs Promise**: MATCH + one in-scope addition. Delivered: 4 features
+clippy-clean under `-D warnings --all-targets` (ffi 16 missing_safety_doc + 1
+not_unsafe_ptr_arg_deref + 1 justified dead_code; onnx 2; python 3; gguf 6);
+ffi/inference.rs 272->246 via new ffi/inference_result.rs; `features` matrix job
+(gguf/onnx/ffi/python) added to rust.yml with proactive setup-python. In-scope
+addition the audit's fixture check missed: `tests/e2e_model_test.rs` did not
+COMPILE under `--features gguf` (stale generate_stream arity + advanced-gated
+speculative imports + 4 masked field_reassign) — fixed. Reroute deferred (B-25b).
+
+**Verification (authoritative, at seal)**:
+- `cargo fmt --check` -> 0; `cargo clippy --all-targets -- -D warnings` (default) -> 0
+- `cargo test --workspace` (default) -> 0 failures
+- `cargo clippy --features {ffi,onnx,python,gguf} --all-targets -- -D warnings`
+  -> each 0 (gguf verified after the e2e_model_test fix)
+- Per-feature tests: onnx tier2 14 passed; python binding 2 passed; ffi build +
+  header regen; gguf e2e compiles + skips on absent fixture
+- Razor: touched files ≤250 (ffi/inference.rs 246, inference_result.rs 49)
+
+**Content Hash**:
+
+```
+SHA256(.github/workflows/rust.yml)
+= 9696404c1bfc918c0430d0572c460489d32e7ef56257b80766c2bdb563638159
+```
+
+**Previous Hash**: cbc1699add3fb8ae916a99b765fc5bb15f2064a52024332b59e79b3e5fc4e6b5
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= e7d7be32e35f8ca9817aeec3e3276079f25c2380e4d25ef9c93a18ba8b8e1cb0
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= ede4cae4ee9be6bfc77bacc33f6449cc181694ef499d9fd27b3f2078f5cecf3a
+```
+
+**Decision**: CI FOUNDATION delivered. The consumable-feature surface is now
+verified ground — CI builds, lints (`-D warnings`), and tests gguf/onnx/ffi/
+python, closing the default-only gap that hid per-feature clippy debt (Shadow
+Genome #7). Debt eliminated: ffi 18, onnx 2, python 3, gguf 6 + a non-compiling
+gguf test. FEATURE_INDEX F-40 -> verified; F-39 CI-backed. The L3 FFI/Python
+inference reroute (deadlock fix) is B-25b, now verifiable by these legs. Chain
+tip: `e7d7be32e35f8ca9817aeec3e3276079f25c2380e4d25ef9c93a18ba8b8e1cb0`.

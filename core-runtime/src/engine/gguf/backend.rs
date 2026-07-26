@@ -102,9 +102,10 @@ impl LlamaBackendInner {
         decode(&mut ctx, &mut batch)?;
         let mut sampler = build_sampler(config);
         sampler.accept_many(tokens.iter().copied());
-        let mut pos = tokens.len() as i32;
+        let start_pos = tokens.len() as i32;
         let rt = tokio::runtime::Handle::current();
-        for i in 0..max_tok {
+        for (offset, i) in (0..max_tok).enumerate() {
+            let pos = start_pos + offset as i32;
             if is_cancelled.as_ref().is_some_and(|f| f()) {
                 break;
             }
@@ -122,7 +123,6 @@ impl LlamaBackendInner {
             batch.clear();
             add_one(&mut batch, tok, pos)?;
             decode(&mut ctx, &mut batch)?;
-            pos += 1;
         }
         Ok(())
     }
@@ -142,8 +142,9 @@ impl LlamaBackendInner {
         let mut sampler = build_sampler(&config);
         sampler.accept_many(tokens.iter().copied());
         let mut out = Vec::with_capacity(count);
-        let mut pos = tokens.len() as i32;
-        for _ in 0..count {
+        let start_pos = tokens.len() as i32;
+        for (offset, _) in (0..count).enumerate() {
+            let pos = start_pos + offset as i32;
             let tok = sampler.sample(&ctx, -1);
             sampler.accept(tok);
             if self.model.is_eog_token(tok) {
@@ -153,7 +154,6 @@ impl LlamaBackendInner {
             batch.clear();
             add_one(&mut batch, tok, pos)?;
             decode(&mut ctx, &mut batch)?;
-            pos += 1;
         }
         Ok(out)
     }
@@ -249,8 +249,9 @@ impl LlamaBackendInner {
         let mut sampler = build_sampler(config);
         sampler.accept_many(tokens.iter().copied());
         let mut out = Vec::new();
-        let mut pos = tokens.len() as i32;
-        for _ in 0..max_tok {
+        let start_pos = tokens.len() as i32;
+        for (offset, _) in (0..max_tok).enumerate() {
+            let pos = start_pos + offset as i32;
             if is_cancelled.as_ref().is_some_and(|f| f()) {
                 return Ok((out, FinishReason::Cancelled));
             }
@@ -264,7 +265,6 @@ impl LlamaBackendInner {
             batch.clear();
             add_one(&mut batch, tok, pos)?;
             decode(ctx, &mut batch)?;
-            pos += 1;
         }
         Ok((out, FinishReason::MaxTokens))
     }
@@ -310,7 +310,7 @@ fn build_sampler(config: &InferenceConfig) -> LlamaSampler {
     if config.top_k > 0 {
         s.push(LlamaSampler::top_k(config.top_k as i32));
     }
-    s.push(LlamaSampler::top_p(config.top_p as f32, 1));
+    s.push(LlamaSampler::top_p(config.top_p, 1));
     s.push(LlamaSampler::temp(config.temperature));
     s.push(LlamaSampler::dist(42));
     LlamaSampler::chain_simple(s)
@@ -322,7 +322,7 @@ fn resolve_threads(n: u32) -> i32 {
         // Use all logical cores for small models, cap for large models
         let logical = num_cpus::get();
         // Cap at 16 to avoid diminishing returns on high-core systems
-        let optimal = logical.max(1).min(16);
+        let optimal = logical.clamp(1, 16);
         i32::try_from(optimal).unwrap_or(4)
     } else {
         i32::try_from(n).unwrap_or(4)

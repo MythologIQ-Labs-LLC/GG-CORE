@@ -36,8 +36,10 @@ mod tests {
         println!("Model loaded: {}", gen.model_id());
 
         let input = InferenceInput::Text("What is 2 + 2? Answer briefly:".to_string());
-        let mut inf_config = InferenceConfig::default();
-        inf_config.max_tokens = Some(50);
+        let inf_config = InferenceConfig {
+            max_tokens: Some(50),
+            ..Default::default()
+        };
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let result = rt.block_on(gen.infer(&input, &inf_config));
@@ -56,8 +58,10 @@ mod tests {
         let Some(gen) = load_test_model() else { return };
         println!("Model loaded for streaming: {}", gen.model_id());
 
-        let mut inf_config = InferenceConfig::default();
-        inf_config.max_tokens = Some(20);
+        let inf_config = InferenceConfig {
+            max_tokens: Some(20),
+            ..Default::default()
+        };
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let token_count = Arc::new(AtomicUsize::new(0));
@@ -69,7 +73,7 @@ mod tests {
 
             // Spawn streaming task
             let gen_handle = tokio::task::spawn_blocking({
-                move || gen.generate_stream(prompt, &inf_config, sender)
+                move || gen.generate_stream(prompt, &inf_config, sender, None)
             });
 
             // Collect tokens
@@ -114,8 +118,10 @@ mod tests {
             },
         ];
         let input = InferenceInput::ChatMessages(messages);
-        let mut inf_config = InferenceConfig::default();
-        inf_config.max_tokens = Some(30);
+        let inf_config = InferenceConfig {
+            max_tokens: Some(30),
+            ..Default::default()
+        };
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let result = rt.block_on(gen.infer(&input, &inf_config));
@@ -139,8 +145,10 @@ mod tests {
 
         let input =
             InferenceInput::Text("Write a detailed essay about climate change:".to_string());
-        let mut inf_config = InferenceConfig::default();
-        inf_config.max_tokens = Some(100);
+        let inf_config = InferenceConfig {
+            max_tokens: Some(100),
+            ..Default::default()
+        };
 
         let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -167,6 +175,9 @@ mod tests {
         }
     }
 
+    // Speculative decoding lives behind the `advanced` feature; this e2e test
+    // only compiles when it is enabled (the gguf-only CI leg skips it).
+    #[cfg(feature = "advanced")]
     #[test]
     fn e2e_speculative_decoding() {
         use gg_core::engine::gguf::{GgufDraftModel, GgufTargetModel};

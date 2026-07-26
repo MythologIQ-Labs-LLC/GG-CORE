@@ -14,6 +14,9 @@ use crate::Runtime;
 /// Session handle with reference counting
 pub struct CoreSession {
     pub(crate) token: SessionToken,
+    // Held (not read) to keep the `Arc<Runtime>` alive for the session's lifetime,
+    // guaranteeing the runtime cannot be destroyed while a session references it.
+    #[allow(dead_code)]
     pub(crate) runtime: Arc<Runtime>,
     session_id_cstr: CString,
 }
@@ -68,7 +71,11 @@ pub unsafe extern "C" fn core_authenticate(
     }
 }
 
-/// Validate existing session. # Safety: pointers must be valid.
+/// Validate existing session.
+/// # Safety
+/// `runtime` and `session` must be valid non-null pointers to objects from
+/// `core_runtime_create`/`core_authenticate`, live for the duration of the call.
+/// The returned `CoreErrorCode` indicates success or the validation failure reason.
 #[no_mangle]
 pub unsafe extern "C" fn core_session_validate(
     runtime: *mut CoreRuntime,
@@ -92,7 +99,11 @@ pub unsafe extern "C" fn core_session_validate(
     }
 }
 
-/// Release session handle. # Safety: `session` must be null or from `core_authenticate`.
+/// Release session handle.
+/// # Safety
+/// `session` must be null or a pointer previously returned by `core_authenticate`
+/// and not yet released. After this call the pointer is dangling and must not be
+/// used again (double-free is undefined behavior).
 #[no_mangle]
 pub unsafe extern "C" fn core_session_release(session: *mut CoreSession) {
     if !session.is_null() {
@@ -100,7 +111,11 @@ pub unsafe extern "C" fn core_session_release(session: *mut CoreSession) {
     }
 }
 
-/// Get session ID string (valid until session released). # Safety: session must be valid.
+/// Get session ID string (valid until session released).
+/// # Safety
+/// `session` must be null or a valid pointer from `core_authenticate`. The returned
+/// C string pointer borrows from the session and is valid only until the session is
+/// released; returns null if `session` is null.
 #[no_mangle]
 pub unsafe extern "C" fn core_session_id(session: *const CoreSession) -> *const c_char {
     if session.is_null() {

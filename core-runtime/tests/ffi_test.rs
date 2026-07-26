@@ -94,7 +94,10 @@ fn test_config_default_sets_reasonable_values() {
         shutdown_timeout_secs: 0,
     };
 
-    core_config_default(&mut config);
+    // SAFETY: `config` is a valid, writable pointer to a live `CoreConfig`.
+    unsafe {
+        core_config_default(&mut config);
+    }
 
     assert!(config.base_path.is_null());
     assert!(config.auth_token.is_null());
@@ -106,7 +109,10 @@ fn test_config_default_sets_reasonable_values() {
 
 #[test]
 fn test_config_default_handles_null_pointer() {
-    core_config_default(ptr::null_mut());
+    // SAFETY: passing a null pointer is explicitly supported; the fn returns early.
+    unsafe {
+        core_config_default(ptr::null_mut());
+    }
 }
 
 // ============================================================================
@@ -209,8 +215,10 @@ fn test_runtime_destroy_handles_null() {
 #[test]
 fn test_runtime_create_and_destroy_lifecycle() {
     let auth_token = CString::new("test_token_12345").unwrap();
-    let mut config = CoreConfig::default();
-    config.auth_token = auth_token.as_ptr();
+    let config = CoreConfig {
+        auth_token: auth_token.as_ptr(),
+        ..Default::default()
+    };
 
     let mut out_runtime: *mut gg_core::ffi::CoreRuntime = ptr::null_mut();
     let result = unsafe { core_runtime_create(&config, &mut out_runtime) };
@@ -240,8 +248,10 @@ fn test_model_load_rejects_null_runtime() {
 fn test_model_load_rejects_null_path() {
     core_clear_last_error();
     let auth_token = CString::new("test_token").unwrap();
-    let mut config = CoreConfig::default();
-    config.auth_token = auth_token.as_ptr();
+    let config = CoreConfig {
+        auth_token: auth_token.as_ptr(),
+        ..Default::default()
+    };
 
     let mut rt: *mut gg_core::ffi::CoreRuntime = ptr::null_mut();
     unsafe { core_runtime_create(&config, &mut rt) };
@@ -263,8 +273,10 @@ fn test_model_unload_rejects_null_runtime() {
 #[test]
 fn test_model_unload_nonexistent_returns_not_found() {
     let auth_token = CString::new("test_token").unwrap();
-    let mut config = CoreConfig::default();
-    config.auth_token = auth_token.as_ptr();
+    let config = CoreConfig {
+        auth_token: auth_token.as_ptr(),
+        ..Default::default()
+    };
 
     let mut rt: *mut gg_core::ffi::CoreRuntime = ptr::null_mut();
     unsafe { core_runtime_create(&config, &mut rt) };
@@ -290,8 +302,10 @@ fn test_model_list_rejects_null_pointers() {
 #[test]
 fn test_model_list_empty_returns_zero() {
     let auth_token = CString::new("test_token").unwrap();
-    let mut config = CoreConfig::default();
-    config.auth_token = auth_token.as_ptr();
+    let config = CoreConfig {
+        auth_token: auth_token.as_ptr(),
+        ..Default::default()
+    };
 
     let mut rt: *mut gg_core::ffi::CoreRuntime = ptr::null_mut();
     unsafe { core_runtime_create(&config, &mut rt) };
@@ -309,8 +323,10 @@ fn test_model_list_empty_returns_zero() {
 #[test]
 fn test_model_count_returns_zero_initially() {
     let auth_token = CString::new("test_token").unwrap();
-    let mut config = CoreConfig::default();
-    config.auth_token = auth_token.as_ptr();
+    let config = CoreConfig {
+        auth_token: auth_token.as_ptr(),
+        ..Default::default()
+    };
 
     let mut rt: *mut gg_core::ffi::CoreRuntime = ptr::null_mut();
     unsafe { core_runtime_create(&config, &mut rt) };
@@ -350,8 +366,10 @@ fn test_infer_rejects_null_runtime() {
 #[test]
 fn test_infer_rejects_null_prompt() {
     let auth_token = CString::new("test_token").unwrap();
-    let mut config = CoreConfig::default();
-    config.auth_token = auth_token.as_ptr();
+    let config = CoreConfig {
+        auth_token: auth_token.as_ptr(),
+        ..Default::default()
+    };
 
     let mut rt: *mut gg_core::ffi::CoreRuntime = ptr::null_mut();
     unsafe { core_runtime_create(&config, &mut rt) };
@@ -428,8 +446,10 @@ unsafe fn create_runtime_and_session() -> (
     CString,
 ) {
     let auth_token = CString::new("test_token_lifecycle").unwrap();
-    let mut config = CoreConfig::default();
-    config.auth_token = auth_token.as_ptr();
+    let config = CoreConfig {
+        auth_token: auth_token.as_ptr(),
+        ..Default::default()
+    };
 
     let mut rt: *mut gg_core::ffi::CoreRuntime = ptr::null_mut();
     let result = core_runtime_create(&config, &mut rt);

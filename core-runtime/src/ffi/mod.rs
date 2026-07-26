@@ -10,6 +10,7 @@ mod auth;
 mod error;
 mod health;
 mod inference;
+mod inference_result;
 mod models;
 mod runtime;
 mod streaming;

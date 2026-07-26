@@ -91,7 +91,7 @@ impl Session {
 
             rx.await
                 .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("worker dropped channel"))?
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+                .map_err(pyo3::exceptions::PyRuntimeError::new_err)
         })?;
 
         Ok(InferenceResult::from(result))
@@ -216,7 +216,7 @@ impl AsyncSession {
             let result = rx
                 .await
                 .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("worker dropped channel"))?
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+                .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
 
             Ok(InferenceResult::from(result))
         })

@@ -1,0 +1,51 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-26T0030-b25ffi",
+  "ts": "2026-07-26T15:53:40Z",
+  "questions": [
+    "Does CI build gguf/onnx/ffi/python? What breaks when each is compiled?",
+    "What is the FFI/Python inference reroute surface (entry points, deadlocks)?",
+    "How should B-25 be scoped/sequenced?"
+  ],
+  "findings": [
+    {
+      "id": "CI1",
+      "summary": "rust.yml builds default features only (2 jobs, 3-OS); no gguf/onnx/ffi/python leg. codeql.yml is the only other workflow",
+      "status": "verified"
+    },
+    {
+      "id": "DBT1",
+      "summary": "Per-feature clippy -D warnings debt (measured by compiling): ffi=18 (17 missing_safety_doc across auth/health/inference/models/streaming + 1 not_unsafe_ptr_arg_deref runtime.rs:31) + ffi/inference.rs 272>250 Razor; onnx=2 (embedder.rs:53,101); python=3 (field-assign-Default + 2 redundant closures, builds clean); gguf=6 (pos-loop-counter x3, f32 cast, clamp, return)",
+      "status": "verified"
+    },
+    {
+      "id": "FFI1",
+      "summary": "ffi/error.rs exhaustiveness already fixed; --features ffi COMPILES; only clippy fails. --features python cargo check exit 0",
+      "status": "verified"
+    },
+    {
+      "id": "RR1",
+      "summary": "5 deadlocking inference entry points (no worker in FFI/Python init): core_infer, core_infer_bounded (adds output buffer), core_infer_streaming (fake-stream single callback), Session::infer, AsyncSession::infer. Reroute -> Runtime::infer/infer_stream (gguf-gated streaming)",
+      "status": "verified"
+    },
+    {
+      "id": "SPLIT",
+      "summary": "B-25 splits: (1) CI-foundation cycle [next]: clippy-clean 4 features + Razor-extract ffi/inference.rs + 4 CI legs (L2, mechanical); (2) FFI/Python reroute [deferred, L3]",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    ".github/workflows/rust.yml + codeql.yml; core-runtime/Cargo.toml [features]/build.rs",
+    "cargo clippy --features {ffi,onnx,python,gguf} --all-targets -D warnings (run locally, error counts+locations captured)",
+    "core-runtime/src/ffi/{inference,streaming,runtime,error,auth,health,models}.rs; python/{session,runtime,exceptions}.rs; runtime_facade.rs"
+  ],
+  "brief_path": "docs/research-brief-b25-ci-legs-ffi-python-2026-07-26.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-26T15:53:40Z"
+  }
+}

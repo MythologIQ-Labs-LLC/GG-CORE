@@ -84,11 +84,17 @@ constexpr static const uintptr_t TAG_SIZE = 16;
 /// Block size
 constexpr static const uintptr_t BLOCK_SIZE = 16;
 
+/// PBKDF2 iteration count (600,000 iterations per OWASP 2023 recommendations)
+constexpr static const uint32_t ModelEncryption_PBKDF2_ITERATIONS = 600000;
+
 /// Minimum salt size for security (16 bytes = 128 bits)
 constexpr static const uintptr_t MIN_SALT_SIZE = 16;
 
 /// Current file format version
 constexpr static const uint8_t FORMAT_VERSION = 3;
+
+/// Maximum allowed length for string fields.
+constexpr static const uintptr_t MAX_FIELD_LENGTH = 256;
 
 /// Exit codes for health probes.
 constexpr static const int32_t EXIT_HEALTHY = 0;
@@ -113,6 +119,8 @@ enum class CoreErrorCode : int32_t {
   ShuttingDown = -13,
   Timeout = -14,
   Cancelled = -15,
+  BufferTooSmall = -16,
+  SecurityRejected = -17,
   Internal = -99,
 };
 
@@ -129,7 +137,7 @@ struct CoreRuntime;
 /// Session handle with reference counting
 struct CoreSession;
 
-/// Protocol version for negotiating encoding strategies.
+/// Protocol version for negotiating encoding.
 struct ProtocolVersion;
 
 /// Health check report
@@ -215,16 +223,30 @@ using CoreStreamCallback = bool(*)(void *user_data,
 
 extern "C" {
 
-/// Authenticate with token, returns session handle
+/// Authenticate with token, returns session handle.
+/// # Safety
+/// All pointers must be valid. `token` must be a NUL-terminated C string.
 CoreErrorCode core_authenticate(CoreRuntime *runtime, const char *token, CoreSession **out_session);
 
-/// Validate existing session
+/// Validate existing session.
+/// # Safety
+/// `runtime` and `session` must be valid non-null pointers to objects from
+/// `core_runtime_create`/`core_authenticate`, live for the duration of the call.
+/// The returned `CoreErrorCode` indicates success or the validation failure reason.
 CoreErrorCode core_session_validate(CoreRuntime *runtime, CoreSession *session);
 
-/// Release session handle
+/// Release session handle.
+/// # Safety
+/// `session` must be null or a pointer previously returned by `core_authenticate`
+/// and not yet released. After this call the pointer is dangling and must not be
+/// used again (double-free is undefined behavior).
 void core_session_release(CoreSession *session);
 
-/// Get session ID string (borrowed pointer, valid until session released)
+/// Get session ID string (valid until session released).
+/// # Safety
+/// `session` must be null or a valid pointer from `core_authenticate`. The returned
+/// C string pointer borrows from the session and is valid only until the session is
+/// released; returns null if `session` is null.
 const char *core_session_id(const CoreSession *session);
 
 /// Get the last error message (C API)
@@ -233,19 +255,35 @@ const char *core_get_last_error();
 /// Clear the last error message (C API)
 void core_clear_last_error();
 
-/// Health check (no authentication required)
+/// Health check (no authentication required).
+/// # Safety
+/// `runtime` and `out_report` must be valid non-null pointers for the duration of
+/// the call; `out_report` must be writable. The `CoreErrorCode` return indicates
+/// success or failure.
 CoreErrorCode core_health_check(CoreRuntime *runtime, CoreHealthReport *out_report);
 
-/// Liveness check (simple boolean)
+/// Liveness check.
+/// # Safety
+/// `runtime` must be null or a valid pointer from `core_runtime_create`, live for
+/// the duration of the call. Returns false if `runtime` is null.
 bool core_is_alive(CoreRuntime *runtime);
 
-/// Readiness check (simple boolean)
+/// Readiness check.
+/// # Safety
+/// `runtime` must be null or a valid pointer from `core_runtime_create`, live for
+/// the duration of the call. Returns false if `runtime` is null.
 bool core_is_ready(CoreRuntime *runtime);
 
-/// Get metrics as JSON string (caller must free with core_free_string)
+/// Get metrics JSON (free with `core_free_string`).
+/// # Safety
+/// `runtime` and `out_json` must be valid non-null pointers for the duration of the
+/// call; `out_json` must be writable. On success `*out_json` receives an owned C
+/// string that the caller must free with `core_free_string`.
 CoreErrorCode core_get_metrics_json(CoreRuntime *runtime, char **out_json);
 
-/// Submit inference request (blocking, text-based)
+/// Submit inference request (blocking, text-based).
+/// # Safety
+/// All non-null pointers must be valid. `params` may be null for defaults.
 CoreErrorCode core_infer(CoreRuntime *runtime,
                          CoreSession *session,
                          const char *model_id,
@@ -253,7 +291,9 @@ CoreErrorCode core_infer(CoreRuntime *runtime,
                          const CoreInferenceParams *params,
                          CoreInferenceResult *out_result);
 
-/// Submit inference request with timeout (blocking)
+/// Submit inference request with timeout (blocking).
+/// # Safety
+/// Same as `core_infer`.
 CoreErrorCode core_infer_with_timeout(CoreRuntime *runtime,
                                       CoreSession *session,
                                       const char *model_id,
@@ -262,44 +302,96 @@ CoreErrorCode core_infer_with_timeout(CoreRuntime *runtime,
                                       uint64_t timeout_ms,
                                       CoreInferenceResult *out_result);
 
-/// Free inference result text (caller must call after consuming)
+/// Free inference result text.
+/// # Safety
+/// `result` must be null or a valid pointer previously populated by `core_infer`/
+/// `core_infer_with_timeout` and not yet freed. After this call the owned `output_text`
+/// is dangling and must not be reused (double-free is undefined behavior).
 void core_free_result(CoreInferenceResult *result);
 
-/// Load a model via ModelLifecycle (atomic registry + engine)
+/// Inference with caller-provided buffer.
+/// # Safety
+/// `runtime`, `session`, `model_id`, `prompt`, `out_buf`, and `out_len` must be valid
+/// non-null pointers for the duration of the call; `params` may be null for defaults.
+/// `model_id` and `prompt` must be valid NUL-terminated C strings; `out_buf` must be
+/// writable for `buf_len` bytes and `out_len` writable. The `CoreErrorCode` return
+/// indicates success or failure.
+CoreErrorCode core_infer_bounded(CoreRuntime *runtime,
+                                 CoreSession *session,
+                                 const char *model_id,
+                                 const char *prompt,
+                                 const CoreInferenceParams *params,
+                                 uint8_t *out_buf,
+                                 uintptr_t buf_len,
+                                 uintptr_t *out_len);
+
+/// Load a model via ModelLifecycle.
+/// # Safety
+/// `runtime`, `model_path`, and `out_handle_id` must be valid non-null pointers for
+/// the duration of the call; `model_path` must be a valid NUL-terminated C string and
+/// `out_handle_id` must be writable. The `CoreErrorCode` return indicates success or failure.
 CoreErrorCode core_model_load(CoreRuntime *runtime,
                               const char *model_path,
                               uint64_t *out_handle_id);
 
-/// Unload a model via ModelLifecycle (atomic)
+/// Unload a model via ModelLifecycle.
+/// # Safety
+/// `runtime` must be a valid non-null pointer from `core_runtime_create`, live for the
+/// duration of the call. The `CoreErrorCode` return indicates success or failure.
 CoreErrorCode core_model_unload(CoreRuntime *runtime, uint64_t handle_id);
 
-/// Get model info
+/// Get model info.
+/// # Safety
+/// `runtime` and `out_metadata` must be valid non-null pointers for the duration of the
+/// call; `out_metadata` must be writable. On success it is populated with owned fields
+/// the caller must free via `core_free_model_metadata`. The `CoreErrorCode` return
+/// indicates success or failure.
 CoreErrorCode core_model_info(CoreRuntime *runtime,
                               uint64_t handle_id,
                               CoreModelMetadata *out_metadata);
 
-/// Free model metadata
+/// Free model metadata.
+/// # Safety
+/// `metadata` must be null or a valid pointer previously populated by `core_model_info`
+/// and not yet freed. After this call the owned fields are dangling and must not be reused.
 void core_free_model_metadata(CoreModelMetadata *metadata);
 
-/// List all loaded models (fills out_handles buffer)
+/// List loaded models.
+/// # Safety
+/// `runtime`, `out_handles`, and `out_count` must be valid non-null pointers for the
+/// duration of the call; `out_handles` must point to writable storage for at least
+/// `max_count` `u64` values and `out_count` must be writable. The `CoreErrorCode`
+/// return indicates success or failure.
 CoreErrorCode core_model_list(CoreRuntime *runtime,
                               uint64_t *out_handles,
                               uint32_t max_count,
                               uint32_t *out_count);
 
-/// Get count of loaded models
+/// Get count of loaded models.
+/// # Safety
+/// `runtime` and `out_count` must be valid non-null pointers for the duration of the
+/// call; `out_count` must be writable. The `CoreErrorCode` return indicates success or failure.
 CoreErrorCode core_model_count(CoreRuntime *runtime, uint32_t *out_count);
 
-/// Get default configuration values
+/// Get default configuration values.
+/// # Safety
+/// `config` must be null or a valid, writable pointer to a `CoreConfig` for the
+/// duration of the call. When non-null it is overwritten with default values.
 void core_config_default(CoreConfig *config);
 
-/// Create runtime with configuration
+/// Create runtime with configuration.
+/// # Safety
+/// `config` and `out_runtime` must be valid non-null pointers.
 CoreErrorCode core_runtime_create(const CoreConfig *config, CoreRuntime **out_runtime);
 
-/// Destroy runtime (blocks until graceful shutdown)
+/// Destroy runtime (blocks until graceful shutdown).
+/// # Safety
+/// `runtime` must be null or from `core_runtime_create`. Must not be called concurrently.
 void core_runtime_destroy(CoreRuntime *runtime);
 
-/// Submit streaming inference request (blocks until complete/cancelled)
+/// Submit streaming inference (blocks until done/cancelled).
+/// # Safety
+/// All pointers valid. `callback` must be safe to invoke from any thread.
 CoreErrorCode core_infer_streaming(CoreRuntime *runtime,
                                    CoreSession *session,
                                    const char *model_id,
@@ -308,7 +400,11 @@ CoreErrorCode core_infer_streaming(CoreRuntime *runtime,
                                    CoreStreamCallback callback,
                                    void *user_data);
 
-/// Free string allocated by core functions
+/// Free string allocated by core functions.
+/// # Safety
+/// `s` must be null or a C string previously returned by a core API (e.g.
+/// `core_get_metrics_json`) and not yet freed. After this call the pointer is dangling
+/// and must not be used again (double-free is undefined behavior).
 void core_free_string(char *s);
 
 } // extern "C"

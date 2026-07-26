@@ -203,6 +203,13 @@ Violations block implementation; `/qor-refactor` is the remediation path.
 | Regression | `docs/FEATURE_INDEX.md` diff at seal | no outside-scope verified->unverified flips |
 | Bench | `core-runtime/benches/` (Criterion) | no unexplained latency/throughput regression |
 
+**CI feature coverage**: `.github/workflows/rust.yml` now carries a `features`
+matrix job that builds, lints (`cargo clippy --features <f> --all-targets --
+-D warnings`), and tests (`cargo test --features <f>`) each of `gguf/onnx/ffi/
+python` — closing the prior gap where only default features were built, which
+had hidden per-feature clippy debt (ffi/onnx/python/gguf). `cuda/metal/advanced`
+remain CI-unbuilt (no GPU runners / proprietary toolchains).
+
 ---
 
 ## Security Considerations
