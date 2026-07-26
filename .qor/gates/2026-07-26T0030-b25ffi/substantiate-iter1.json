@@ -1,0 +1,32 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-26T0030-b25ffi",
+  "ts": "2026-07-26T16:16:54Z",
+  "target": "docs/plan-b25-ci-foundation-2026-07-26.md",
+  "verdict": "PASS",
+  "merkle_seal": "ede4cae4ee9be6bfc77bacc33f6449cc181694ef499d9fd27b3f2078f5cecf3a",
+  "reality_matches_promise": true,
+  "verification": {
+    "fmt": "pass",
+    "clippy_default": "pass",
+    "test_workspace": "pass (0 failed)",
+    "clippy_ffi": "pass",
+    "clippy_onnx": "pass",
+    "clippy_python": "pass",
+    "clippy_gguf": "pass",
+    "razor": "ffi/inference.rs 246, inference_result.rs 49"
+  },
+  "deferred": [
+    "FFI/Python inference reroute -> BACKLOG B-25b (L3)"
+  ],
+  "chain_tip": "e7d7be32e35f8ca9817aeec3e3276079f25c2380e4d25ef9c93a18ba8b8e1cb0",
+  "brief_path": "docs/plan-b25-ci-foundation-2026-07-26.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "pass",
+    "ts": "2026-07-26T16:16:54Z"
+  }
+}

@@ -314,6 +314,7 @@ async fn worker_rejects_when_memory_limit_exceeded() {
         None,
         None,
         Some(limits),
+        None,
         shutdown.clone(),
     );
 
@@ -358,6 +359,7 @@ async fn worker_rejects_when_concurrency_limit_exceeded() {
         None,
         None,
         Some(limits),
+        None,
         shutdown.clone(),
     );
 
@@ -408,6 +410,7 @@ async fn worker_releases_resource_guard_after_inference() {
         None,
         None,
         Some(limits.clone()),
+        None,
         shutdown.clone(),
     );
 
@@ -469,6 +472,7 @@ async fn admission_rejection_propagates_to_caller() {
         None,
         None,
         Some(limits),
+        None,
         shutdown.clone(),
     );
 
@@ -569,6 +573,7 @@ async fn worker_rejects_streaming_when_concurrency_limit_exceeded() {
         None,
         None,
         Some(limits),
+        None,
         shutdown.clone(),
     );
 

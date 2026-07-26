@@ -127,6 +127,7 @@ pub async fn run_ipc_server(runtime: Runtime) -> Result<(), Box<dyn std::error::
         Some(runtime.model_lifecycle.clone()),
         Some(runtime.model_registry.clone()),
         Some(runtime.resource_limits.clone()),
+        Some(runtime.security.clone()),
         worker_shutdown.clone(),
     );
 

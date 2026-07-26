@@ -22,6 +22,9 @@ pub enum InferenceError {
 
     #[error("Memory limit exceeded: used {used} bytes, limit {limit} bytes")]
     MemoryExceeded { used: usize, limit: usize },
+
+    #[error("{0}")]
+    SecurityRejected(String),
 }
 
 /// Parameters controlling inference behavior (IPC protocol).

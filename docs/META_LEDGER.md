@@ -6490,3 +6490,533 @@ SHA256(chain_hash + "SEALED")
 ```
 
 **Decision**: REFACTOR COMPLETE. `tier_synergy.rs` F1 Razor violation (397 lines) resolved. Split into 4-file module directory; all Section 4 constraints satisfied. Behavior preserved — public API unchanged, 12/12 unit tests pass. Chain tip: `53bb56939d2c91f2d822ac6836fd29a8fa546d66d4ce4a0451af124abf7eb419`.
+
+---
+
+### Entry #96: RESEARCH BRIEF
+
+**Timestamp**: 2026-07-25T12:24:23-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1 (research artifact only; findings touch L2/L3 surfaces)
+**Session ID**: 2026-07-25T1224-38ccc6
+
+**Target**: Open GitHub issues + pending architectural intent, three lenses
+(open compatibility / wide range of support / performance optimization),
+investigated independently then cross-impact analyzed.
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-open-issues-compat-support-perf-2026-07-25.md)
+= 38ccc6c55b2df5e8703ac89199e18b39a3e402aea4888c20092bd03fdc3ba3e1
+```
+
+**Previous Hash**: 53bb56939d2c91f2d822ac6836fd29a8fa546d66d4ce4a0451af124abf7eb419
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 93249da49a1f92d2a88d0226aebd24d7f0f976c682a9cd14c50056f1f2dad5b0
+```
+
+**Decision**: Research complete; 4 drift findings. (1) Issues #55/#56/#57/#69
+are stale-open — fixes merged to origin/main via PR #71 (`11bf0ac`) with green
+3-OS Rust CI; operator close recommended. (2) Issue #72 premise partially
+superseded: ONNX embedder loads via candle-onnx (`b048869`); classifier remains
+the stub. (3) ADR-007 speculative decoding is plan/heuristic/telemetry-complete
+but not wired into the engine decode path — performance claims unmeasured.
+(4) F-38 sandbox flip evidence now exists (green Linux/macOS CI) but index and
+ARCHITECTURE_PLAN:199 lag. Keystone sequencing: #48 ADR → #49 capability schema
+→ {#50, #53, #72-integration} → #51; #52 benchmark harness is the shared
+evidence gate; CI lacks feature legs (gguf/onnx/python untested). Shadow Genome
+Entry #4 added (stale-local-main near-miss). Chain tip:
+`93249da49a1f92d2a88d0226aebd24d7f0f976c682a9cd14c50056f1f2dad5b0`.
+
+---
+
+### Entry #97: RESEARCH BRIEF
+
+**Timestamp**: 2026-07-25T12:32:59-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1 (research artifact; one finding is L3-relevant — security
+chain unwired — and routes to /qor-audit before any remediation)
+**Session ID**: 2026-07-25T1233-aa214a
+
+**Target**: mistral.rs v0.9.0 + Rust inference ecosystem (candle, llama-cpp-2,
+burn, ort, tract, candle-vllm et al.) vs GG-CORE's actual backend integration.
+Goal: performance optimization without sacrificing security posture.
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-mistral-rs-rust-inference-perf-2026-07-25.md)
+= aa214ac7e38d10954086705cb30ffc8ad866a4fa10e85ea9e750ea9c2fd05588
+```
+
+**Previous Hash**: 93249da49a1f92d2a88d0226aebd24d7f0f976c682a9cd14c50056f1f2dad5b0
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 2679f9a6faafaf47157ed40b5d61d69a86416b8ea3c99dd268ff141dddcc0e99
+```
+
+**Decision**: Research complete; 4 drift findings, 2 severe. (1) L3-relevant
+DRIFT: documented security interception (OutputSanitizer/PIIDetector/prompt-
+injection) has zero production call sites — only admission control runs;
+ARCHITECTURE_PLAN data flow overstates behavior; wire + measure (issue #52
+governance metrics) before any perf claims. (2) DRIFT: in-house perf kernels
+(paged KV, Q8 KV, flash-attn, SIMD matmul) are `advanced`-gated bench-only
+code — production GGUF decode runs entirely inside llama-cpp-2; corrects
+ledger-#96 narrative. (3) mistral.rs BLOCKED for linking (unconditional
+reqwest/tokio-tungstenite/hf-hub/MCP in core + git-candle 0.11 pin) but is the
+pattern donor for ADR-007 wiring (proposer/verifier/staging/driver, stochastic
+rejection sampling), scheduler length-bucketing, prefix caching. (4) GGUF
+backend sets only 4 of llama-cpp-2 0.1.133's perf params and single-sequences
+every batch — flash-attn, Q8_0 KV, n_batch/n_ubatch knobs are available today
+with zero dependency delta. Upgrade lane: llama-cpp-2 0.1.133→0.1.152 (MTP
+spec-decode, state_seq persistence, Windows CRT fix), candle 0.8→0.11 (clean
+offline posture), tract-onnx as pure-Rust ONNX bench candidate; ort blocked
+by default build-time binary download. Shadow Genome Entry #5 added
+("exists+tested ≠ wired"). Chain tip:
+`2679f9a6faafaf47157ed40b5d61d69a86416b8ea3c99dd268ff141dddcc0e99`.
+
+---
+
+### Entry #98: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-25T13:05:00-04:00
+**Phase**: GATE
+**Author**: Judge (Option B independent fresh-context subagent)
+**Risk Grade**: L3
+**Session ID**: 2026-07-25T1233-aa214a
+
+**Target**: docs/plan-security-chain-wiring-2026-07-25.md (iteration 1)
+
+**Verdict**: PASS
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= e5933f5989d300854023e0291f621241523328aabf55a99768c555917c526f47
+```
+
+**Previous Hash**: 2679f9a6faafaf47157ed40b5d61d69a86416b8ea3c99dd268ff141dddcc0e99
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 03a615beca560c7e53ed8f94b8b363ba5a86ad47f230987c1b5895d451e548e0
+```
+
+**Decision**: GATE TRIBUNAL PASS on first iteration. All passes cleared:
+Security L3 (single-choke-point independently verified across worker/IPC/FFI/
+Python surfaces; fail-closed defaults), OWASP, Razor (post-delta measurements),
+Test Functionality (9/9 behavior-asserting), Dependency (zero new), Orphan,
+Macro-Architecture, Filter-Stage Ordering, Infrastructure Alignment (all LD
+grep-claims reproduced; 7-site caller enumeration complete). 8 advisory
+findings carried to implementation (test-module registration convention,
+env-test hygiene, apply_egress visibility, spawn_worker doc-warning, et al.).
+Gate Status: OPEN — /qor-implement authorized. Review Boundary in force.
+Chain tip: `03a615beca560c7e53ed8f94b8b363ba5a86ad47f230987c1b5895d451e548e0`.
+
+---
+
+### Entry #99: SESSION SEAL (security-chain wiring — local hold)
+
+**Timestamp**: 2026-07-25T13:55:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local, Review Boundary honored)
+**Author**: Specialist (agent team) + Judge (observer/devil's-advocate)
+**Risk Grade**: L3
+**Session ID**: 2026-07-25T1233-aa214a
+
+**Target**: docs/plan-security-chain-wiring-2026-07-25.md — wire
+`SecurityPipeline` (ingress prompt-injection scan + egress PII sanitize) into
+the production request path on branch `feat/security-chain-wiring`.
+
+**Reality vs Promise**: MATCH. All 3 phases implemented; objective observer
+confirmed every changed file maps to plan/logged-deviation; single-choke-point
+verified across worker/IPC/FFI/Python surfaces. Devil's advocate found 2
+BLOCKING defects the wiring activated (NFKC coordinate-space redaction panic/
+leak; block-mode-any-match false positives) + truncate panic + silent detect
+mode + streaming-loop test gap — ALL REMEDIATED and re-verified.
+
+**Verification (authoritative, run at seal)**:
+- `cargo fmt --check` → exit 0
+- `cargo clippy --all-targets -- -D warnings` → exit 0
+- `cargo test --workspace` → all suites pass, 0 failed (incl. 6 pipeline unit,
+  3 worker-security, 3 integration, 2 NBSP/expand sanitizer-leak oracles,
+  incidental-substring-allowed oracle)
+- Section 4 Razor: worker.rs 230 ≤250; all touched files ≤250; all new/edited
+  fns ≤40 lines
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/src/security/pipeline.rs)
+= a323af3dc1ff0b44c20ff7e7c64a0330baab2c480a885f1ed2857c768e4ed024
+```
+
+**Previous Hash**: 03a615beca560c7e53ed8f94b8b363ba5a86ad47f230987c1b5895d451e548e0
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= c5f8097fed7d1ac23617a64da76752faf6def2eb133ad03328bc5164e7d61e05
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 29b4672d66576b4b95869b6218ce0a9bfa9e1e407a971f19cacd61c6ba81e75f
+```
+
+**Decision**: Security chain WIRED and verified locally. The documented
+data-flow contract (engine → security → ipc) is now true for ingress (both
+paths) and non-streaming egress. Two governance-overhead metrics
+(`core_security_scan_latency_us`, `core_sanitize_latency_us`) + detection/
+rejection/redaction counters seed issue #52. Follow-ups: BACKLOG B-24
+(streaming egress sanitization), pattern-engine word-boundary precision
+(recorded in handoff). REVIEW BOUNDARY HONORED — no commit/stage/push/PR;
+operator decides delivery. Chain tip:
+`c5f8097fed7d1ac23617a64da76752faf6def2eb133ad03328bc5164e7d61e05`.
+
+---
+
+### Entry #100: RESEARCH BRIEF
+
+**Timestamp**: 2026-07-25T13:54:18-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1 (research artifact; findings touch the L3 `security/` egress
+surface — remediation routes through /qor-plan + /qor-audit)
+**Session ID**: 2026-07-25T1233-aa214a
+
+**Target**: Microsoft Presidio as a comparative PII-detection reference +
+the offline Rust-native route to Presidio-grade detection.
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-presidio-pii-comparison-2026-07-25.md)
+= e3b2c3e9918b0e1643a10b010354fd905e7d143ddecad459e724ad4ecccf93f1
+```
+
+**Previous Hash**: c5f8097fed7d1ac23617a64da76752faf6def2eb133ad03328bc5164e7d61e05
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= fefc7c916a740d961125731dd6d209251626271b1cf5a1e38940ab9eda5d64f1
+```
+
+**Decision**: Research complete; 2 drift findings. Presidio is charter-illegal
+to adopt — Python + spaCy, exposing only in-process Python (inverts GG-CORE's
+PyO3 model) or Flask HTTP (violates no-network/IPC-only rule); no C ABI or
+gRPC, so a sidecar is not sandbox-legal. DRIFT: GG-CORE's egress redaction is
+regex-only and structurally blind to NER-class PII (PERSON, prose LOCATION,
+NRP) — "enhanced security" overstated until measured. Sandbox-legal path is
+pure Rust: (1) offline span-level precision/recall/F1 eval harness first
+(issue #52 thread), (2) port Presidio's context-word scoring + international
+patterns / evaluate `pii-vault` MIT, (3) offline ONNX NER via candle-onnx
+(`dslim/distilbert-NER` Apache-2.0 + `tokenizers` crate; couples to issue #72;
+avoid license-blocked Piiranha, reject rust-bert/ort/tch). Shadow Genome
+Entry #6 added. Chain tip:
+`fefc7c916a740d961125731dd6d209251626271b1cf5a1e38940ab9eda5d64f1`.
+
+---
+
+### Entry #101: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-25T17:26:22-04:00
+**Phase**: GATE
+**Author**: Judge (independent fresh-context subagent)
+**Risk Grade**: L3
+**Session ID**: 2026-07-25T1420-facade
+
+**Target**: docs/plan-secure-inference-facade-2026-07-25.md (iteration 2)
+
+**Verdict**: VETO
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= c600df422d9b7f03a8d9248ccd49878443765784ee61a6f6bc8e9af8ef5fd567
+```
+
+**Previous Hash**: fefc7c916a740d961125731dd6d209251626271b1cf5a1e38940ab9eda5d64f1
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 23bbb9f08185ebd2715ca40e9ec8d265c04f80904c10e4d55aa233fddce5efd5
+```
+
+**Decision**: VETO (iter 2). Iter-1 blockers (lib.rs razor, SecurityRejected
+match coupling) correctly fixed. Iter 2 surfaced deeper FFI/Python defects:
+(1) `CoreErrorCode::CapabilityNotSupported` undefined; (2) `ffi/error.rs`
+match already non-exhaustive (`MemoryExceeded` unhandled) — compiles only
+because CI never builds `ffi`; (3) `ffi/inference.rs` 272 lines >250 Razor,
+touched without extraction; (4) gguf/python/ffi CI legs the DoD relies on do
+not exist. Root cause: the consumable FFI/Python surface carries pre-existing
+Razor + exhaustiveness debt invisible to a default-features-only CI. The Rust
+façade (Phase 1+2) is clean and verifiable; the consumable surface needs a
+CI-foundation + defect-cleanup prerequisite. Awaiting operator scope decision
+(descope-to-façade vs expand-to-full-with-CI). No implementation under VETO.
+Chain tip: `23bbb9f08185ebd2715ca40e9ec8d265c04f80904c10e4d55aa233fddce5efd5`.
+
+---
+
+### Entry #102: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-26T00:00:00-04:00
+**Phase**: GATE
+**Author**: Judge (independent fresh-context subagent)
+**Risk Grade**: L3
+**Session ID**: 2026-07-25T1420-facade
+
+**Target**: docs/plan-secure-inference-facade-2026-07-25.md (iteration 3, descoped)
+
+**Verdict**: PASS
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= 27f5fa8f139e37a20b6758d20cee295b647ab93faeb7ccfc8f38048e2d2954f9
+```
+
+**Previous Hash**: 23bbb9f08185ebd2715ca40e9ec8d265c04f80904c10e4d55aa233fddce5efd5
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 143878828343f11529717d4a61fbb45c37510ad9ca61722f1cb099fcd59d259e
+```
+
+**Decision**: GATE TRIBUNAL PASS (iter 3). Operator-directed descope to the Rust
+`Runtime::infer`/`infer_stream` façade (embedded surface) removed every prior
+blocker (all in the deferred FFI/Python reroute + missing CI legs). Verified:
+Razor-clean touched files (lib.rs 271→~213 via helper relocation; ffi/inference.rs
+untouched), LD-7 exhaustiveness fix compiles under `--features ffi` (both
+MemoryExceeded + SecurityRejected arms; -17 free), no default-build match break,
+single-enforcement preserved, no FFI/Python overclaim, tests behavior-asserting.
+3 trivial advisories. Consumable FFI/Python surface deferred to BACKLOG B-25
+(CI legs first). Gate Status: OPEN — /qor-implement authorized. Chain tip:
+`143878828343f11529717d4a61fbb45c37510ad9ca61722f1cb099fcd59d259e`.
+
+---
+
+### Entry #103: SESSION SEAL (secure inference façade — embedded surface)
+
+**Timestamp**: 2026-07-26T00:20:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local; commits directed by operator)
+**Author**: Specialist (agent team) + Judge
+**Risk Grade**: L3
+**Session ID**: 2026-07-25T1420-facade
+
+**Target**: docs/plan-secure-inference-facade-2026-07-25.md (iter 3) — deliver
+`Runtime::infer`/`infer_stream`, the single secure entry point for the embedded
+delivery surface; typed `InferenceError::SecurityRejected`; consolidate the
+worker's SecurityPipeline to `Runtime`; extract façade + helpers to
+`runtime_facade.rs` (lib.rs 271→195, ≤250); fix pre-existing `ffi/error.rs`
+non-exhaustiveness so `--features ffi` compiles.
+
+**Reality vs Promise**: MATCH. Phases 1–3 delivered per the audited plan.
+Consumable FFI/Python reroute correctly DEFERRED (BACKLOG B-25, CI legs first);
+COREFORGE consumer switch filed as handoff (B-26).
+
+**Verification (authoritative, at seal)**:
+- `cargo fmt --check` → 0
+- `cargo clippy --all-targets -- -D warnings` → 0
+- `cargo test --workspace` → 0 failures (1099 passed; incl. 3 façade tests)
+- `cargo test --features gguf --test secure_facade_test` → 4 passed (incl.
+  streaming rejection)
+- `cargo build --features ffi` → compiles (LD-7 exhaustiveness fix)
+- Razor: lib.rs 195, runtime_facade.rs 155 (both ≤250); all fns ≤40 lines
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/src/runtime_facade.rs)
+= 9027691c3df642bce2682b771011caeb254a67cf02d89dc1dce7defb1ae47e3d
+```
+
+**Previous Hash**: 143878828343f11529717d4a61fbb45c37510ad9ca61722f1cb099fcd59d259e
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= b53d56f5fefa869773396eb958505d1edd71a2ece6d300c7c0143252991c5ba7
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= a18c860bf8d19695db22c87100c2b78164b6932dd06e9532dacf97946326fe3a
+```
+
+**Decision**: SECURE INFERENCE FAÇADE delivered and verified. The embedded
+delivery surface now has one enforced, ergonomic entry point returning a typed
+rejection (security + UX). Two prior VETOs (Entry #98 was a different cycle;
+#101 this cycle) hardened the plan; the operator-directed descope kept the
+work CI-verifiable. Chain tip:
+`b53d56f5fefa869773396eb958505d1edd71a2ece6d300c7c0143252991c5ba7`.
+
+---
+
+### Entry #104: RESEARCH BRIEF
+
+**Timestamp**: 2026-07-26T11:40:12-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1 (research artifact; scopes an L2 CI-foundation cycle + a
+deferred L3 reroute cycle)
+**Session ID**: 2026-07-26T0030-b25ffi
+
+**Target**: BACKLOG B-25 — CI feature legs + FFI/Python defect remediation +
+inference reroute.
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-b25-ci-legs-ffi-python-2026-07-26.md)
+= 7609a6778c8c394cfc6c1ddb9214745303ac76863f873dfc9ebd3160ad76ac41
+```
+
+**Previous Hash**: b53d56f5fefa869773396eb958505d1edd71a2ece6d300c7c0143252991c5ba7
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= c888253e62a9845ebf2a8e35611bcc5d86d63314fe39005161dd8f39f2a7a025
+```
+
+**Decision**: Research complete; ground truth from compiling each feature.
+CI is default-features-only, so every optional surface carries invisible
+clippy debt: ffi 18 errors (17 missing_safety_doc + 1 raw-ptr-not-unsafe) +
+ffi/inference.rs 272-line Razor overage; onnx 2; python 3 (builds clean); gguf
+6. `--features ffi` compiles (ffi/error.rs exhaustiveness already fixed);
+only clippy `-D warnings` fails. B-25 splits: (1) CI-foundation cycle [next] —
+clippy-clean all 4 features + Razor-extract ffi/inference.rs + add 4 CI legs
+(L2, mechanical, no behavior change); (2) FFI/Python reroute [deferred, L3] —
+route the 5 deadlocking entry points through Runtime::infer/infer_stream.
+DRIFT: FEATURE_INDEX F-39 (FFI) "verified" overstates a surface with 18 clippy
+errors + deadlocks. Chain tip:
+`c888253e62a9845ebf2a8e35611bcc5d86d63314fe39005161dd8f39f2a7a025`.
+
+---
+
+### Entry #105: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-26T12:10:00-04:00
+**Phase**: GATE
+**Author**: Judge (independent fresh-context subagent)
+**Risk Grade**: L2
+**Session ID**: 2026-07-26T0030-b25ffi
+
+**Target**: docs/plan-b25-ci-foundation-2026-07-26.md (iteration 1)
+
+**Verdict**: PASS
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= 4e35ecf127ebde522860925422cd96ca2472433ad15100f8a26e7d1b75ad6c26
+```
+
+**Previous Hash**: c888253e62a9845ebf2a8e35611bcc5d86d63314fe39005161dd8f39f2a7a025
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= cbc1699add3fb8ae916a99b765fc5bb15f2064a52024332b59e79b3e5fc4e6b5
+```
+
+**Decision**: GATE TRIBUNAL PASS (L2). CI-foundation cycle: clippy-clean 4
+features + Razor-extract ffi/inference.rs + 4 additive CI legs. Semantics-
+preserving only; reroute deferred (L3). Key risk disproven: gguf/onnx tests
+skip on missing fixtures, ffi_test.rs uses null-only core_infer (no CI hang),
+python test is conversion-only. 3 advisories (re-capture clippy fresh per LD-1;
+proactive setup-python; CI-minute budget). Gate Status: OPEN — /qor-implement
+authorized. Chain tip:
+`cbc1699add3fb8ae916a99b765fc5bb15f2064a52024332b59e79b3e5fc4e6b5`.
+
+---
+
+### Entry #106: SESSION SEAL (B-25 CI foundation)
+
+**Timestamp**: 2026-07-26T12:45:00-04:00
+**Phase**: IMPLEMENT -> SUBSTANTIATE (local; commits directed by operator)
+**Author**: Specialist (4-agent team) + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-26T0030-b25ffi
+
+**Target**: docs/plan-b25-ci-foundation-2026-07-26.md — make gguf/onnx/ffi/python
+clippy-clean, Razor-extract ffi/inference.rs, add CI feature legs.
+
+**Reality vs Promise**: MATCH + one in-scope addition. Delivered: 4 features
+clippy-clean under `-D warnings --all-targets` (ffi 16 missing_safety_doc + 1
+not_unsafe_ptr_arg_deref + 1 justified dead_code; onnx 2; python 3; gguf 6);
+ffi/inference.rs 272->246 via new ffi/inference_result.rs; `features` matrix job
+(gguf/onnx/ffi/python) added to rust.yml with proactive setup-python. In-scope
+addition the audit's fixture check missed: `tests/e2e_model_test.rs` did not
+COMPILE under `--features gguf` (stale generate_stream arity + advanced-gated
+speculative imports + 4 masked field_reassign) — fixed. Reroute deferred (B-25b).
+
+**Verification (authoritative, at seal)**:
+- `cargo fmt --check` -> 0; `cargo clippy --all-targets -- -D warnings` (default) -> 0
+- `cargo test --workspace` (default) -> 0 failures
+- `cargo clippy --features {ffi,onnx,python,gguf} --all-targets -- -D warnings`
+  -> each 0 (gguf verified after the e2e_model_test fix)
+- Per-feature tests: onnx tier2 14 passed; python binding 2 passed; ffi build +
+  header regen; gguf e2e compiles + skips on absent fixture
+- Razor: touched files ≤250 (ffi/inference.rs 246, inference_result.rs 49)
+
+**Content Hash**:
+
+```
+SHA256(.github/workflows/rust.yml)
+= 9696404c1bfc918c0430d0572c460489d32e7ef56257b80766c2bdb563638159
+```
+
+**Previous Hash**: cbc1699add3fb8ae916a99b765fc5bb15f2064a52024332b59e79b3e5fc4e6b5
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= e7d7be32e35f8ca9817aeec3e3276079f25c2380e4d25ef9c93a18ba8b8e1cb0
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= ede4cae4ee9be6bfc77bacc33f6449cc181694ef499d9fd27b3f2078f5cecf3a
+```
+
+**Decision**: CI FOUNDATION delivered. The consumable-feature surface is now
+verified ground — CI builds, lints (`-D warnings`), and tests gguf/onnx/ffi/
+python, closing the default-only gap that hid per-feature clippy debt (Shadow
+Genome #7). Debt eliminated: ffi 18, onnx 2, python 3, gguf 6 + a non-compiling
+gguf test. FEATURE_INDEX F-40 -> verified; F-39 CI-backed. The L3 FFI/Python
+inference reroute (deadlock fix) is B-25b, now verifiable by these legs. Chain
+tip: `e7d7be32e35f8ca9817aeec3e3276079f25c2380e4d25ef9c93a18ba8b8e1cb0`.

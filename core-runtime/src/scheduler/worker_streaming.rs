@@ -3,15 +3,21 @@
 use super::streaming_queue::StreamingQueuedRequest;
 use crate::engine::InferenceEngine;
 use crate::memory::ResourceLimits;
+use crate::security::SecurityPipeline;
 use crate::telemetry;
 
 /// Execute a streaming inference request with resource control.
 pub(crate) async fn execute(
     engine: &InferenceEngine,
     resource_limits: Option<&ResourceLimits>,
+    security: Option<&SecurityPipeline>,
     request: StreamingQueuedRequest,
 ) {
     let model_id = request.model_id.clone();
+
+    if !scan_ingress(security, &request).await {
+        return;
+    }
 
     let _guard = match super::worker::acquire_guard(engine, resource_limits, &model_id).await {
         Ok(g) => g,
@@ -34,16 +40,33 @@ pub(crate) async fn execute(
     let latency_ms = start.elapsed().as_millis() as u64;
 
     match result {
-        Ok(Ok(())) => {
-            telemetry::record_request_success(&model_id, latency_ms, 0);
-        }
-        Ok(Err(e)) => {
-            telemetry::record_request_failure(&model_id, &e.to_string());
-        }
-        Err(e) => {
-            telemetry::record_request_failure(&model_id, &e.to_string());
-        }
+        Ok(Ok(())) => telemetry::record_request_success(&model_id, latency_ms, 0),
+        Ok(Err(e)) => telemetry::record_request_failure(&model_id, &e.to_string()),
+        Err(e) => telemetry::record_request_failure(&model_id, &e.to_string()),
     }
+}
+
+/// Ingress scan for the streaming path. Returns `true` when admitted;
+/// on rejection sends the final error frame and returns `false`.
+async fn scan_ingress(
+    security: Option<&SecurityPipeline>,
+    request: &StreamingQueuedRequest,
+) -> bool {
+    let Some(sec) = security else {
+        return true;
+    };
+    let verdict = sec.scan_prompt(&request.prompt);
+    telemetry::record_security_scan(
+        &request.model_id,
+        verdict.latency_us,
+        verdict.risk_score,
+        !verdict.allowed,
+    );
+    if verdict.allowed {
+        return true;
+    }
+    let _ = send_error(&request.token_sender).await;
+    false
 }
 
 /// Run streaming inference on a blocking thread.

@@ -134,6 +134,25 @@ security/ (output sanitize, PII redact)
 ipc/ (stream response frames back to caller)
 ```
 
+**Enforcement (SecurityPipeline)**: the `security/` stage is enforced in
+`scheduler/worker.rs`. The ingress prompt-injection scan runs before the
+resource guard on both the streaming and non-streaming paths; egress output
+sanitization (PII redact) runs on the non-streaming response path. Streaming
+egress carries u32 token IDs, not text, and is not sanitized in-runtime
+(follow-up: `docs/BACKLOG.md` B-24).
+
+**Delivery surfaces & secure entry point**: GG-CORE ships two delivery
+surfaces — embedded (in-process `gg_core::Runtime`, e.g. COREFORGE) and
+consumable component (FFI / Python bindings). `Runtime::infer` /
+`Runtime::infer_stream` is the single secure entry point serving both: it
+enforces the SecurityPipeline (ingress prompt-injection scan + egress PII
+sanitize) around the engine, which stays pure compute per the C.O.R.E.
+charter. The scheduler worker enforces the same pipeline for the IPC-server
+path. A security block is a typed `InferenceError::SecurityRejected`
+(embedded) — a distinct outcome the caller/UI renders, not a hang. The
+consumable FFI/Python reroute onto this entry point is deferred and tracked
+in `docs/BACKLOG.md` B-25 (pending CI feature legs).
+
 ---
 
 ## Dependencies
@@ -183,6 +202,13 @@ Violations block implementation; `/qor-refactor` is the remediation path.
 | Chaos | `tests/chaos_*_test.rs`, `tests/*_chaos_test.rs` | resilience under fault injection |
 | Regression | `docs/FEATURE_INDEX.md` diff at seal | no outside-scope verified->unverified flips |
 | Bench | `core-runtime/benches/` (Criterion) | no unexplained latency/throughput regression |
+
+**CI feature coverage**: `.github/workflows/rust.yml` now carries a `features`
+matrix job that builds, lints (`cargo clippy --features <f> --all-targets --
+-D warnings`), and tests (`cargo test --features <f>`) each of `gguf/onnx/ffi/
+python` — closing the prior gap where only default features were built, which
+had hidden per-feature clippy debt (ffi/onnx/python/gguf). `cuda/metal/advanced`
+remain CI-unbuilt (no GPU runners / proprietary toolchains).
 
 ---
 

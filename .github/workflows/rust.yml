@@ -54,3 +54,34 @@ jobs:
           workspaces: core-runtime
       - name: Test suite (default features)
         run: cargo test --workspace
+
+  features:
+    name: features / ${{ matrix.feature }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        feature: [gguf, onnx, ffi, python]
+    defaults:
+      run:
+        working-directory: core-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core-runtime
+      - name: Set up Python (python bindings link libpython)
+        if: matrix.feature == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install protoc (candle-onnx builds protobuf via prost-build)
+        if: matrix.feature == 'onnx'
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Clippy gate (${{ matrix.feature }})
+        run: cargo clippy --features ${{ matrix.feature }} --all-targets -- -D warnings
+      - name: Test suite (${{ matrix.feature }})
+        run: cargo test --features ${{ matrix.feature }}

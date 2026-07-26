@@ -50,7 +50,7 @@ impl OnnxEmbedder {
     fn embed_text(&self, text: &str) -> Result<EmbeddingResult, InferenceError> {
         #[cfg(feature = "onnx")]
         {
-            return self.embed_text_onnx(text);
+            self.embed_text_onnx(text)
         }
         #[cfg(not(feature = "onnx"))]
         {
@@ -98,7 +98,7 @@ fn build_transformer_inputs(
     tokens: &[i64],
     device: &candle_core::Device,
 ) -> Result<std::collections::HashMap<String, candle_core::Tensor>, InferenceError> {
-    let ids = candle_core::Tensor::new(&tokens[..], device)
+    let ids = candle_core::Tensor::new(tokens, device)
         .and_then(|t| t.unsqueeze(0))
         .map_err(|e| InferenceError::ModelError(format!("input: {e}")))?;
 
@@ -196,7 +196,17 @@ mod tests {
 
     #[test]
     fn load_and_embed() {
-        let model = candle_onnx::read_file(model_path()).expect("load model");
+        // The ONNX fixture (~90 MB) is not committed; skip gracefully when
+        // absent (e.g. CI) — same convention as the gguf e2e tests.
+        let path = model_path();
+        if !path.exists() {
+            eprintln!(
+                "skipping load_and_embed: fixture {} not present",
+                path.display()
+            );
+            return;
+        }
+        let model = candle_onnx::read_file(&path).expect("load model");
         let embedder = OnnxEmbedder::with_model("test".into(), 384, model);
         let result = embedder.embed_text("file.write").expect("embed");
         assert_eq!(result.vector.len(), 384);

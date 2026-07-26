@@ -56,6 +56,28 @@ pub fn init_metrics() {
         "core_model_switch_latency_seconds",
         "Model pool warm-switch latency in seconds"
     );
+
+    // Security pipeline (ingress scan + egress sanitize)
+    describe_histogram!(
+        "core_security_scan_latency_us",
+        "Ingress prompt-injection scan latency in microseconds"
+    );
+    describe_counter!(
+        "core_security_detections_total",
+        "Prompts with a nonzero injection risk score (detect and block modes)"
+    );
+    describe_counter!(
+        "core_security_rejections_total",
+        "Requests rejected by the security ingress scan"
+    );
+    describe_histogram!(
+        "core_sanitize_latency_us",
+        "Egress output sanitization latency in microseconds"
+    );
+    describe_counter!(
+        "core_pii_redactions_total",
+        "PII redactions applied to generated output"
+    );
 }
 
 /// Record model pool warm-switch latency.
@@ -107,6 +129,42 @@ pub fn record_admission_rejection(model: &str, reason: &str) {
         "reason" => reason.to_string()
     )
     .increment(1);
+}
+
+/// Record a security ingress scan (prompt-injection guard).
+///
+/// Always records histogram `core_security_scan_latency_us` (model label).
+/// When `risk_score > 0`, increments counter `core_security_detections_total`
+/// (model label) so operators can observe detect-only activity before
+/// enforcing. When `blocked` is true, also increments counter
+/// `core_security_rejections_total` with labels model and
+/// `reason="prompt_injection"`.
+pub fn record_security_scan(model: &str, latency_us: u64, risk_score: u8, blocked: bool) {
+    histogram!("core_security_scan_latency_us", "model" => model.to_string())
+        .record(latency_us as f64);
+    if risk_score > 0 {
+        counter!("core_security_detections_total", "model" => model.to_string()).increment(1);
+    }
+    if blocked {
+        counter!(
+            "core_security_rejections_total",
+            "model" => model.to_string(),
+            "reason" => "prompt_injection"
+        )
+        .increment(1);
+    }
+}
+
+/// Record egress output sanitization (PII redaction).
+///
+/// Records histogram `core_sanitize_latency_us` (model label). When
+/// `redactions > 0`, also increments counter `core_pii_redactions_total` by
+/// `redactions` (model label).
+pub fn record_output_sanitize(model: &str, latency_us: u64, redactions: u64) {
+    histogram!("core_sanitize_latency_us", "model" => model.to_string()).record(latency_us as f64);
+    if redactions > 0 {
+        counter!("core_pii_redactions_total", "model" => model.to_string()).increment(redactions);
+    }
 }
 
 /// Record speculative decoding cycle stats.

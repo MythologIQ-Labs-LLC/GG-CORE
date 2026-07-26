@@ -116,7 +116,7 @@ impl TokenizerWrapper {
     pub fn has_model(&self) -> bool {
         #[cfg(feature = "gguf")]
         {
-            return self.backend.is_some();
+            self.backend.is_some()
         }
         #[cfg(not(feature = "gguf"))]
         false

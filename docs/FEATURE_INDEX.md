@@ -64,11 +64,11 @@ judgment.
 | F-33 | Security: path-traversal defense | core-runtime/src/security/ | docs/security | core-runtime/tests/security_path_traversal_test.rs | verified |
 | F-34 | Security: output filter | core-runtime/src/engine/filter.rs | docs/security | core-runtime/tests/filter_test.rs | verified |
 | F-35 | Security: encryption & FIPS | core-runtime/src/security/encryption.rs | docs/security | core-runtime/src/security/fips_tests.rs | verified |
-| F-36 | Security: PII detection | core-runtime/src/security/pii_detector.rs | docs/security | core-runtime/src/security/pii_tests.rs | verified |
-| F-37 | Security: prompt-injection guard | core-runtime/src/security/prompt_injection.rs | docs/security | core-runtime/src/security/sanitizer_tests.rs | verified |
+| F-36 | Security: PII detection | core-runtime/src/security/pii_detector.rs | docs/security | core-runtime/src/security/pii_tests.rs; core-runtime/src/scheduler/worker_security_tests.rs | verified |
+| F-37 | Security: prompt-injection guard | core-runtime/src/security/prompt_injection.rs | docs/security | core-runtime/src/security/sanitizer_tests.rs; core-runtime/tests/security_pipeline_wiring_test.rs | verified |
 | F-38 | Sandbox isolation | core-runtime/src/sandbox/ | docs/CONCEPT.md | core-runtime/tests/sandbox_test.rs | unverified |
-| F-39 | C FFI bindings | core-runtime/src/ffi/ | docs/USAGE_GUIDE.md | core-runtime/tests/ffi_test.rs | verified |
-| F-40 | Python (PyO3) bindings | core-runtime/src/python/ | docs/USAGE_GUIDE.md | core-runtime/tests/python_binding_test.rs | unverified |
+| F-39 | C FFI bindings | core-runtime/src/ffi/ | docs/USAGE_GUIDE.md | core-runtime/tests/ffi_test.rs (+ CI ffi leg: .github/workflows/rust.yml features/ffi — clippy -D warnings + build + test) | verified |
+| F-40 | Python (PyO3) bindings | core-runtime/src/python/ | docs/USAGE_GUIDE.md | core-runtime/tests/python_binding_test.rs (CI python leg: .github/workflows/rust.yml features/python — cargo test --features python) | verified |
 | F-41 | CLI (health/status/config/models) | core-runtime/src/cli/ | docs/USAGE_GUIDE.md | core-runtime/tests/cli_test.rs | verified |
 | F-42 | Health probe | core-runtime/src/health.rs | docs/USAGE_GUIDE.md | core-runtime/tests/health_test.rs | verified |
 | F-43 | Config & resource limits | core-runtime/src/config.rs | docs/CONCEPT.md | core-runtime/tests/limits_test.rs | verified |
@@ -83,6 +83,8 @@ judgment.
 | F-52 | Speculative decoding threat model + security oracles | docs/security/THREAT_MODEL.md | docs/security/THREAT_MODEL.md | core-runtime/tests/security_speculative_test.rs | verified |
 | F-53 | Speculative telemetry + auto-disable + CLI surface (SpeculativeTelemetry) | core-runtime/src/engine/adaptive_speculative/telemetry.rs | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/engine/adaptive_speculative/telemetry_tests.rs | verified |
 | F-54 | Speculative benchmark matrix | core-runtime/benches/speculative_matrix.rs | docs/BENCHMARKS.md | core-runtime/benches/speculative_matrix.rs | verified |
+| F-55 | Security: pipeline wiring (ingress scan + egress sanitize) | core-runtime/src/security/pipeline.rs | docs/security | core-runtime/tests/security_pipeline_wiring_test.rs | verified |
+| F-56 | Secure inference façade (Runtime::infer/infer_stream) | core-runtime/src/runtime_facade.rs | docs/security | core-runtime/tests/secure_facade_test.rs | verified |
 
 ## Open coverage gaps
 
@@ -92,9 +94,13 @@ Tracked as backlog items in `docs/BACKLOG.md`:
   `chore/hardening-ci-sandbox-lints` (cycle 1, session 2026-07-08T1556-3b7852);
   flip to `verified` is gated on a green Linux/macOS CI run after operator push
   (`.github/workflows/rust.yml`). Canonical: GitHub issue #54.
-- **F-40 Python bindings** — `unverified`: behavior test binding added
-  (`core-runtime/tests/python_binding_test.rs`, cfg-gated on the `python`
-  feature); flip to `verified` once the test executes green with the feature
-  enabled.
+- **F-40 Python bindings** — resolved to `verified` (session
+  2026-07-26T0030-b25ffi, ledger Entry #105): the `python` feature is now built,
+  linted (`clippy -D warnings`), and tested in CI via the `features` matrix job
+  (`.github/workflows/rust.yml` features/python), so `python_binding_test.rs`
+  executes with the feature enabled. F-39 (FFI) is likewise CI-covered via
+  features/ffi. Note: the FFI/Python inference reroute onto
+  `Runtime::infer/infer_stream` (deadlock fix) remains deferred — see
+  `docs/BACKLOG.md` B-25b.
 - **F-45 Veritas shim** — `unverified`: sealed at ledger Entry #79 but without a
   standalone test binding in the integration suite.

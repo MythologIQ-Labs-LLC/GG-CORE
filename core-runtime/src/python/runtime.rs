@@ -49,10 +49,15 @@ impl Runtime {
         let tokio = TokioRuntime::new().map_err(|e| core_error(format!("tokio init: {}", e)))?;
 
         // Build config starting from defaults
-        let mut config = crate::RuntimeConfig::default();
-        config.auth_token = auth_token.to_string();
-        config.max_context_length = max_context_length as usize;
-        config.request_queue.max_pending = max_queue_depth as usize;
+        let mut config = crate::RuntimeConfig {
+            auth_token: auth_token.to_string(),
+            max_context_length: max_context_length as usize,
+            request_queue: crate::RequestQueueConfig {
+                max_pending: max_queue_depth as usize,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
         if let Some(path) = base_path {
             config.base_path = std::path::PathBuf::from(path);

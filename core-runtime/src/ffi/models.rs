@@ -10,7 +10,11 @@ use super::runtime::CoreRuntime;
 use super::types::CoreModelMetadata;
 use crate::engine::gguf;
 
-/// Load a model via ModelLifecycle. # Safety: all pointers must be valid.
+/// Load a model via ModelLifecycle.
+/// # Safety
+/// `runtime`, `model_path`, and `out_handle_id` must be valid non-null pointers for
+/// the duration of the call; `model_path` must be a valid NUL-terminated C string and
+/// `out_handle_id` must be writable. The `CoreErrorCode` return indicates success or failure.
 #[no_mangle]
 pub unsafe extern "C" fn core_model_load(
     runtime: *mut CoreRuntime,
@@ -73,7 +77,10 @@ pub unsafe extern "C" fn core_model_load(
     }
 }
 
-/// Unload a model via ModelLifecycle. # Safety: `runtime` must be valid.
+/// Unload a model via ModelLifecycle.
+/// # Safety
+/// `runtime` must be a valid non-null pointer from `core_runtime_create`, live for the
+/// duration of the call. The `CoreErrorCode` return indicates success or failure.
 #[no_mangle]
 pub unsafe extern "C" fn core_model_unload(
     runtime: *mut CoreRuntime,
@@ -112,7 +119,12 @@ pub unsafe extern "C" fn core_model_unload(
     }
 }
 
-/// Get model info. # Safety: all pointers must be valid.
+/// Get model info.
+/// # Safety
+/// `runtime` and `out_metadata` must be valid non-null pointers for the duration of the
+/// call; `out_metadata` must be writable. On success it is populated with owned fields
+/// the caller must free via `core_free_model_metadata`. The `CoreErrorCode` return
+/// indicates success or failure.
 #[no_mangle]
 pub unsafe extern "C" fn core_model_info(
     runtime: *mut CoreRuntime,
@@ -146,7 +158,10 @@ pub unsafe extern "C" fn core_model_info(
     }
 }
 
-/// Free model metadata. # Safety: `metadata` must be null or from `core_model_info`.
+/// Free model metadata.
+/// # Safety
+/// `metadata` must be null or a valid pointer previously populated by `core_model_info`
+/// and not yet freed. After this call the owned fields are dangling and must not be reused.
 #[no_mangle]
 pub unsafe extern "C" fn core_free_model_metadata(metadata: *mut CoreModelMetadata) {
     if !metadata.is_null() {
@@ -158,7 +173,12 @@ pub unsafe extern "C" fn core_free_model_metadata(metadata: *mut CoreModelMetada
     }
 }
 
-/// List loaded models. # Safety: `out_handles` must have room for `max_count` u64 values.
+/// List loaded models.
+/// # Safety
+/// `runtime`, `out_handles`, and `out_count` must be valid non-null pointers for the
+/// duration of the call; `out_handles` must point to writable storage for at least
+/// `max_count` `u64` values and `out_count` must be writable. The `CoreErrorCode`
+/// return indicates success or failure.
 #[no_mangle]
 pub unsafe extern "C" fn core_model_list(
     runtime: *mut CoreRuntime,
@@ -186,7 +206,10 @@ pub unsafe extern "C" fn core_model_list(
     CoreErrorCode::Ok
 }
 
-/// Get count of loaded models. # Safety: all pointers must be valid.
+/// Get count of loaded models.
+/// # Safety
+/// `runtime` and `out_count` must be valid non-null pointers for the duration of the
+/// call; `out_count` must be writable. The `CoreErrorCode` return indicates success or failure.
 #[no_mangle]
 pub unsafe extern "C" fn core_model_count(
     runtime: *mut CoreRuntime,

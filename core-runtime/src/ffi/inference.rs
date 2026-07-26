@@ -7,9 +7,10 @@ use std::ffi::{c_char, CStr, CString};
 
 use super::auth::CoreSession;
 use super::error::{set_last_error, CoreErrorCode};
+pub(super) use super::inference_result::params_from_c;
+use super::inference_result::write_inference_result;
 use super::runtime::CoreRuntime;
 use super::types::{CoreInferenceParams, CoreInferenceResult};
-use crate::engine::InferenceParams;
 use crate::scheduler::Priority;
 
 /// Submit inference request (blocking, text-based).
@@ -128,7 +129,11 @@ pub unsafe extern "C" fn core_infer_with_timeout(
     )
 }
 
-/// Free inference result text. # Safety: `result` must be null or from `core_infer`.
+/// Free inference result text.
+/// # Safety
+/// `result` must be null or a valid pointer previously populated by `core_infer`/
+/// `core_infer_with_timeout` and not yet freed. After this call the owned `output_text`
+/// is dangling and must not be reused (double-free is undefined behavior).
 #[no_mangle]
 pub unsafe extern "C" fn core_free_result(result: *mut CoreInferenceResult) {
     if !result.is_null() {
@@ -140,31 +145,13 @@ pub unsafe extern "C" fn core_free_result(result: *mut CoreInferenceResult) {
     }
 }
 
-/// Convert C params to Rust params
-pub(super) fn params_from_c(c: &CoreInferenceParams) -> InferenceParams {
-    InferenceParams {
-        max_tokens: c.max_tokens as usize,
-        temperature: c.temperature,
-        top_p: c.top_p,
-        top_k: c.top_k as usize,
-        stream: c.stream,
-        timeout_ms: if c.timeout_ms == 0 {
-            None
-        } else {
-            Some(c.timeout_ms)
-        },
-    }
-}
-
-/// Write inference result to C struct
-fn write_inference_result(result: &crate::engine::InferenceResult, out: &mut CoreInferenceResult) {
-    let cstr = CString::new(result.output.clone()).unwrap_or_default();
-    out.output_text = cstr.into_raw();
-    out.tokens_generated = result.tokens_generated as u32;
-    out.finished = result.finished;
-}
-
-/// Inference with caller-provided buffer. # Safety: all pointers valid, `out_buf` writable for `buf_len`.
+/// Inference with caller-provided buffer.
+/// # Safety
+/// `runtime`, `session`, `model_id`, `prompt`, `out_buf`, and `out_len` must be valid
+/// non-null pointers for the duration of the call; `params` may be null for defaults.
+/// `model_id` and `prompt` must be valid NUL-terminated C strings; `out_buf` must be
+/// writable for `buf_len` bytes and `out_len` writable. The `CoreErrorCode` return
+/// indicates success or failure.
 #[no_mangle]
 pub unsafe extern "C" fn core_infer_bounded(
     runtime: *mut CoreRuntime,
@@ -254,19 +241,6 @@ pub unsafe extern "C" fn core_infer_bounded(
         Err(e) => {
             set_last_error(&e);
             CoreErrorCode::InferenceFailed
-        }
-    }
-}
-
-impl Clone for CoreInferenceParams {
-    fn clone(&self) -> Self {
-        Self {
-            max_tokens: self.max_tokens,
-            temperature: self.temperature,
-            top_p: self.top_p,
-            top_k: self.top_k,
-            stream: self.stream,
-            timeout_ms: self.timeout_ms,
         }
     }
 }

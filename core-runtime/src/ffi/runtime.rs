@@ -20,16 +20,17 @@ pub struct CoreRuntime {
     pub(crate) tokio: TokioRuntime,
 }
 
-/// Get default configuration values
+/// Get default configuration values.
+/// # Safety
+/// `config` must be null or a valid, writable pointer to a `CoreConfig` for the
+/// duration of the call. When non-null it is overwritten with default values.
 #[no_mangle]
-pub extern "C" fn core_config_default(config: *mut CoreConfig) {
+pub unsafe extern "C" fn core_config_default(config: *mut CoreConfig) {
     if config.is_null() {
         return;
     }
     // SAFETY: config validated non-null above; caller guarantees valid writable pointer.
-    unsafe {
-        *config = CoreConfig::default();
-    }
+    *config = CoreConfig::default();
 }
 
 /// Create runtime with configuration.

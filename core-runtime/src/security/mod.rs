@@ -19,6 +19,7 @@ pub mod key_rotation;
 pub mod output_sanitizer;
 pub mod pii_detector;
 pub mod pii_patterns;
+pub mod pipeline;
 pub mod prompt_injection;
 pub mod sanitizer_rules;
 
@@ -28,6 +29,7 @@ pub use fips_tests::{run_power_on_self_tests, SelfTestError, SelfTestResults};
 pub use key_rotation::{KeyRotationError, KeyRotationManager};
 pub use output_sanitizer::OutputSanitizer;
 pub use pii_detector::{PIIDetector, PIIMatch};
+pub use pipeline::{SanitizedOutput, ScanVerdict, SecurityPipeline};
 pub use prompt_injection::{InjectionMatch, PromptInjectionFilter};
 
 /// Security configuration
@@ -58,6 +60,44 @@ impl Default for SecurityConfig {
             encryption_key: None,
         }
     }
+}
+
+impl SecurityConfig {
+    /// Build a `SecurityConfig` from environment variables.
+    ///
+    /// - `GG_CORE_SECURITY_INGRESS`: `block` (default), `detect`, or `off`
+    /// - `GG_CORE_SECURITY_EGRESS`: `redact` (default) or `off`
+    ///
+    /// Values are case-insensitive. Unrecognized values fall back to the
+    /// default (secure by default). Model encryption is not env-configurable.
+    pub fn from_env() -> Self {
+        let (enable_injection, block_injection) =
+            match env_lower("GG_CORE_SECURITY_INGRESS").as_deref() {
+                Some("detect") => (true, false),
+                Some("off") => (false, false),
+                _ => (true, true), // "block", unset, or unrecognized
+            };
+        let (enable_pii, redact) = match env_lower("GG_CORE_SECURITY_EGRESS").as_deref() {
+            Some("off") => (false, false),
+            _ => (true, true), // "redact", unset, or unrecognized
+        };
+        Self {
+            enable_prompt_injection_detection: enable_injection,
+            block_prompt_injection: block_injection,
+            enable_pii_detection: enable_pii,
+            redact_pii: redact,
+            enable_model_encryption: false,
+            encryption_key: None,
+        }
+    }
+}
+
+/// Read an environment variable, trimmed and lowercased.
+/// Returns `None` when unset or not valid UTF-8.
+fn env_lower(key: &str) -> Option<String> {
+    std::env::var(key)
+        .ok()
+        .map(|v| v.trim().to_ascii_lowercase())
 }
 
 /// Security scan result

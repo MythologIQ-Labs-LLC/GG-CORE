@@ -16,7 +16,8 @@ pub use buckets::{BucketedHistogram, BucketedHistogramSnapshot};
 pub use logging::{init_logging, LogConfig, LogError, LogFormat};
 pub use metrics::{
     init_metrics, record_admission_rejection, record_memory_pool, record_model_switch_latency,
-    record_queue_depth, record_request_failure, record_request_success, record_speculative_cycle,
+    record_output_sanitize, record_queue_depth, record_request_failure, record_request_success,
+    record_security_scan, record_speculative_cycle,
 };
 pub use prometheus::{encode_bucketed_histogram, encode_prometheus};
 pub use security_log::{log_security_event, SecurityEvent, SecuritySeverity};

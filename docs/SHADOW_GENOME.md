@@ -124,4 +124,110 @@ assertions are oracles** — rework to `const _: () = assert!(...)`, never delet
 
 ---
 
+## Entry #4: Stale-local-main issue-state drift (near-miss)
+
+**Session**: 2026-07-25T1224-38ccc6 · **Phase**: RESEARCH (Step 2.5 pre-check)
+
+**Pattern**: Local `main` (`354d41d`) was ~2 weeks behind `origin/main`
+(`11bf0ac`, PR #71 merge). Ancestor checks against local `main` reported the
+fixes for issues #55/#56/#57/#69 as unmerged, which would have shipped a
+research brief classifying four resolved issues as live P1 work. Issue bodies
+and BACKLOG rows (B-17/B-18/B-19/B-22) also still described the pre-merge
+state — pointer layers go stale silently after a merge.
+
+**Root cause**: treating the local clone and issue text as ground truth for
+merge state. Merge state lives on the remote; issue bodies are written once
+and rot.
+
+**Countermeasure**: during any issue-state pre-check, run `git fetch` first
+and ancestor-check fix commits against `origin/main` (never local `main`);
+cross-check `gh pr list --state merged` and the CI run on the merge commit
+before classifying an issue as open work.
+
+---
+
+## Entry #5: "Exists and tested" mistaken for "wired into production" (latent blueprint drift)
+
+**Session**: 2026-07-25T1233 (research) · **Phase**: RESEARCH
+
+**Pattern**: Two subsystem families were represented — in ARCHITECTURE_PLAN's
+data flow, FEATURE_INDEX narrative, and the same-day ledger-#96 research
+brief — as active production machinery, but production-path call-site
+verification shows zero callers: (1) the in-house perf kernels
+(`engine/flash_attn.rs`, `engine/simd_matmul.rs`, `memory/paged.rs`,
+`memory/kv_quant.rs`) are `advanced`-gated and never invoked by the GGUF
+decode path, which runs entirely inside llama-cpp-2 (`backend.rs:296`); and
+(2) the security interception chain (`PromptInjectionFilter`, `PIIDetector`,
+`OutputSanitizer`) has no call sites in `engine/` — only admission control
+runs (`worker.rs:117-127`). Modules compile, unit tests pass, FEATURE_INDEX
+rows read "verified" — yet the production request never touches them.
+
+**Root cause**: verification bound to "module has a passing test binding,"
+not "production call path reaches the module." Documentation then compounds
+the error by describing intent as behavior.
+
+**Countermeasure**: before citing any module as active in a brief, plan, or
+index row, grep for production call sites (who calls it, from which entry
+point) and cite the call chain — not the module's existence or its tests.
+This is the concrete execution of BACKLOG B-14 / SG-035 (deep-verify
+FEATURE_INDEX `verified` rows). Security-surface instances of this pattern
+are L3 findings, not documentation nits.
+
+---
+
+## Entry #6: Regex-only PII redaction has a permanent NER-class blind spot
+
+**Session**: 2026-07-25T1354 (research) · **Phase**: RESEARCH
+
+**Pattern**: GG-CORE's egress PII redaction is documented as "enhanced
+security," but the detector is pure regex + Luhn + NFKC over 13
+format-structured types (`pii_patterns.rs:7-33`). It is *structurally
+incapable* of catching the PII class that has no fixed format — PERSON names,
+prose LOCATION/GPE references, NRP — which is precisely the PII most common in
+free-form LLM output. Microsoft Presidio catches these only via an NER model
+(spaCy `en_core_web_lg`); no regex can. Asserting "we redact PII" without
+qualifying it as regex-grade, and without a measured precision/recall number,
+overstates the protection.
+
+**Root cause**: conflating "a redaction stage exists" with "PII is reliably
+removed." Format-tractable PII (SSN, card, email) ≠ all PII.
+
+**Countermeasure**: qualify egress-redaction claims as regex-grade until a
+span-level precision/recall/F1-per-type harness (Presidio-standard, over a
+vendored offline corpus) puts a number on them. The NER-class gap closes only
+with a model — an offline ONNX NER model on the candle-onnx path (couples to
+issue #72's tokenizer work), never an in-process Python or HTTP-sidecar
+Presidio (both violate the offline/no-network/no-in-process-Python charter).
+
+---
+
+## Entry #7: CI-invisible surfaces accumulate compile debt that plans inherit
+
+**Session**: 2026-07-25T1420-facade · **Phase**: PLAN→AUDIT (iter 2 VETO, Entry #101)
+
+**Pattern**: A plan to route FFI/Python through a new secure façade was VETO'd
+when the audit found the FFI surface already carried latent compile defects: a
+non-exhaustive `From<InferenceError>` match (`ffi/error.rs:130-135` omits
+`MemoryExceeded`) and a Razor overage (`ffi/inference.rs` 272 > 250). These
+compile/lint today ONLY because `.github/workflows/rust.yml` builds
+default-features (`default = []`) and never compiles `ffi`/`gguf`/`python`. Any
+change touching those surfaces inherits the debt, and no CI leg would catch the
+breakage — the plan's DoD ("passes CI") was unverifiable because the legs it
+named don't exist.
+
+**Root cause**: treating a feature-gated surface as if it were on the verified
+path. If CI doesn't build a feature, that feature's files are unmaintained w.r.t.
+Razor/exhaustiveness/compilation, and a plan that modifies them is planning
+against unverified ground.
+
+**Countermeasure**: before planning changes to a feature-gated surface, confirm
+CI actually builds that feature; if not, the FIRST deliverable is the CI leg
+(so the work is verifiable), then remediate the pre-existing defects the leg
+newly exposes, THEN make the change. Never assert a DoD against a CI leg that
+does not exist. Pairs with the open-issues research P1 finding (CI lacks
+gguf/onnx/python legs) and with [[stale-local-main-drift]]-class "verify the
+ground before building on it" discipline.
+
+---
+
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._

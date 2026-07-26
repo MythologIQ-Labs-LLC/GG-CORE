@@ -1,0 +1,56 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-26T0030-b25ffi",
+  "ts": "2026-07-26T15:55:26Z",
+  "plan_path": "docs/plan-b25-ci-foundation-2026-07-26.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "high_risk_target": false,
+  "open_questions": [],
+  "boundaries": {
+    "limitations": [
+      "No inference-behavior change; no FFI/Python reroute/deadlock fix (deferred L3). Clippy fixes derived from captured output (SG#3), semantics-preserving."
+    ],
+    "non_goals": [
+      "No reroute",
+      "No cuda/metal/advanced CI legs",
+      "No dependency changes"
+    ],
+    "exclusions": [
+      "No security/ changes"
+    ]
+  },
+  "phases": [
+    "Phase 1: clippy-clean gguf/onnx/ffi/python surfaces (18/2/3/6 fixes)",
+    "Phase 2: Razor-extract ffi/inference.rs 272->=250 via ffi/inference_result.rs",
+    "Phase 3: add rust.yml features matrix job (gguf/onnx/ffi/python)",
+    "Phase 4: governance (FEATURE_INDEX F-39/F-40, BACKLOG, ARCHITECTURE_PLAN)"
+  ],
+  "ci_commands": [
+    "cargo fmt --check",
+    "cargo clippy --all-targets -- -D warnings",
+    "cargo test --workspace"
+  ],
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-39",
+      "operation": "MODIFIED",
+      "test_path": ".github/workflows/rust.yml",
+      "test_descriptor": "ffi clippy -D warnings + build pass in CI; fails on FFI regress"
+    },
+    {
+      "entry_id": "F-40",
+      "operation": "MODIFIED",
+      "test_path": ".github/workflows/rust.yml",
+      "test_descriptor": "cargo test --features python runs binding test in CI"
+    }
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-26T15:55:26Z"
+  }
+}
