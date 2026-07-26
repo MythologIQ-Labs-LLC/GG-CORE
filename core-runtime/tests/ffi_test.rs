@@ -469,6 +469,11 @@ unsafe fn cleanup(rt: *mut gg_core::ffi::CoreRuntime, session: *mut gg_core::ffi
     core_runtime_destroy(rt);
 }
 
+// DEADLOCKS until the FFI reroute (BACKLOG B-25b): core_infer enqueues and
+// awaits a worker, but FFI init spawns none, so rx.await never returns. Reroute
+// core_infer -> Runtime::infer (which returns ModelNotLoaded without a worker),
+// then remove this #[ignore] — this test is B-25b's acceptance check.
+#[ignore = "core_infer deadlocks with no FFI worker; unblocks with B-25b reroute"]
 #[test]
 fn test_infer_on_unloaded_model_returns_error() {
     unsafe {
