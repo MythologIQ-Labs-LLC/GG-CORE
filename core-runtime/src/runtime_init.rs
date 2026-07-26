@@ -120,7 +120,6 @@ pub async fn run_ipc_server(runtime: Runtime) -> Result<(), Box<dyn std::error::
     let shutdown_timeout = runtime.config.shutdown_timeout;
     let ipc_config = runtime.config.ipc_server.clone();
 
-    let security = std::sync::Arc::new(gg_core::security::SecurityPipeline::from_env());
     let worker_shutdown = tokio_util::sync::CancellationToken::new();
     let worker_handle = gg_core::scheduler::spawn_worker_with_registry(
         runtime.request_queue.clone(),
@@ -128,7 +127,7 @@ pub async fn run_ipc_server(runtime: Runtime) -> Result<(), Box<dyn std::error::
         Some(runtime.model_lifecycle.clone()),
         Some(runtime.model_registry.clone()),
         Some(runtime.resource_limits.clone()),
-        Some(security),
+        Some(runtime.security.clone()),
         worker_shutdown.clone(),
     );
 

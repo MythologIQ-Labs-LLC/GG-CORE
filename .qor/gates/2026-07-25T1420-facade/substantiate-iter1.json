@@ -1,0 +1,31 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-25T1420-facade",
+  "ts": "2026-07-26T15:09:56Z",
+  "target": "docs/plan-secure-inference-facade-2026-07-25.md",
+  "verdict": "PASS",
+  "merkle_seal": "a18c860bf8d19695db22c87100c2b78164b6932dd06e9532dacf97946326fe3a",
+  "reality_matches_promise": true,
+  "verification": {
+    "fmt": "pass",
+    "clippy": "pass",
+    "test_workspace": "pass (1099, 0 failed)",
+    "gguf_stream_test": "pass",
+    "ffi_build": "compiles",
+    "razor": "lib.rs 195, runtime_facade.rs 155"
+  },
+  "deferred": [
+    "FFI/Python consumable reroute -> BACKLOG B-25 (CI legs first)",
+    "COREFORGE switch -> B-26 handoff"
+  ],
+  "chain_tip": "b53d56f5fefa869773396eb958505d1edd71a2ece6d300c7c0143252991c5ba7",
+  "brief_path": "docs/plan-secure-inference-facade-2026-07-25.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "pass",
+    "ts": "2026-07-26T15:09:56Z"
+  }
+}

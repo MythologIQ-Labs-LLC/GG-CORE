@@ -58,6 +58,9 @@ pub mod ffi;
 #[cfg(feature = "python")]
 pub mod python;
 
+// Secure inference façade + Runtime construction helpers (v0.8.x)
+mod runtime_facade;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -66,17 +69,17 @@ use engine::gpu::GpuConfig as EngineGpuConfig;
 use engine::gpu_manager::GpuManager;
 use engine::InferenceEngine;
 use health::{HealthChecker, HealthConfig};
-use ipc::{
-    ConnectionConfig, ConnectionPool, IpcHandler, IpcHandlerConfig, IpcServerConfig, SessionAuth,
-};
+use ipc::{ConnectionConfig, ConnectionPool, IpcHandler, IpcServerConfig};
 use memory::{
     ContextCache, ContextCacheConfig, GpuMemory, GpuMemoryConfig, MemoryPool, MemoryPoolConfig,
     ResourceLimits, ResourceLimitsConfig,
 };
 use models::{ModelLifecycle, ModelLoader, ModelRegistry, SmartLoader, SmartLoaderConfig};
+use runtime_facade::build_loader_callback;
 use scheduler::{
     BatchConfig, BatchProcessor, OutputCache, OutputCacheConfig, RequestQueue, RequestQueueConfig,
 };
+use security::SecurityPipeline;
 use shutdown::ShutdownCoordinator;
 use telemetry::MetricsStore;
 use tokio::sync::Mutex;
@@ -144,28 +147,9 @@ pub struct Runtime {
     pub metrics_store: Arc<MetricsStore>,
     pub output_cache: Arc<Mutex<OutputCache>>,
     pub connections: Arc<ConnectionPool>,
-}
-
-/// Build a SmartLoader callback that validates paths and registers
-/// models in the given registry, producing globally unique handles.
-fn build_loader_callback(registry: Arc<ModelRegistry>) -> models::smart_loader_types::LoadCallback {
-    Box::new(move |path| {
-        if !path.exists() {
-            return Err(format!("Model file not found: {}", path.display()));
-        }
-        let size = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
-        let name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("unknown")
-            .to_string();
-        let meta = models::ModelMetadata {
-            name,
-            size_bytes: size,
-        };
-        let handle = futures::executor::block_on(registry.register(meta, size as usize));
-        Ok(handle)
-    })
+    /// Shared security pipeline enforcing ingress/egress on the façade and the
+    /// scheduler worker (single-source config, built once in `new`).
+    pub security: Arc<SecurityPipeline>,
 }
 
 impl Runtime {
@@ -190,6 +174,7 @@ impl Runtime {
         let metrics_store = Arc::new(MetricsStore::new());
         let connections = Arc::new(ConnectionPool::new(config.connections.clone()));
         let gpu_manager = GpuManager::new(config.gpu.clone()).ok();
+        let security = Arc::new(SecurityPipeline::from_env());
         let ipc_handler = Self::init_ipc(
             &config,
             &request_queue,
@@ -220,52 +205,7 @@ impl Runtime {
             metrics_store,
             output_cache,
             connections,
+            security,
         }
-    }
-
-    fn init_memory(config: &RuntimeConfig) -> (MemoryPool, GpuMemory, ContextCache) {
-        (
-            MemoryPool::new(config.memory_pool.clone()),
-            GpuMemory::new(config.gpu_memory.clone()),
-            ContextCache::new(config.context_cache.clone()),
-        )
-    }
-
-    fn init_scheduler(
-        config: &RuntimeConfig,
-    ) -> (
-        Arc<RequestQueue>,
-        BatchProcessor,
-        ResourceLimits,
-        Arc<Mutex<OutputCache>>,
-    ) {
-        (
-            Arc::new(RequestQueue::new(config.request_queue.clone())),
-            BatchProcessor::new(config.batch.clone()),
-            ResourceLimits::new(config.resource_limits.clone()),
-            Arc::new(Mutex::new(OutputCache::new(config.output_cache.clone()))),
-        )
-    }
-
-    fn init_ipc(
-        config: &RuntimeConfig,
-        queue: &Arc<RequestQueue>,
-        shutdown: &Arc<ShutdownCoordinator>,
-        health: &Arc<HealthChecker>,
-        registry: &Arc<ModelRegistry>,
-        metrics: &Arc<MetricsStore>,
-        engine: &Arc<InferenceEngine>,
-    ) -> IpcHandler {
-        let session_auth = Arc::new(SessionAuth::new(&config.auth_token, config.session_timeout));
-        IpcHandler::new(
-            session_auth,
-            queue.clone(),
-            IpcHandlerConfig::default(),
-            shutdown.clone(),
-            health.clone(),
-            registry.clone(),
-            metrics.clone(),
-            Arc::clone(engine),
-        )
     }
 }

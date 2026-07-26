@@ -6732,3 +6732,147 @@ patterns / evaluate `pii-vault` MIT, (3) offline ONNX NER via candle-onnx
 avoid license-blocked Piiranha, reject rust-bert/ort/tch). Shadow Genome
 Entry #6 added. Chain tip:
 `fefc7c916a740d961125731dd6d209251626271b1cf5a1e38940ab9eda5d64f1`.
+
+---
+
+### Entry #101: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-25T17:26:22-04:00
+**Phase**: GATE
+**Author**: Judge (independent fresh-context subagent)
+**Risk Grade**: L3
+**Session ID**: 2026-07-25T1420-facade
+
+**Target**: docs/plan-secure-inference-facade-2026-07-25.md (iteration 2)
+
+**Verdict**: VETO
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= c600df422d9b7f03a8d9248ccd49878443765784ee61a6f6bc8e9af8ef5fd567
+```
+
+**Previous Hash**: fefc7c916a740d961125731dd6d209251626271b1cf5a1e38940ab9eda5d64f1
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 23bbb9f08185ebd2715ca40e9ec8d265c04f80904c10e4d55aa233fddce5efd5
+```
+
+**Decision**: VETO (iter 2). Iter-1 blockers (lib.rs razor, SecurityRejected
+match coupling) correctly fixed. Iter 2 surfaced deeper FFI/Python defects:
+(1) `CoreErrorCode::CapabilityNotSupported` undefined; (2) `ffi/error.rs`
+match already non-exhaustive (`MemoryExceeded` unhandled) — compiles only
+because CI never builds `ffi`; (3) `ffi/inference.rs` 272 lines >250 Razor,
+touched without extraction; (4) gguf/python/ffi CI legs the DoD relies on do
+not exist. Root cause: the consumable FFI/Python surface carries pre-existing
+Razor + exhaustiveness debt invisible to a default-features-only CI. The Rust
+façade (Phase 1+2) is clean and verifiable; the consumable surface needs a
+CI-foundation + defect-cleanup prerequisite. Awaiting operator scope decision
+(descope-to-façade vs expand-to-full-with-CI). No implementation under VETO.
+Chain tip: `23bbb9f08185ebd2715ca40e9ec8d265c04f80904c10e4d55aa233fddce5efd5`.
+
+---
+
+### Entry #102: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-26T00:00:00-04:00
+**Phase**: GATE
+**Author**: Judge (independent fresh-context subagent)
+**Risk Grade**: L3
+**Session ID**: 2026-07-25T1420-facade
+
+**Target**: docs/plan-secure-inference-facade-2026-07-25.md (iteration 3, descoped)
+
+**Verdict**: PASS
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= 27f5fa8f139e37a20b6758d20cee295b647ab93faeb7ccfc8f38048e2d2954f9
+```
+
+**Previous Hash**: 23bbb9f08185ebd2715ca40e9ec8d265c04f80904c10e4d55aa233fddce5efd5
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 143878828343f11529717d4a61fbb45c37510ad9ca61722f1cb099fcd59d259e
+```
+
+**Decision**: GATE TRIBUNAL PASS (iter 3). Operator-directed descope to the Rust
+`Runtime::infer`/`infer_stream` façade (embedded surface) removed every prior
+blocker (all in the deferred FFI/Python reroute + missing CI legs). Verified:
+Razor-clean touched files (lib.rs 271→~213 via helper relocation; ffi/inference.rs
+untouched), LD-7 exhaustiveness fix compiles under `--features ffi` (both
+MemoryExceeded + SecurityRejected arms; -17 free), no default-build match break,
+single-enforcement preserved, no FFI/Python overclaim, tests behavior-asserting.
+3 trivial advisories. Consumable FFI/Python surface deferred to BACKLOG B-25
+(CI legs first). Gate Status: OPEN — /qor-implement authorized. Chain tip:
+`143878828343f11529717d4a61fbb45c37510ad9ca61722f1cb099fcd59d259e`.
+
+---
+
+### Entry #103: SESSION SEAL (secure inference façade — embedded surface)
+
+**Timestamp**: 2026-07-26T00:20:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local; commits directed by operator)
+**Author**: Specialist (agent team) + Judge
+**Risk Grade**: L3
+**Session ID**: 2026-07-25T1420-facade
+
+**Target**: docs/plan-secure-inference-facade-2026-07-25.md (iter 3) — deliver
+`Runtime::infer`/`infer_stream`, the single secure entry point for the embedded
+delivery surface; typed `InferenceError::SecurityRejected`; consolidate the
+worker's SecurityPipeline to `Runtime`; extract façade + helpers to
+`runtime_facade.rs` (lib.rs 271→195, ≤250); fix pre-existing `ffi/error.rs`
+non-exhaustiveness so `--features ffi` compiles.
+
+**Reality vs Promise**: MATCH. Phases 1–3 delivered per the audited plan.
+Consumable FFI/Python reroute correctly DEFERRED (BACKLOG B-25, CI legs first);
+COREFORGE consumer switch filed as handoff (B-26).
+
+**Verification (authoritative, at seal)**:
+- `cargo fmt --check` → 0
+- `cargo clippy --all-targets -- -D warnings` → 0
+- `cargo test --workspace` → 0 failures (1099 passed; incl. 3 façade tests)
+- `cargo test --features gguf --test secure_facade_test` → 4 passed (incl.
+  streaming rejection)
+- `cargo build --features ffi` → compiles (LD-7 exhaustiveness fix)
+- Razor: lib.rs 195, runtime_facade.rs 155 (both ≤250); all fns ≤40 lines
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/src/runtime_facade.rs)
+= 9027691c3df642bce2682b771011caeb254a67cf02d89dc1dce7defb1ae47e3d
+```
+
+**Previous Hash**: 143878828343f11529717d4a61fbb45c37510ad9ca61722f1cb099fcd59d259e
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= b53d56f5fefa869773396eb958505d1edd71a2ece6d300c7c0143252991c5ba7
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= a18c860bf8d19695db22c87100c2b78164b6932dd06e9532dacf97946326fe3a
+```
+
+**Decision**: SECURE INFERENCE FAÇADE delivered and verified. The embedded
+delivery surface now has one enforced, ergonomic entry point returning a typed
+rejection (security + UX). Two prior VETOs (Entry #98 was a different cycle;
+#101 this cycle) hardened the plan; the operator-directed descope kept the
+work CI-verifiable. Chain tip:
+`b53d56f5fefa869773396eb958505d1edd71a2ece6d300c7c0143252991c5ba7`.

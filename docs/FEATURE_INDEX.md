@@ -84,6 +84,7 @@ judgment.
 | F-53 | Speculative telemetry + auto-disable + CLI surface (SpeculativeTelemetry) | core-runtime/src/engine/adaptive_speculative/telemetry.rs | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/engine/adaptive_speculative/telemetry_tests.rs | verified |
 | F-54 | Speculative benchmark matrix | core-runtime/benches/speculative_matrix.rs | docs/BENCHMARKS.md | core-runtime/benches/speculative_matrix.rs | verified |
 | F-55 | Security: pipeline wiring (ingress scan + egress sanitize) | core-runtime/src/security/pipeline.rs | docs/security | core-runtime/tests/security_pipeline_wiring_test.rs | verified |
+| F-56 | Secure inference façade (Runtime::infer/infer_stream) | core-runtime/src/runtime_facade.rs | docs/security | core-runtime/tests/secure_facade_test.rs | verified |
 
 ## Open coverage gaps
 

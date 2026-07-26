@@ -141,6 +141,18 @@ sanitization (PII redact) runs on the non-streaming response path. Streaming
 egress carries u32 token IDs, not text, and is not sanitized in-runtime
 (follow-up: `docs/BACKLOG.md` B-24).
 
+**Delivery surfaces & secure entry point**: GG-CORE ships two delivery
+surfaces — embedded (in-process `gg_core::Runtime`, e.g. COREFORGE) and
+consumable component (FFI / Python bindings). `Runtime::infer` /
+`Runtime::infer_stream` is the single secure entry point serving both: it
+enforces the SecurityPipeline (ingress prompt-injection scan + egress PII
+sanitize) around the engine, which stays pure compute per the C.O.R.E.
+charter. The scheduler worker enforces the same pipeline for the IPC-server
+path. A security block is a typed `InferenceError::SecurityRejected`
+(embedded) — a distinct outcome the caller/UI renders, not a hang. The
+consumable FFI/Python reroute onto this entry point is deferred and tracked
+in `docs/BACKLOG.md` B-25 (pending CI feature legs).
+
 ---
 
 ## Dependencies

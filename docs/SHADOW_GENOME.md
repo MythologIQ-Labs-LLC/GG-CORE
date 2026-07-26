@@ -201,4 +201,33 @@ Presidio (both violate the offline/no-network/no-in-process-Python charter).
 
 ---
 
+## Entry #7: CI-invisible surfaces accumulate compile debt that plans inherit
+
+**Session**: 2026-07-25T1420-facade · **Phase**: PLAN→AUDIT (iter 2 VETO, Entry #101)
+
+**Pattern**: A plan to route FFI/Python through a new secure façade was VETO'd
+when the audit found the FFI surface already carried latent compile defects: a
+non-exhaustive `From<InferenceError>` match (`ffi/error.rs:130-135` omits
+`MemoryExceeded`) and a Razor overage (`ffi/inference.rs` 272 > 250). These
+compile/lint today ONLY because `.github/workflows/rust.yml` builds
+default-features (`default = []`) and never compiles `ffi`/`gguf`/`python`. Any
+change touching those surfaces inherits the debt, and no CI leg would catch the
+breakage — the plan's DoD ("passes CI") was unverifiable because the legs it
+named don't exist.
+
+**Root cause**: treating a feature-gated surface as if it were on the verified
+path. If CI doesn't build a feature, that feature's files are unmaintained w.r.t.
+Razor/exhaustiveness/compilation, and a plan that modifies them is planning
+against unverified ground.
+
+**Countermeasure**: before planning changes to a feature-gated surface, confirm
+CI actually builds that feature; if not, the FIRST deliverable is the CI leg
+(so the work is verifiable), then remediate the pre-existing defects the leg
+newly exposes, THEN make the change. Never assert a DoD against a CI leg that
+does not exist. Pairs with the open-issues research P1 finding (CI lacks
+gguf/onnx/python legs) and with [[stale-local-main-drift]]-class "verify the
+ground before building on it" discipline.
+
+---
+
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._

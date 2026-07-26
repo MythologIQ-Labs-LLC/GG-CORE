@@ -30,6 +30,7 @@ pub enum CoreErrorCode {
     Timeout = -14,
     Cancelled = -15,
     BufferTooSmall = -16,
+    SecurityRejected = -17,
     Internal = -99,
 }
 
@@ -132,6 +133,9 @@ impl From<crate::engine::inference::InferenceError> for CoreErrorCode {
             InferenceError::InvalidParams(_) => CoreErrorCode::InvalidParams,
             InferenceError::ExecutionFailed(_) => CoreErrorCode::InferenceFailed,
             InferenceError::ContextExceeded { .. } => CoreErrorCode::ContextExceeded,
+            // No memory-specific FFI code exists; surface as an internal fault.
+            InferenceError::MemoryExceeded { .. } => CoreErrorCode::Internal,
+            InferenceError::SecurityRejected(_) => CoreErrorCode::SecurityRejected,
         }
     }
 }

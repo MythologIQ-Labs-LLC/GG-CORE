@@ -1,0 +1,22 @@
+{
+  "phase": "audit",
+  "session_id": "2026-07-25T1420-facade",
+  "ts": "2026-07-25T21:54:39Z",
+  "target": "docs/plan-secure-inference-facade-2026-07-25.md",
+  "verdict": "VETO",
+  "report_path": ".agent/staging/AUDIT_REPORT.md",
+  "risk_grade": "L3",
+  "findings_categories": [
+    "infrastructure-mismatch",
+    "razor-overage",
+    "specification-drift"
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "veto",
+    "ts": "2026-07-25T21:54:39Z"
+  }
+}
