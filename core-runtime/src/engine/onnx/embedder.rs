@@ -196,7 +196,17 @@ mod tests {
 
     #[test]
     fn load_and_embed() {
-        let model = candle_onnx::read_file(model_path()).expect("load model");
+        // The ONNX fixture (~90 MB) is not committed; skip gracefully when
+        // absent (e.g. CI) — same convention as the gguf e2e tests.
+        let path = model_path();
+        if !path.exists() {
+            eprintln!(
+                "skipping load_and_embed: fixture {} not present",
+                path.display()
+            );
+            return;
+        }
+        let model = candle_onnx::read_file(&path).expect("load model");
         let embedder = OnnxEmbedder::with_model("test".into(), 384, model);
         let result = embedder.embed_text("file.write").expect("embed");
         assert_eq!(result.vector.len(), 384);
