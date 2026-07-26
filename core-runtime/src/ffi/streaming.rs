@@ -12,7 +12,6 @@ use super::error::{set_last_error, CoreErrorCode};
 use super::inference::params_from_c;
 use super::runtime::CoreRuntime;
 use super::types::CoreInferenceParams;
-use crate::scheduler::Priority;
 
 /// Streaming callback signature
 /// Return false to cancel streaming
@@ -122,23 +121,11 @@ pub unsafe extern "C" fn core_infer_streaming(
         cancelled: cancelled.clone(),
     };
 
-    let result = rt.tokio.block_on(async {
-        let (_id, rx) = rt
-            .inner
-            .request_queue
-            .enqueue_with_response(
-                model_str.to_string(),
-                prompt_str.to_string(),
-                rust_params,
-                Priority::Normal,
-            )
-            .await
-            .map_err(|e| e.to_string())?;
-
-        rx.await
-            .map_err(|_| "worker dropped channel".to_string())?
-            .map_err(|e| e.to_string())
-    });
+    // Route through the security-enforcing façade; deliver the full output in a
+    // single callback. Real per-token streaming needs detokenization (B-24).
+    let result = rt
+        .tokio
+        .block_on(async { rt.inner.infer(model_str, prompt_str, &rust_params).await });
 
     match result {
         Ok(r) => {
@@ -150,9 +137,10 @@ pub unsafe extern "C" fn core_infer_streaming(
             }
         }
         Err(e) => {
-            invoker.invoke("", true, Some(&e));
-            set_last_error(&e);
-            CoreErrorCode::InferenceFailed
+            let msg = e.to_string();
+            invoker.invoke("", true, Some(&msg));
+            // `From<InferenceError>` sets the last-error string and maps the variant.
+            CoreErrorCode::from(e)
         }
     }
 }

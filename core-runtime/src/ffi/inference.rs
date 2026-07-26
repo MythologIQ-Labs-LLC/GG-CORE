@@ -11,7 +11,6 @@ pub(super) use super::inference_result::params_from_c;
 use super::inference_result::write_inference_result;
 use super::runtime::CoreRuntime;
 use super::types::{CoreInferenceParams, CoreInferenceResult};
-use crate::scheduler::Priority;
 
 /// Submit inference request (blocking, text-based).
 /// # Safety
@@ -69,33 +68,20 @@ pub unsafe extern "C" fn core_infer(
     };
     let rust_params = params_from_c(c_params);
 
-    let result = rt.tokio.block_on(async {
-        let (_id, rx) = rt
-            .inner
-            .request_queue
-            .enqueue_with_response(
-                model_str.to_string(),
-                prompt_str.to_string(),
-                rust_params,
-                Priority::Normal,
-            )
-            .await
-            .map_err(|e| e.to_string())?;
-
-        rx.await
-            .map_err(|_| "worker dropped channel".to_string())?
-            .map_err(|e| e.to_string())
-    });
+    // Route through the security-enforcing façade (scan -> engine -> sanitize).
+    // No worker is spawned in FFI init, so the old enqueue+await path deadlocked.
+    let result = rt
+        .tokio
+        .block_on(async { rt.inner.infer(model_str, prompt_str, &rust_params).await });
 
     match result {
         Ok(r) => {
             write_inference_result(&r, &mut *out_result);
             CoreErrorCode::Ok
         }
-        Err(e) => {
-            set_last_error(&e);
-            CoreErrorCode::InferenceFailed
-        }
+        // `From<InferenceError>` sets the last-error string AND maps the variant
+        // (ModelNotLoaded -> ModelNotFound, SecurityRejected -> SecurityRejected).
+        Err(e) => CoreErrorCode::from(e),
     }
 }
 
@@ -209,22 +195,10 @@ pub unsafe extern "C" fn core_infer_bounded(
     };
     let rust_params = params_from_c(c_params);
 
-    let result = rt.tokio.block_on(async {
-        let (_id, rx) = rt
-            .inner
-            .request_queue
-            .enqueue_with_response(
-                model_str.to_string(),
-                prompt_str.to_string(),
-                rust_params,
-                Priority::Normal,
-            )
-            .await
-            .map_err(|e| e.to_string())?;
-        rx.await
-            .map_err(|_| "worker dropped channel".to_string())?
-            .map_err(|e| e.to_string())
-    });
+    // Route through the security-enforcing façade (see core_infer).
+    let result = rt
+        .tokio
+        .block_on(async { rt.inner.infer(model_str, prompt_str, &rust_params).await });
 
     match result {
         Ok(r) => {
@@ -238,9 +212,6 @@ pub unsafe extern "C" fn core_infer_bounded(
             *out_len = bytes.len();
             CoreErrorCode::Ok
         }
-        Err(e) => {
-            set_last_error(&e);
-            CoreErrorCode::InferenceFailed
-        }
+        Err(e) => CoreErrorCode::from(e),
     }
 }

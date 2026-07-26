@@ -1,0 +1,55 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-26T1850-b25b",
+  "ts": "2026-07-26T22:52:50Z",
+  "plan_path": "docs/plan-b25b-ffi-python-reroute-2026-07-26.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "high_risk_target": false,
+  "open_questions": [],
+  "boundaries": {
+    "limitations": [
+      "Real per-token FFI streaming out of scope (needs detokenization/B-24); streaming keeps single-callback full-output. No new CI legs."
+    ],
+    "non_goals": [
+      "No change to Runtime::infer/infer_stream",
+      "No worker in FFI/Python init",
+      "No security/engine/scheduler changes"
+    ],
+    "exclusions": [
+      "ffi/error.rs + python/exceptions.rs SecurityRejected mappings already exist"
+    ]
+  },
+  "phases": [
+    "Phase 1: FFI reroute (core_infer, core_infer_bounded, core_infer_streaming -> Runtime::infer) + un-ignore acceptance test + injection/bounded tests",
+    "Phase 2: Python reroute (Session::infer, AsyncSession::infer -> runtime.infer, PyErr::from)",
+    "Phase 3: governance (FEATURE_INDEX F-39/F-40, BACKLOG B-25b done, ARCHITECTURE_PLAN)"
+  ],
+  "ci_commands": [
+    "cargo fmt --check",
+    "cargo clippy --all-targets -- -D warnings",
+    "cargo test --workspace"
+  ],
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-39",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/tests/ffi_test.rs",
+      "test_descriptor": "core_infer no longer deadlocks (ModelNotFound) and returns SecurityRejected on injection prompt"
+    },
+    {
+      "entry_id": "F-40",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/tests/python_binding_test.rs",
+      "test_descriptor": "Python Session::infer routes through Runtime::infer; injection surfaces security error"
+    }
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-26T22:52:50Z"
+  }
+}

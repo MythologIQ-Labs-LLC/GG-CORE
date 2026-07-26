@@ -12,7 +12,6 @@ use super::exceptions::AuthenticationError;
 use super::inference::{InferenceParams, InferenceResult};
 use crate::engine::InferenceParams as RustParams;
 use crate::ipc::SessionToken;
-use crate::scheduler::Priority;
 use crate::Runtime as CoreRuntime;
 
 /// Synchronous session for inference operations
@@ -76,22 +75,15 @@ impl Session {
 
         let rust_params = params.map(RustParams::from).unwrap_or_default();
 
+        // Route through the security-enforcing façade (scan -> engine ->
+        // sanitize). No worker runs in the Python binding, so the old
+        // enqueue+await path deadlocked. SecurityRejected surfaces as the
+        // gg_core.InferenceError exception via `From<InferenceError> for PyErr`.
         let result = self.tokio.block_on(async {
-            let (_id, rx) = self
-                .runtime
-                .request_queue
-                .enqueue_with_response(
-                    model_id.to_string(),
-                    prompt.to_string(),
-                    rust_params,
-                    Priority::Normal,
-                )
+            self.runtime
+                .infer(model_id, prompt, &rust_params)
                 .await
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-
-            rx.await
-                .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("worker dropped channel"))?
-                .map_err(pyo3::exceptions::PyRuntimeError::new_err)
+                .map_err(PyErr::from)
         })?;
 
         Ok(InferenceResult::from(result))
@@ -207,16 +199,11 @@ impl AsyncSession {
                 .await
                 .map_err(|e| AuthenticationError::new_err(e.to_string()))?;
 
-            let (_id, rx) = runtime
-                .request_queue
-                .enqueue_with_response(model_id, prompt, rust_params, Priority::Normal)
+            // Route through the security-enforcing façade (see Session::infer).
+            let result = runtime
+                .infer(&model_id, &prompt, &rust_params)
                 .await
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-
-            let result = rx
-                .await
-                .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("worker dropped channel"))?
-                .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+                .map_err(PyErr::from)?;
 
             Ok(InferenceResult::from(result))
         })

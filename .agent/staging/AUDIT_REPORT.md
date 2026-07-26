@@ -1,42 +1,40 @@
-# AUDIT REPORT — Gate Tribunal (B-25 CI foundation)
+# AUDIT REPORT — Gate Tribunal (B-25b FFI/Python reroute)
 
-**Target**: docs/plan-b25-ci-foundation-2026-07-26.md (iteration 1)
+**Target**: docs/plan-b25b-ffi-python-reroute-2026-07-26.md (iteration 1)
 **Date**: 2026-07-26
-**Session**: 2026-07-26T0030-b25ffi
-**Risk Grade**: L2
+**Session**: 2026-07-26T1850-b25b
+**Risk Grade**: L3
 **Mode**: adversarial (independent fresh-context Judge subagent)
 
 ## VERDICT: PASS
 
-L2 correct — every change is semantics-preserving lint hygiene, a pure module
-move, and additive CI YAML; no behavior/security/logic change (the FFI/Python
-reroute is the deferred L3 cycle). The most likely blocker (gguf/onnx CI legs
-red on missing model fixtures) was investigated and DISPROVEN:
-- gguf tests (`e2e_model_test.rs`) skip gracefully via `let Some(gen) =
-  load_test_model() else { return }` when the model is absent.
-- onnx tests (`tier2_onnx_classification_test.rs:21-24`) guard on
-  `model_path.exists()`.
-- `ffi_test.rs` calls `core_infer` only with null pointers → returns at the
-  null-check before the deadlocking enqueue path → no CI hang.
-- `python_binding_test.rs` is conversion-only (no interpreter, no `.infer()`).
-- Heavy model tests are `advanced`-gated → not in the `[gguf,onnx,ffi,python]`
-  matrix.
+Every Locked Decision grep-verified against the real tree. Reroute is
+infrastructure-accurate and security-sound.
 
-Confirmed: `ffi/inference.rs` 272>250; rust.yml has no feature legs; the Razor
-extraction (`write_inference_result:160` + `params_from_c` + Clone impl →
-`ffi/inference_result.rs`, registered in `ffi/mod.rs:9-16`) is coherent and
-removes well over the needed lines; LD-2 correctly forbids `#[allow]`
-suppression (document `# Safety`, don't hide).
+- `Runtime::infer` scans BEFORE the engine (runtime_facade.rs:66,73-76) → an
+  injection prompt returns SecurityRejected with no model loaded (LD-4 valid).
+- `CoreRuntime { inner: Arc<Runtime>, tokio }` (ffi/runtime.rs:18-21) → the
+  `rt.tokio.block_on(rt.inner.infer(..))` reroute is reachable.
+- Error mappings ALREADY exist and are reused, no new lines: ffi/error.rs:127-141
+  (ModelNotLoaded→ModelNotFound, SecurityRejected→SecurityRejected, exhaustive);
+  python/exceptions.rs:48-52 (all variants → gg_core.InferenceError).
+- Ignored acceptance test present (ffi_test.rs:476), asserts ModelNotFound;
+  passes after reroute (infer returns ModelNotLoaded without a worker).
+- Default SecurityConfig blocks injection (security/mod.rs:52-63,73-79).
+- Streaming stays single-callback full-output (non-regressive; real per-token =
+  B-24). Razor: all touched files net-shrink, stay ≤250. No bypass; leak-safe
+  constant rejection; fail-closed. create_runtime_and_session spawns no worker,
+  so the un-ignored test won't hang.
 
-### Advisories (carry to implementation)
-1. The brief's "ffi 18 / 17 missing_safety_doc" count may be partially stale
-   (some ffi fns already documented). LD-1 already mandates re-capturing
-   `cargo clippy --features ffi --all-targets` fresh at implement — do so; the
-   real set governs.
-2. Add `actions/setup-python@v5` to the python leg proactively (avoid a
-   speculative red first run).
-3. Budget CI minutes for the gguf C++ / onnx candle compiles on ubuntu.
+### Advisories (baked into implementation)
+1. Injection test MUST use a real high-risk phrase (e.g. "ignore all previous
+   instructions", score ≥ BLOCK_RISK_THRESHOLD 50) — not an innocuous string.
+2. FFI error match arm MUST become `Err(code) => code` (return the mapped
+   CoreErrorCode), not the old `Err(e) => InferenceFailed`; `From` already fires
+   `set_last_error` — do not re-call.
+3. `core_infer_bounded` MUST retain its `BufferTooSmall` buffer-copy Ok-path;
+   swap only the block_on body.
 
 ### Next action
-`/qor-implement` authorized (Phases 1-4). Commit locally; push/PR at operator
-direction (CI-leg green is observable only after push — DoD D4.d waiver).
+`/qor-implement` authorized (Phases 1-3). Commit locally; push + PR at operator
+direction.

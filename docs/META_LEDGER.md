@@ -7020,3 +7020,106 @@ Genome #7). Debt eliminated: ffi 18, onnx 2, python 3, gguf 6 + a non-compiling
 gguf test. FEATURE_INDEX F-40 -> verified; F-39 CI-backed. The L3 FFI/Python
 inference reroute (deadlock fix) is B-25b, now verifiable by these legs. Chain
 tip: `e7d7be32e35f8ca9817aeec3e3276079f25c2380e4d25ef9c93a18ba8b8e1cb0`.
+
+---
+
+### Entry #107: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-26T18:55:00-04:00
+**Phase**: GATE
+**Author**: Judge (independent fresh-context subagent)
+**Risk Grade**: L3
+**Session ID**: 2026-07-26T1850-b25b
+
+**Target**: docs/plan-b25b-ffi-python-reroute-2026-07-26.md (iteration 1)
+
+**Verdict**: PASS
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= 33f2e349dc6496f2933d2cf46371ae0a1221233a150057b418956d1140274633
+```
+
+**Previous Hash**: e7d7be32e35f8ca9817aeec3e3276079f25c2380e4d25ef9c93a18ba8b8e1cb0
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= e52ece47d85de3bd8843313392e66101d842e197fa08c9f981cf10bb3b9203b9
+```
+
+**Decision**: GATE TRIBUNAL PASS (L3). B-25b reroutes the 5 FFI/Python inference
+entry points from the enqueue-then-await-no-worker deadlock to the shipped
+security-enforcing Runtime::infer façade; reuses existing SecurityRejected error
+mappings; un-ignores the ffi acceptance test; adds an injection→SecurityRejected
+test proving the consumable surface is now security-enforced. Streaming stays
+single-callback full-output (real per-token = B-24). 3 execution advisories
+(real injection phrase; Err(code)=>code match arm; retain BufferTooSmall path).
+Gate Status: OPEN — /qor-implement authorized. Chain tip:
+`e52ece47d85de3bd8843313392e66101d842e197fa08c9f981cf10bb3b9203b9`.
+
+---
+
+### Entry #108: SESSION SEAL (B-25b FFI/Python reroute)
+
+**Timestamp**: 2026-07-26T19:15:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local; PR at operator direction)
+**Author**: Specialist + Judge
+**Risk Grade**: L3
+**Session ID**: 2026-07-26T1850-b25b
+
+**Target**: docs/plan-b25b-ffi-python-reroute-2026-07-26.md — reroute the 5
+FFI/Python inference entry points through the security-enforcing Runtime::infer
+façade; fix the enqueue-then-await-no-worker deadlock; un-ignore the acceptance
+test; add an injection→SecurityRejected test.
+
+**Reality vs Promise**: MATCH. core_infer, core_infer_bounded (+ its
+BufferTooSmall path), core_infer_streaming, Python Session::infer and
+AsyncSession::infer all now call Runtime::infer; error arms return the mapped
+CoreErrorCode / PyErr via the existing From impls (no re-add); unused Priority
+imports removed. Streaming stays single-callback full-output (real per-token =
+B-24). Consumable surfaces are now security-enforced.
+
+**Verification (authoritative, at seal)**:
+- ffi: `clippy --features ffi --all-targets -D warnings` → 0; `test --features
+  ffi --test ffi_test` → 39 passed, 0 failed, **0 ignored** (acceptance
+  un-ignored + injection→SecurityRejected + bounded-no-hang all pass)
+- python: clippy → 0; python_binding_test → 2 passed
+- default: `clippy --all-targets -D warnings` → 0; `test --workspace` → 0 failed;
+  `fmt --check` → 0
+- Razor: ffi/inference.rs 246→195, streaming.rs 138, python/session.rs 195 (net
+  shrink; all ≤250)
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/src/ffi/inference.rs)
+= f677d1110db34585c1897d859d3fa3cfdc8164f7b18bcd881392686419984d31
+```
+
+**Previous Hash**: e52ece47d85de3bd8843313392e66101d842e197fa08c9f981cf10bb3b9203b9
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 12107b7f5d1057f6c8ecb846b014243b3162a8562c2b66a1c70e4448b2189e5a
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 34748cb613f8fe30100e49bcf3da925e9e91226f483c1148b98a9189543c0c52
+```
+
+**Decision**: B-25b COMPLETE. Both delivery surfaces — embedded (COREFORGE via
+in-process Runtime::infer) and consumable (FFI/Python bindings) — are now
+unified on the single security-enforcing entry point. The consumable deadlock
+is fixed and those surfaces enforce the SecurityPipeline. This closes the #1
+"consumable by other repos" blocker. Remaining: COREFORGE consumer switch
+(handoff B-26); real per-token FFI streaming (B-24). Chain tip:
+`12107b7f5d1057f6c8ecb846b014243b3162a8562c2b66a1c70e4448b2189e5a`.

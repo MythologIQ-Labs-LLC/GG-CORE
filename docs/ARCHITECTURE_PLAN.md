@@ -149,9 +149,14 @@ enforces the SecurityPipeline (ingress prompt-injection scan + egress PII
 sanitize) around the engine, which stays pure compute per the C.O.R.E.
 charter. The scheduler worker enforces the same pipeline for the IPC-server
 path. A security block is a typed `InferenceError::SecurityRejected`
-(embedded) — a distinct outcome the caller/UI renders, not a hang. The
-consumable FFI/Python reroute onto this entry point is deferred and tracked
-in `docs/BACKLOG.md` B-25 (pending CI feature legs).
+(embedded) — a distinct outcome the caller/UI renders, not a hang. Both
+delivery surfaces are now unified on this single enforced entry point: the
+embedded surface (COREFORGE via in-process `Runtime::infer`) and the
+consumable surface (FFI/Python bindings) route through `Runtime::infer` /
+`Runtime::infer_stream` — the FFI/Python bindings no longer enqueue-and-
+deadlock and are now security-enforced (B-25b, ledger Entry #107). The
+COREFORGE consumer switch (calling `runtime.infer`) is tracked as handoff
+`docs/BACKLOG.md` B-26.
 
 ---
 
