@@ -78,6 +78,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install protoc (candle-onnx builds protobuf via prost-build)
+        if: matrix.feature == 'onnx'
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Clippy gate (${{ matrix.feature }})
         run: cargo clippy --features ${{ matrix.feature }} --all-targets -- -D warnings
       - name: Test suite (${{ matrix.feature }})
