@@ -67,8 +67,8 @@ judgment.
 | F-36 | Security: PII detection | core-runtime/src/security/pii_detector.rs | docs/security | core-runtime/src/security/pii_tests.rs; core-runtime/src/scheduler/worker_security_tests.rs | verified |
 | F-37 | Security: prompt-injection guard | core-runtime/src/security/prompt_injection.rs | docs/security | core-runtime/src/security/sanitizer_tests.rs; core-runtime/tests/security_pipeline_wiring_test.rs | verified |
 | F-38 | Sandbox isolation | core-runtime/src/sandbox/ | docs/CONCEPT.md | core-runtime/tests/sandbox_test.rs | unverified |
-| F-39 | C FFI bindings | core-runtime/src/ffi/ | docs/USAGE_GUIDE.md | core-runtime/tests/ffi_test.rs (+ CI ffi leg: .github/workflows/rust.yml features/ffi — clippy -D warnings + build + test) | verified |
-| F-40 | Python (PyO3) bindings | core-runtime/src/python/ | docs/USAGE_GUIDE.md | core-runtime/tests/python_binding_test.rs (CI python leg: .github/workflows/rust.yml features/python — cargo test --features python) | verified |
+| F-39 | C FFI bindings (inference routes through secure façade Runtime::infer; deadlock fixed, security-enforced) | core-runtime/src/ffi/ | docs/USAGE_GUIDE.md | core-runtime/tests/ffi_test.rs (ffi acceptance un-ignored + injection→SecurityRejected; + CI ffi leg: .github/workflows/rust.yml features/ffi — clippy -D warnings + build + test) | verified |
+| F-40 | Python (PyO3) bindings (Session/AsyncSession::infer route through secure façade Runtime::infer; deadlock fixed, security-enforced) | core-runtime/src/python/ | docs/USAGE_GUIDE.md | core-runtime/tests/python_binding_test.rs (CI python leg: .github/workflows/rust.yml features/python — cargo test --features python) | verified |
 | F-41 | CLI (health/status/config/models) | core-runtime/src/cli/ | docs/USAGE_GUIDE.md | core-runtime/tests/cli_test.rs | verified |
 | F-42 | Health probe | core-runtime/src/health.rs | docs/USAGE_GUIDE.md | core-runtime/tests/health_test.rs | verified |
 | F-43 | Config & resource limits | core-runtime/src/config.rs | docs/CONCEPT.md | core-runtime/tests/limits_test.rs | verified |
@@ -99,8 +99,10 @@ Tracked as backlog items in `docs/BACKLOG.md`:
   linted (`clippy -D warnings`), and tested in CI via the `features` matrix job
   (`.github/workflows/rust.yml` features/python), so `python_binding_test.rs`
   executes with the feature enabled. F-39 (FFI) is likewise CI-covered via
-  features/ffi. Note: the FFI/Python inference reroute onto
-  `Runtime::infer/infer_stream` (deadlock fix) remains deferred — see
-  `docs/BACKLOG.md` B-25b.
+  features/ffi. The FFI/Python inference reroute onto `Runtime::infer`
+  (deadlock fix + security enforcement) shipped in B-25b (session
+  2026-07-26T1850-b25b, ledger Entry #107); the ffi acceptance test is
+  un-ignored and an injection→`SecurityRejected` test passes. Real per-token
+  FFI streaming remains pending (needs detokenization; `docs/BACKLOG.md` B-24).
 - **F-45 Veritas shim** — `unverified`: sealed at ledger Entry #79 but without a
   standalone test binding in the integration suite.
