@@ -1,34 +1,59 @@
-# AUDIT REPORT — Gate Tribunal (pyo3 0.21→0.29 migration)
+# AUDIT REPORT — rand 0.8 → 0.9 Migration
 
-**Target**: docs/plan-pyo3-migration-2026-07-26.md (iteration 1)
-**Date**: 2026-07-26
-**Session**: 2026-07-26T2010-pyo3
-**Risk Grade**: L2
-**Mode**: adversarial (independent fresh-context Judge subagent)
+**Session ID**: 2026-07-27T-rand09
+**Auditor**: Judge (independent pass)
+**Target**: docs/plan-rand-0.9-migration-2026-07-27.md
+**Risk Grade**: L3 (cryptographic RNG)
+**Verdict**: **PASS**
 
-## VERDICT: PASS
+---
 
-- Infrastructure verified: Cargo.toml pyo3 0.21 + pyo3-asyncio-0-21 (features
-  extension-module/abi3-py38/tokio-runtime); async site session.rs:194;
-  InferenceParams `#[pyclass] #[derive(Clone)]` extracted by value in
-  AsyncSession::infer (session.rs:184) → 0.27 `from_py_object` genuinely needed.
-- **Sync audit clean**: all 9 pyclasses hold only Arc/plain/Option/bool (+
-  SessionToken); no RefCell/Cell/Rc → no 0.23 Sync break.
-- **No missed breaking change**: no `Python::with_gil`/`allow_threads`, no custom
-  IntoPy/ToPyObject/FromPyObject, no pyo3 `.downcast()`, no `From<Utf8Error>`, no
-  `Py::clone`. Code already on modern Bound/`#[pymodule]` idioms → 0.22 GIL
-  refactor is a no-op → migration is nearly mechanical.
-- MSRV 1.83 satisfied (CI @stable, no rust-toolchain pin). maturin
-  `>=1.0,<2.0` compatible with pyo3 0.29. abi3-py38 preserved.
-- LD-5 compiler-driven residual approach is sound L2 governance; DoD rests on
-  real CI gates (python feature build+clippy+test) + default workspace.
+## Method
 
-### Advisories (non-blocking)
-- LD-4 could name `SessionToken` explicitly (Sync not in doubt).
-- The by-value `from_py_object` trigger is AsyncSession::infer (not Session::infer,
-  which takes it by ref); LD-5 compiler-driven catch covers it regardless.
-- Pre-existing Cargo 0.8.1 vs pyproject 0.7.0 version drift — out of scope.
+Read ONLY the real working tree (`G:\MythologIQ\GG\GG-CORE\core-runtime`), never
+`.claude/worktrees/*`. Cross-checked the plan's scope against an exhaustive grep of
+the entire `core-runtime` crate (src + tests + fuzz), and every cited 0.9 API fact
+against the vendored crate source (`rand-0.9.2`, `rand_core-0.9.3`).
 
-### Next action
-`/qor-implement` authorized under LD-5 (apply pyo3 v0.29 migration-guide fix per
-diagnostic; cite guide; no guessing). Commit locally; push/PR at operator direction.
+## Checks
+
+### 1. Scope completeness — PASS (with one advisory, resolved)
+Grep across the whole crate confirms exactly three classes of `rand` usage:
+- **Breaking (`OsRng.fill_bytes` / `use rand::RngCore`)**: 7 sites in
+  `auth_session.rs`, `audit_types.rs`, `key_rotation.rs`, `encryption_tests.rs`,
+  `fips_tests.rs` — **all in the plan's file list.**
+- **Deprecated (`thread_rng().gen_range`)**: 1 site, `bucket.rs:21` — **in the list.**
+- **Unchanged (`rand::random()`)**: `encryption_core.rs`, `encryption_key.rs`,
+  `encryption_tests.rs`, and **`tests/security_audit/crypto_tests.rs`**. The plan
+  named the two src files but omitted the integration test file. **Advisory:** the
+  test file uses ONLY `rand::random()` (lines 10,87,98,99,111–127,171,264,275), which
+  is not deprecated and not trait-affected in 0.9 → **no edit required.** Its build is
+  still covered by the DoD ("`cargo test -p gg-core` passes"), so the omission has no
+  effect on correctness. Not a VETO.
+- `core-runtime/fuzz/` has its own `Cargo.lock` and is not a default-workspace/CI
+  member → correctly out of scope.
+
+### 2. API accuracy — PASS
+Every 0.9 fact in the plan is grounded in vendored source (os.rs:83 trait move;
+lib.rs:232/300/312 `unwrap_err` adapter; rng.rs:161/333 rename; lib.rs:172
+`random()` retained). No assumption drift.
+
+### 3. Cryptographic safety (L3 core) — PASS
+The `unwrap_err()` adapter is semantically identical to the 0.8 infallible
+`OsRng.fill_bytes`: same OS-entropy source (`getrandom`), same byte count, panic
+(never silent continue) on entropy failure. No call site changes which RNG is used.
+`OsRng` remains `TryCryptoRng` (cryptographically secure). CSPRNG guarantee intact.
+
+### 4. Section 4 Razor — PASS
+All edits are single-line call-site swaps / single-token renames. No function
+approaches 40 lines; no file approaches 250; nesting unchanged.
+
+### 5. Constitutional constraints — PASS
+No new dependency; no network; no forbidden module. Bump collapses the duplicate
+rand 0.8.x tree (supply-chain reduction) — net constraint improvement.
+
+## Verdict
+
+**PASS.** Proceed to IMPLEMENT. Carry the advisory forward: after edits, explicitly
+confirm `tests/security_audit/crypto_tests.rs` compiles/passes unchanged, and that
+the adversarial crypto review signs off source+length parity on all 7 OsRng sites.

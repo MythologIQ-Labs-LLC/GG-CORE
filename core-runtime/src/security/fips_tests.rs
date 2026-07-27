@@ -190,17 +190,17 @@ pub fn pbkdf2_kat() -> Result<(), SelfTestError> {
 /// Verifies the random number generator produces non-repeating output.
 /// FIPS requires continuous RNG testing during operation.
 pub fn rng_health_test() -> Result<(), SelfTestError> {
-    use rand::RngCore;
+    use rand::{RngCore, TryRngCore};
 
     let mut prev = [0u8; 32];
     let mut curr = [0u8; 32];
 
     // Generate first block
-    rand::rngs::OsRng.fill_bytes(&mut prev);
+    rand::rngs::OsRng.unwrap_err().fill_bytes(&mut prev);
 
     // Generate and compare subsequent blocks (stuck-output detection)
     for _ in 0..10 {
-        rand::rngs::OsRng.fill_bytes(&mut curr);
+        rand::rngs::OsRng.unwrap_err().fill_bytes(&mut curr);
         if curr == prev {
             return Err(SelfTestError::RngHealthFailed);
         }
@@ -210,7 +210,7 @@ pub fn rng_health_test() -> Result<(), SelfTestError> {
     // Verify entropy: at least half the bits should differ between samples
     let mut total_diff_bits = 0u32;
     for _ in 0..10 {
-        rand::rngs::OsRng.fill_bytes(&mut curr);
+        rand::rngs::OsRng.unwrap_err().fill_bytes(&mut curr);
         total_diff_bits += count_differing_bits(&prev, &curr);
         prev.copy_from_slice(&curr);
     }

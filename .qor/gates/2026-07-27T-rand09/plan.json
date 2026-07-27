@@ -1,0 +1,69 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-27T-rand09",
+  "ts": "2026-07-27T05:40:47Z",
+  "plan_path": "docs/plan-rand-0.9-migration-2026-07-27.md",
+  "phases": [
+    "edit 6 src files + Cargo.toml",
+    "cargo update -p rand + lock audit",
+    "local verify build/clippy/test/fmt across features",
+    "adversarial crypto review of 7 OsRng sites",
+    "substantiate seal"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core --all-features",
+    "cargo clippy -p gg-core --all-targets --all-features -- -D warnings",
+    "cargo test -p gg-core",
+    "cargo fmt --check"
+  ],
+  "change_class": "feature",
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "high_risk_target": false,
+  "doc_tier": "standard",
+  "boundaries": {
+    "non_goals": [
+      "refactor beyond call-site swaps",
+      "change which RNG source is used",
+      "touch encryption_core/encryption_key (use rand::random, unchanged)"
+    ],
+    "exclusions": [
+      "rand_distr/candle transitive usage (already 0.9)"
+    ],
+    "limitations": [
+      "OsRng.unwrap_err() panics on OS-entropy failure (intended crypto semantic, unchanged from 0.8)"
+    ]
+  },
+  "impact_assessment": {
+    "purpose": "Bump direct rand 0.8->0.9, remediating OsRng trait move without altering cryptographic behavior.",
+    "affected_stakeholders": [
+      "COREFORGE integrators relying on GG-CORE key/nonce/token generation",
+      "downstream security posture"
+    ],
+    "identified_risks": [
+      "swap to a non-CSPRNG source",
+      "silent swallow of OS-entropy failure leaving zeroed key material",
+      "byte-count drift in fill_bytes"
+    ],
+    "mitigations": [
+      "use only TryRngCore::unwrap_err() adapter (identical semantics)",
+      "panic-on-failure preserved",
+      "adversarial review verifies source+length parity per site"
+    ],
+    "residual_risks": [
+      "none beyond pre-existing rand/getrandom trust (offline OS entropy)"
+    ]
+  },
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T05:40:47Z"
+  }
+}

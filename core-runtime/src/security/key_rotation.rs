@@ -117,9 +117,9 @@ impl KeyRotationManager {
 
     /// Rotate to a new key (generates new key, makes it active)
     pub async fn rotate_key(&self) -> Result<KeyId, KeyRotationError> {
-        use rand::RngCore;
+        use rand::{RngCore, TryRngCore};
         let mut new_key = [0u8; KEY_SIZE];
-        rand::rngs::OsRng.fill_bytes(&mut new_key);
+        rand::rngs::OsRng.unwrap_err().fill_bytes(&mut new_key);
 
         let old_key_id = *self.active_key_id.read().await;
         let new_key_id = self.add_key(new_key, true).await;
