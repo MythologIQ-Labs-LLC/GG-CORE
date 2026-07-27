@@ -18,14 +18,14 @@ it. Priority and status reflect observable state at reconstruction time.
 
 | ID | Item | Canonical source | Priority | Status | Next action |
 |----|------|------------------|----------|--------|-------------|
-| B-01 | clippy `-D warnings` fails on Linux/macOS: dead code + lints in `sandbox/unix.rs` | issue #54 | P1 | in-progress | Fix landed on `chore/hardening-ci-sandbox-lints` (`7a00233`); verify via CI after operator push |
-| B-17 | Pre-existing default-feature test failures: gguf validate_path ×2, kv_cache multi-sequence | issue #55 | P1 | open | Blocks green `cargo test --workspace`; fix `validate_path` surface coherently with B-19 |
-| B-18 | 13 residual clippy errors on current stable toolchain (post-#47) | issue #56 | P1 | open | Blocks clippy CI leg on all OSes; mechanical fixes across 8 files |
-| B-19 | security: `validate_path()` does not reject NUL bytes (FFI truncation class) | issue #57 | P1 | open | Scoped into cycle-2 rev.2 plan (Phase 1) |
+| B-01 | clippy `-D warnings` fails on Linux/macOS: dead code + lints in `sandbox/unix.rs` | issue #54 | P1 | done | RESOLVED (reconciliation 2026-07-27, brief `research-brief-backlog-reconciliation-2026-07-27.md`): clippy `-D warnings` green on all 3 OS legs (#78/#79/#80); issue #54 already closed |
+| B-17 | Pre-existing default-feature test failures: gguf validate_path ×2, kv_cache multi-sequence | issue #55 | P1 | done | RESOLVED (reconciliation 2026-07-27): `cargo test --lib validate_path`→4 passed, `--lib kv_cache`→7 passed; issue #55 close-ready |
+| B-18 | 13 residual clippy errors on current stable toolchain (post-#47) | issue #56 | P1 | done | RESOLVED (reconciliation 2026-07-27): clippy `-D warnings` green (default + gguf/onnx/ffi/python); issue #56 close-ready |
+| B-19 | security: `validate_path()` does not reject NUL bytes (FFI truncation class) | issue #57 | P1 | done | RESOLVED (reconciliation 2026-07-27): `models/loader.rs:80` rejects `'\0'` with a fixed `<nul-byte rejected>` sentinel; issue #57 close-ready |
 | B-20 | security: KV cache cross-sequence data leakage — PageTable is single-sequence (global position-keyed) | issue #58 | P1 | done | Fixed: PageTable redesigned as pure pool; per-sequence page_ids lookup; remanence zeroed; lock order enforced. 15/15 kv_cache tests pass (2 new isolation oracles). F-21 → verified. |
 | B-21 | ADR-007 epic: TierSynergy consolidation + DSpark adaptive speculative decoding | issues #60–68, PR #59 | P2 | open | Forward-looking design epic. Decomposition + per-issue briefs: `docs/plan-adr007-epic-execution.md`. One issue per governed cycle |
 | B-22 | `cargo clippy --all-targets`: non-exhaustive `FinishReason::Cancelled` match (test + bench) + 1 field-assign | issue #69 | P1 | done | Fixed `626f034`: added `Cancelled` arm to bench match; updated gguf test vec+count (4→5) |
-| B-23 | Seal runtime-hardening cycle 2 (session 2026-07-08T1651-6c68b6) | this session | P2 | open | Code+governance committed (`43cc89c`/`bc0c70c`); needs `/qor-substantiate` Entry #85. Steps: `docs/runbook-merge-integration-sequence.md` §4 |
+| B-23 | Seal runtime-hardening cycle 2 (session 2026-07-08T1651-6c68b6) | this session | P3 | done | SUPERSEDED (reconciliation 2026-07-27): that cycle's code is in green `main`; the Merkle ledger has advanced far past the referenced Entry #85 (now Entry #115). No dangling seal blocks the chain (`verify-ledger` clean) |
 | B-24 | Streaming egress sanitization: in-runtime detokenization + IPC protocol decision (streaming channel carries u32 token IDs; also rejection frame indistinguishable from completion) | plan-security-chain-wiring-2026-07-25 audit advisory | P2 | open | Decide detokenize-in-runtime vs client-side contract; then plan under its own gate |
 | B-25 | Consumable FFI/Python surface — CI foundation: add `features` matrix legs (gguf/onnx/ffi/python) to rust.yml (clippy `-D warnings` + build + test per feature), make all four optional features clippy-clean, Razor-extract `ffi/inference.rs` (272→246; new `ffi/inference_result.rs`), fix stale gguf `e2e_model_test.rs` | audit Entry #101/#102, Shadow Genome #7 | P1 | done | Done (session 2026-07-26T0030-b25ffi, ledger Entry #105 PASS): 4 features clippy-clean under `-D warnings --all-targets`; `features` matrix job added to `.github/workflows/rust.yml`. Reroute half tracked as B-25b |
 | B-25b | FFI/Python inference reroute through `Runtime::infer/infer_stream` (fix the enqueue-then-await-no-worker deadlock; map `SecurityRejected`; gguf-gate streaming) | research brief 2026-07-26 (Entry #104) | P1 | done | Done (session 2026-07-26T1850-b25b, ledger Entry #107 L3 audit PASS): 5 entry points (`core_infer`/`core_infer_bounded`/`core_infer_streaming`/Python `Session::infer`/`AsyncSession::infer`) rerouted through `Runtime::infer`; enqueue-then-await-no-worker deadlock fixed; consumable surfaces now security-enforced (ingress injection scan + egress PII sanitize); ffi acceptance test un-ignored + injection→`SecurityRejected` test added; verified ffi/python/default clippy + tests green. Real per-token FFI streaming still pending (one-callback full-output today) — ties to B-24 |
@@ -41,23 +41,23 @@ it. Priority and status reflect observable state at reconstruction time.
 | B-05 | Create experimental BitNet backend adapter wrapper | issue #51 | P3 | open | Prototype behind an experimental feature flag |
 | B-06 | Build benchmark harness for backend perf & wrapper overhead | issue #52 | P2 | open | Extend existing `core-runtime/benches/` (F-47) |
 | B-07 | Define degraded-mode policy for constrained local inference | issue #53 | P2 | open | Specify governance + runtime behavior under resource pressure |
-| B-15 | Add Rust CI workflow (fmt --check, clippy -D warnings, cargo test; ubuntu/macos/windows matrix) | research brief 2026-07-08 | P1 | in-progress | Landed on `chore/hardening-ci-sandbox-lints` (`7a00233`); goes green only after PR #47 + B-17/B-18/B-19 + fmt sweep merge |
+| B-15 | Add Rust CI workflow (fmt --check, clippy -D warnings, cargo test; ubuntu/macos/windows matrix) | research brief 2026-07-08 | P1 | done | RESOLVED (reconciliation 2026-07-27): `.github/workflows/rust.yml` = fmt+clippy+test ×3 OS + `features` (gguf/onnx/ffi/python) matrix; all 11 legs green on #78/#79/#80 |
 | B-16 | `sandbox/unix.rs` exceeds Section 4 Razor (523 lines > 250) — pre-existing debt | audit 2026-07-08 (R2) | P3 | open | Future `/qor-refactor` under its own L3 audit; out of scope for lint-only cycle |
 
 ## In-flight delivery
 
 | ID | Item | Canonical source | Priority | Status | Next action |
 |----|------|------------------|----------|--------|-------------|
-| B-08 | Cfg-gate advanced-feature tests + clippy cleanup (COREFORGE deep-audit) | PR #47 (branch tip `b661403` on current origin/main) | P1 | in-review | Mergeable, CodeQL green. Research 2026-07-08: does NOT overlap B-01/#54 (disjoint file surfaces) — merge first |
-| B-09 | Local `main` diverged from origin (ahead 1: `5d0e5a5`; behind 1: `575d703`) + 6-commit worktree branch `claude/affectionate-edison-7e6b8a` (shim/TierSynergy refactors) | local git graph | P2 | in-progress | Rebase onto origin/main; operator decides worktree-branch fate |
-| B-10 | Uncommitted 193-file repo-wide `cargo fmt` sweep (+4079/−2040; `cargo fmt --check` clean) | local git status | P1 | in-progress | Commit as isolated `style:` commit after rebase; run full `cargo test` as semantic check |
+| B-08 | Cfg-gate advanced-feature tests + clippy cleanup (COREFORGE deep-audit) | PR #47 | P1 | needs-decision | RECONCILE 2026-07-27: PR #47 still OPEN but `updatedAt` 2026-07-08, 25 files, `mergeStateStatus` UNKNOWN; edits surfaces main has since rewritten (`bucket.rs`, `output_sanitizer.rs`, `pii_patterns.rs`) and its clippy-cleanup goal is already met on green main. Recommend **close as superseded** unless a diff surfaces unique content. Operator decision |
+| B-09 | Local `main` diverged from origin + 6-commit worktree branch `claude/affectionate-edison-7e6b8a` (shim/TierSynergy refactors) | local git graph | P3 | done | RESOLVED (reconciliation 2026-07-27): local `main` == `origin/main` (synced through #80); divergence gone. Worktree-branch fate remains an operator housekeeping call (not blocking) |
+| B-10 | Uncommitted 193-file repo-wide `cargo fmt` sweep (+4079/−2040; `cargo fmt --check` clean) | local git status | P1 | done | RESOLVED (reconciliation 2026-07-27): sweep no longer present; working tree clean (`fmt --check` green in CI); superseded by merged history |
 
 ## Governance backlog
 
 | ID | Item | Canonical source | Priority | Status | Next action |
 |----|------|------------------|----------|--------|-------------|
-| B-11 | Seed scaffold-owned `docs/ARCHITECTURE_PLAN.md` (absent since bootstrap) | governance-health (Phase 109) | P2 | open | `qor-logic seed` (scaffold-owned; safe to seed) |
-| B-12 | Seed scaffold-owned `docs/GOVERNANCE_INDEX.md`; restores Governance Index drift check | governance-health / governance-index (Phase 112/120) | P2 | open | `qor-logic seed`, then re-run `qor-logic governance-index` |
+| B-11 | Seed scaffold-owned `docs/ARCHITECTURE_PLAN.md` (absent since bootstrap) | governance-health (Phase 109) | P2 | done | RESOLVED (reconciliation 2026-07-27): `governance-health --profile skill-entry` reports `OK docs/ARCHITECTURE_PLAN.md` |
+| B-12 | Seed scaffold-owned `docs/GOVERNANCE_INDEX.md`; restores Governance Index drift check | governance-health / governance-index (Phase 112/120) | P2 | done | RESOLVED (reconciliation 2026-07-27): `governance-health` reports `OK docs/GOVERNANCE_INDEX.md` |
 | B-13 | Doc drift: CLAUDE.md cites `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` which does not exist | CLAUDE.md vs `docs/architecture/` | P3 | open | Create the doc or correct the reference |
 | B-14 | Deep-verify `verified` rows in `docs/FEATURE_INDEX.md` per SG-035 | docs/FEATURE_INDEX.md | P3 | open | Operator confirms each test truly exercises its feature |
 
@@ -72,3 +72,20 @@ it. Priority and status reflect observable state at reconstruction time.
 - Governance items B-11/B-12 are the remaining findings from the same
   governance-health run that produced this artifact; they are seed-repairable
   (unlike this file and `docs/FEATURE_INDEX.md`, which required reconstruction).
+
+### Reconciliation 2026-07-27 (brief `research-brief-backlog-reconciliation-2026-07-27.md`, ledger Entry #116)
+
+The 2026-07-08 rows were re-verified against green `main` @ v0.8.2. Dispositions:
+
+- **Resolved → done**: B-01, B-10, B-11, B-12, B-15, B-17, B-18, B-19 (evidence in
+  the reconciliation brief). GitHub issues **#55, #56, #57, #69** are close-ready
+  (held for operator approval per the Review Boundary).
+- **Superseded → done**: B-09 (main synced), B-23 (ledger past Entry #85; chain clean).
+- **Needs operator decision**: PR **#47** (B-08 — recommend close-superseded);
+  PR **#74** (Dependabot rand bump in `core-runtime/fuzz` — recommend close);
+  PR **#59** (TierSynergy ADR — keep, part of B-21 epic).
+- **Phase 1 sequence (one `/qor-auto-dev-1` cycle each, stop at Review Boundary):**
+  **B-24 → B-28 → B-29 → B-07 → B-16**; fold **B-13** (+ B-11/B-12 issue closure)
+  into a docs/governance pass.
+- **Deferred epics**: B-02..B-06 (#48–52) and B-21 (#59–68) — ADR-first, multi-cycle;
+  scheduled separately, not in this sweep.
