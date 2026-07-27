@@ -1,0 +1,20 @@
+{
+  "phase": "deliver",
+  "session_id": "2026-07-27T-rand09",
+  "ts": "2026-07-27T15:02:31Z",
+  "version": "0.8.2",
+  "tag": "v0.8.2",
+  "release_commit": "540a76d",
+  "prev_version": "0.8.1",
+  "bump": "patch",
+  "scope": "security+dependency hardening consolidated since 0.8.1 (PRs #71-#79); all Dependabot advisories cleared",
+  "merkle_chain": "9bf912edc450d4d0b5ae818de759fb828ea14e4b89f54f8b02c962c169b223c9",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T15:02:31Z"
+  }
+}
