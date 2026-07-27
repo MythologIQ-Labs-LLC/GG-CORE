@@ -2,6 +2,51 @@
 
 All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Execution) are documented in this file.
 
+## [0.8.2] - 2026-07-27
+
+### Security & Dependency Hardening
+
+Consolidates the security-chain wiring, the unified secure inference façade, the
+CI feature matrix, and the dependency-advisory cleanup accumulated since 0.8.1
+(PRs #71–#79). No breaking public API change.
+
+#### Security
+
+- **Security pipeline wired into production** (`src/security/pipeline.rs`, PR #73):
+  ingress prompt-injection scan + egress PII sanitization now run on the live
+  inference path instead of existing only in tests.
+- **Unified secure inference façade** (`src/runtime_facade.rs`, PR #75):
+  `Runtime::infer` / `infer_stream` route both the embedded (COREFORGE) and the
+  consumable (FFI/Python) surfaces through the same scan → engine → sanitize path;
+  fixed an FFI/Python enqueue-with-no-worker deadlock.
+
+#### Dependencies (advisory cleanup)
+
+- **pyo3 0.21 → 0.29** (PR #78): clears RUSTSEC-2026-0176 (high), RUSTSEC-2026-0177
+  (medium), RUSTSEC-2025-0020 (low); `pyo3-asyncio-0-21` → `pyo3-async-runtimes`.
+- **rand 0.8 → 0.9** (PR #79): final Dependabot item; `OsRng` migrated to the
+  `TryRngCore::unwrap_err()` adapter, preserving CSPRNG + panic-on-entropy-failure
+  semantics on the key/nonce generation path.
+- **Dropped `atty`** (PR #76): `cbindgen` 0.26 → 0.28 removes the unmaintained
+  `atty` build-time dependency (RUSTSEC-2024-0375/0378).
+
+#### Added
+
+- **Real ONNX classifier** (`src/engine/onnx/classifier.rs`, PR #77): candle-onnx
+  `simple_eval` classifier with a pure `logits_to_classification` (softmax+argmax)
+  helper and deterministic output selection.
+- **CI feature matrix** (`.github/workflows/rust.yml`, PR #71): dedicated
+  `features` legs building `gguf` / `onnx` / `ffi` / `python`, flushing out latent
+  per-feature clippy/compile debt on the CI-invisible surfaces.
+
+#### Verified
+
+- ✅ Full matrix green under `-D warnings`: fmt + clippy + test across 3 OS, plus
+  the gguf/onnx/ffi/python feature legs, CodeQL, and Analyze.
+- ✅ All Dependabot advisories cleared as of this release.
+
+---
+
 ## [0.8.1] - 2026-02-20
 
 ### E2E Model Inference Verified

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-0.8.1-orange.svg" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-0.8.2-orange.svg" alt="Version"></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
   <a href="docs/security/THREAT_MODEL.md"><img src="https://img.shields.io/badge/Security-Hardened-brightgreen.svg" alt="Security"></a>
   <a href="docs/testing/"><img src="https://img.shields.io/badge/Tests-424-blue.svg" alt="Tests"></a>

@@ -1,6 +1,6 @@
 [package]
 name = "gg-core"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2021"
 description = "GG-CORE - Greatest Good - Contained Offline Restricted Execution runtime"
 license = "Apache-2.0"
