@@ -7319,3 +7319,111 @@ advisories on the python bindings are cleared, the consumable Python surface
 builds+tests green on the current pyo3. Remaining Dependabot item: rand 0.8→0.9
 (low, crypto migration; B-31/separate cycle). Chain tip:
 `51fb0891a114a2e22bb46b6ec150f9107f0355b89e5b3d249df2a43240939452`.
+
+---
+
+### Entry #113: RESEARCH BRIEF (rand 0.8 → 0.9 migration)
+
+**Timestamp**: 2026-07-27T09:15:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3 (touches cryptographic RNG in the security module)
+**Session ID**: 2026-07-27T-rand09
+
+**Target**: `rand` 0.8→0.9 for `core-runtime` (Dependabot low-severity; crypto path).
+
+**Key findings** (all verified against vendored crate source, not docs):
+- BREAKING: `rand_core` 0.9 dropped `impl RngCore for OsRng`, leaving only
+  `TryRngCore` (`rand_core-0.9.3/src/os.rs:83`). All 7 `OsRng.fill_bytes(..)`
+  sites in `security/`+`ipc/` fail to compile under 0.9.
+- Adapter verified: `TryRngCore::unwrap_err()` → `UnwrapErr` impls infallible
+  `RngCore::fill_bytes` (`rand_core-0.9.3/src/lib.rs:232,300,312`), preserving
+  the exact panic-on-entropy-failure semantics for crypto key material.
+- Deprecations (fail `-D warnings`): `thread_rng`→`rng`, `gen_range`→`random_range`
+  (`bucket.rs:21`).
+- Unchanged: `rand::random()` (nonce/salt gen) — not deprecated.
+- Bonus: bumping the direct dep collapses the duplicate rand 0.8.x tree from
+  `Cargo.lock` (supply-chain + size win).
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-rand-0.9-migration-2026-07-27.md)
+= 9651c3fbbb04aad320afebd72098d959aa5b2a3bb270b706f2e2cd77d1a7f5b7
+```
+
+**Previous Hash**: 51fb0891a114a2e22bb46b6ec150f9107f0355b89e5b3d249df2a43240939452
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= f9d284028bf03b0b2b9956e65cfb55f250641a71778230ba3673d1e3d8e848bb
+```
+
+**Decision**: rand 0.9 migration is a real (not cosmetic) L3 change gated by one
+breaking crypto-path trait move; remediation adapter verified. Proceed to PLAN.
+Shadow Genome Entry #8 recorded. Chain tip:
+`f9d284028bf03b0b2b9956e65cfb55f250641a71778230ba3673d1e3d8e848bb`.
+
+---
+
+### Entry #114: SESSION SEAL (rand 0.9 migration)
+
+**Timestamp**: 2026-07-27T10:05:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local; PR at operator direction)
+**Author**: Specialist + Judge
+**Risk Grade**: L3 (cryptographic RNG)
+**Session ID**: 2026-07-27T-rand09
+
+**Target**: docs/plan-rand-0.9-migration-2026-07-27.md (audit PASS Entry #113 chain).
+
+**Reality vs Promise**: MATCH. `rand = "0.9"` (Cargo.toml); the 7 `OsRng.fill_bytes`
+sites migrated to `use rand::{RngCore, TryRngCore}; OsRng.unwrap_err().fill_bytes(..)`
+(auth_session.rs, audit_types.rs, key_rotation.rs, encryption_tests.rs, fips_tests.rs
+×3); `thread_rng().gen_range(0..100)` → `rng().random_range(0..100)` (bucket.rs);
+`rand::random()` sites untouched. Adversarial crypto pass confirmed source + byte-count
++ panic-on-entropy-failure parity on all 7 sites. Both `RngCore` and `TryRngCore` must
+be in scope (the former provides `fill_bytes` on `UnwrapErr`, the latter `unwrap_err`) —
+compiler-verified, not assumed.
+
+**Verification (authoritative, at seal)**:
+- fmt `--check` → 0
+- clippy `--all-targets -- -D warnings` (default) → 0
+- clippy `--all-targets --features gguf,onnx,ffi -- -D warnings` → 0
+- clippy `--all-targets --features python -- -D warnings` → 0
+- test `--lib` → 551 passed / 0 failed; integration security_audit suites → all passed
+
+**Lockfile**: our rand runtime tree collapsed to a single 0.9 line (rand 0.9.2,
+rand_chacha 0.9.0, rand_core 0.9.5). Residual `rand_core 0.6.4` is held transitively
+by the RustCrypto `crypto-common` stack (aes-gcm/cipher/digest/password-hash),
+independent of our `rand` dependency and not removable by this cycle — reported, not
+chased (honest scope boundary).
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/Cargo.toml)
+= 5436ad9d7185eda842be088dc61e851210cd34fe3171b0bf77aba579db6c5f20
+```
+
+**Previous Hash**: f9d284028bf03b0b2b9956e65cfb55f250641a71778230ba3673d1e3d8e848bb
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 00f8fb0f81f43b578f78854d075647ba8eb8b7a3376aedd6dc280b8ddd37f449
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 624baa58d984f436a1d07591865fef16d85f326279374ad914afbaca9be3165d
+```
+
+**Decision**: rand 0.9 migration COMPLETE — the final Dependabot advisory item is
+cleared, the crypto RNG path preserves CSPRNG + fail-hard semantics, and the full
+feature matrix is green under `-D warnings`. B-31 done. Chain tip:
+`00f8fb0f81f43b578f78854d075647ba8eb8b7a3376aedd6dc280b8ddd37f449`.

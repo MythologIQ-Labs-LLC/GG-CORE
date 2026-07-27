@@ -102,8 +102,10 @@ pub fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
 
 /// Generate a cryptographically secure random session ID.
 pub fn generate_session_id() -> String {
-    use rand::RngCore;
+    use rand::{RngCore, TryRngCore};
     let mut random_bytes = [0u8; 32];
-    rand::rngs::OsRng.fill_bytes(random_bytes.as_mut_slice());
+    rand::rngs::OsRng
+        .unwrap_err()
+        .fill_bytes(random_bytes.as_mut_slice());
     hex::encode(random_bytes)
 }

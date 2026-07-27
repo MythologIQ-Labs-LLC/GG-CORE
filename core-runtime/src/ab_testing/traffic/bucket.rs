@@ -18,7 +18,7 @@ pub fn hash_to_bucket(session_id: &str) -> u8 {
 
 /// Generate random bucket 0-99 using cryptographically secure RNG.
 pub fn random_bucket() -> u8 {
-    rand::thread_rng().gen_range(0..100)
+    rand::rng().random_range(0..100)
 }
 
 /// Convert bucket to variant using cumulative weights.

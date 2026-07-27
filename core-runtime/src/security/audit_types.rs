@@ -170,9 +170,9 @@ impl AuditEventBuilder {
 
 /// Generate a unique event ID
 pub fn generate_event_id() -> String {
-    use rand::RngCore;
+    use rand::{RngCore, TryRngCore};
     let mut bytes = [0u8; 16];
-    rand::rngs::OsRng.fill_bytes(&mut bytes[..]);
+    rand::rngs::OsRng.unwrap_err().fill_bytes(&mut bytes[..]);
     hex::encode(bytes)
 }
 

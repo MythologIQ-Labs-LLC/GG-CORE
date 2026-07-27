@@ -230,4 +230,32 @@ ground before building on it" discipline.
 
 ---
 
+## Entry #8: deprecation-shim ≠ trait-parity in a dependency major bump
+
+**Session**: 2026-07-27T-rand09 · **Phase**: RESEARCH (rand 0.8→0.9)
+
+**Pattern**: The `rand` 0.8→0.9 bump reads as "low severity" and mostly renames
+(`thread_rng`→`rng`, `gen_range`→`random_range`) that survive as `#[deprecated]`
+shims. But hidden underneath, `rand_core` 0.9 removed `impl RngCore for OsRng`,
+leaving only `impl TryRngCore for OsRng` (`rand_core-0.9.3/src/os.rs:83`). Our
+security module calls `OsRng.fill_bytes(..)` in 7 places (key/nonce/salt
+generation) — an infallible method that no longer exists on `OsRng` in 0.9. A
+naive "fix the deprecation warnings and ship" pass would fix the renames, still
+fail to compile on the trait change, and — worse — a careless remedy could
+downgrade a CSPRNG call site.
+
+**Root cause**: assuming a symbol that is still *callable* (deprecated shim)
+implies the *traits* other call sites depend on are also intact. Deprecation
+warnings are visible; a moved trait impl is invisible until you read the trait
+surface, and the compiler only reports it once the shim warnings are cleared.
+
+**Countermeasure**: for any dependency major bump touching a security path, grep
+the ENTIRE trait/method surface actually used (`fill_bytes`, `RngCore`,
+`try_fill_bytes`, `OsRng`, …) against the vendored source of the *target*
+version, not the changelog or docs. Preserve semantics with the crate's blessed
+adapter (`TryRngCore::unwrap_err()` → infallible `RngCore`, panic-on-entropy-
+failure) rather than hand-rolling error handling on a crypto path.
+
+---
+
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._

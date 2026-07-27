@@ -1,0 +1,57 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-27T-rand09",
+  "ts": "2026-07-27T05:39:54Z",
+  "questions": [
+    "Does rand 0.9 keep OsRng on the infallible RngCore trait?",
+    "Which 0.8 APIs GG-CORE uses are renamed/deprecated in 0.9?",
+    "Is the CSPRNG guarantee preserved for nonce/salt/key generation?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "breaking",
+      "claim": "rand_core 0.9 OsRng impls only TryRngCore; infallible OsRng.fill_bytes removed",
+      "source": "rand_core-0.9.3/src/os.rs:83",
+      "status": "drift"
+    },
+    {
+      "id": "F2",
+      "severity": "info",
+      "claim": "TryRngCore::unwrap_err()->UnwrapErr impls infallible RngCore::fill_bytes; preserves panic-on-entropy-failure",
+      "source": "rand_core-0.9.3/src/lib.rs:232,300,312",
+      "status": "remediation"
+    },
+    {
+      "id": "F3",
+      "severity": "lint",
+      "claim": "thread_rng->rng, gen_range->random_range are deprecated shims that fail -D warnings",
+      "source": "rand-0.9.2/src/rng.rs:333; lib.rs:121",
+      "status": "drift"
+    },
+    {
+      "id": "F4",
+      "severity": "info",
+      "claim": "rand::random() unchanged; CSPRNG preserved (OsRng is TryCryptoRng)",
+      "source": "rand-0.9.2/src/lib.rs:172; rand_core-0.9.3/src/os.rs:102",
+      "status": "match"
+    }
+  ],
+  "sources": [
+    "rand_core-0.9.3/src/os.rs:47,83,102",
+    "rand_core-0.9.3/src/lib.rs:232,300,312",
+    "rand-0.9.2/src/rngs/mod.rs:110",
+    "rand-0.9.2/src/rng.rs:161,333",
+    "rand-0.9.2/src/lib.rs:121,123,172"
+  ],
+  "brief_path": "docs/research-brief-rand-0.9-migration-2026-07-27.md",
+  "risk_grade": "L3",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T05:39:54Z"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-27T-rand09",
+  "ts": "2026-07-27T05:52:36Z",
+  "target": "docs/plan-rand-0.9-migration-2026-07-27.md",
+  "verdict": "PASS",
+  "merkle_seal": "624baa58d984f436a1d07591865fef16d85f326279374ad914afbaca9be3165d",
+  "reality_matches_promise": true,
+  "risk_grade": "L3",
+  "verification": {
+    "fmt": "pass",
+    "clippy_default": "pass",
+    "clippy_gguf_onnx_ffi": "pass",
+    "clippy_python": "pass",
+    "test_lib": "551 passed / 0 failed",
+    "test_integration_security": "pass"
+  },
+  "cleared": [
+    "Dependabot rand 0.8->0.9 (final advisory item)"
+  ],
+  "scope_note": "our rand tree collapsed to 0.9; residual rand_core 0.6.4 held by RustCrypto crypto-common, out of scope",
+  "chain_tip": "00f8fb0f81f43b578f78854d075647ba8eb8b7a3376aedd6dc280b8ddd37f449",
+  "brief_path": "docs/plan-rand-0.9-migration-2026-07-27.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "pass",
+    "ts": "2026-07-27T05:52:36Z"
+  }
+}
