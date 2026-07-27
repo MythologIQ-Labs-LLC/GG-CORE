@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "0c8611448cd1bf32f3d684a17d994892fa21aa7d4581631f5ececb843d2997b5",
+  "payload_sha256": "c742f0964937e05c8dd76c3328cb15eacc882e69796c5cc8c13dd2c9e171fca1",
+  "phase": "substantiate",
+  "session_id": "2026-07-27T-b24-streaming"
+}

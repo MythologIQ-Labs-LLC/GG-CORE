@@ -588,11 +588,15 @@ async fn worker_rejects_streaming_when_concurrency_limit_exceeded() {
         .await
         .unwrap();
 
-    // Worker should send a final token to signal rejection.
+    // Worker should send an explicit terminal frame to signal rejection —
+    // distinguishable from a completed stream (B-24a).
     let output = tokio::time::timeout(std::time::Duration::from_secs(3), rx.next()).await;
     assert!(output.is_ok(), "should receive response from worker");
     if let Ok(Some(out)) = output {
-        assert!(out.is_final, "rejection should send is_final=true");
+        assert!(
+            matches!(out, crate::engine::StreamItem::End(_)),
+            "rejection should deliver a terminal End frame, not a token"
+        );
     }
 
     shutdown.cancel();

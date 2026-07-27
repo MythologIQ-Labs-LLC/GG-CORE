@@ -7,7 +7,7 @@ mod tests {
     use gg_core::engine::gguf::{GgufConfig, GgufGenerator};
     use gg_core::engine::{
         ChatMessage, ChatRole, GgufModel, InferenceConfig, InferenceInput, InferenceOutput,
-        TokenStream,
+        StreamItem, StreamTerminal, TokenStream,
     };
     use std::path::Path;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -71,19 +71,33 @@ mod tests {
             let (sender, mut stream) = TokenStream::new(32);
             let prompt = "Count from 1 to 5:";
 
-            // Spawn streaming task
+            // Spawn streaming task. generate_stream sends only token frames;
+            // this caller owns the sender and emits the terminal (mirrors
+            // run_stream_sync).
             let gen_handle = tokio::task::spawn_blocking({
-                move || gen.generate_stream(prompt, &inf_config, sender, None)
+                move || {
+                    let r = gen.generate_stream(prompt, &inf_config, &sender, None);
+                    let terminal = match &r {
+                        Ok(()) => StreamTerminal::Complete,
+                        Err(e) => StreamTerminal::Error(e.to_string()),
+                    };
+                    let _ = tokio::runtime::Handle::current().block_on(sender.end(terminal));
+                    r
+                }
             });
 
             // Collect tokens
             print!("\n=== STREAMING OUTPUT ===\n");
-            while let Some(chunk) = stream.next().await {
-                count_clone.fetch_add(1, Ordering::SeqCst);
-                print!("[tok:{}]", chunk.token);
-                if chunk.is_final {
-                    println!(" [DONE]");
-                    break;
+            while let Some(item) = stream.next().await {
+                match item {
+                    StreamItem::Token(tok) => {
+                        count_clone.fetch_add(1, Ordering::SeqCst);
+                        print!("[tok:{}]", tok);
+                    }
+                    StreamItem::End(_) => {
+                        println!(" [DONE]");
+                        break;
+                    }
                 }
             }
 

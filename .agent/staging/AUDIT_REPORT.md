@@ -1,59 +1,49 @@
-# AUDIT REPORT — rand 0.8 → 0.9 Migration
+# AUDIT REPORT — B-24a: Typed Stream Terminal
 
-**Session ID**: 2026-07-27T-rand09
+**Session ID**: 2026-07-27T-b24-streaming
 **Auditor**: Judge (independent pass)
-**Target**: docs/plan-rand-0.9-migration-2026-07-27.md
-**Risk Grade**: L3 (cryptographic RNG)
-**Verdict**: **PASS**
+**Target**: docs/plan-b24a-stream-terminal-2026-07-27.md
+**Risk Grade**: L2
+**Verdict**: **PASS (with scope tightening)**
 
 ---
 
-## Method
-
-Read ONLY the real working tree (`G:\MythologIQ\GG\GG-CORE\core-runtime`), never
-`.claude/worktrees/*`. Cross-checked the plan's scope against an exhaustive grep of
-the entire `core-runtime` crate (src + tests + fuzz), and every cited 0.9 API fact
-against the vendored crate source (`rand-0.9.2`, `rand_core-0.9.3`).
-
 ## Checks
 
-### 1. Scope completeness — PASS (with one advisory, resolved)
-Grep across the whole crate confirms exactly three classes of `rand` usage:
-- **Breaking (`OsRng.fill_bytes` / `use rand::RngCore`)**: 7 sites in
-  `auth_session.rs`, `audit_types.rs`, `key_rotation.rs`, `encryption_tests.rs`,
-  `fips_tests.rs` — **all in the plan's file list.**
-- **Deprecated (`thread_rng().gen_range`)**: 1 site, `bucket.rs:21` — **in the list.**
-- **Unchanged (`rand::random()`)**: `encryption_core.rs`, `encryption_key.rs`,
-  `encryption_tests.rs`, and **`tests/security_audit/crypto_tests.rs`**. The plan
-  named the two src files but omitted the integration test file. **Advisory:** the
-  test file uses ONLY `rand::random()` (lines 10,87,98,99,111–127,171,264,275), which
-  is not deprecated and not trait-affected in 0.9 → **no edit required.** Its build is
-  still covered by the DoD ("`cargo test -p gg-core` passes"), so the omission has no
-  effect on correctness. Not a VETO.
-- `core-runtime/fuzz/` has its own `Cargo.lock` and is not a default-workspace/CI
-  member → correctly out of scope.
+### 1. Problem is real — CONFIRMED
+`scheduler/worker_streaming.rs:105` fakes errors as `send(0, true)` — a real final
+token — so error and completion are genuinely indistinguishable. `engine/streaming.rs:7`
+carries only `token`+`is_final`. The defect and the fix are sound.
 
-### 2. API accuracy — PASS
-Every 0.9 fact in the plan is grounded in vendored source (os.rs:83 trait move;
-lib.rs:232/300/312 `unwrap_err` adapter; rng.rs:161/333 rename; lib.rs:172
-`random()` retained). No assumption drift.
+### 2. Scope completeness — PASS, TIGHTENED
+Grep of the actual `TokenStream` consumers shows the plan **over-listed** two files:
+- `python/streaming.rs` — **no** `TokenStream`/`infer_stream` usage (0 matches); it
+  wraps full output and already exposes `is_final`+`error`. **Drop from scope.**
+- `ffi/streaming.rs` — `core_infer_streaming` delivers via a callback
+  `invoke(text, is_final, error)` (already error-aware) on the full-output path
+  (B-25b), **not** the `TokenStream` per-token channel. **Drop from scope**; its
+  terminal mapping belongs to B-24b when real per-token FFI streaming lands.
 
-### 3. Cryptographic safety (L3 core) — PASS
-The `unwrap_err()` adapter is semantically identical to the 0.8 infallible
-`OsRng.fill_bytes`: same OS-entropy source (`getrandom`), same byte count, panic
-(never silent continue) on entropy failure. No call site changes which RNG is used.
-`OsRng` remains `TryCryptoRng` (cryptographically secure). CSPRNG guarantee intact.
+Confirmed in-scope consumers (all internal): `engine/streaming.rs`,
+`engine/gguf/backend.rs`, `engine/gguf/generator.rs`, `engine/inference.rs`,
+`scheduler/worker_streaming.rs`, `scheduler/streaming_queue.rs` (type alias),
+`ipc/handler.rs` (`relay_stream`), + the streaming/worker/queue tests. This is the
+complete set that touches the `StreamItem`/terminal protocol.
 
-### 4. Section 4 Razor — PASS
-All edits are single-line call-site swaps / single-token renames. No function
-approaches 40 lines; no file approaches 250; nesting unchanged.
+### 3. No wire-protocol break — PASS
+Reuses existing `StreamChunk::{token, final_token, error}`; no new IPC message types.
+`Rejected` terminal variant is defined and threaded but only *produced* by B-24b —
+acceptable forward-wiring (documented non-goal).
 
-### 5. Constitutional constraints — PASS
-No new dependency; no network; no forbidden module. Bump collapses the duplicate
-rand 0.8.x tree (supply-chain reduction) — net constraint improvement.
+### 4. Razor — PASS
+`streaming.rs` is 72 lines; adding two small enums + two sender methods keeps it well
+under 250. No touched fn approaches 40 lines.
+
+### 5. Constitutional — PASS
+No crypto, no network, no new dependency, no forbidden module. Internal protocol only.
 
 ## Verdict
 
-**PASS.** Proceed to IMPLEMENT. Carry the advisory forward: after edits, explicitly
-confirm `tests/security_audit/crypto_tests.rs` compiles/passes unchanged, and that
-the adversarial crypto review signs off source+length parity on all 7 OsRng sites.
+**PASS.** Proceed to IMPLEMENT against the **tightened** scope (internal protocol +
+IPC relay + tests; FFI/Python excluded and deferred to B-24b). DoD unchanged except
+items 7–8 (ffi/python) are struck.

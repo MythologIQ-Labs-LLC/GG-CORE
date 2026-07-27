@@ -438,17 +438,24 @@ impl IpcHandler {
                     let _ = sender.send(IpcMessage::StreamChunk(chunk)).await;
                     break;
                 }
-                token_opt = stream.next() => {
-                    match token_opt {
-                        Some(output) => {
-                            let done = output.is_final;
-                            let chunk = if done {
-                                StreamChunk::final_token(request_id, output.token)
-                            } else {
-                                StreamChunk::token(request_id, output.token)
+                item_opt = stream.next() => {
+                    match item_opt {
+                        Some(crate::engine::StreamItem::Token(token)) => {
+                            let chunk = StreamChunk::token(request_id, token);
+                            sender.send(IpcMessage::StreamChunk(chunk)).await?;
+                        }
+                        Some(crate::engine::StreamItem::End(terminal)) => {
+                            let chunk = match terminal {
+                                crate::engine::StreamTerminal::Complete => {
+                                    StreamChunk::complete(request_id)
+                                }
+                                crate::engine::StreamTerminal::Rejected(m)
+                                | crate::engine::StreamTerminal::Error(m) => {
+                                    StreamChunk::error(request_id, m)
+                                }
                             };
                             sender.send(IpcMessage::StreamChunk(chunk)).await?;
-                            if done { break; }
+                            break;
                         }
                         None => break,
                     }

@@ -1,0 +1,20 @@
+{
+  "phase": "audit",
+  "session_id": "2026-07-27T-b24-streaming",
+  "ts": "2026-07-27T17:29:44Z",
+  "target": "docs/plan-b24a-stream-terminal-2026-07-27.md",
+  "verdict": "PASS",
+  "risk_grade": "L2",
+  "report_path": ".agent/staging/AUDIT_REPORT.md",
+  "target_content_hash": "9f275c59b4a09a40ee900dad9d99d15081bb1f51f530628be1a49f2dcabb3e7a",
+  "violations": [],
+  "notes": "scope tightened: drop ffi/streaming.rs + python/streaming.rs (not TokenStream consumers; already error-aware); internal protocol + relay + tests only",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "pass",
+    "ts": "2026-07-27T17:29:44Z"
+  }
+}

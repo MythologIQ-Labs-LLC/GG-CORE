@@ -214,6 +214,27 @@ impl InferenceEngine {
         config: &InferenceConfig,
         sender: crate::engine::TokenStreamSender,
     ) -> Result<(), InferenceError> {
+        // Emit exactly one terminal frame for every outcome — including the
+        // lookup/downcast failures below — so a client can always distinguish a
+        // completed stream from an errored one (B-24a).
+        let result = self.stream_tokens(model_id, prompt, config, &sender);
+        let terminal = match &result {
+            Ok(()) => crate::engine::StreamTerminal::Complete,
+            Err(e) => crate::engine::StreamTerminal::Error(e.to_string()),
+        };
+        let _ = tokio::runtime::Handle::current().block_on(sender.end(terminal));
+        result
+    }
+
+    /// Stream token frames for a prompt (no terminal — the caller owns that).
+    #[cfg(feature = "gguf")]
+    fn stream_tokens(
+        &self,
+        model_id: &str,
+        prompt: &str,
+        config: &InferenceConfig,
+        sender: &crate::engine::TokenStreamSender,
+    ) -> Result<(), InferenceError> {
         use crate::engine::gguf::GgufGenerator;
 
         // Clone Arc and drop read lock before calling into model.

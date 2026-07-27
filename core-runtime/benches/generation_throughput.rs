@@ -4,7 +4,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
-use gg_core::engine::{FinishReason, GenerationResult, StreamingOutput};
+use gg_core::engine::{FinishReason, GenerationResult, StreamItem, StreamTerminal};
 
 fn create_generation_result(token_count: usize) -> GenerationResult {
     let text = "generated ".repeat(token_count);
@@ -37,10 +37,12 @@ fn bench_streaming_output_creation(c: &mut Criterion) {
         group.bench_function(BenchmarkId::new("tokens", name), |b| {
             b.iter(|| {
                 for i in 0..count {
-                    let _ = black_box(StreamingOutput {
-                        token: (i % 50000) as u32,
-                        is_final: i == count - 1,
-                    });
+                    let frame = if i == count - 1 {
+                        StreamItem::End(StreamTerminal::Complete)
+                    } else {
+                        StreamItem::Token((i % 50000) as u32)
+                    };
+                    let _ = black_box(frame);
                 }
             })
         });
