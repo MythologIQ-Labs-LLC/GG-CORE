@@ -7616,3 +7616,50 @@ SHA256(chain_hash + "SEALED")
 error are now distinguishable end-to-end; the `send(0,true)` error-faking is gone.
 Next: B-28 (real tokenizer), then B-24b (egress sanitization). Chain tip:
 `0382b1638c38d670f1ad8fd44ae310c539453db9d3c195e94f007bed5f8e0be5`.
+
+---
+
+### Entry #119: RESEARCH BRIEF (B-28 real subword tokenizer)
+
+**Timestamp**: 2026-07-27T13:45:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2 (adds a dependency; offline constraint in play)
+**Session ID**: 2026-07-27T-b28-tokenizer
+
+**Target**: B-28 — replace `simple_tokenize` (hash stub) with a real WordPiece
+tokenizer for the ONNX classify/embed paths, offline.
+
+**Findings (verified)**: F1 `simple_tokenize` (`embedder.rs:120`) hashes each word
+into an arbitrary id in `[1000,30000)` → ONNX receives meaningless input_ids
+(silent-wrong). F2 the HuggingFace `tokenizers` crate is offline by construction:
+the `http` feature is **disabled by default**, so `Tokenizer::from_file` loads from
+local disk with no network compiled in (`from_pretrained` doesn't exist without
+`http`); use `default-features = false` to also drop the `onig`/`esaxx` C deps. F3
+the loaders (`onnx/mod.rs:71,100`) already carry an unused `OnnxConfig` — natural
+seam for the tokenizer path. F4 B-32 flaky `cli` env-var test folds into this cycle.
+
+**Decision**: offline `tokenizers` config ADOPTED (evidence-resolved). Two policy
+sub-decisions put to the operator: (1) vocab path — sibling-convention vs
+`OnnxConfig` field (recommend convention); (2) absent-tokenizer policy — fail-loud
+vs named graceful fallback (recommend graceful fallback, non-breaking).
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-b28-tokenizer-2026-07-27.md)
+= 1ac356eb0cfbae0839f2d54258edb5b3db6d67a239c281e3293162fa227a584c
+```
+
+**Previous Hash**: 0382b1638c38d670f1ad8fd44ae310c539453db9d3c195e94f007bed5f8e0be5
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 3312a0bb3aca535c98bb9354845147ac6e52eb58f708b11c035ef3e3d3a5f3c3
+```
+
+**Decision**: B-28 offline direction set; awaiting operator confirmation of the two
+policy sub-decisions before planning. Chain tip:
+`3312a0bb3aca535c98bb9354845147ac6e52eb58f708b11c035ef3e3d3a5f3c3`.

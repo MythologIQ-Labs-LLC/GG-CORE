@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "1ea8fde28a28d4d0590b003b290e216796db50dcebe1eeff5e8609b21cfb3dab",
+  "payload_sha256": "e43830993e143057be76efcc146897175384916ecddbf1152f6bf61d199ba844",
+  "phase": "research",
+  "session_id": "2026-07-27T-b28-tokenizer"
+}

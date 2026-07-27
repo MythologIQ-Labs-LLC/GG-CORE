@@ -1,0 +1,57 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-27T-b28-tokenizer",
+  "ts": "2026-07-27T19:02:45Z",
+  "questions": [
+    "Is the ONNX path tokenizing with a real tokenizer or a stub?",
+    "Can the tokenizers crate load a tokenizer offline (no Hub fetch)?",
+    "Where does the tokenizer.json path come from, and what if it's absent?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "high",
+      "claim": "simple_tokenize hashes words into arbitrary ids [1000,30000); ONNX gets meaningless input_ids",
+      "source": "engine/onnx/embedder.rs:120; classifier.rs:77",
+      "status": "drift"
+    },
+    {
+      "id": "F2",
+      "severity": "info",
+      "claim": "tokenizers http feature disabled by default; Tokenizer::from_file is offline; use default-features=false for pure-Rust",
+      "source": "huggingface/tokenizers README Features>http",
+      "status": "resolved"
+    },
+    {
+      "id": "F3",
+      "severity": "info",
+      "claim": "onnx loaders carry unused OnnxConfig - natural seam for tokenizer path",
+      "source": "engine/onnx/mod.rs:71,100",
+      "status": "info"
+    },
+    {
+      "id": "F4",
+      "severity": "low",
+      "claim": "B-32 flaky cli env-var test folds into this cycle",
+      "source": "cli/mod.rs:57-73",
+      "status": "open"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/engine/onnx/embedder.rs:120",
+    "core-runtime/src/engine/onnx/classifier.rs:77",
+    "core-runtime/src/engine/onnx/mod.rs:71,100",
+    "huggingface/tokenizers README"
+  ],
+  "brief_path": "docs/research-brief-b28-tokenizer-2026-07-27.md",
+  "decision": "offline tokenizers config adopted; sub-decisions (vocab path, fallback policy) to operator",
+  "risk_grade": "L2",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T19:02:45Z"
+  }
+}
