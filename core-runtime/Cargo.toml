@@ -31,6 +31,13 @@ interprocess = { version = "2.0", features = ["tokio"] }
 # ONNX inference backend (Candle - pure Rust)
 candle-core = { version = "0.8", optional = true }
 candle-onnx = { version = "0.8", optional = true }
+# Real WordPiece/subword tokenizer for the ONNX path. `default-features = false`
+# drops the `onig`/`esaxx` C deps; the pure-Rust `fancy-regex` backend replaces
+# `onig`. `http`/`hf-hub` stays off (offline: `from_file` only, no Hub download
+# path compiled in).
+tokenizers = { version = "0.21", default-features = false, features = [
+    "fancy-regex",
+], optional = true }
 
 # GGUF inference backend (llama-cpp-rs)
 llama-cpp-2 = { version = "0.1.133", optional = true }
@@ -123,7 +130,7 @@ windows-sys = { version = "0.52", features = [
 
 [features]
 default = []
-onnx = ["candle-core", "candle-onnx"]
+onnx = ["candle-core", "candle-onnx", "tokenizers"]
 gguf = ["llama-cpp-2", "encoding_rs"]
 llama-cpp-backend = ["gguf"]  # Alias for GGUF backend via llama-cpp-2
 cuda = ["cudarc"]  # GPU support via CUDA (requires CUDA toolkit)

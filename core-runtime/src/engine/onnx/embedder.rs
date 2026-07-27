@@ -17,6 +17,8 @@ pub struct OnnxEmbedder {
     memory_bytes: AtomicUsize,
     #[cfg(feature = "onnx")]
     model: Option<candle_onnx::onnx::ModelProto>,
+    #[cfg(feature = "onnx")]
+    tokenizer: super::tokenizer::OnnxTokenizer,
 }
 
 impl OnnxEmbedder {
@@ -28,21 +30,25 @@ impl OnnxEmbedder {
             memory_bytes: AtomicUsize::new(0),
             #[cfg(feature = "onnx")]
             model: None,
+            #[cfg(feature = "onnx")]
+            tokenizer: super::tokenizer::OnnxTokenizer::HashFallback,
         }
     }
 
-    /// Create an embedder with a loaded Candle ONNX model.
+    /// Create an embedder with a loaded Candle ONNX model and its tokenizer.
     #[cfg(feature = "onnx")]
-    pub fn with_model(
+    pub(super) fn with_model(
         model_id: String,
         embedding_dim: usize,
         model: candle_onnx::onnx::ModelProto,
+        tokenizer: super::tokenizer::OnnxTokenizer,
     ) -> Self {
         Self {
             model_id,
             embedding_dim,
             memory_bytes: AtomicUsize::new(0),
             model: Some(model),
+            tokenizer,
         }
     }
 
@@ -69,7 +75,7 @@ impl OnnxEmbedder {
         })?;
 
         let device = candle_core::Device::Cpu;
-        let tokens = simple_tokenize(text);
+        let tokens = self.tokenizer.encode(text);
         let inputs = build_transformer_inputs(&tokens, &device)?;
 
         let outputs = candle_onnx::simple_eval(model, inputs)
@@ -113,20 +119,6 @@ pub(super) fn build_transformer_inputs(
     map.insert("attention_mask".to_string(), attn);
     map.insert("token_type_ids".to_string(), ttype);
     Ok(map)
-}
-
-/// Simple hash-based tokenizer for embedding models.
-#[cfg(feature = "onnx")]
-pub(super) fn simple_tokenize(text: &str) -> Vec<i64> {
-    let mut ids = vec![101i64]; // [CLS]
-    for word in text.split_whitespace() {
-        let hash = word.bytes().fold(0u64, |acc, b| {
-            acc.wrapping_mul(31).wrapping_add(u64::from(b))
-        });
-        ids.push((hash % 29_000 + 1_000) as i64);
-    }
-    ids.push(102); // [SEP]
-    ids
 }
 
 /// Mean-pool across sequence dimension (dim 1) and squeeze batch.
@@ -207,7 +199,12 @@ mod tests {
             return;
         }
         let model = candle_onnx::read_file(&path).expect("load model");
-        let embedder = OnnxEmbedder::with_model("test".into(), 384, model);
+        let embedder = OnnxEmbedder::with_model(
+            "test".into(),
+            384,
+            model,
+            super::super::tokenizer::OnnxTokenizer::for_model(&path),
+        );
         let result = embedder.embed_text("file.write").expect("embed");
         assert_eq!(result.vector.len(), 384);
         assert!(result.vector.iter().any(|&v| v != 0.0));
@@ -217,13 +214,5 @@ mod tests {
     fn missing_model_fails() {
         let embedder = OnnxEmbedder::new("missing".into(), 384);
         assert!(embedder.embed_text("test").is_err());
-    }
-
-    #[test]
-    fn tokenizer_produces_cls_sep() {
-        let tokens = simple_tokenize("hello world");
-        assert_eq!(tokens[0], 101);
-        assert_eq!(*tokens.last().expect("non-empty"), 102);
-        assert_eq!(tokens.len(), 4);
     }
 }

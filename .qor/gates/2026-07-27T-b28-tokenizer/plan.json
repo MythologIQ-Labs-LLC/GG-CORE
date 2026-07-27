@@ -1,0 +1,50 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-27T-b28-tokenizer",
+  "ts": "2026-07-27T19:49:01Z",
+  "plan_path": "docs/plan-b28-tokenizer-2026-07-27.md",
+  "phases": [
+    "Cargo tokenizers dep (offline)",
+    "OnnxTokenizer seam (tokenizer.rs)",
+    "loaders resolve sibling tokenizer.json",
+    "embedder+classifier use tokenizer",
+    "telemetry fallback counter",
+    "tests + WordPiece fixture",
+    "B-32 serialize cli env tests"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core --features onnx",
+    "cargo clippy -p gg-core --all-targets --features onnx -- -D warnings",
+    "cargo clippy -p gg-core --all-targets --features gguf,ffi,python -- -D warnings",
+    "cargo test -p gg-core --features onnx",
+    "cargo test -p gg-core",
+    "cargo fmt --check"
+  ],
+  "change_class": "feature",
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "high_risk_target": false,
+  "doc_tier": "standard",
+  "boundaries": {
+    "non_goals": [
+      "manifest-driven tokenizer selection (B-29)",
+      "streaming egress sanitization (B-24b)",
+      "changing ONNX model loading/simple_eval"
+    ],
+    "limitations": [
+      "offline preserved: tokenizers default-features=false, http off; from_file local-only"
+    ]
+  },
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T19:49:01Z"
+  }
+}

@@ -63,6 +63,7 @@ fn load_and_classify() {
         "tinybert".into(),
         vec!["negative".into(), "positive".into()],
         model,
+        super::super::tokenizer::OnnxTokenizer::for_model(&path),
     );
     // The fixture's exact label count is not assumed here; a well-formed result
     // OR a clean label-mismatch error both prove the inference path runs

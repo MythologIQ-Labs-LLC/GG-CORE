@@ -41,6 +41,12 @@ pub fn get_socket_path() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // The two `GG_CORE_SOCKET_PATH` tests below mutate the shared process
+    // environment; Rust runs tests in-process in parallel, so without this lock
+    // one test's `remove_var` can race the other's `set_var` (B-32).
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_default_socket_path_unix() {
@@ -56,6 +62,7 @@ mod tests {
 
     #[test]
     fn test_get_socket_path_default() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // Clear env var if set
         std::env::remove_var("GG_CORE_SOCKET_PATH");
         let path = get_socket_path();
@@ -64,6 +71,7 @@ mod tests {
 
     #[test]
     fn test_get_socket_path_from_env() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let custom_path = "/custom/socket.sock";
         std::env::set_var("GG_CORE_SOCKET_PATH", custom_path);
         let path = get_socket_path();
