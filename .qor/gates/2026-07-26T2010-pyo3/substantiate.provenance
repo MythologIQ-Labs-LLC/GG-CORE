@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "e77f5ef4d6e15abf6bea2657fd20bbdc17fb66b5d81a3e2f309dcbc8cbbf1e6e",
+  "payload_sha256": "5e1b6fd5171b46536c83802d35785c35c87b7e2f5d7e2058ea1490c6e43a2dde",
+  "phase": "substantiate",
+  "session_id": "2026-07-26T2010-pyo3"
+}

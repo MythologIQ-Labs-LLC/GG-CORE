@@ -1,0 +1,49 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-26T2010-pyo3",
+  "ts": "2026-07-27T01:04:39Z",
+  "plan_path": "docs/plan-pyo3-migration-2026-07-26.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "high_risk_target": false,
+  "open_questions": [],
+  "boundaries": {
+    "limitations": [
+      "Compiler-driven residual fixes per pyo3 v0.29 migration guide (SG#3). No new live-interpreter test. Behavior preserved."
+    ],
+    "non_goals": [
+      "No engine/logic change",
+      "No rand migration",
+      "No new Python API"
+    ],
+    "exclusions": [
+      "No security/engine/ffi/scheduler changes"
+    ]
+  },
+  "phases": [
+    "Phase 1: pyo3 0.29 + pyo3-async-runtimes 0.29 deps + async path rename",
+    "Phase 2: binding API adjustments (from_py_object, Sync audit, compiler-driven residuals)",
+    "Phase 3: verify python leg + governance (FEATURE_INDEX F-40, BACKLOG, ARCHITECTURE_PLAN)"
+  ],
+  "ci_commands": [
+    "cargo fmt --check",
+    "cargo clippy --all-targets -- -D warnings",
+    "cargo test --workspace"
+  ],
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-40",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/tests/python_binding_test.rs",
+      "test_descriptor": "python bindings build + conversion tests pass on pyo3 0.29 (RUSTSEC CVEs cleared)"
+    }
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T01:04:39Z"
+  }
+}

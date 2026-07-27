@@ -6,7 +6,8 @@
 use pyo3::prelude::*;
 
 /// A single streaming result chunk (text-based)
-#[pyclass]
+// Returned to Python only: opt out of the pyo3 0.27+ FromPyObject derive.
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub struct StreamingResult {
     /// Generated text for this chunk

@@ -139,9 +139,9 @@ impl Session {
 
     fn __exit__(
         &mut self,
-        _exc_type: Option<PyObject>,
-        _exc_val: Option<PyObject>,
-        _exc_tb: Option<PyObject>,
+        _exc_type: Option<Py<PyAny>>,
+        _exc_val: Option<Py<PyAny>>,
+        _exc_tb: Option<Py<PyAny>>,
     ) -> bool {
         self.valid = false;
         false
@@ -191,7 +191,7 @@ impl AsyncSession {
         let token = self.token.clone();
         let rust_params = params.as_ref().map(RustParams::from).unwrap_or_default();
 
-        pyo3_asyncio_0_21::tokio::future_into_py(py, async move {
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
             runtime
                 .ipc_handler
                 .auth
@@ -215,9 +215,9 @@ impl AsyncSession {
 
     fn __aexit__(
         &mut self,
-        _exc_type: Option<PyObject>,
-        _exc_val: Option<PyObject>,
-        _exc_tb: Option<PyObject>,
+        _exc_type: Option<Py<PyAny>>,
+        _exc_val: Option<Py<PyAny>>,
+        _exc_tb: Option<Py<PyAny>>,
     ) -> bool {
         self.valid = false;
         false

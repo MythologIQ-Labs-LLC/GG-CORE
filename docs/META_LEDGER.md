@@ -7224,3 +7224,98 @@ stub — with CI-verified classification logic and a deterministic, fail-loud
 output selection that improves on the embedder's latent pattern. Follow-ups:
 real tokenizer (B-28), registry auto-dispatch (B-29). Chain tip:
 `b1fb6c9f5b25c50262fc4bbc8355bab278761b3f89ba6ec8d8eb70185caea11e`.
+
+---
+
+### Entry #111: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-26T21:15:00-04:00
+**Phase**: GATE
+**Author**: Judge (independent fresh-context subagent)
+**Risk Grade**: L2
+**Session ID**: 2026-07-26T2010-pyo3
+
+**Target**: docs/plan-pyo3-migration-2026-07-26.md (iteration 1)
+
+**Verdict**: PASS
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= e672139e31e468d214a17e89db9c431c4ee16c0f0f7a686ef78d75e72436e912
+```
+
+**Previous Hash**: b1fb6c9f5b25c50262fc4bbc8355bab278761b3f89ba6ec8d8eb70185caea11e
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= cf449f9f680ac13cabe17a4988c1d1203f4c59bd7e630d0b85e6a3cec46be60e
+```
+
+**Decision**: GATE TRIBUNAL PASS (L2). pyo3 0.21→0.29 migration clears
+RUSTSEC-2026-0176 (high) / -0177 (medium) / 2025-0020 (low); swaps
+pyo3-asyncio-0-21 → pyo3-async-runtimes 0.29. Verified: all 9 pyclasses
+Sync-clean (no RefCell/Cell), no missed breaking API (code already on modern
+Bound/#[pymodule] idioms), MSRV 1.83 satisfied, maturin/abi3 compatible.
+Compiler-driven residuals per the v0.29 migration guide (LD-5). Gate Status:
+OPEN — /qor-implement authorized. Chain tip:
+`cf449f9f680ac13cabe17a4988c1d1203f4c59bd7e630d0b85e6a3cec46be60e`.
+
+---
+
+### Entry #112: SESSION SEAL (pyo3 0.29 migration)
+
+**Timestamp**: 2026-07-26T21:35:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local; PR at operator direction)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-26T2010-pyo3
+
+**Target**: docs/plan-pyo3-migration-2026-07-26.md — migrate pyo3 0.21→0.29,
+clearing RUSTSEC-2026-0176/0177/2025-0020.
+
+**Reality vs Promise**: MATCH. pyo3 0.29 + pyo3-async-runtimes 0.29 (Cargo.toml);
+async path renamed (session.rs); `#[pyclass(from_py_object)]` on the
+arg-extracted InferenceParams; `#[pyclass(skip_from_py_object)]` on the
+return-only Clone pyclasses (InferenceResult/ModelInfo/StreamingResult);
+`Option<PyObject>` → `Option<Py<PyAny>>` in the __exit__/__aexit__ dunders
+(PyObject no longer prelude-exported in 0.29). Compiler-driven residuals per the
+v0.29 migration guide (LD-5), all cited to the deprecation diagnostics.
+
+**Verification (authoritative, at seal)**:
+- python: `clippy --features python --all-targets -- -D warnings` → 0;
+  `test --features python --test python_binding_test` → 2 passed
+- default: `clippy --all-targets -- -D warnings` → 0; `test --workspace` → 0
+  failed; `fmt --check` → 0
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/Cargo.toml)
+= a924a1d2a3e591a92e311df73d50d953be9047b47874d2f1aaf54faa147d10fb
+```
+
+**Previous Hash**: cf449f9f680ac13cabe17a4988c1d1203f4c59bd7e630d0b85e6a3cec46be60e
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 51fb0891a114a2e22bb46b6ec150f9107f0355b89e5b3d249df2a43240939452
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= dca690e810f6d6edc6d2eef247b0a9f954e549a3d5d5e2d9319705f772f4797d
+```
+
+**Decision**: pyo3 0.29 migration COMPLETE — the high/medium/low RustSec
+advisories on the python bindings are cleared, the consumable Python surface
+builds+tests green on the current pyo3. Remaining Dependabot item: rand 0.8→0.9
+(low, crypto migration; B-31/separate cycle). Chain tip:
+`51fb0891a114a2e22bb46b6ec150f9107f0355b89e5b3d249df2a43240939452`.
