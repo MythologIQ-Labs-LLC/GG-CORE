@@ -76,7 +76,7 @@ pub use output::{ClassificationResult, EmbeddingResult, EntityResult};
 pub use output::{FinishReason, GenerationResult, InferenceOutput};
 pub use prefill::{PrefillConfig, PrefillExecutor, PrefillResult};
 pub use simd_tokenizer::SimdTokenizer;
-pub use streaming::{StreamingOutput, TokenStream, TokenStreamSender};
+pub use streaming::{StreamItem, StreamTerminal, TokenStream, TokenStreamSender};
 pub use tokenizer::{TokenizerError, TokenizerWrapper};
 
 // Backend re-exports

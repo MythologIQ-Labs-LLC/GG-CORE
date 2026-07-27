@@ -190,6 +190,20 @@ impl StreamChunk {
         }
     }
 
+    /// Terminal frame for a normally-completed stream that carries no new token
+    /// (the last generated token was already sent as its own `token` frame).
+    /// `is_final` with `error == None` marks a clean completion, distinct from
+    /// the `error` terminal (B-24a).
+    pub fn complete(request_id: RequestId) -> Self {
+        Self {
+            request_id,
+            token: 0,
+            text: None,
+            is_final: true,
+            error: None,
+        }
+    }
+
     pub fn final_token_with_text(request_id: RequestId, token: u32, text: String) -> Self {
         Self {
             request_id,

@@ -7507,3 +7507,112 @@ SHA256(content_hash + "|" + previous_hash)
 **Decision**: Backlog re-graded and truthful again; issue/PR mutations held for
 operator approval (Review Boundary). Proceed to Phase 1 cycle #1 = B-24. Chain tip:
 `a1bc7902e1ebca008103e66f0debe3c6ed961bb20d94cf73ef6da949d5031a46`.
+
+---
+
+### Entry #117: RESEARCH BRIEF (B-24 streaming egress decision)
+
+**Timestamp**: 2026-07-27T12:05:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3 (security-boundary decision on the egress path)
+**Session ID**: 2026-07-27T-b24-streaming
+
+**Target**: B-24 — decide detokenize-in-runtime vs client-side contract for
+streaming egress PII sanitization; resolve the indistinguishable terminal.
+
+**Findings (verified)**: F1 streaming bypasses egress sanitization —
+`infer_stream` streams raw `u32` tokens (`engine/streaming.rs:8`), doc says
+"egress token sanitization is out of scope" (`runtime_facade.rs:87`), while
+`sanitize_output(&str)` (`pipeline.rs:113`) needs text (security, high). F2 the
+only terminal is `is_final`/sender-drop — no distinction between completion,
+mid-stream rejection, and engine error (protocol, medium). F3 faithful
+detokenization couples to B-28 (real tokenizer).
+
+**Decision**: **detokenize-in-runtime ADOPTED**, client-side-contract REJECTED
+(the latter makes streaming a permanent PII-sanitization bypass, violating the
+C.O.R.E. security boundary). Two canonical signals control: SecurityPipeline
+egress control (B-25b) + CLAUDE.md boundary.
+
+**Re-scope**: split B-24 into **B-24a** (typed stream terminal
+`Complete|Rejected|Error`, bounded, no tokenizer dep, L2) and **B-24b**
+(in-runtime detokenization + streaming-safe windowed sanitizer, L3, after B-28).
+Revised Phase 1 order: `B-24a → B-28 → B-24b → B-29 → B-07 → B-16`. Held for
+operator confirmation (Review Boundary).
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-b24-streaming-egress-2026-07-27.md)
+= 8eeec2fdd8d871ae8c1786d87ff3ddbeac39b5a296e7f07626f30495277ae349
+```
+
+**Previous Hash**: a1bc7902e1ebca008103e66f0debe3c6ed961bb20d94cf73ef6da949d5031a46
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 4e50d3b2f78d91de08d9890dddb02d941877c1e4b2a6f4c2e0219474cf546ae5
+```
+
+**Decision**: B-24 direction set; awaiting operator approval of the split +
+resequence before planning B-24a. Chain tip:
+`4e50d3b2f78d91de08d9890dddb02d941877c1e4b2a6f4c2e0219474cf546ae5`.
+
+---
+
+### Entry #118: SESSION SEAL (B-24a typed stream terminal)
+
+**Timestamp**: 2026-07-27T13:10:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local; PR at operator direction)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-27T-b24-streaming
+
+**Target**: docs/plan-b24a-stream-terminal-2026-07-27.md (audit PASS, scope-tightened).
+
+**Reality vs Promise**: MATCH. Replaced the implicit `StreamingOutput{token,is_final}`
++ `send(0,true)` error-faking with an explicit typed terminal: `StreamItem::{Token,End}`
+and `StreamTerminal::{Complete,Rejected,Error}` (`engine/streaming.rs`). Producers send
+`token()` only; `run_stream_sync` centralizes terminal emission (incl. model-lookup
+failures → `End(Error)`); `worker_streaming` emits `End(Rejected)` on ingress reject,
+`End(Error)` on admission reject; `relay_stream` maps `End(Complete)`→
+`StreamChunk::complete`, `End(Rejected|Error)`→`StreamChunk::error`. FFI/Python excluded
+per audit (not `TokenStream` consumers; already error-aware). Fixes B-24 F2. F1 (egress
+sanitization) remains B-24b (after B-28).
+
+**Verification (authoritative, at seal)**:
+- fmt `--check` → 0
+- clippy `--all-targets -- -D warnings` on default + gguf + onnx,ffi,python → 0
+- test `--lib` → 554 passed (incl. 3 new terminal tests: complete/error-distinct/
+  dropped-reports-error); `--lib --features gguf` → 554 passed
+- integration: security_pipeline_wiring 2, streaming 10, secure_facade 4 → all passed
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/src/engine/streaming.rs)
+= 0c1c2f2e57c0592bcced65996206e88a718f24b8718350ce758c0e2d2ca6205f
+```
+
+**Previous Hash**: 4e50d3b2f78d91de08d9890dddb02d941877c1e4b2a6f4c2e0219474cf546ae5
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 0382b1638c38d670f1ad8fd44ae310c539453db9d3c195e94f007bed5f8e0be5
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 05299d4c15e91f9ab9631f9bd36252206125bcb3bcb5b24b893719bf0c751c70
+```
+
+**Decision**: B-24a COMPLETE — stream completion, mid-stream rejection, and engine
+error are now distinguishable end-to-end; the `send(0,true)` error-faking is gone.
+Next: B-28 (real tokenizer), then B-24b (egress sanitization). Chain tip:
+`0382b1638c38d670f1ad8fd44ae310c539453db9d3c195e94f007bed5f8e0be5`.

@@ -91,7 +91,7 @@ impl LlamaBackendInner {
         &self,
         prompt: &str,
         config: &InferenceConfig,
-        sender: crate::engine::TokenStreamSender,
+        sender: &crate::engine::TokenStreamSender,
         is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<(), InferenceError> {
         let tokens = self.tokenize(prompt)?;
@@ -113,11 +113,10 @@ impl LlamaBackendInner {
             let tok = sampler.sample(&ctx, -1);
             sampler.accept(tok);
             let eog = self.model.is_eog_token(tok);
-            let is_final = eog || i + 1 == max_tok;
-            if rt.block_on(sender.send(tok.0 as u32, is_final)).is_err() {
+            if rt.block_on(sender.token(tok.0 as u32)).is_err() {
                 break;
             }
-            if eog {
+            if eog || i + 1 == max_tok {
                 break;
             }
             batch.clear();

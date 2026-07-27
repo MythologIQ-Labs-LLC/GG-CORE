@@ -1,0 +1,48 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-27T-b24-streaming",
+  "ts": "2026-07-27T17:28:41Z",
+  "plan_path": "docs/plan-b24a-stream-terminal-2026-07-27.md",
+  "phases": [
+    "streaming.rs types+sender",
+    "gguf backend/generator terminal",
+    "inference.rs run_stream_sync",
+    "worker_streaming terminal",
+    "ipc relay_stream",
+    "ffi+python surfaces",
+    "tests"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core --all-features",
+    "cargo clippy -p gg-core --all-targets --all-features -- -D warnings",
+    "cargo test -p gg-core",
+    "cargo fmt --check"
+  ],
+  "change_class": "feature",
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "high_risk_target": false,
+  "doc_tier": "standard",
+  "boundaries": {
+    "non_goals": [
+      "detokenization",
+      "egress sanitization (B-24b)",
+      "new IPC wire message types"
+    ],
+    "exclusions": [
+      "Rejected variant only produced by B-24b; B-24a produces Complete/Error"
+    ]
+  },
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T17:28:41Z"
+  }
+}

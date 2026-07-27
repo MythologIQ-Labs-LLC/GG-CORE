@@ -98,7 +98,7 @@ impl GgufGenerator {
         &self,
         prompt: &str,
         config: &InferenceConfig,
-        sender: crate::engine::TokenStreamSender,
+        sender: &crate::engine::TokenStreamSender,
         is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<(), InferenceError> {
         if let Some(inner) = &self.inner {

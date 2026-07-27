@@ -2,16 +2,32 @@
 
 use tokio::sync::mpsc;
 
-/// A single streamed token output.
-#[derive(Debug, Clone)]
-pub struct StreamingOutput {
-    pub token: u32,
-    pub is_final: bool,
+/// Reason a token stream ended.
+///
+/// Makes a normal completion distinguishable from a mid-stream security
+/// rejection and from an engine error, so a client never mistakes a truncated
+/// or aborted stream for a finished one (B-24 F2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StreamTerminal {
+    /// Generation finished normally (end-of-generation token or token budget).
+    Complete,
+    /// Aborted by a security control. Reserved for egress sanitization (B-24b);
+    /// the ingress-reject path also uses it.
+    Rejected(String),
+    /// The engine failed part-way through generation.
+    Error(String),
 }
 
-/// Async stream of generated tokens.
+/// A frame on a token stream: a generated token, or the terminal that ends it.
+#[derive(Debug, Clone)]
+pub enum StreamItem {
+    Token(u32),
+    End(StreamTerminal),
+}
+
+/// Async stream of generated tokens, terminated by exactly one `End` frame.
 pub struct TokenStream {
-    receiver: mpsc::Receiver<StreamingOutput>,
+    receiver: mpsc::Receiver<StreamItem>,
 }
 
 impl TokenStream {
@@ -21,41 +37,49 @@ impl TokenStream {
         (TokenStreamSender { sender }, Self { receiver })
     }
 
-    /// Receive the next token, if available.
-    pub async fn next(&mut self) -> Option<StreamingOutput> {
+    /// Receive the next frame, if available. `None` once the sender is gone.
+    pub async fn next(&mut self) -> Option<StreamItem> {
         self.receiver.recv().await
     }
 
-    /// Collect all remaining tokens into a vector.
-    pub async fn collect(mut self) -> Vec<u32> {
+    /// Collect all tokens and the terminal reason. A sender dropped without an
+    /// explicit `End` yields `StreamTerminal::Error` — never report a dropped
+    /// stream as clean.
+    pub async fn collect(mut self) -> (Vec<u32>, StreamTerminal) {
         let mut tokens = Vec::new();
-        while let Some(output) = self.next().await {
-            tokens.push(output.token);
-            if output.is_final {
-                break;
+        while let Some(item) = self.next().await {
+            match item {
+                StreamItem::Token(t) => tokens.push(t),
+                StreamItem::End(terminal) => return (tokens, terminal),
             }
         }
-        tokens
+        (
+            tokens,
+            StreamTerminal::Error("stream dropped before terminal".into()),
+        )
     }
 }
 
-/// Sender half for pushing tokens to a stream.
+/// Sender half. Emit `token()` per generated token, then exactly one `end()`.
 pub struct TokenStreamSender {
-    sender: mpsc::Sender<StreamingOutput>,
+    sender: mpsc::Sender<StreamItem>,
 }
 
 impl TokenStreamSender {
-    /// Send a token to the stream.
-    pub async fn send(&self, token: u32, is_final: bool) -> Result<(), StreamSendError> {
+    /// Send a generated token.
+    pub async fn token(&self, token: u32) -> Result<(), StreamSendError> {
         self.sender
-            .send(StreamingOutput { token, is_final })
+            .send(StreamItem::Token(token))
             .await
             .map_err(|_| StreamSendError)
     }
 
-    /// Close the stream by dropping the sender.
-    pub fn close(self) {
-        drop(self.sender);
+    /// Send the terminal frame, ending the stream.
+    pub async fn end(&self, terminal: StreamTerminal) -> Result<(), StreamSendError> {
+        self.sender
+            .send(StreamItem::End(terminal))
+            .await
+            .map_err(|_| StreamSendError)
     }
 }
 
@@ -69,3 +93,43 @@ impl std::fmt::Display for StreamSendError {
 }
 
 impl std::error::Error for StreamSendError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn collect_returns_tokens_and_complete_terminal() {
+        let (tx, rx) = TokenStream::new(4);
+        tx.token(7).await.unwrap();
+        tx.token(8).await.unwrap();
+        tx.end(StreamTerminal::Complete).await.unwrap();
+        let (tokens, terminal) = rx.collect().await;
+        assert_eq!(tokens, vec![7, 8]);
+        assert_eq!(terminal, StreamTerminal::Complete);
+    }
+
+    #[tokio::test]
+    async fn error_terminal_is_distinct_from_completion() {
+        let (tx, rx) = TokenStream::new(4);
+        tx.token(1).await.unwrap();
+        tx.end(StreamTerminal::Error("boom".into())).await.unwrap();
+        let (tokens, terminal) = rx.collect().await;
+        assert_eq!(tokens, vec![1]);
+        assert!(matches!(terminal, StreamTerminal::Error(_)));
+        assert_ne!(terminal, StreamTerminal::Complete);
+    }
+
+    #[tokio::test]
+    async fn dropped_sender_reports_error_not_clean() {
+        let (tx, rx) = TokenStream::new(4);
+        tx.token(1).await.unwrap();
+        drop(tx);
+        let (tokens, terminal) = rx.collect().await;
+        assert_eq!(tokens, vec![1]);
+        assert!(
+            matches!(terminal, StreamTerminal::Error(_)),
+            "a dropped stream must never read as Complete"
+        );
+    }
+}

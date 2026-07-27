@@ -79,10 +79,17 @@ async fn test_streaming_execute_rejects_injection() {
     worker_streaming::execute(&engine, None, Some(&pipeline), request).await;
 
     // A bypassed scan would reach the (model-less) engine and close the
-    // channel without any frame; rejection must deliver a final frame.
+    // channel without any frame; rejection must deliver an explicit
+    // End(Rejected) terminal — distinct from a normal completion (B-24a).
     let frame = rx
         .next()
         .await
-        .expect("rejection must deliver an error frame, not a bare channel close");
-    assert!(frame.is_final, "rejection frame must have is_final == true");
+        .expect("rejection must deliver a terminal frame, not a bare channel close");
+    assert!(
+        matches!(
+            frame,
+            crate::engine::StreamItem::End(crate::engine::StreamTerminal::Rejected(_))
+        ),
+        "injection rejection must deliver End(Rejected), distinct from completion"
+    );
 }

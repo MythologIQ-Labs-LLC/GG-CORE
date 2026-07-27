@@ -23,7 +23,10 @@ pub(crate) async fn execute(
         Ok(g) => g,
         Err(msg) => {
             telemetry::record_admission_rejection(&model_id, &msg);
-            let _ = send_error(&request.token_sender).await;
+            let _ = request
+                .token_sender
+                .end(crate::engine::StreamTerminal::Error(msg))
+                .await;
             return;
         }
     };
@@ -65,7 +68,12 @@ async fn scan_ingress(
     if verdict.allowed {
         return true;
     }
-    let _ = send_error(&request.token_sender).await;
+    let _ = request
+        .token_sender
+        .end(crate::engine::StreamTerminal::Rejected(
+            "prompt rejected by ingress security scan".into(),
+        ))
+        .await;
     false
 }
 
@@ -99,8 +107,4 @@ async fn run_stream(
             ),
         ))
     }
-}
-
-async fn send_error(sender: &crate::engine::TokenStreamSender) -> Result<(), ()> {
-    sender.send(0, true).await.map_err(|_| ())
 }

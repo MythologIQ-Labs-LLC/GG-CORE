@@ -6,7 +6,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use gg_core::engine::{InferenceConfig, InferenceEngine, InferenceParams, TokenStream};
+use gg_core::engine::{
+    InferenceConfig, InferenceEngine, InferenceParams, StreamItem, StreamTerminal, TokenStream,
+};
 use gg_core::scheduler::{spawn_worker_with_registry, Priority, RequestQueue, RequestQueueConfig};
 use gg_core::security::{SecurityConfig, SecurityPipeline};
 
@@ -127,10 +129,13 @@ async fn test_streaming_worker_rejects_injection_end_to_end() {
     let frame = tokio::time::timeout(Duration::from_secs(2), stream.next())
         .await
         .expect("streaming worker must respond")
-        .expect("stream must yield a final frame, not close silently");
+        .expect("stream must yield a terminal frame, not close silently");
     assert!(
-        frame.is_final,
-        "rejection must arrive as a final frame through the streaming path"
+        matches!(
+            frame,
+            StreamItem::End(StreamTerminal::Rejected(_) | StreamTerminal::Error(_))
+        ),
+        "rejection must arrive as an End(Rejected|Error) terminal, distinct from completion"
     );
 
     shutdown.cancel();
