@@ -1,0 +1,34 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-27T-b28-tokenizer",
+  "ts": "2026-07-27T20:05:58Z",
+  "target": "docs/plan-b28-tokenizer-2026-07-27.md",
+  "verdict": "PASS",
+  "merkle_seal": "3e53d3dca6b58458274b8e37c642b5846cdc3ba70455f16abd2cc8578c4379bd",
+  "reality_matches_promise": true,
+  "risk_grade": "L2",
+  "verification": {
+    "fmt": "pass",
+    "clippy_default": "pass",
+    "clippy_onnx": "pass",
+    "clippy_gguf_ffi_python": "pass",
+    "test_lib": "554 passed",
+    "test_lib_onnx": "562 passed (3 new tokenizer tests)",
+    "offline_tree": "no network crates"
+  },
+  "fixed": [
+    "B-28: real offline WordPiece tokenizer replaces hash stub; graceful named fallback",
+    "B-32: cli env-var test race serialized"
+  ],
+  "offline_evidence": "cargo tree --features onnx: no reqwest/hyper/hf-hub/tls; tokenizers default-features=false + fancy-regex",
+  "chain_tip": "3aedb7928b2ec763f90afd2214ee4211855901e1df0996b1505d4d93e686c070",
+  "brief_path": "docs/plan-b28-tokenizer-2026-07-27.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "pass",
+    "ts": "2026-07-27T20:05:58Z"
+  }
+}

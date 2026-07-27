@@ -21,6 +21,8 @@ pub struct OnnxClassifier {
     memory_bytes: AtomicUsize,
     #[cfg(feature = "onnx")]
     model: Option<candle_onnx::onnx::ModelProto>,
+    #[cfg(feature = "onnx")]
+    tokenizer: super::tokenizer::OnnxTokenizer,
 }
 
 impl OnnxClassifier {
@@ -33,21 +35,25 @@ impl OnnxClassifier {
             memory_bytes: AtomicUsize::new(0),
             #[cfg(feature = "onnx")]
             model: None,
+            #[cfg(feature = "onnx")]
+            tokenizer: super::tokenizer::OnnxTokenizer::HashFallback,
         }
     }
 
-    /// Create a classifier with a loaded ONNX model and its label set.
+    /// Create a classifier with a loaded ONNX model, its label set, and tokenizer.
     #[cfg(feature = "onnx")]
-    pub fn with_model(
+    pub(super) fn with_model(
         model_id: String,
         labels: Vec<String>,
         model: candle_onnx::onnx::ModelProto,
+        tokenizer: super::tokenizer::OnnxTokenizer,
     ) -> Self {
         Self {
             model_id,
             labels,
             memory_bytes: AtomicUsize::new(0),
             model: Some(model),
+            tokenizer,
         }
     }
 
@@ -74,7 +80,7 @@ impl OnnxClassifier {
         })?;
 
         let device = candle_core::Device::Cpu;
-        let tokens = super::embedder::simple_tokenize(text);
+        let tokens = self.tokenizer.encode(text);
         let inputs = super::embedder::build_transformer_inputs(&tokens, &device)?;
 
         let outputs = candle_onnx::simple_eval(model, inputs)

@@ -4,6 +4,8 @@
 
 mod classifier;
 mod embedder;
+#[cfg(feature = "onnx")]
+mod tokenizer;
 
 pub use classifier::OnnxClassifier;
 pub use embedder::OnnxEmbedder;
@@ -75,7 +77,9 @@ pub fn load_onnx_model(
 ) -> Result<Arc<dyn OnnxModel>, InferenceError> {
     let model = candle_onnx::read_file(path)
         .map_err(|e| InferenceError::ModelError(format!("load {path:?}: {e}")))?;
-    let embedder = OnnxEmbedder::with_model(model_id.to_string(), DEFAULT_EMBEDDING_DIM, model);
+    let tok = tokenizer::OnnxTokenizer::for_model(path);
+    let embedder =
+        OnnxEmbedder::with_model(model_id.to_string(), DEFAULT_EMBEDDING_DIM, model, tok);
     Ok(Arc::new(embedder))
 }
 
@@ -105,7 +109,8 @@ pub fn load_onnx_classifier(
 ) -> Result<Arc<dyn OnnxModel>, InferenceError> {
     let model = candle_onnx::read_file(path)
         .map_err(|e| InferenceError::ModelError(format!("load {path:?}: {e}")))?;
-    let classifier = OnnxClassifier::with_model(model_id.to_string(), labels, model);
+    let tok = tokenizer::OnnxTokenizer::for_model(path);
+    let classifier = OnnxClassifier::with_model(model_id.to_string(), labels, model, tok);
     Ok(Arc::new(classifier))
 }
 

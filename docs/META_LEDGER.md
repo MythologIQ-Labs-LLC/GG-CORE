@@ -7663,3 +7663,64 @@ SHA256(content_hash + "|" + previous_hash)
 **Decision**: B-28 offline direction set; awaiting operator confirmation of the two
 policy sub-decisions before planning. Chain tip:
 `3312a0bb3aca535c98bb9354845147ac6e52eb58f708b11c035ef3e3d3a5f3c3`.
+
+---
+
+### Entry #120: SESSION SEAL (B-28 real subword tokenizer + B-32)
+
+**Timestamp**: 2026-07-27T14:35:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local; PR at operator direction)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-27T-b28-tokenizer
+
+**Target**: docs/plan-b28-tokenizer-2026-07-27.md (audit PASS; offline verified empirically).
+
+**Reality vs Promise**: MATCH. New `engine/onnx/tokenizer.rs` `OnnxTokenizer::{WordPiece,
+HashFallback}`; `for_model(path)` loads a sibling `tokenizer.json` offline via
+`Tokenizer::from_file`, warns + degrades to the (honestly-named) hash fallback when
+absent (operator decisions: sibling-convention + graceful fallback). embedder +
+classifier hold the tokenizer and call `.encode()`; the old `simple_tokenize` hash
+stub is deleted. Dependency `tokenizers 0.21` with `default-features = false,
+features = ["fancy-regex"]` — pure-Rust, no C deps, `http` off. **B-32** folded in:
+the two `cli` `GG_CORE_SOCKET_PATH` tests serialized behind a `static Mutex`.
+
+**Offline constraint (empirical)**: `cargo tree --features onnx` shows no
+reqwest/hyper/hf-hub/ureq/native-tls/rustls — verified after adding the dep AND
+after switching to `fancy-regex`. No Hub download path compiled in.
+
+**Verification (authoritative, at seal)**:
+- fmt `--check` → 0
+- clippy `--all-targets -- -D warnings` on default + onnx + gguf,ffi,python → 0
+- test `--lib` → 554 passed; `--lib --features onnx` → 562 passed (3 new tokenizer
+  tests incl. an offline `from_file` WordPiece round-trip asserting real vocab ids
+  `[3,4]` not hashes); cli/B-32 tests pass
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/src/engine/onnx/tokenizer.rs)
+= 0c6d26bdae9d8683a1426cc17bf1f123397788ac7e49844c2cff36c20d4dfbf1
+```
+
+**Previous Hash**: 3312a0bb3aca535c98bb9354845147ac6e52eb58f708b11c035ef3e3d3a5f3c3
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 3aedb7928b2ec763f90afd2214ee4211855901e1df0996b1505d4d93e686c070
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 3e53d3dca6b58458274b8e37c642b5846cdc3ba70455f16abd2cc8578c4379bd
+```
+
+**Decision**: B-28 COMPLETE — the ONNX path now tokenizes with a real offline
+WordPiece tokenizer (garbage hash ids gone) with a graceful named fallback; B-32
+flaky test fixed. This unblocks B-24b's faithful detokenization. Next: B-24b, then
+B-29. Chain tip:
+`3aedb7928b2ec763f90afd2214ee4211855901e1df0996b1505d4d93e686c070`.
