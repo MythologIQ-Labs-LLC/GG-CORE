@@ -135,7 +135,8 @@ ffi = ["cbindgen"]  # C FFI support (generates gg_core.h)
 python = ["pyo3", "pyo3-asyncio-0-21"]  # Python bindings via PyO3
 
 [build-dependencies]
-cbindgen = { version = "0.26", optional = true }
+# 0.27+ uses clap 4, dropping the unmaintained `atty` (RUSTSEC-2021-0145).
+cbindgen = { version = "0.28", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
