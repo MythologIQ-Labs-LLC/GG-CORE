@@ -1,0 +1,49 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-26T1930-onnxcls",
+  "ts": "2026-07-27T00:22:19Z",
+  "plan_path": "docs/plan-onnx-classifier-2026-07-26.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "high_risk_target": false,
+  "open_questions": [],
+  "boundaries": {
+    "limitations": [
+      "Tokenizer scope-1 (reuse naive simple_tokenize; real tokenizer=scope-2). No registry auto-dispatch (add load_onnx_classifier only)."
+    ],
+    "non_goals": [
+      "No tokenizers crate",
+      "No security/scheduler changes",
+      "No embedder change"
+    ],
+    "exclusions": [
+      "Fixtures gitignored; e2e test skips when absent"
+    ]
+  },
+  "phases": [
+    "Phase 1: classifier real inference + pure logits_to_classification + unit tests",
+    "Phase 2: load_onnx_classifier + fixture-gated e2e test",
+    "Phase 3: governance (FEATURE_INDEX, BACKLOG, ARCHITECTURE_PLAN)"
+  ],
+  "ci_commands": [
+    "cargo fmt --check",
+    "cargo clippy --all-targets -- -D warnings",
+    "cargo test --workspace"
+  ],
+  "feature_inventory_touches": [
+    {
+      "entry_id": "FX-ONNX-CLS",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/src/engine/onnx/classifier.rs",
+      "test_descriptor": "logits_to_classification on synthetic logits returns argmax label + valid softmax confidence + sorted all_labels; classifier no longer a fail-loud stub"
+    }
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T00:22:19Z"
+  }
+}

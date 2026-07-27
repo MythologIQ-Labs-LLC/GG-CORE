@@ -90,3 +90,34 @@ pub fn load_onnx_model(
         "ONNX support not compiled in. Enable 'onnx' feature.".into(),
     ))
 }
+
+/// Load an ONNX sequence-classification model, returning a classifier bound to
+/// the given ordered `labels` (label `i` corresponds to logit `i`).
+///
+/// # Errors
+/// Returns error if the model cannot be loaded or is an invalid format.
+#[cfg(feature = "onnx")]
+pub fn load_onnx_classifier(
+    path: &Path,
+    model_id: &str,
+    labels: Vec<String>,
+    _config: &OnnxConfig,
+) -> Result<Arc<dyn OnnxModel>, InferenceError> {
+    let model = candle_onnx::read_file(path)
+        .map_err(|e| InferenceError::ModelError(format!("load {path:?}: {e}")))?;
+    let classifier = OnnxClassifier::with_model(model_id.to_string(), labels, model);
+    Ok(Arc::new(classifier))
+}
+
+/// Stub for non-onnx builds.
+#[cfg(not(feature = "onnx"))]
+pub fn load_onnx_classifier(
+    _path: &Path,
+    _model_id: &str,
+    _labels: Vec<String>,
+    _config: &OnnxConfig,
+) -> Result<Arc<dyn OnnxModel>, InferenceError> {
+    Err(InferenceError::ModelError(
+        "ONNX support not compiled in. Enable 'onnx' feature.".into(),
+    ))
+}

@@ -215,6 +215,12 @@ python` — closing the prior gap where only default features were built, which
 had hidden per-feature clippy debt (ffi/onnx/python/gguf). `cuda/metal/advanced`
 remain CI-unbuilt (no GPU runners / proprietary toolchains).
 
+**ONNX classifier**: `engine/onnx/classifier.rs` now performs real candle-onnx
+inference producing a `ClassificationResult` (no longer a fail-loud stub),
+mirroring the ONNX embedder. Real coverage is the `logits_to_classification`
+unit tests. A real subword tokenizer and manifest-driven classifier-vs-embedder
+dispatch remain follow-ups (`docs/BACKLOG.md` B-28/B-29).
+
 ---
 
 ## Security Considerations

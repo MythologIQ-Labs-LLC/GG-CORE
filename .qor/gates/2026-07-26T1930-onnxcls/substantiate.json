@@ -1,0 +1,31 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-26T1930-onnxcls",
+  "ts": "2026-07-27T00:35:01Z",
+  "target": "docs/plan-onnx-classifier-2026-07-26.md",
+  "verdict": "PASS",
+  "merkle_seal": "ac2b974bf327f966835848cd2e9788801bcfbd7606d09d51880a6b5481d97c00",
+  "reality_matches_promise": true,
+  "verification": {
+    "onnx_clippy": "pass",
+    "onnx_classifier_tests": "4 passed",
+    "default_clippy": "pass",
+    "default_test": "pass",
+    "fmt": "pass",
+    "razor": "classifier.rs 193"
+  },
+  "deferred": [
+    "real tokenizer -> B-28",
+    "registry auto-dispatch -> B-29"
+  ],
+  "chain_tip": "b1fb6c9f5b25c50262fc4bbc8355bab278761b3f89ba6ec8d8eb70185caea11e",
+  "brief_path": "docs/plan-onnx-classifier-2026-07-26.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "pass",
+    "ts": "2026-07-27T00:35:01Z"
+  }
+}

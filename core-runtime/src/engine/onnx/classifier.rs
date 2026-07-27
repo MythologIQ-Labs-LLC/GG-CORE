@@ -1,6 +1,9 @@
 //! ONNX-based text classification model.
 //!
-//! Wraps Candle ONNX runtime for classification tasks like sentiment analysis.
+//! Wraps the Candle ONNX runtime for classification tasks like sentiment
+//! analysis. Mirrors [`super::embedder::OnnxEmbedder`]: load a `ModelProto`,
+//! run `candle_onnx::simple_eval`, then convert the logits to a
+//! [`ClassificationResult`] via a pure, testable helper.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -12,34 +15,137 @@ use crate::engine::{
 /// ONNX classification model using Candle.
 pub struct OnnxClassifier {
     model_id: String,
-    #[allow(dead_code)]
+    // Used to label logits under the `onnx` feature; unused in the stub build.
+    #[cfg_attr(not(feature = "onnx"), allow(dead_code))]
     labels: Vec<String>,
     memory_bytes: AtomicUsize,
     #[cfg(feature = "onnx")]
-    _model: Option<()>, // Placeholder for candle model
+    model: Option<candle_onnx::onnx::ModelProto>,
 }
 
 impl OnnxClassifier {
-    /// Create a new classifier with the given model ID and labels.
+    /// Create a new classifier with the given model ID and labels (no model
+    /// loaded yet — inference fails loud until a model is attached).
     pub fn new(model_id: String, labels: Vec<String>) -> Self {
         Self {
             model_id,
             labels,
             memory_bytes: AtomicUsize::new(0),
             #[cfg(feature = "onnx")]
-            _model: None,
+            model: None,
+        }
+    }
+
+    /// Create a classifier with a loaded ONNX model and its label set.
+    #[cfg(feature = "onnx")]
+    pub fn with_model(
+        model_id: String,
+        labels: Vec<String>,
+        model: candle_onnx::onnx::ModelProto,
+    ) -> Self {
+        Self {
+            model_id,
+            labels,
+            memory_bytes: AtomicUsize::new(0),
+            model: Some(model),
         }
     }
 
     /// Run classification on a single text input.
-    fn classify_text(&self, _text: &str) -> Result<ClassificationResult, InferenceError> {
-        // ONNX model not loaded - fail rather than return mock data
-        // Real implementation requires candle-onnx with loaded model
-        Err(InferenceError::ModelError(format!(
-            "ONNX model '{}' not loaded - enable 'onnx' feature and load model",
-            self.model_id
-        )))
+    fn classify_text(&self, text: &str) -> Result<ClassificationResult, InferenceError> {
+        #[cfg(feature = "onnx")]
+        {
+            self.classify_text_onnx(text)
+        }
+        #[cfg(not(feature = "onnx"))]
+        {
+            let _ = text;
+            Err(InferenceError::ModelError(format!(
+                "ONNX model '{}' not loaded - enable 'onnx' feature and load model",
+                self.model_id
+            )))
+        }
     }
+
+    #[cfg(feature = "onnx")]
+    fn classify_text_onnx(&self, text: &str) -> Result<ClassificationResult, InferenceError> {
+        let model = self.model.as_ref().ok_or_else(|| {
+            InferenceError::ModelError(format!("model '{}' not loaded", self.model_id))
+        })?;
+
+        let device = candle_core::Device::Cpu;
+        let tokens = super::embedder::simple_tokenize(text);
+        let inputs = super::embedder::build_transformer_inputs(&tokens, &device)?;
+
+        let outputs = candle_onnx::simple_eval(model, inputs)
+            .map_err(|e| InferenceError::ModelError(format!("eval: {e}")))?;
+
+        // Deterministic output selection: prefer the named `logits` output;
+        // otherwise accept a single-output model. Fail loud on ambiguity rather
+        // than picking a nondeterministic HashMap entry.
+        let logits = outputs
+            .get("logits")
+            .or_else(|| (outputs.len() == 1).then(|| outputs.values().next().unwrap()))
+            .ok_or_else(|| {
+                InferenceError::ModelError(
+                    "ambiguous classifier outputs: expected a `logits` output or exactly one output"
+                        .into(),
+                )
+            })?;
+
+        logits_to_classification(logits, &self.labels)
+    }
+}
+
+/// Convert a logits tensor (`[num_labels]` or `[1, num_labels]`) plus a label
+/// set into a [`ClassificationResult`]. Pure — no model required — so it is
+/// unit-testable with a synthetic tensor.
+#[cfg(feature = "onnx")]
+fn logits_to_classification(
+    logits: &candle_core::Tensor,
+    labels: &[String],
+) -> Result<ClassificationResult, InferenceError> {
+    let flat = logits
+        .flatten_all()
+        .map_err(|e| InferenceError::ModelError(format!("flatten: {e}")))?;
+    let raw: Vec<f32> = flat
+        .to_vec1()
+        .map_err(|e| InferenceError::ModelError(format!("logits vec: {e}")))?;
+
+    if raw.len() != labels.len() {
+        return Err(InferenceError::ModelError(format!(
+            "classifier produced {} logits but {} labels were provided",
+            raw.len(),
+            labels.len()
+        )));
+    }
+
+    let probs = softmax(&raw);
+    let mut all_labels: Vec<(String, f32)> =
+        labels.iter().cloned().zip(probs.iter().copied()).collect();
+    all_labels.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    let (label, confidence) = all_labels
+        .first()
+        .cloned()
+        .ok_or_else(|| InferenceError::ModelError("empty label set".into()))?;
+    Ok(ClassificationResult {
+        label,
+        confidence,
+        all_labels,
+    })
+}
+
+/// Numerically-stable softmax over a logit slice.
+#[cfg(feature = "onnx")]
+fn softmax(logits: &[f32]) -> Vec<f32> {
+    let max = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let exp: Vec<f32> = logits.iter().map(|&x| (x - max).exp()).collect();
+    let sum: f32 = exp.iter().sum();
+    if sum == 0.0 {
+        return vec![0.0; logits.len()];
+    }
+    exp.iter().map(|&x| x / sum).collect()
 }
 
 #[async_trait::async_trait]
@@ -69,7 +175,6 @@ impl super::OnnxModel for OnnxClassifier {
                 Ok(InferenceOutput::Classification(result))
             }
             InferenceInput::TextBatch(batch) => {
-                // Classify first item for now (batch support would aggregate)
                 let text = batch.first().ok_or_else(|| {
                     InferenceError::InputValidation("batch cannot be empty".into())
                 })?;
@@ -86,8 +191,25 @@ impl super::OnnxModel for OnnxClassifier {
         self.memory_bytes.store(0, Ordering::SeqCst);
         #[cfg(feature = "onnx")]
         {
-            self._model = None;
+            self.model = None;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "onnx")]
+#[path = "classifier_tests.rs"]
+mod tests;
+
+#[cfg(test)]
+#[cfg(not(feature = "onnx"))]
+mod stub_tests {
+    use super::*;
+
+    #[test]
+    fn classify_text_without_model_fails() {
+        let clf = OnnxClassifier::new("c".into(), vec!["a".into(), "b".into()]);
+        assert!(clf.classify_text("hello").is_err());
     }
 }

@@ -41,7 +41,7 @@ judgment.
 | F-10 | Streaming output | core-runtime/src/engine/streaming.rs | docs/CONCEPT.md | core-runtime/tests/streaming_test.rs | verified |
 | F-11 | GGUF backend (llama-cpp-2) | core-runtime/src/engine/gguf/ | docs/RECOMMENDED_MODELS.md | core-runtime/tests/integration_gguf_test.rs | verified |
 | F-12 | ONNX backend (embed/classify) | core-runtime/src/engine/onnx/ | docs/RECOMMENDED_MODELS.md | core-runtime/tests/integration_onnx_test.rs | verified |
-| F-13 | ONNX classification tier | core-runtime/src/engine/onnx/classifier.rs | docs/RECOMMENDED_MODELS.md | core-runtime/tests/tier2_onnx_classification_test.rs | verified |
+| F-13 | ONNX classification (real candle-onnx inference via Runtime/engine) | core-runtime/src/engine/onnx/classifier.rs | docs/RECOMMENDED_MODELS.md | core-runtime/src/engine/onnx/classifier.rs (logits_to_classification unit tests) | verified |
 | F-14 | Mixture-of-Experts routing | core-runtime/src/engine/moe/ | docs/CONCEPT.md | core-runtime/tests/moe_test.rs | verified |
 | F-15 | GPU allocation & management | core-runtime/src/engine/gpu_allocator.rs | docs/architecture/SCALABILITY_REMEDIATION_UPGRADE_PATH.md | core-runtime/tests/gpu_v2_test.rs | verified |
 | F-16 | Multi-GPU exec/partition/pipeline | core-runtime/src/engine/multi_gpu_exec.rs | docs/architecture/SCALABILITY_REMEDIATION_UPGRADE_PATH.md | core-runtime/src/engine/multi_gpu_tests.rs | verified |
@@ -106,3 +106,14 @@ Tracked as backlog items in `docs/BACKLOG.md`:
   FFI streaming remains pending (needs detokenization; `docs/BACKLOG.md` B-24).
 - **F-45 Veritas shim** — `unverified`: sealed at ledger Entry #79 but without a
   standalone test binding in the integration suite.
+- **F-13 ONNX classification** — remains `verified` but the test binding was
+  re-pointed (session 2026-07-26T1930-onnxcls, ledger Entry #109, L2 audit
+  PASS): `OnnxClassifier` now performs real candle-onnx inference (tokenize →
+  `candle_onnx::simple_eval` → deterministic logits selection → softmax/argmax),
+  replacing the fail-loud stub. The real behavior-asserting coverage is the
+  `classifier.rs` `logits_to_classification` unit tests (3 CI-runnable, synthetic
+  logits, no fixture) plus one fixture-gated e2e that skips when the model is
+  absent. `tests/tier2_onnx_classification_test.rs` is simulation-only and does
+  NOT provide the classification assurance, so the Test-path column now cites
+  `classifier.rs`. Follow-ups: real subword tokenizer (`docs/BACKLOG.md`) and
+  manifest-driven embedder-vs-classifier auto-dispatch.
