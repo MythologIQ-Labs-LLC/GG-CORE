@@ -7507,3 +7507,55 @@ SHA256(content_hash + "|" + previous_hash)
 **Decision**: Backlog re-graded and truthful again; issue/PR mutations held for
 operator approval (Review Boundary). Proceed to Phase 1 cycle #1 = B-24. Chain tip:
 `a1bc7902e1ebca008103e66f0debe3c6ed961bb20d94cf73ef6da949d5031a46`.
+
+---
+
+### Entry #117: RESEARCH BRIEF (B-24 streaming egress decision)
+
+**Timestamp**: 2026-07-27T12:05:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3 (security-boundary decision on the egress path)
+**Session ID**: 2026-07-27T-b24-streaming
+
+**Target**: B-24 — decide detokenize-in-runtime vs client-side contract for
+streaming egress PII sanitization; resolve the indistinguishable terminal.
+
+**Findings (verified)**: F1 streaming bypasses egress sanitization —
+`infer_stream` streams raw `u32` tokens (`engine/streaming.rs:8`), doc says
+"egress token sanitization is out of scope" (`runtime_facade.rs:87`), while
+`sanitize_output(&str)` (`pipeline.rs:113`) needs text (security, high). F2 the
+only terminal is `is_final`/sender-drop — no distinction between completion,
+mid-stream rejection, and engine error (protocol, medium). F3 faithful
+detokenization couples to B-28 (real tokenizer).
+
+**Decision**: **detokenize-in-runtime ADOPTED**, client-side-contract REJECTED
+(the latter makes streaming a permanent PII-sanitization bypass, violating the
+C.O.R.E. security boundary). Two canonical signals control: SecurityPipeline
+egress control (B-25b) + CLAUDE.md boundary.
+
+**Re-scope**: split B-24 into **B-24a** (typed stream terminal
+`Complete|Rejected|Error`, bounded, no tokenizer dep, L2) and **B-24b**
+(in-runtime detokenization + streaming-safe windowed sanitizer, L3, after B-28).
+Revised Phase 1 order: `B-24a → B-28 → B-24b → B-29 → B-07 → B-16`. Held for
+operator confirmation (Review Boundary).
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-b24-streaming-egress-2026-07-27.md)
+= 8eeec2fdd8d871ae8c1786d87ff3ddbeac39b5a296e7f07626f30495277ae349
+```
+
+**Previous Hash**: a1bc7902e1ebca008103e66f0debe3c6ed961bb20d94cf73ef6da949d5031a46
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 4e50d3b2f78d91de08d9890dddb02d941877c1e4b2a6f4c2e0219474cf546ae5
+```
+
+**Decision**: B-24 direction set; awaiting operator approval of the split +
+resequence before planning B-24a. Chain tip:
+`4e50d3b2f78d91de08d9890dddb02d941877c1e4b2a6f4c2e0219474cf546ae5`.

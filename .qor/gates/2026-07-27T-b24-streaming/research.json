@@ -1,0 +1,49 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-27T-b24-streaming",
+  "ts": "2026-07-27T17:07:37Z",
+  "questions": [
+    "Does streaming egress get PII-sanitized like the non-streaming path?",
+    "Can a client distinguish completion from mid-stream rejection/error?",
+    "Detokenize-in-runtime vs client-side contract?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "high",
+      "claim": "infer_stream streams raw u32 tokens; egress sanitize_output(&str) never runs -> PII bypass",
+      "source": "runtime_facade.rs:87; engine/streaming.rs:8; pipeline.rs:113",
+      "status": "drift"
+    },
+    {
+      "id": "F2",
+      "severity": "medium",
+      "claim": "terminal is is_final/sender-drop only; completion vs rejection vs error indistinguishable",
+      "source": "engine/streaming.rs:49,57",
+      "status": "drift"
+    },
+    {
+      "id": "F3",
+      "severity": "info",
+      "claim": "faithful detokenization for sanitization couples to B-28 real tokenizer",
+      "source": "B-28 / simple_tokenize",
+      "status": "dependency"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/runtime_facade.rs:85-116",
+    "core-runtime/src/engine/streaming.rs",
+    "core-runtime/src/security/pipeline.rs:113"
+  ],
+  "brief_path": "docs/research-brief-b24-streaming-egress-2026-07-27.md",
+  "decision": "detokenize-in-runtime ADOPTED; client-side REJECTED; split B-24a(terminal)/B-24b(sanitize); resequence B-28 before B-24b",
+  "risk_grade": "L3",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T17:07:37Z"
+  }
+}
