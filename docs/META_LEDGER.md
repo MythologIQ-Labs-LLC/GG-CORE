@@ -7724,3 +7724,50 @@ WordPiece tokenizer (garbage hash ids gone) with a graceful named fallback; B-32
 flaky test fixed. This unblocks B-24b's faithful detokenization. Next: B-24b, then
 B-29. Chain tip:
 `3aedb7928b2ec763f90afd2214ee4211855901e1df0996b1505d4d93e686c070`.
+
+---
+
+### Entry #121: RESEARCH BRIEF (B-24b streaming egress sanitization)
+
+**Timestamp**: 2026-07-27T15:05:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3 (egress security path)
+**Session ID**: 2026-07-27T-b24b
+
+**Target**: B-24b — close B-24 F1 (streaming bypasses egress PII sanitization) via
+in-runtime detokenization + a streaming-safe windowed sanitizer.
+
+**Findings (verified)**: F1 both primitives exist — GGUF `detokenize`
+(`backend.rs:212`, `token_to_piece` + encoding_rs) and `sanitize_output(&str)`
+(`pipeline.rs:113`). F2 the wire already carries text (`StreamChunk.text` +
+`token_with_text`) — no wire-format change. F3 holdback must be **capped**, not
+whitespace-boundary-only: multi-word PII (Address, month DOB) would leak on early
+release; hold back ≥ H chars, re-sanitize on arrival, flush on terminal;
+`[A-Za-z\s]+` is unbounded so any finite H has a documented residual risk (H≈128
+covers fixed patterns). F4 re-detokenize the token buffer each step (correct UTF-8,
+O(n²) over bounded output) vs incremental decoder.
+
+**Design forks (operator)**: (1) sanitize inside `run_stream_sync` vs facade wrapper
+[rec: in run_stream_sync]; (2) emit sanitized text only vs both [rec: text only];
+(3) holdback H=128 + alnum-run guard [rec].
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-b24b-streaming-egress-2026-07-27.md)
+= 614a5d4652a60b43e75ad9eebabc79c8d898caed3fc8b217fc57f5c070ebea5e
+```
+
+**Previous Hash**: 3aedb7928b2ec763f90afd2214ee4211855901e1df0996b1505d4d93e686c070
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= ec262c9ceef21ac11068be5e605a6526166d4adb6a6a210d1534f63f62c14165
+```
+
+**Decision**: B-24b direction analyzed; 3 design forks await operator confirmation
+before planning. Chain tip:
+`ec262c9ceef21ac11068be5e605a6526166d4adb6a6a210d1534f63f62c14165`.
