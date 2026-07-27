@@ -6,7 +6,8 @@
 use pyo3::prelude::*;
 
 /// Information about a loaded model
-#[pyclass]
+// Returned to Python only: opt out of the pyo3 0.27+ FromPyObject derive.
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub struct ModelInfo {
     /// Model name or identifier

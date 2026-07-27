@@ -184,6 +184,9 @@ WebSocket library, filesystem traversal libraries.
 - [x] No dependency replaceable with <10 lines vanilla code
 - [x] No God packages; backends are feature-gated so default build is minimal
 
+**Python bindings**: on `pyo3` 0.29 + `pyo3-async-runtimes` 0.29 (MSRV 1.83,
+satisfied by CI stable); RUSTSEC-2026-0176/0177/2025-0020 are cleared.
+
 ---
 
 ## Section 4 Razor Pre-Check

@@ -15,7 +15,10 @@ use crate::engine::InferenceResult as RustResult;
 /// params = InferenceParams(max_tokens=256, temperature=0.7)
 /// result = session.infer("model-id", "Hello world", params)
 /// ```
-#[pyclass]
+// `from_py_object` opt-in: pyo3 0.27+ no longer auto-derives FromPyObject for a
+// Clone pyclass; this type is extracted by value as a function argument
+// (AsyncSession::infer's `params`), so it must remain extractable from Python.
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct InferenceParams {
     #[pyo3(get, set)]
@@ -94,7 +97,9 @@ impl From<&InferenceParams> for RustParams {
 }
 
 /// Result from inference operation (text-based)
-#[pyclass]
+// Returned to Python only (never extracted as an argument): opt out of the
+// pyo3 0.27+ FromPyObject derive rather than deriving an unused impl.
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub struct InferenceResult {
     /// Generated text output
