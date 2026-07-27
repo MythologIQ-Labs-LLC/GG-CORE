@@ -7427,3 +7427,43 @@ SHA256(chain_hash + "SEALED")
 cleared, the crypto RNG path preserves CSPRNG + fail-hard semantics, and the full
 feature matrix is green under `-D warnings`. B-31 done. Chain tip:
 `00f8fb0f81f43b578f78854d075647ba8eb8b7a3376aedd6dc280b8ddd37f449`.
+
+---
+
+### Entry #115: DELIVER — v0.8.2
+
+**Timestamp**: 2026-07-27T10:40:00-04:00
+**Phase**: DELIVER
+**Author**: Governor
+**Risk Grade**: L2 (release)
+
+**Version**: 0.8.1 → 0.8.2 (patch)
+**Tag**: v0.8.2
+**Release Commit**: 540a76d
+
+**Scope**: Security & dependency hardening consolidated since 0.8.1 (PRs #71–#79):
+security-pipeline wiring into production, unified secure inference façade (embedded
++ FFI/Python via one scan→engine→sanitize path), real candle-onnx classifier, CI
+feature matrix (gguf/onnx/ffi/python), and the full Dependabot advisory cleanup
+(pyo3 0.21→0.29, rand 0.8→0.9, atty dropped via cbindgen 0.28). No breaking public
+API. All Dependabot advisories cleared as of this tag.
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/Cargo.toml @ 0.8.2)
+= 0062cb1e450c7ce66113ccfada7df2b59fddc57942db0bfba12555d61e05b191
+```
+
+**Previous Hash**: 00f8fb0f81f43b578f78854d075647ba8eb8b7a3376aedd6dc280b8ddd37f449
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 9bf912edc450d4d0b5ae818de759fb828ea14e4b89f54f8b02c962c169b223c9
+```
+
+**Decision**: Release v0.8.2 delivered. Tag pushed from `release/v0.8.2`; PR to
+merge back into `main`. Chain tip:
+`9bf912edc450d4d0b5ae818de759fb828ea14e4b89f54f8b02c962c169b223c9`.
