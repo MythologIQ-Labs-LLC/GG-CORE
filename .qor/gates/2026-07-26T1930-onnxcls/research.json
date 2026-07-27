@@ -1,0 +1,53 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-26T1930-onnxcls",
+  "ts": "2026-07-27T00:21:00Z",
+  "questions": [
+    "What does the ONNX classifier stub need to become a working candle-onnx classifier (#72)?",
+    "What is the embedder template + tokenizer scope boundary?",
+    "How to test the classifier without a committed model fixture?"
+  ],
+  "findings": [
+    {
+      "id": "C1",
+      "summary": "OnnxClassifier holds _model: Option<()> placeholder; classify_text is a fail-loud stub (classifier.rs:12-42). Implements OnnxModel trait (capabilities=TextClassification correct).",
+      "status": "verified"
+    },
+    {
+      "id": "C2",
+      "summary": "Template = OnnxEmbedder::embed_text_onnx (embedder.rs:64-92): model check -> simple_tokenize -> build_transformer_inputs(input_ids/attention_mask/token_type_ids) -> candle_onnx::simple_eval -> post-process. Mirror for classifier: extract logits [1,num_labels] -> softmax -> argmax -> ClassificationResult{label,confidence,all_labels}.",
+      "status": "verified"
+    },
+    {
+      "id": "C3",
+      "summary": "Tokenizer: simple_tokenize is naive hash (embedder.rs:118-130); mirroring it suffices for #72 scope-1 (real tokenizer = scope-2, out of scope).",
+      "status": "verified"
+    },
+    {
+      "id": "C4",
+      "summary": "ClassificationResult{label,confidence,all_labels:Vec<(String,f32)>} (engine/output.rs:14-23); labels from OnnxClassifier::new(model_id, labels). softmax pattern in moe/router.rs:69-75. load_onnx_model hardcodes embedder (mod.rs:70-80) -> add load_onnx_classifier.",
+      "status": "verified"
+    },
+    {
+      "id": "C5",
+      "summary": "Fixtures fixtures/models/onnx/ (gitignored): tinybert-classifier.onnx 22KB, bert-mini-classifier.onnx 260MB. Tests skip gracefully if absent (tier2 test:19-24). Pure logits->ClassificationResult helper is CI-testable with synthetic tensor (no fixture).",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/engine/onnx/{classifier,embedder,mod}.rs",
+    "engine/output.rs",
+    "engine/moe/router.rs",
+    "tests/tier2_onnx_classification_test.rs",
+    "GH #72"
+  ],
+  "brief_path": "(inline investigation; auto-dev research phase)",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T00:21:00Z"
+  }
+}

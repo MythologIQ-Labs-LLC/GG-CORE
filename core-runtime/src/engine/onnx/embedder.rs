@@ -94,7 +94,7 @@ impl OnnxEmbedder {
 
 /// Build input_ids, attention_mask, token_type_ids tensors.
 #[cfg(feature = "onnx")]
-fn build_transformer_inputs(
+pub(super) fn build_transformer_inputs(
     tokens: &[i64],
     device: &candle_core::Device,
 ) -> Result<std::collections::HashMap<String, candle_core::Tensor>, InferenceError> {
@@ -117,7 +117,7 @@ fn build_transformer_inputs(
 
 /// Simple hash-based tokenizer for embedding models.
 #[cfg(feature = "onnx")]
-fn simple_tokenize(text: &str) -> Vec<i64> {
+pub(super) fn simple_tokenize(text: &str) -> Vec<i64> {
     let mut ids = vec![101i64]; // [CLS]
     for word in text.split_whitespace() {
         let hash = word.bytes().fold(0u64, |acc, b| {

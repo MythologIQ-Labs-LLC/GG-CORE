@@ -7123,3 +7123,104 @@ is fixed and those surfaces enforce the SecurityPipeline. This closes the #1
 "consumable by other repos" blocker. Remaining: COREFORGE consumer switch
 (handoff B-26); real per-token FFI streaming (B-24). Chain tip:
 `12107b7f5d1057f6c8ecb846b014243b3162a8562c2b66a1c70e4448b2189e5a`.
+
+---
+
+### Entry #109: GATE TRIBUNAL
+
+**Timestamp**: 2026-07-26T20:20:00-04:00
+**Phase**: GATE
+**Author**: Judge (independent fresh-context subagent)
+**Risk Grade**: L2
+**Session ID**: 2026-07-26T1930-onnxcls
+
+**Target**: docs/plan-onnx-classifier-2026-07-26.md (iteration 1)
+
+**Verdict**: PASS
+
+**Content Hash**:
+
+```
+SHA256(.agent/staging/AUDIT_REPORT.md)
+= 5d72234abd1adbd0af11ef9922820addba2cdd4348f1a9ad267b311b57dff0b9
+```
+
+**Previous Hash**: 12107b7f5d1057f6c8ecb846b014243b3162a8562c2b66a1c70e4448b2189e5a
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= 00bbe27669587bc7c03c688a83b7bed1111f107193c30e05b601c98400f813db
+```
+
+**Decision**: GATE TRIBUNAL PASS (L2). #72 implements the ONNX classifier
+(fail-loud stub → real candle-onnx inference mirroring the embedder), with a
+pure CI-testable logits→ClassificationResult helper + load_onnx_classifier +
+fixture-gated e2e test. Tokenizer scope-1 (reuse naive simple_tokenize; real
+tokenizer = scope-2). 4 must-honor advisories: (1) deterministic output
+selection (get("logits") / single-output assert — NOT the embedder's unsound
+.values().next()); (2) keep labels dead-code-safe on non-onnx build; (3) extract
+to onnx/common.rs if classifier.rs nears 250; (4) FEATURE_INDEX credits the
+classifier.rs unit tests. Gate Status: OPEN — /qor-implement authorized. Chain
+tip: `00bbe27669587bc7c03c688a83b7bed1111f107193c30e05b601c98400f813db`.
+
+---
+
+### Entry #110: SESSION SEAL (ONNX classifier #72 scope-1)
+
+**Timestamp**: 2026-07-26T20:40:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local; PR at operator direction)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-26T1930-onnxcls
+
+**Target**: docs/plan-onnx-classifier-2026-07-26.md — implement the ONNX
+classifier (fail-loud stub → real candle-onnx inference).
+
+**Reality vs Promise**: MATCH + advisories honored. OnnxClassifier holds a
+ModelProto (with_model), real classify_text_onnx mirroring the embedder, with
+**deterministic output selection** (`outputs.get("logits")` / single-output;
+fail-loud on ambiguity — did NOT copy the embedder's `.values().next()`), a pure
+`logits_to_classification` (softmax+argmax→ClassificationResult), and
+`load_onnx_classifier` in mod.rs. Embedder helpers promoted to pub(super).
+Non-onnx `labels` kept dead-code-safe. Tokenizer scope-1 (reuse simple_tokenize;
+real tokenizer = B-28); registry auto-dispatch = B-29.
+
+**Verification (authoritative, at seal)**:
+- onnx: `clippy --features onnx --all-targets -- -D warnings` → 0;
+  classifier tests → 4 passed (3 pure unit CI-runnable + e2e skips on
+  absent/invalid fixture)
+- default: `clippy --all-targets -- -D warnings` → 0; `test --workspace` → 0
+  failed (stub test passes); `fmt --check` → 0
+- Razor: classifier.rs 193 (≤250); all fns ≤40
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/src/engine/onnx/classifier.rs)
+= 56b7e3a0e202ca128fa1c32f4f079acf5fdb87f75890d1c707611934d4a07ff7
+```
+
+**Previous Hash**: 00bbe27669587bc7c03c688a83b7bed1111f107193c30e05b601c98400f813db
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= b1fb6c9f5b25c50262fc4bbc8355bab278761b3f89ba6ec8d8eb70185caea11e
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= ac2b974bf327f966835848cd2e9788801bcfbd7606d09d51880a6b5481d97c00
+```
+
+**Decision**: #72 scope-1 COMPLETE. The ONNX classifier does real candle-onnx
+inference producing a well-formed ClassificationResult — no longer a fail-loud
+stub — with CI-verified classification logic and a deterministic, fail-loud
+output selection that improves on the embedder's latent pattern. Follow-ups:
+real tokenizer (B-28), registry auto-dispatch (B-29). Chain tip:
+`b1fb6c9f5b25c50262fc4bbc8355bab278761b3f89ba6ec8d8eb70185caea11e`.
