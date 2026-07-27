@@ -1,0 +1,59 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-27T-reconcile",
+  "ts": "2026-07-27T15:54:53Z",
+  "questions": [
+    "Which open/in-progress backlog rows are already resolved on green main @ v0.8.2?",
+    "Which GitHub issues/PRs can be closed vs need operator decision?",
+    "What is the genuinely-open, dependency-ordered Phase 1 sequence?"
+  ],
+  "findings": [
+    {
+      "id": "R1",
+      "claim": "B-01/B-10/B-11/B-12/B-15/B-17/B-18/B-19 resolved on green main",
+      "evidence": "clippy/test green; loader.rs:80 NUL reject; governance-health OK",
+      "status": "resolved"
+    },
+    {
+      "id": "R2",
+      "claim": "B-09/B-23 superseded (main synced; ledger past Entry #85)",
+      "evidence": "git main==origin; verify-ledger clean at 115",
+      "status": "superseded"
+    },
+    {
+      "id": "R3",
+      "claim": "GH issues #55/#56/#57/#69 close-ready",
+      "evidence": "map to B-17/B-18/B-19/B-22 all done",
+      "status": "close-ready"
+    },
+    {
+      "id": "R4",
+      "claim": "PR #47 (B-08) stale/superseded; recommend close",
+      "evidence": "updatedAt 2026-07-08, edits bucket.rs/output_sanitizer.rs since rewritten",
+      "status": "needs-decision"
+    },
+    {
+      "id": "R5",
+      "claim": "Phase 1 open sequence B-24->B-28->B-29->B-07->B-16",
+      "evidence": "remaining open engineering rows by dependency",
+      "status": "open"
+    }
+  ],
+  "sources": [
+    "docs/BACKLOG.md",
+    "core-runtime/src/models/loader.rs:80",
+    "gh pr view 47",
+    "gh issue list --state open",
+    "this session CI runs #78/#79/#80"
+  ],
+  "brief_path": "docs/research-brief-backlog-reconciliation-2026-07-27.md",
+  "risk_grade": "L1",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T15:54:53Z"
+  }
+}

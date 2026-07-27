@@ -7467,3 +7467,43 @@ SHA256(content_hash + "|" + previous_hash)
 **Decision**: Release v0.8.2 delivered. Tag pushed from `release/v0.8.2`; PR to
 merge back into `main`. Chain tip:
 `9bf912edc450d4d0b5ae818de759fb828ea14e4b89f54f8b02c962c169b223c9`.
+
+---
+
+### Entry #116: RESEARCH BRIEF (backlog reconciliation)
+
+**Timestamp**: 2026-07-27T11:20:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1 (status verification; no code change)
+**Session ID**: 2026-07-27T-reconcile
+
+**Target**: `docs/BACKLOG.md` reconciled against green `main` @ v0.8.2 (last
+reconciliation 2026-07-08). Phase 0 of the operator-directed research-led backlog
+sweep.
+
+**Findings**: 8 rows resolved (B-01/B-10/B-11/B-12/B-15/B-17/B-18/B-19), 2
+superseded (B-09/B-23), all evidence-cited in the brief. GitHub issues #55/#56/#57/#69
+close-ready. PR #47 (B-08) recommended close-as-superseded (open since 2026-07-08,
+edits surfaces main has rewritten). Genuinely open: B-24/B-28/B-29/B-07/B-16 (Phase 1
+sequence) + B-13/B-14 (docs/governance) + deferred epics B-02..B-06/B-21.
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-backlog-reconciliation-2026-07-27.md)
+= 683f1611af933306676ee8ea4a56bfd250274bb92e07cffdb83b9d8beadccf78
+```
+
+**Previous Hash**: 9bf912edc450d4d0b5ae818de759fb828ea14e4b89f54f8b02c962c169b223c9
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= a1bc7902e1ebca008103e66f0debe3c6ed961bb20d94cf73ef6da949d5031a46
+```
+
+**Decision**: Backlog re-graded and truthful again; issue/PR mutations held for
+operator approval (Review Boundary). Proceed to Phase 1 cycle #1 = B-24. Chain tip:
+`a1bc7902e1ebca008103e66f0debe3c6ed961bb20d94cf73ef6da949d5031a46`.
