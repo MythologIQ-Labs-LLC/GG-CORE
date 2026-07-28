@@ -22,6 +22,9 @@ pub mod pii_patterns;
 pub mod pipeline;
 pub mod prompt_injection;
 pub mod sanitizer_rules;
+// Streaming egress sanitizer is only used by the (gguf-only) streaming path (B-24b).
+#[cfg(feature = "gguf")]
+pub mod stream_sanitizer;
 
 pub use audit::{AuditCategory, AuditEvent, AuditLogger, AuditSeverity};
 pub use encryption::ModelEncryption;

@@ -18,10 +18,17 @@ pub enum StreamTerminal {
     Error(String),
 }
 
-/// A frame on a token stream: a generated token, or the terminal that ends it.
+/// A frame on a token stream: a generated token, a sanitized text chunk, or the
+/// terminal that ends it.
+///
+/// `Text` is the client-facing frame for the security-enforced streaming path
+/// (B-24b): the runtime detokenizes and egress-sanitizes, then emits text so raw
+/// token ids never leave the runtime. `Token` remains for the internal/unsanitized
+/// path and tests.
 #[derive(Debug, Clone)]
 pub enum StreamItem {
     Token(u32),
+    Text(String),
     End(StreamTerminal),
 }
 
@@ -50,6 +57,9 @@ impl TokenStream {
         while let Some(item) = self.next().await {
             match item {
                 StreamItem::Token(t) => tokens.push(t),
+                // `collect` is the token-oriented consumer; sanitized `Text` frames
+                // (B-24b) are not tokens and are ignored here.
+                StreamItem::Text(_) => {}
                 StreamItem::End(terminal) => return (tokens, terminal),
             }
         }
@@ -70,6 +80,14 @@ impl TokenStreamSender {
     pub async fn token(&self, token: u32) -> Result<(), StreamSendError> {
         self.sender
             .send(StreamItem::Token(token))
+            .await
+            .map_err(|_| StreamSendError)
+    }
+
+    /// Send a sanitized text chunk (security-enforced streaming path, B-24b).
+    pub async fn text(&self, text: String) -> Result<(), StreamSendError> {
+        self.sender
+            .send(StreamItem::Text(text))
             .await
             .map_err(|_| StreamSendError)
     }

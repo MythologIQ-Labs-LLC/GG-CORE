@@ -16,6 +16,7 @@ use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 
 use crate::engine::{FinishReason, GenerationResult, InferenceConfig, InferenceError};
+use crate::security::stream_sanitizer::StreamSanitizer;
 
 /// Holds the loaded llama-cpp-2 model and backend.
 pub struct LlamaBackendInner {
@@ -93,6 +94,7 @@ impl LlamaBackendInner {
         config: &InferenceConfig,
         sender: &crate::engine::TokenStreamSender,
         is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
+        mut sanitizer: Option<&mut StreamSanitizer>,
     ) -> Result<(), InferenceError> {
         let tokens = self.tokenize(prompt)?;
         let max_tok = config.max_tokens.unwrap_or(256);
@@ -104,6 +106,7 @@ impl LlamaBackendInner {
         sampler.accept_many(tokens.iter().copied());
         let start_pos = tokens.len() as i32;
         let rt = tokio::runtime::Handle::current();
+        let mut acc: Vec<LlamaToken> = Vec::new();
         for (offset, i) in (0..max_tok).enumerate() {
             let pos = start_pos + offset as i32;
             if is_cancelled.as_ref().is_some_and(|f| f()) {
@@ -113,7 +116,7 @@ impl LlamaBackendInner {
             let tok = sampler.sample(&ctx, -1);
             sampler.accept(tok);
             let eog = self.model.is_eog_token(tok);
-            if rt.block_on(sender.token(tok.0 as u32)).is_err() {
+            if !self.emit_token(&rt, sender, sanitizer.as_deref_mut(), tok, &mut acc)? {
                 break;
             }
             if eog || i + 1 == max_tok {
@@ -122,6 +125,48 @@ impl LlamaBackendInner {
             batch.clear();
             add_one(&mut batch, tok, pos)?;
             decode(&mut ctx, &mut batch)?;
+        }
+        self.flush_sanitizer(&rt, sender, sanitizer, &acc)
+    }
+
+    /// Emit one generated token. With a `sanitizer` present, the token is
+    /// accumulated, detokenized, and egress-sanitized, and sanitized *text* is
+    /// emitted so raw token ids never leave the runtime (B-24b); otherwise the raw
+    /// token id is emitted. Returns `false` if the receiver is gone.
+    fn emit_token(
+        &self,
+        rt: &tokio::runtime::Handle,
+        sender: &crate::engine::TokenStreamSender,
+        sanitizer: Option<&mut StreamSanitizer>,
+        tok: LlamaToken,
+        acc: &mut Vec<LlamaToken>,
+    ) -> Result<bool, InferenceError> {
+        match sanitizer {
+            Some(san) => {
+                acc.push(tok);
+                let text = self.detokenize(acc)?;
+                match san.push(&text) {
+                    Some(chunk) => Ok(rt.block_on(sender.text(chunk)).is_ok()),
+                    None => Ok(true),
+                }
+            }
+            None => Ok(rt.block_on(sender.token(tok.0 as u32)).is_ok()),
+        }
+    }
+
+    /// Terminal: sanitize and emit any withheld tail (B-24b flush).
+    fn flush_sanitizer(
+        &self,
+        rt: &tokio::runtime::Handle,
+        sender: &crate::engine::TokenStreamSender,
+        sanitizer: Option<&mut StreamSanitizer>,
+        acc: &[LlamaToken],
+    ) -> Result<(), InferenceError> {
+        if let Some(san) = sanitizer {
+            let text = self.detokenize(acc)?;
+            if let Some(tail) = san.flush(&text) {
+                let _ = rt.block_on(sender.text(tail));
+            }
         }
         Ok(())
     }

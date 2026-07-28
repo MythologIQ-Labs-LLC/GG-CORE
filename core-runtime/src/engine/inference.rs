@@ -213,11 +213,12 @@ impl InferenceEngine {
         prompt: &str,
         config: &InferenceConfig,
         sender: crate::engine::TokenStreamSender,
+        security: Option<&crate::security::SecurityPipeline>,
     ) -> Result<(), InferenceError> {
         // Emit exactly one terminal frame for every outcome — including the
         // lookup/downcast failures below — so a client can always distinguish a
         // completed stream from an errored one (B-24a).
-        let result = self.stream_tokens(model_id, prompt, config, &sender);
+        let result = self.stream_tokens(model_id, prompt, config, &sender, security);
         let terminal = match &result {
             Ok(()) => crate::engine::StreamTerminal::Complete,
             Err(e) => crate::engine::StreamTerminal::Error(e.to_string()),
@@ -226,7 +227,9 @@ impl InferenceEngine {
         result
     }
 
-    /// Stream token frames for a prompt (no terminal — the caller owns that).
+    /// Stream frames for a prompt (no terminal — the caller owns that). When
+    /// `security` is present the output is detokenized + egress-sanitized in-runtime
+    /// and emitted as sanitized text frames (B-24b); otherwise raw token frames.
     #[cfg(feature = "gguf")]
     fn stream_tokens(
         &self,
@@ -234,8 +237,10 @@ impl InferenceEngine {
         prompt: &str,
         config: &InferenceConfig,
         sender: &crate::engine::TokenStreamSender,
+        security: Option<&crate::security::SecurityPipeline>,
     ) -> Result<(), InferenceError> {
         use crate::engine::gguf::GgufGenerator;
+        use crate::security::stream_sanitizer::StreamSanitizer;
 
         // Clone Arc and drop read lock before calling into model.
         let rt = tokio::runtime::Handle::current();
@@ -254,8 +259,9 @@ impl InferenceEngine {
                 InferenceError::ExecutionFailed("model does not support streaming".into())
             })?;
 
+        let mut sanitizer = security.map(StreamSanitizer::new);
         generator
-            .generate_stream(prompt, config, sender, None)
+            .generate_stream(prompt, config, sender, None, sanitizer.as_mut())
             .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))
     }
 }

@@ -108,9 +108,12 @@ impl Runtime {
         }
         let (sender, stream) = TokenStream::new(32);
         let engine = self.inference_engine.clone();
+        // Egress enforcement: the stream is detokenized + PII-sanitized in-runtime
+        // and emitted as sanitized text (B-24b). Raw token ids never leave.
+        let security = self.security.clone();
         let (mid, prompt, cfg) = (model_id.to_string(), prompt.to_string(), config.clone());
         tokio::task::spawn_blocking(move || {
-            let _ = engine.run_stream_sync(&mid, &prompt, &cfg, sender);
+            let _ = engine.run_stream_sync(&mid, &prompt, &cfg, sender, Some(security.as_ref()));
         });
         Ok(stream)
     }

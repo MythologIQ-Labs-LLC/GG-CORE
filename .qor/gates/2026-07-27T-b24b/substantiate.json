@@ -1,0 +1,37 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-27T-b24b",
+  "ts": "2026-07-28T00:51:09Z",
+  "target": "docs/plan-b24b-streaming-egress-2026-07-27.md",
+  "verdict": "PASS",
+  "merkle_seal": "3965858be05c8414dabdccd0396f8bfc43469838d1de4e098764d3f45c54cd25",
+  "reality_matches_promise": true,
+  "risk_grade": "L3",
+  "verification": {
+    "fmt": "pass",
+    "clippy_default": "pass",
+    "clippy_gguf": "pass",
+    "clippy_onnx_ffi_python": "pass",
+    "test_lib": "554",
+    "test_lib_gguf": "558 (4 adversarial sanitizer tests)",
+    "integration_gguf": "wiring 2 + streaming 10 + secure_facade 4 pass"
+  },
+  "fixed": [
+    "B-24 F1: streaming egress now PII-sanitized in-runtime; raw tokens never leave; StreamItem::Text; windowed sanitizer H=128+alnum guard"
+  ],
+  "test_mandates_met": [
+    "multi-word PII split across pushes redacted",
+    "UTF-8 multibyte intact",
+    "terminal-flush redaction"
+  ],
+  "chain_tip": "e4a7c6b2f9845271a3b34ecc869d33a13879e9eac68cd7f6f4df0ba0d5f9e575",
+  "brief_path": "docs/plan-b24b-streaming-egress-2026-07-27.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "pass",
+    "ts": "2026-07-28T00:51:09Z"
+  }
+}
