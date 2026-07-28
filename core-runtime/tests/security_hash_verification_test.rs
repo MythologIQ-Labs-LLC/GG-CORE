@@ -15,6 +15,7 @@ fn create_test_manifest(sha256: &str) -> ModelManifest {
         size_bytes: 1024,
         architecture: ModelArchitecture::Onnx,
         license: "MIT".to_string(),
+        labels: None,
     }
 }
 

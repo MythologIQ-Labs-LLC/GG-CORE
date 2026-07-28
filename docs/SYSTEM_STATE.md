@@ -76,7 +76,10 @@ core-runtime/
 │   │   ├── onnx/
 │   │   │   ├── mod.rs
 │   │   │   ├── classifier.rs
-│   │   │   └── embedder.rs
+│   │   │   ├── embedder.rs
+│   │   │   ├── tokenizer.rs            [B-28 - offline WordPiece]
+│   │   │   ├── dispatch.rs             [B-29a - manifest→loader dispatch]
+│   │   │   └── dispatch_tests.rs       [B-29a - 10 unit tests]
 │   │   └── gguf/
 │   │       ├── mod.rs
 │   │       └── generator.rs

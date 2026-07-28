@@ -15,6 +15,7 @@ fn test_manifest() -> ModelManifest {
         size_bytes: 1024,
         architecture: ModelArchitecture::Gguf,
         license: "MIT".to_string(),
+        labels: None,
     }
 }
 

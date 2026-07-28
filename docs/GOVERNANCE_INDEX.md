@@ -1,6 +1,6 @@
 # Governance Index
 
-**Last Reviewed**: 2026-07-08
+**Last Reviewed**: 2026-07-28
 
 A single authoritative map of every governance artifact in this project, organized
 into six freshness tiers with explicit drift contracts. A stale entry here is
@@ -53,6 +53,27 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-20 KV isolation redesign spec | `docs/plan-b20-kv-isolation-redesign.md` | b20-kv-isolation |
 | ADR-007 epic execution plan | `docs/plan-adr007-epic-execution.md` | adr007-epic |
 | Merge/integration runbook | `docs/runbook-merge-integration-sequence.md` | integration-sequence |
+| Secure inference facade plan | `docs/plan-secure-inference-facade-2026-07-25.md` | secure-inference-facade |
+| Security chain wiring plan | `docs/plan-security-chain-wiring-2026-07-25.md` | security-chain-wiring |
+| ONNX classifier plan | `docs/plan-onnx-classifier-2026-07-26.md` | onnx-classifier |
+| pyo3 migration plan | `docs/plan-pyo3-migration-2026-07-26.md` | pyo3-migration |
+| B-25 CI foundation plan | `docs/plan-b25-ci-foundation-2026-07-26.md` | b25-ci-foundation |
+| B-25b FFI/Python reroute plan | `docs/plan-b25b-ffi-python-reroute-2026-07-26.md` | b25b-ffi-python-reroute |
+| rand 0.9 migration plan | `docs/plan-rand-0.9-migration-2026-07-27.md` | rand-0.9-migration |
+| B-24a stream terminal plan | `docs/plan-b24a-stream-terminal-2026-07-27.md` | b24a-stream-terminal |
+| B-24b streaming egress plan | `docs/plan-b24b-streaming-egress-2026-07-27.md` | b24b-streaming-egress |
+| B-28 tokenizer plan | `docs/plan-b28-tokenizer-2026-07-27.md` | b28-tokenizer |
+| B-29a ONNX dispatch plan | `docs/plan-b29a-onnx-dispatch-2026-07-28.md` | b29a-onnx-dispatch |
+| mistral.rs perf research brief | `docs/research-brief-mistral-rs-rust-inference-perf-2026-07-25.md` | mistral-rs-perf |
+| Open-issues compat research brief | `docs/research-brief-open-issues-compat-support-perf-2026-07-25.md` | open-issues-compat |
+| Presidio PII comparison brief | `docs/research-brief-presidio-pii-comparison-2026-07-25.md` | presidio-pii |
+| B-24 streaming egress brief | `docs/research-brief-b24-streaming-egress-2026-07-27.md` | b24-streaming-egress |
+| B-24b streaming egress brief | `docs/research-brief-b24b-streaming-egress-2026-07-27.md` | b24b-streaming-egress |
+| B-25 CI legs research brief | `docs/research-brief-b25-ci-legs-ffi-python-2026-07-26.md` | b25-ci-legs |
+| B-28 tokenizer research brief | `docs/research-brief-b28-tokenizer-2026-07-27.md` | b28-tokenizer |
+| Backlog reconciliation brief | `docs/research-brief-backlog-reconciliation-2026-07-27.md` | backlog-reconciliation |
+| rand 0.9 migration brief | `docs/research-brief-rand-0.9-migration-2026-07-27.md` | rand-0.9-migration |
+| B-29 ONNX dispatch research brief | `docs/research-brief-b29-onnx-dispatch-2026-07-28.md` | b29-onnx-dispatch |
 
 ## Tier 5 — Reference Material
 

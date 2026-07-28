@@ -284,4 +284,26 @@ Pairs with [[exists-tested-not-wired]] (this is its registry-level sibling).
 
 ---
 
+### Entry #10: plan inlined tests into an already-half-full module → Razor VETO
+
+**Context**: B-29a plan (manifest-driven ONNX dispatch), GATE VETO, Entry #124.
+
+**Failure**: The plan added ~70 lines of dispatch code **and ~10 inline unit tests**
+to `onnx/mod.rs`, which already stood at 128 lines. Projected total ≈274 — over the
+Section 4 Razor 250-line file limit. The plan defaulted to "tests module in mod.rs"
+without counting the resulting file size, and without noticing the repo already
+solved this exact problem next door: `onnx/classifier.rs` (221 lines) externalizes its
+tests to a sibling `classifier_tests.rs` via `#[cfg(test)] #[path=...] mod tests;`.
+
+**Root cause**: file-size budget not computed when choosing test placement; existing
+sibling-file convention not consulted before defaulting to inline tests.
+
+**Countermeasure**: when a plan adds code + tests to an existing file, sum
+(current lines + new code + new tests) against 250 *in the plan*, and prefer the
+repo's established externalized-test pattern (`#[path] mod tests;` → `*_tests.rs`, or
+a dedicated `<unit>.rs` submodule) whenever the total would approach the limit. A
+new logical unit (here: dispatch) deserves its own file regardless.
+
+---
+
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._

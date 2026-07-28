@@ -7869,3 +7869,180 @@ operator decision at cycle start. Shadow Genome Entry #9 recorded.
 **Decision**: B-29 research complete and queued for post-clear implementation; scope
 fork documented. Chain tip:
 `37fb187ff8a9b88772d3fef5a57fef6cb3f3362539b5de95deecbd4fceed4aff`.
+
+---
+
+### Entry #124: GATE TRIBUNAL (B-29a manifest-driven ONNX dispatch — VETO)
+
+**Timestamp**: 2026-07-28T16:05:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: VETO
+**Session ID**: 2026-07-28T-b29-onnx-dispatch
+
+**Target**: `docs/plan-b29a-onnx-dispatch-2026-07-28.md` (B-29a only).
+
+**Finding** (`razor-overage`): Plan Phases 2–3 place all new dispatch code **and ~10
+inline unit tests** in `core-runtime/src/engine/onnx/mod.rs` (currently 128 lines).
+Projected size ≈274 lines (128 + ~70 non-test + ~76 tests), breaching the Section 4
+Razor 250-line file limit by ~24. The plan also ignores the repo's established
+externalized-test convention: `onnx/classifier.rs` (221 lines) keeps its tests in a
+sibling `classifier_tests.rs` via `#[cfg(test)] #[path=...] mod tests;`. All other
+passes (Prompt Injection, Security L3, OWASP, Ghost UI, Test Functionality, Dependency,
+Macro-Architecture, Feature-Test, Infrastructure Alignment, Filter-Stage, Orphan)
+PASS; all cited symbols grep-verified against current source.
+
+**Required next action**: Governor → `/qor-plan` to relocate the dispatch unit into a
+new `onnx/dispatch.rs` + sibling `dispatch_tests.rs` (preferred) so no file exceeds
+250 lines, then re-run `/qor-audit`. Self-audit note (SG-007): VETO raised by the same
+agent that authored the plan — a real self-caught breach, not a rubber stamp.
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `2469e69f56b3b16683ffca783d5cad4e2df0899245e488e0b05e8637119722bb`
+
+**Previous Hash**: `37fb187ff8a9b88772d3fef5a57fef6cb3f3362539b5de95deecbd4fceed4aff`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `cb5c8b11a47fac17009727807296a38dabeafe3e8d89f9e8039699e0829266c9`
+
+**Decision**: B-29a plan VETOed on Razor file-size; single mechanically-remediable
+finding; return to plan. Chain tip:
+`cb5c8b11a47fac17009727807296a38dabeafe3e8d89f9e8039699e0829266c9`.
+
+---
+
+### Entry #125: GATE TRIBUNAL (B-29a manifest-driven ONNX dispatch — PASS, iter2)
+
+**Timestamp**: 2026-07-28T16:20:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-28T-b29-onnx-dispatch
+
+**Target**: `docs/plan-b29a-onnx-dispatch-2026-07-28.md` (B-29a only), iter2.
+
+**Remediation of #124**: the `razor-overage` VETO is resolved — the dispatch unit
+(`OnnxLoadPlan`, `plan_onnx_load`, `load_onnx_from_manifest`) is relocated to a NEW
+`core-runtime/src/engine/onnx/dispatch.rs` (~70 code lines) with tests in a NEW sibling
+`onnx/dispatch_tests.rs` (~76 lines) via `#[cfg(test)] #[path="dispatch_tests.rs"] mod
+tests;`, mirroring the `classifier.rs`→`classifier_tests.rs` convention; `mod.rs` gains
+two lines. Every file ≤ 250.
+
+**Passes**: all twelve clear (Prompt Injection, Security L3, OWASP, Ghost UI, Razor,
+Test Functionality, Dependency, Macro-Architecture, Feature-Test [exempt], Infrastructure
+Alignment, Filter-Stage, Orphan). All cited symbols grep-verified; `super::` re-use of
+`load_onnx_*`/`OnnxConfig`/`OnnxModel` from `dispatch.rs` resolves (all `pub` in `mod.rs`).
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `26ba75535f114e9be16cf90afa93a68ea11009277e5e3ebf52af6c8e240aadff`
+
+**Previous Hash**: `cb5c8b11a47fac17009727807296a38dabeafe3e8d89f9e8039699e0829266c9`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `12abc566007380eb28ad1302ad515cb31a1871694ed810d3ee951b3972ba9978`
+
+**Decision**: B-29a plan PASS; proceed to `/qor-implement`. Chain tip:
+`12abc566007380eb28ad1302ad515cb31a1871694ed810d3ee951b3972ba9978`.
+
+---
+
+### Entry #126: IMPLEMENTATION (B-29a manifest-driven ONNX dispatch)
+
+**Timestamp**: 2026-07-28T16:45:00-04:00
+**Phase**: IMPLEMENT
+**Author**: Specialist
+**Risk Grade**: L2
+**Session ID**: 2026-07-28T-b29-onnx-dispatch
+
+**Files**:
+- `core-runtime/src/engine/onnx/dispatch.rs` (NEW, 97 lines) — `OnnxLoadPlan` enum,
+  pure `plan_onnx_load` (architecture guard → capability match → labels check; total,
+  ungated), `load_onnx_from_manifest` (onnx + not-onnx cfg forms).
+- `core-runtime/src/engine/onnx/dispatch_tests.rs` (NEW, 128 lines) — 10 unit tests
+  via `#[cfg(test)] #[path] mod tests;`; 8 pure + 2 not-onnx-gated wrapper tests.
+- `core-runtime/src/engine/onnx/mod.rs` (+2) — `mod dispatch;` + `pub use`.
+- `core-runtime/src/models/manifest.rs` (+7) — `labels: Option<Vec<String>>`
+  (`#[serde(default)]`; older manifests parse to `None`).
+- `core-runtime/tests/{preload,security_hash_verification,swap_integration}_test.rs`
+  (+1 each) — forced caller updates: `labels: None` added to `ModelManifest` literals
+  (field-addition consequence; these `tests/` construction sites were not enumerated
+  in the plan's Affected Files — recorded honestly, see handoff note).
+
+**Verification**: clippy `-D warnings` clean (default + `--features onnx`); dispatch
+tests 10/10 green (default), 8/8 (`--features onnx`, not-onnx pair correctly excluded);
+edited integration tests 22 green; `cargo fmt --check` clean. Razor: all files ≤130,
+`plan_onnx_load` ~31 lines, nesting ≤3. Scope: B-29a only; B-29b (registry unification)
+remains open — dispatcher has no production caller yet.
+
+**Content Hash** (SHA256 of core-runtime/src/engine/onnx/dispatch.rs): `d07f2a79db62fc1188ff9919b423868e08ad04234e58042ea4d60d6a4563ea28`
+
+**Previous Hash**: `12abc566007380eb28ad1302ad515cb31a1871694ed810d3ee951b3972ba9978`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `47a69262fc1a3bbee93b8e5db0e39ce4a14cda2b4f7d5f3cd961b50f997b9a8c`
+
+**Decision**: B-29a implemented and green; proceed to `/qor-substantiate`. Chain tip:
+`47a69262fc1a3bbee93b8e5db0e39ce4a14cda2b4f7d5f3cd961b50f997b9a8c`.
+
+---
+
+### Entry #127: SESSION SEAL (B-29a manifest-driven ONNX dispatch)
+
+**Entry ID**: `bede57eb8675`
+**Timestamp**: 2026-07-28T17:10:00-04:00
+**Phase**: SUBSTANTIATE (local seal; Review Boundary — no push/PR/merge)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-28T-b29-onnx-dispatch
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Target**: `docs/plan-b29a-onnx-dispatch-2026-07-28.md` (audit PASS Entry #125, after
+iter1 Razor VETO #124).
+
+**Reality vs Promise**: MATCH, with one disclosed plan gap. New
+`engine/onnx/dispatch.rs` (`OnnxLoadPlan`, pure/total `plan_onnx_load`,
+`load_onnx_from_manifest` onnx+not-onnx cfg forms) + sibling `dispatch_tests.rs`
+(10 tests via `#[path]`), `ModelManifest.labels: Option<Vec<String>>`
+(`#[serde(default)]`), `mod.rs` re-exports. Decision decomplected from IO; labels-
+required rule lives in the dispatcher, not `validate()`. **Plan gap (honest)**: the
+plan's Affected Files enumerated only `src/` and missed three `tests/` `ModelManifest`
+construction sites (`preload_test.rs`, `security_hash_verification_test.rs`,
+`swap_integration_test.rs`); the field addition forced `labels: None` there — caught by
+clippy, fixed in-pass. Grounding grep was `src/`-scoped; recorded as a caller-
+enumeration miss (cf. SG-AffectedFilesContract-A). **Scope**: B-29a only; the dispatcher
+has **no production caller** — end-to-end ONNX serving needs B-29b (registry
+unification), tracked open in BACKLOG.
+
+**Verification (authoritative, at seal)**:
+- `cargo fmt --check` → 0
+- `cargo clippy --all-targets -- -D warnings` (default) → 0; (`--features onnx`) → 0
+- `cargo test --lib dispatch` (default) → 10/10; (`--features onnx`) → 8/8 (2 not-onnx
+  wrapper tests correctly excluded); edited integration tests → 22 pass
+- Razor: `dispatch.rs` 97, `dispatch_tests.rs` 128, `mod.rs` 130, `manifest.rs` 97 —
+  all ≤ 250; `plan_onnx_load` ~31 lines; nesting ≤ 3
+
+**Seal-gate ladder**: intent_lock VERIFIED; skill_admission ADMITTED; gate_skill_matrix
+0 broken; secret_scanner clean; procedural_fidelity / dod_check no findings;
+merge_velocity healthy; data_api_acl SKIP (no SQL migrations); governance-index enforce
+→ registered all 21 previously-unregistered plan/brief artifacts into Tier 4, now exit 0.
+**Environmental SKIPs (Phase 75 prerequisite-absent, disclosed)**: (1) doc_integrity
+strict — repo has no `qor/references/glossary.md` (tier prerequisite absent; true for
+every prior standard-tier seal); (2) badge_currency — gate runs `pytest`, this is a Rust
+archetype (Python prerequisite absent). Neither is a B-29a defect. **Tooling
+false-positive (disclosed)**: (3) `seal_entry_check` fails parsing this ledger — it
+chokes on the non-ASCII `✓` in grandfathered entries #64/#68, stops there, and
+mis-reports #68 as the latest entry while misattributing #124's chain hash. Pre-existing,
+format-related, not a B-29a defect; historical sealed entries are NOT edited to appease
+it. Chain integrity is confirmed authoritatively: `qor-logic verify-ledger` → Entries
+#123–#127 all "chain hash verified"; `gate_chain_completeness` (phase≥52) → OK.
+
+**Content Hash** (SHA256 of docs/SYSTEM_STATE.md): `36c70f28e5adbce75dbc2b50191c5f2533d120d74db510a8668c7336068a8a1b`
+
+**Previous Hash**: `47a69262fc1a3bbee93b8e5db0e39ce4a14cda2b4f7d5f3cd961b50f997b9a8c`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `ef7f8513ab90b61c0db94466289b5405d3e62609085eaf46f34f7f04878505a8`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `71f762d3ab232e83325c509007146c0d3780e9d425ffd9e1868d0222c85bbd13`
+
+**Decision**: B-29a COMPLETE and sealed (local). Manifest-driven ONNX loader dispatch
+shipped as an internal, unit-tested seam; B-29b registry unification remains the
+end-to-end enabler. Review Boundary honored — no push/PR/merge. Next queue: B-29b
+(when scoped), then B-07, B-16. Chain tip:
+`ef7f8513ab90b61c0db94466289b5405d3e62609085eaf46f34f7f04878505a8`.

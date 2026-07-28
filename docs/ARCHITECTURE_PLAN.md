@@ -45,7 +45,7 @@ core-runtime/
 |   |-- scheduler/          # Queue, priority, batching, timeout/cancel
 |   |-- engine/             # Inference, tokenizer, streaming, GPU, SIMD
 |   |   |-- gguf/           # GGUF backend (llama-cpp-2)
-|   |   |-- onnx/           # ONNX backend (candle: embedder, classifier)
+|   |   |-- onnx/           # ONNX backend (candle: embedder, classifier, manifest dispatch)
 |   |   `-- moe/            # Mixture of Experts (router, executor, combiner)
 |   |-- models/             # Loader, registry, hot swap, versioning, routing
 |   |-- memory/             # Pool, GPU memory, cache
