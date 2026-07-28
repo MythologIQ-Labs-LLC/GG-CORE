@@ -8,11 +8,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::engine::error::InferenceError;
+use crate::engine::Model;
 use crate::models::manifest::{ModelArchitecture, ModelCapability, ModelManifest};
 
+use super::OnnxConfig;
 #[cfg(feature = "onnx")]
 use super::{load_onnx_classifier, load_onnx_model};
-use super::{OnnxConfig, OnnxModel};
 
 /// The loader a manifest resolves to, with its required inputs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,7 +69,7 @@ pub fn load_onnx_from_manifest(
     manifest: &ModelManifest,
     path: &Path,
     config: &OnnxConfig,
-) -> Result<Arc<dyn OnnxModel>, InferenceError> {
+) -> Result<Arc<dyn Model>, InferenceError> {
     match plan_onnx_load(manifest)? {
         OnnxLoadPlan::Classifier(labels) => {
             load_onnx_classifier(path, &manifest.model_id, labels, config)
@@ -85,7 +86,7 @@ pub fn load_onnx_from_manifest(
     manifest: &ModelManifest,
     _path: &Path,
     _config: &OnnxConfig,
-) -> Result<Arc<dyn OnnxModel>, InferenceError> {
+) -> Result<Arc<dyn Model>, InferenceError> {
     plan_onnx_load(manifest)?;
     Err(InferenceError::ModelError(
         "ONNX support not compiled in. Enable 'onnx' feature.".into(),

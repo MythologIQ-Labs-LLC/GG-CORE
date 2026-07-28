@@ -330,4 +330,33 @@ not the inherited narrative. Pairs with [[b29-onnx-dispatch-queued]].
 
 ---
 
+### Entry #12: grounding grep matched dyn/impl but not `use` imports — caller miss recurred
+
+**Context**: B-29b-1 plan GATE VETO (Entry #129); recurrence of the B-29a caller-miss
+(SG-AffectedFilesContract-A).
+
+**Failure**: The B-29b-1 plan deleted the `GgufModel`/`OnnxModel` traits but its
+Affected Files missed two reference sites — `engine/mod.rs:94` (a `pub use onnx::{..,
+OnnxModel}` re-export) and `tests/backend_test.rs:6-7` (a `use ...::{GgufModel}` /
+`use ...::{OnnxModel}` import). Both are hard compile errors once the traits are gone.
+The plan's grounding grep matched `dyn <Trait>`, `impl <Trait>`, and `trait <Trait>`
+forms but NOT `use ...::<Trait>` imports or `pub use` re-exports — so an integration
+test and a module re-export slipped through. This is the SAME class as B-29a (which
+missed `tests/` `ModelManifest` struct-literal sites); the B-29b-1 plan even cited the
+B-29a lesson yet under-scoped the grep.
+
+**Root cause**: "enumerate every caller" was operationalized as "grep the usage forms I
+thought of" (dyn/impl), not "grep every syntactic form that references the symbol"
+(dyn/impl/trait/**use**/**pub use**/type-alias/bound).
+
+**Countermeasure**: when deleting or renaming a trait/type/fn, the grounding grep MUST
+cover the full reference-form set — at minimum `\b<Name>\b` across `src/` AND `tests/`
+(and `benches/`/`examples/` if present) — then bucket the hits, not just the
+dyn/impl ones. A bare-identifier grep (`grep -rn '\bGgufModel\b'`) over the whole crate
+is the floor; narrower patterns are an optimization only after the bare grep's hits are
+all accounted for. Applies to every "delete/rename symbol" plan. Strengthens
+[[b29-onnx-dispatch-queued]] SG-AffectedFilesContract-A.
+
+---
+
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._

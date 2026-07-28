@@ -15,8 +15,7 @@ pub use embedder::OnnxEmbedder;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::engine::{InferenceCapability, InferenceConfig, InferenceError};
-use crate::engine::{InferenceInput, InferenceOutput};
+use crate::engine::{InferenceError, Model};
 
 /// Configuration for ONNX model loading.
 #[derive(Debug, Clone)]
@@ -42,22 +41,6 @@ pub enum OnnxDevice {
     Cpu,
 }
 
-/// Shared trait for ONNX models.
-#[async_trait::async_trait]
-pub trait OnnxModel: Send + Sync {
-    fn model_id(&self) -> &str;
-    fn capabilities(&self) -> &[InferenceCapability];
-    fn memory_usage(&self) -> usize;
-
-    async fn infer(
-        &self,
-        input: &InferenceInput,
-        config: &InferenceConfig,
-    ) -> Result<InferenceOutput, InferenceError>;
-
-    async fn unload(&mut self) -> Result<(), InferenceError>;
-}
-
 /// Default embedding dimension for MiniLM-style models.
 #[cfg(feature = "onnx")]
 const DEFAULT_EMBEDDING_DIM: usize = 384;
@@ -76,7 +59,7 @@ pub fn load_onnx_model(
     path: &Path,
     model_id: &str,
     _config: &OnnxConfig,
-) -> Result<Arc<dyn OnnxModel>, InferenceError> {
+) -> Result<Arc<dyn Model>, InferenceError> {
     let model = candle_onnx::read_file(path)
         .map_err(|e| InferenceError::ModelError(format!("load {path:?}: {e}")))?;
     let tok = tokenizer::OnnxTokenizer::for_model(path);
@@ -91,7 +74,7 @@ pub fn load_onnx_model(
     _path: &Path,
     _model_id: &str,
     _config: &OnnxConfig,
-) -> Result<Arc<dyn OnnxModel>, InferenceError> {
+) -> Result<Arc<dyn Model>, InferenceError> {
     Err(InferenceError::ModelError(
         "ONNX support not compiled in. Enable 'onnx' feature.".into(),
     ))
@@ -108,7 +91,7 @@ pub fn load_onnx_classifier(
     model_id: &str,
     labels: Vec<String>,
     _config: &OnnxConfig,
-) -> Result<Arc<dyn OnnxModel>, InferenceError> {
+) -> Result<Arc<dyn Model>, InferenceError> {
     let model = candle_onnx::read_file(path)
         .map_err(|e| InferenceError::ModelError(format!("load {path:?}: {e}")))?;
     let tok = tokenizer::OnnxTokenizer::for_model(path);
@@ -123,7 +106,7 @@ pub fn load_onnx_classifier(
     _model_id: &str,
     _labels: Vec<String>,
     _config: &OnnxConfig,
-) -> Result<Arc<dyn OnnxModel>, InferenceError> {
+) -> Result<Arc<dyn Model>, InferenceError> {
     Err(InferenceError::ModelError(
         "ONNX support not compiled in. Enable 'onnx' feature.".into(),
     ))

@@ -170,7 +170,7 @@ impl GgufGenerator {
 }
 
 #[async_trait::async_trait]
-impl super::GgufModel for GgufGenerator {
+impl crate::engine::Model for GgufGenerator {
     fn model_id(&self) -> &str {
         &self.model_id
     }

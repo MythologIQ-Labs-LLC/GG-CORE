@@ -1,0 +1,17 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-28T-b29b-registry-unification",
+  "ts": "2026-07-28T22:45:14Z",
+  "verdict": "PASS",
+  "merkle_seal": "2e3424a1f88cdbc4119cdc821ebc2f2c223055c6bf241175a74827e5c949d3e7",
+  "ledger_entry": 132,
+  "reality_matches_promise": true,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-28T22:45:14Z"
+  }
+}

@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use super::*;
-use crate::engine::gguf::GgufModel;
 use crate::engine::inference::InferenceEngine;
+use crate::engine::Model;
 use crate::engine::{
     FinishReason, GenerationResult, InferenceCapability, InferenceConfig,
     InferenceError as EngineError, InferenceInput, InferenceOutput, InferenceParams,
@@ -18,13 +18,13 @@ struct MockModel {
 }
 
 impl MockModel {
-    fn arc(id: &str) -> Arc<dyn GgufModel> {
+    fn arc(id: &str) -> Arc<dyn Model> {
         Arc::new(Self { id: id.to_string() })
     }
 }
 
 #[async_trait::async_trait]
-impl GgufModel for MockModel {
+impl Model for MockModel {
     fn model_id(&self) -> &str {
         &self.id
     }

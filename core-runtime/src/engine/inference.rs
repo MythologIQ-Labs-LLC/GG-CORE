@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::engine::gguf::GgufModel;
 #[cfg(feature = "gguf")]
 use crate::engine::InferenceConfig;
+use crate::engine::Model;
 use crate::engine::{InferenceInput, InferenceOutput};
 use crate::models::ModelHandle;
 
@@ -16,7 +16,7 @@ pub use super::inference_types::{InferenceError, InferenceParams, InferenceResul
 pub struct InferenceEngine {
     max_context_length: usize,
     /// Models indexed by model_id for lookup.
-    models: Arc<RwLock<HashMap<String, Arc<dyn GgufModel>>>>,
+    models: Arc<RwLock<HashMap<String, Arc<dyn Model>>>>,
 }
 
 impl InferenceEngine {
@@ -32,7 +32,7 @@ impl InferenceEngine {
         &self,
         model_id: String,
         _handle: ModelHandle,
-        model: Arc<dyn GgufModel>,
+        model: Arc<dyn Model>,
     ) {
         self.models.write().await.insert(model_id, model);
     }
@@ -116,7 +116,7 @@ impl InferenceEngine {
     }
 
     /// Look up a model by ID, cloning the Arc (drops the read lock).
-    async fn get_model(&self, model_id: &str) -> Result<Arc<dyn GgufModel>, InferenceError> {
+    async fn get_model(&self, model_id: &str) -> Result<Arc<dyn Model>, InferenceError> {
         let models = self.models.read().await;
         models
             .get(model_id)
@@ -139,7 +139,7 @@ impl InferenceEngine {
     }
 
     async fn infer_with_model(
-        model: &Arc<dyn GgufModel>,
+        model: &Arc<dyn Model>,
         prompt: &str,
         params: &InferenceParams,
     ) -> Result<InferenceResult, InferenceError> {
@@ -147,7 +147,7 @@ impl InferenceEngine {
     }
 
     async fn infer_cancellable(
-        model: &Arc<dyn GgufModel>,
+        model: &Arc<dyn Model>,
         prompt: &str,
         params: &InferenceParams,
         max_memory_bytes: Option<usize>,
@@ -201,70 +201,11 @@ impl InferenceEngine {
             .get(model_id)
             .map(|m| m.memory_usage())
     }
-
-    /// Run streaming inference, sending tokens to the provided sender.
-    ///
-    /// This method looks up the model, downcasts to GgufGenerator, and calls
-    /// generate_stream(). Designed for use with spawn_blocking.
-    #[cfg(feature = "gguf")]
-    pub fn run_stream_sync(
-        &self,
-        model_id: &str,
-        prompt: &str,
-        config: &InferenceConfig,
-        sender: crate::engine::TokenStreamSender,
-        security: Option<&crate::security::SecurityPipeline>,
-    ) -> Result<(), InferenceError> {
-        // Emit exactly one terminal frame for every outcome — including the
-        // lookup/downcast failures below — so a client can always distinguish a
-        // completed stream from an errored one (B-24a).
-        let result = self.stream_tokens(model_id, prompt, config, &sender, security);
-        let terminal = match &result {
-            Ok(()) => crate::engine::StreamTerminal::Complete,
-            Err(e) => crate::engine::StreamTerminal::Error(e.to_string()),
-        };
-        let _ = tokio::runtime::Handle::current().block_on(sender.end(terminal));
-        result
-    }
-
-    /// Stream frames for a prompt (no terminal — the caller owns that). When
-    /// `security` is present the output is detokenized + egress-sanitized in-runtime
-    /// and emitted as sanitized text frames (B-24b); otherwise raw token frames.
-    #[cfg(feature = "gguf")]
-    fn stream_tokens(
-        &self,
-        model_id: &str,
-        prompt: &str,
-        config: &InferenceConfig,
-        sender: &crate::engine::TokenStreamSender,
-        security: Option<&crate::security::SecurityPipeline>,
-    ) -> Result<(), InferenceError> {
-        use crate::engine::gguf::GgufGenerator;
-        use crate::security::stream_sanitizer::StreamSanitizer;
-
-        // Clone Arc and drop read lock before calling into model.
-        let rt = tokio::runtime::Handle::current();
-        let model = {
-            let models = rt.block_on(self.models.read());
-            models
-                .get(model_id)
-                .cloned()
-                .ok_or_else(|| InferenceError::ModelNotLoaded(model_id.to_string()))?
-        };
-
-        let generator = model
-            .as_any()
-            .downcast_ref::<GgufGenerator>()
-            .ok_or_else(|| {
-                InferenceError::ExecutionFailed("model does not support streaming".into())
-            })?;
-
-        let mut sanitizer = security.map(StreamSanitizer::new);
-        generator
-            .generate_stream(prompt, config, sender, None, sanitizer.as_mut())
-            .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))
-    }
 }
+
+#[cfg(feature = "gguf")]
+#[path = "inference_streaming.rs"]
+mod streaming;
 
 #[cfg(test)]
 #[path = "inference_tests.rs"]

@@ -3,8 +3,9 @@
 //! Note: Tests that require actual inference return errors since no model is loaded.
 //! This is the correct behavior - no mock fallbacks.
 
-use gg_core::engine::gguf::{GgufGenerator, GgufModel};
-use gg_core::engine::onnx::{OnnxClassifier, OnnxEmbedder, OnnxModel};
+use gg_core::engine::gguf::GgufGenerator;
+use gg_core::engine::onnx::{OnnxClassifier, OnnxEmbedder};
+use gg_core::engine::Model;
 use gg_core::engine::{InferenceCapability, InferenceConfig, InferenceError, InferenceInput};
 
 // ============================================================================

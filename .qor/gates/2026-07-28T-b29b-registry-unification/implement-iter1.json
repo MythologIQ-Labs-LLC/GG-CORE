@@ -1,0 +1,32 @@
+{
+  "phase": "implement",
+  "session_id": "2026-07-28T-b29b-registry-unification",
+  "ts": "2026-07-28T22:43:48Z",
+  "files_touched": [
+    "core-runtime/src/engine/model.rs",
+    "core-runtime/src/engine/inference_streaming.rs",
+    "core-runtime/src/engine/mod.rs",
+    "core-runtime/src/engine/inference.rs",
+    "core-runtime/src/engine/gguf/mod.rs",
+    "core-runtime/src/engine/gguf/generator.rs",
+    "core-runtime/src/models/lifecycle.rs",
+    "core-runtime/src/engine/onnx/mod.rs",
+    "core-runtime/src/engine/onnx/dispatch.rs",
+    "core-runtime/src/engine/onnx/embedder.rs",
+    "core-runtime/src/engine/onnx/classifier.rs",
+    "core-runtime/src/engine/inference_tests.rs",
+    "core-runtime/src/models/lifecycle_tests.rs",
+    "core-runtime/src/scheduler/worker_tests.rs",
+    "core-runtime/src/engine/onnx/dispatch_tests.rs",
+    "core-runtime/tests/backend_test.rs",
+    "core-runtime/tests/e2e_model_test.rs"
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-28T22:43:48Z"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "0e5ae95fa93ab280b0dba18dcb7039b14165aacd3406cc8eedeb0fcdacdc23c2",
+  "payload_sha256": "570ce4ef8dd270de61cc3d8e1ace8e8795dfe7ed930a850bbadd58e8599a2169",
+  "phase": "substantiate",
+  "session_id": "2026-07-28T-b29b-registry-unification"
+}

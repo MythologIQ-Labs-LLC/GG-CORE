@@ -155,7 +155,7 @@ fn softmax(logits: &[f32]) -> Vec<f32> {
 }
 
 #[async_trait::async_trait]
-impl super::OnnxModel for OnnxClassifier {
+impl crate::engine::Model for OnnxClassifier {
     fn model_id(&self) -> &str {
         &self.model_id
     }
@@ -200,6 +200,10 @@ impl super::OnnxModel for OnnxClassifier {
             self.model = None;
         }
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

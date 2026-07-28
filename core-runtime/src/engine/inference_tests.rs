@@ -3,7 +3,7 @@
 //! Extracted from `inference.rs` for Section 4 compliance.
 
 use super::*;
-use crate::engine::gguf::GgufModel;
+use crate::engine::Model;
 use crate::engine::{
     FinishReason, GenerationResult, InferenceCapability, InferenceConfig,
     InferenceError as EngineError, InferenceInput, InferenceOutput,
@@ -71,7 +71,7 @@ struct BudgetModel {
 }
 
 #[async_trait::async_trait]
-impl GgufModel for BudgetModel {
+impl Model for BudgetModel {
     fn model_id(&self) -> &str {
         "budget-model"
     }
@@ -103,7 +103,7 @@ impl GgufModel for BudgetModel {
 async fn engine_with_budget_model(memory_usage: usize) -> InferenceEngine {
     let engine = InferenceEngine::new(4096);
     let handle = ModelHandle::new(1);
-    let model: StdArc<dyn GgufModel> = StdArc::new(BudgetModel {
+    let model: StdArc<dyn Model> = StdArc::new(BudgetModel {
         reported_memory: memory_usage,
     });
     engine
@@ -182,7 +182,7 @@ struct CancellableModel {
 }
 
 #[async_trait::async_trait]
-impl GgufModel for CancellableModel {
+impl Model for CancellableModel {
     fn model_id(&self) -> &str {
         "cancel-model"
     }
@@ -239,7 +239,7 @@ impl GgufModel for CancellableModel {
 async fn cancellable_model_stops_early_when_cancelled() {
     let engine = InferenceEngine::new(4096);
     let handle = ModelHandle::new(1);
-    let model: StdArc<dyn GgufModel> = StdArc::new(CancellableModel {
+    let model: StdArc<dyn Model> = StdArc::new(CancellableModel {
         cancel_at_token: 10,
     });
     engine
@@ -260,7 +260,7 @@ async fn cancellable_model_stops_early_when_cancelled() {
 async fn non_cancelled_infer_cancellable_completes() {
     let engine = InferenceEngine::new(4096);
     let handle = ModelHandle::new(1);
-    let model: StdArc<dyn GgufModel> = StdArc::new(CancellableModel {
+    let model: StdArc<dyn Model> = StdArc::new(CancellableModel {
         cancel_at_token: 10,
     });
     engine
@@ -276,4 +276,45 @@ async fn non_cancelled_infer_cancellable_completes() {
     assert!(result.is_ok());
     let r = result.unwrap();
     assert_eq!(r.tokens_generated, 10);
+}
+
+// ---- B-29b-1: backend-neutral registry ----
+
+/// The registry holds a non-GGUF `Model` (BudgetModel is not a GgufGenerator),
+/// finds it, reports its memory, and serves inference through `dyn Model`.
+#[tokio::test]
+async fn registry_holds_non_gguf_model_and_infers() {
+    let engine = engine_with_budget_model(256).await;
+    assert!(engine.has_model("budget-model").await);
+    assert_eq!(engine.model_memory_usage("budget-model").await, Some(256));
+
+    let params = InferenceParams::default();
+    let result = engine.run("budget-model", "hi", &params).await.unwrap();
+    assert_eq!(result.output, "ok");
+}
+
+/// Streaming a non-GGUF `Model` yields an Error terminal — the `as_any`
+/// downcast to `GgufGenerator` fails, so a non-streaming backend is rejected
+/// (F5). The registry storing it is fine; only streaming is unsupported.
+#[cfg(feature = "gguf")]
+#[tokio::test]
+async fn non_gguf_model_stream_reports_unsupported() {
+    use crate::engine::{StreamTerminal, TokenStream};
+
+    let engine = StdArc::new(engine_with_budget_model(256).await);
+    let cfg = InferenceConfig::default();
+    let (sender, stream) = TokenStream::new(32);
+    let eng = engine.clone();
+    let gen = tokio::task::spawn_blocking(move || {
+        eng.run_stream_sync("budget-model", "hi", &cfg, sender, None)
+    });
+
+    let (_tokens, terminal) = stream.collect().await;
+    let _ = gen.await;
+    match terminal {
+        StreamTerminal::Error(msg) => {
+            assert!(msg.contains("does not support streaming"), "got: {msg}");
+        }
+        other => panic!("expected Error terminal, got {other:?}"),
+    }
 }
