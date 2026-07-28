@@ -1,0 +1,49 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-28T-b07-degraded-mode",
+  "ts": "2026-07-28T23:36:32Z",
+  "plan_path": "docs/plan-b07-degraded-mode-2026-07-28.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "phases": [
+    "Degraded-mode policy + pure decision",
+    "Wire context reduction into engine run path"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core --all-features",
+    "cargo clippy -p gg-core --all-targets --all-features -- -D warnings",
+    "cargo test -p gg-core",
+    "cargo fmt --check"
+  ],
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "high_risk_target": false,
+  "boundaries": {
+    "non_goals": [
+      "Model swapping / prefer smaller model (BitNet B-02..B-06 future hook)",
+      "Changes to ResourceLimits::try_acquire",
+      "Env plumbing beyond DegradedModeConfig::default"
+    ]
+  },
+  "feature_inventory_touches": [
+    {
+      "entry_id": "FX-degraded-mode",
+      "operation": "NEW",
+      "test_path": "core-runtime/src/engine/degraded_mode_tests.rs",
+      "test_descriptor": "evaluate reduces context when allowed (explained) and rejects-with-reason on memory/capability/reduction-disabled"
+    }
+  ],
+  "open_questions": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-28T23:36:32Z"
+  }
+}

@@ -318,3 +318,49 @@ async fn non_gguf_model_stream_reports_unsupported() {
         other => panic!("expected Error terminal, got {other:?}"),
     }
 }
+
+// ---- B-07: degraded-mode context reduction ----
+
+async fn register_budget_model(engine: &InferenceEngine) {
+    let model: StdArc<dyn Model> = StdArc::new(BudgetModel { reported_memory: 0 });
+    engine
+        .register_model("budget-model".into(), ModelHandle::new(1), model)
+        .await;
+}
+
+/// An over-budget prompt is truncated (degraded mode) and inference proceeds,
+/// rather than hard-failing with ContextExceeded.
+#[tokio::test]
+async fn degraded_context_truncates_over_budget_prompt() {
+    let engine = InferenceEngine::new(20); // 20-token context (80 bytes)
+    register_budget_model(&engine).await;
+    let params = InferenceParams::default();
+    let long_prompt = "x".repeat(400); // ~100 tokens, well over budget
+    let result = engine.run("budget-model", &long_prompt, &params).await;
+    assert!(
+        result.is_ok(),
+        "over-budget prompt should be truncated, not rejected: {result:?}"
+    );
+    assert_eq!(result.unwrap().output, "ok");
+}
+
+/// With reduction disabled, the same over-budget prompt is rejected — but the
+/// rejection is the policy's explained decision, surfaced as ContextExceeded.
+#[tokio::test]
+async fn degraded_context_rejects_when_reduction_disabled() {
+    use crate::engine::{DegradedModeConfig, DegradedModePolicy};
+
+    let policy = DegradedModePolicy::new(DegradedModeConfig {
+        allow_context_reduction: false,
+        min_context_tokens: 16,
+    });
+    let engine = InferenceEngine::with_degraded_policy(20, policy);
+    register_budget_model(&engine).await;
+    let params = InferenceParams::default();
+    let long_prompt = "x".repeat(400);
+    let result = engine.run("budget-model", &long_prompt, &params).await;
+    assert!(matches!(
+        result,
+        Err(InferenceError::ContextExceeded { .. })
+    ));
+}

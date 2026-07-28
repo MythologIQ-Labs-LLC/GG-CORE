@@ -78,6 +78,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-29b registry unification research brief | `docs/research-brief-b29b-registry-unification-2026-07-28.md` | b29b-registry-unification |
 | B-29b-2 manifest dispatch plan | `docs/plan-b29b2-manifest-dispatch-2026-07-28.md` | b29b2-manifest-dispatch |
 | B-29b-2 manifest dispatch research brief | `docs/research-brief-b29b2-manifest-dispatch-2026-07-28.md` | b29b2-manifest-dispatch |
+| B-07 degraded-mode plan | `docs/plan-b07-degraded-mode-2026-07-28.md` | b07-degraded-mode |
+| B-07 degraded-mode research brief | `docs/research-brief-b07-degraded-mode-2026-07-28.md` | b07-degraded-mode |
 
 ## Tier 5 — Reference Material
 

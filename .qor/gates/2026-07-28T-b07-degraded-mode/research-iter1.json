@@ -1,0 +1,69 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-28T-b07-degraded-mode",
+  "ts": "2026-07-28T23:34:20Z",
+  "questions": [
+    "Where do resource-pressure hard-fails occur?",
+    "What config surface fits degraded mode?",
+    "How to keep the decision independent of the two error enums?",
+    "How is degradation explained?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "summary": "Three hard-fail hook sites: check_context/ContextExceeded, try_acquire/MemoryExceeded, CapabilityNotSupported",
+      "refs": [
+        "core-runtime/src/engine/inference.rs:130",
+        "core-runtime/src/memory/limits.rs:57",
+        "core-runtime/src/engine/error.rs:41"
+      ]
+    },
+    {
+      "id": "F2",
+      "summary": "Env-driven config surface (ResourceLimitsConfig) fits a DegradedModeConfig",
+      "refs": [
+        "core-runtime/src/memory/limits.rs:12",
+        "core-runtime/src/config.rs:120"
+      ]
+    },
+    {
+      "id": "F3",
+      "summary": "Two InferenceError enums exist; decision must take a neutral ResourcePressure signal",
+      "refs": [
+        "core-runtime/src/engine/inference_types.rs:10",
+        "core-runtime/src/engine/error.rs:9"
+      ]
+    },
+    {
+      "id": "F4",
+      "summary": "Explainability first-class (issue #53); each decision carries a reason string",
+      "refs": [
+        "docs/CONCEPT.md:9"
+      ]
+    },
+    {
+      "id": "F5",
+      "summary": "FFI error mapping already layered; reject reuses it, reduce-context needs no new code",
+      "refs": [
+        "core-runtime/src/ffi/error.rs:101"
+      ]
+    }
+  ],
+  "sources": [
+    "core-runtime/src/engine/inference.rs",
+    "core-runtime/src/memory/limits.rs",
+    "core-runtime/src/engine/error.rs",
+    "core-runtime/src/engine/inference_types.rs",
+    "core-runtime/src/config.rs",
+    "docs/CONCEPT.md"
+  ],
+  "brief_path": "docs/research-brief-b07-degraded-mode-2026-07-28.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-28T23:34:20Z"
+  }
+}

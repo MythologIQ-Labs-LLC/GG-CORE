@@ -8429,3 +8429,173 @@ doc_integrity (no glossary), badge_currency (pytest on a Rust archetype), seal_e
 servable end-to-end. Review Boundary honored — no push/PR/merge. Remaining Phase 1 queue:
 B-07 (degraded-mode policy), B-16 (`sandbox/unix.rs` Razor refactor). Chain tip:
 `4fdef99d1695db45a63fa253717a06916ba3c705e426d2402809d48805764127`.
+
+---
+
+### Entry #137: RESEARCH BRIEF (B-07 degraded-mode policy)
+
+**Timestamp**: 2026-07-28T23:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2
+**Session ID**: 2026-07-28T-b07-degraded-mode
+
+**Target**: B-07 (issue #53, P2) — degraded-mode policy for constrained local inference:
+intentional, explainable degradation instead of hard failure.
+
+**Note (branch/ledger)**: authored on `feat/b07-degraded-mode` branched off
+`feat/b29b2-manifest-dispatch` (tip #136), so the Merkle chain stays linear while the
+B-29 stack (#123–#136) is unmerged; B-07 stacks on the B-29 PRs.
+
+**Findings (verified)**: F1 three hard-fail boundary points are the hook sites —
+`check_context` (`inference.rs:130` → `ContextExceeded`), `ResourceLimits::try_acquire`
+(`memory/limits.rs:57` → `MemoryExceeded`), `CapabilityNotSupported` (`error.rs:41`). F2
+the config surface is env-driven (`ResourceLimitsConfig` `memory/limits.rs:12`;
+`config.rs:120 load_resource_limits`) — a `DegradedModeConfig` fits the same pattern. F3
+TWO `InferenceError` enums exist (`inference_types.rs:10`, `engine/error.rs:9`) → the
+decision must take a neutral `ResourcePressure` signal, not either error type. F4
+explainability is first-class (issue #53 "explain the tradeoff") — every decision carries
+a reason string surfaced via telemetry. F5 FFI error mapping already layered
+(`ffi/error.rs`); reject reuses it, reduce-context succeeds without a new code.
+
+**Decision**: bounded single L2 cycle — `DegradedModePolicy` + pure total
+`evaluate(&policy, ResourcePressure) -> DegradedDecision` (`ReduceContextTo` / `Reject{reason}`
+/ `DisableCapability{reason}`, each explainable) + one mechanism (context reduction before
+`ContextExceeded` hard-fail) + a documented future `PreferModel` hook for BitNet
+(B-02..B-06, out of scope). Aligns with CONCEPT triage thesis (`CONCEPT.md:9`).
+
+**Content Hash** (SHA256 of docs/research-brief-b07-degraded-mode-2026-07-28.md): `57b2d3debccc9ee1ed4fbc94c17d94bd25a83bfdf67cf58bc1b7c693d1b3d6eb`
+
+**Previous Hash**: `4fdef99d1695db45a63fa253717a06916ba3c705e426d2402809d48805764127`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `cbc3fa2546c9060e0bb39a1a8a413b8b579f4ec86b8347f34ec9369f69220961`
+
+**Decision**: B-07 research complete; bounded policy+context-reduction cycle recommended.
+Chain tip:
+`cbc3fa2546c9060e0bb39a1a8a413b8b579f4ec86b8347f34ec9369f69220961`.
+
+---
+
+### Entry #138: GATE TRIBUNAL (B-07 degraded-mode policy — PASS)
+
+**Timestamp**: 2026-07-28T23:30:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-28T-b07-degraded-mode
+
+**Target**: `docs/plan-b07-degraded-mode-2026-07-28.md`.
+
+**Passes**: all twelve clear. New `engine/degraded_mode.rs` — pure total
+`DegradedModePolicy::evaluate(ResourcePressure) -> DegradedDecision` (neutral pressure
+input, independent of the two `InferenceError` enums; every arm carries an explanation) +
+`truncate_on_char_boundary`; wired at the engine run path via `apply_degraded_context`
+(within budget → unchanged; over budget → truncate-and-log or reject-with-reason).
+Model-swap (`PreferModel`) documented as a future BitNet hook, not implemented (B-07
+precedes B-02..B-06). Infra grep-verified (`BYTES_PER_TOKEN` inference.rs:128,
+`ContextExceeded` :133, `tracing` Cargo.toml:79). Razor: `inference.rs` 212→~240 (truncate
+helper relocated to `degraded_mode.rs`); all files ≤250. Aligns with CONCEPT triage thesis.
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `b1d7cf4644e17f326f6632da959d4762dd815ba77f8be73efe2a7de079c0a33f`
+
+**Previous Hash**: `cbc3fa2546c9060e0bb39a1a8a413b8b579f4ec86b8347f34ec9369f69220961`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `0a7a2bfdf55be161efb6c707b81888e190e18c736e34b63440ff056991df73db`
+
+**Decision**: B-07 plan PASS; proceed to `/qor-implement`. Chain tip:
+`0a7a2bfdf55be161efb6c707b81888e190e18c736e34b63440ff056991df73db`.
+
+---
+
+### Entry #139: IMPLEMENTATION (B-07 degraded-mode policy)
+
+**Timestamp**: 2026-07-29T00:00:00-04:00
+**Phase**: IMPLEMENT
+**Author**: Specialist
+**Risk Grade**: L2
+**Session ID**: 2026-07-28T-b07-degraded-mode
+
+**Files**:
+- NEW `engine/degraded_mode.rs` (101) — `DegradedModeConfig`/`DegradedModePolicy`,
+  `ResourcePressure`, `DegradedDecision`, pure total `evaluate`, `truncate_on_char_boundary`.
+  NEW `engine/degraded_mode_tests.rs` (78) — 5 `evaluate` tests + 1 UTF-8 truncation test.
+- NEW `engine/inference_degraded.rs` (43) — `apply_degraded_context` extracted as a child
+  `impl InferenceEngine` block (Razor: `inference.rs` kept at 228 ≤250).
+- `engine/mod.rs` — `pub mod degraded_mode;` + re-exports.
+- `engine/inference.rs` — `degraded: DegradedModePolicy` field; `new` default;
+  `with_degraded_policy` constructor; `run` calls `apply_degraded_context` (truncate-or-reject)
+  instead of the hard `check_context` (which the other `run_*` paths keep unchanged).
+- `engine/inference_tests.rs` (+2) — `degraded_context_truncates_over_budget_prompt`
+  (over-budget prompt → success, not `ContextExceeded`), `degraded_context_rejects_when_reduction_disabled`.
+
+**Verification**: clippy `-D warnings` clean (default + gguf + onnx, all-targets); default
+lib 580 (8 new); `fmt --check` clean; Razor all ≤250 (`inference.rs` 228 via the
+`inference_degraded.rs` extraction). Behavior: an over-budget prompt is truncated to the
+context limit (logged via `tracing`, target `gg_core::degraded`) instead of hard-failing;
+memory/capability pressure reject with an explanation. Model-swap deferred (future BitNet
+`PreferModel` hook, B-02..B-06). FEATURE_INDEX F-58 added.
+
+**Content Hash** (SHA256 of core-runtime/src/engine/degraded_mode.rs): `c4bfd89abec3539d5af5a1da39fdb850a7227ff9ae14eb4234a814369c0e73d0`
+
+**Previous Hash**: `0a7a2bfdf55be161efb6c707b81888e190e18c736e34b63440ff056991df73db`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `05f7c61d5ae81c11f6b5bf0dd9fc39c300045502d36fdfaa71f812d24c29c344`
+
+**Decision**: B-07 implemented and green; proceed to `/qor-substantiate`. Chain tip:
+`05f7c61d5ae81c11f6b5bf0dd9fc39c300045502d36fdfaa71f812d24c29c344`.
+
+---
+
+### Entry #140: SESSION SEAL (B-07 degraded-mode policy)
+
+**Entry ID**: `7c564b076d1a`
+**Timestamp**: 2026-07-29T00:30:00-04:00
+**Phase**: SUBSTANTIATE (local seal; Review Boundary — no push/PR/merge)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-28T-b07-degraded-mode
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Target**: `docs/plan-b07-degraded-mode-2026-07-28.md` (audit PASS Entry #138, first pass).
+
+**Reality vs Promise**: MATCH. New `engine/degraded_mode.rs` — pure total
+`DegradedModePolicy::evaluate(ResourcePressure) -> DegradedDecision` turns the three
+resource-pressure hard-fails (context / memory / capability) into intentional, *explained*
+actions: over-budget context is truncated to the limit (`apply_degraded_context` in
+`inference_degraded.rs`, logged via `tracing`), memory/capability reject with a reason.
+`InferenceEngine::run` consults the policy instead of hard-failing; the other `run_*`
+paths keep `check_context` unchanged. Model-swap (`PreferModel`) is documented as the
+future BitNet hook (B-02..B-06), not implemented. Matches the CONCEPT triage thesis
+(stability + fair allocation over individual-request ego).
+
+**Note (branch/ledger)**: on `feat/b07-degraded-mode` branched off
+`feat/b29b2-manifest-dispatch` (tip #136) to keep the Merkle chain linear while the B-29
+stack is unmerged; B-07 stacks on the B-29 PRs.
+
+**Verification (authoritative, at seal)**:
+- clippy `-D warnings` clean — default + `gguf` + `onnx`, all-targets
+- lib tests 580 (default); 8 new (5 `evaluate`, UTF-8 truncation, 2 engine reduce/reject)
+- `fmt --check` clean; Razor: all files ≤250 (`inference.rs` 228 via `inference_degraded.rs`
+  extraction; `degraded_mode.rs` 101)
+- `--all-features` not built locally (Windows; `metal` macOS-only) — CI matrix covers
+
+**Seal-gate ladder**: intent_lock VERIFIED; secret_scanner clean; merge_velocity healthy;
+governance-index enforce → registered 2 new cycle docs into Tier 4, exit 0;
+gate_chain_completeness OK. FEATURE_INDEX F-58. **Environmental SKIPs (disclosed, unchanged
+from #127/#132/#136)**: doc_integrity (no glossary), badge_currency (pytest on Rust
+archetype), seal_entry_check (ledger parser + grandfathered `✓`). Chain integrity:
+`qor-logic verify-ledger` → #123–#140 all verified.
+
+**Content Hash** (SHA256 of docs/SYSTEM_STATE.md): `ceed6a93274f698d36e9c2d4ffc4c9e36eb432793af3ba1eeefd839fafae227b`
+
+**Previous Hash**: `05f7c61d5ae81c11f6b5bf0dd9fc39c300045502d36fdfaa71f812d24c29c344`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `5bb344355abaf84467d6fbba8cc753e1d17e36fae2519a27272131df09d5be7d`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `93f9692d5b15cdd24a2133944a0c754d2aab6753682ad43b2bc98cf5113d9e22`
+
+**Decision**: B-07 COMPLETE and sealed (local). Degraded-mode policy shipped —
+intentional, explained degradation under resource pressure. Review Boundary honored — no
+push/PR/merge. Remaining Phase 1 queue: B-16 (`sandbox/unix.rs` Razor refactor). Chain tip:
+`5bb344355abaf84467d6fbba8cc753e1d17e36fae2519a27272131df09d5be7d`.
