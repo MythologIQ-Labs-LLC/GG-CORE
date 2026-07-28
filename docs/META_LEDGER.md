@@ -7831,3 +7831,41 @@ SHA256(chain_hash + "SEALED")
 runtime (raw tokens never leave); B-24 (F1+F2) fully closed. Next: B-29, then B-07,
 B-16. Chain tip:
 `e4a7c6b2f9845271a3b34ecc869d33a13879e9eac68cd7f6f4df0ba0d5f9e575`.
+
+---
+
+### Entry #123: RESEARCH BRIEF (B-29 manifest-driven ONNX dispatch)
+
+**Timestamp**: 2026-07-28T09:30:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2 (dispatch); flags an L3 unification epic
+**Session ID**: 2026-07-28T-b29-onnx-dispatch
+
+**Target**: B-29 (issue #72 scope-3) — manifest-driven embedder-vs-classifier ONNX
+selection.
+
+**Findings (verified)**: F1 the ONNX loaders have **zero** production callers — both
+prod load sites hard-code `load_gguf_model` (`ffi/models.rs:52`,
+`python/session.rs:106`); no architecture dispatch exists. F2 the engine registry is
+`Arc<dyn GgufModel>`-typed (`inference.rs:19`); `load_onnx_*` returns
+`Arc<dyn OnnxModel>` (different trait) → ONNX models have no home and cannot be served
+regardless of dispatch. F3 the manifest carries capability+architecture but **no
+classifier `labels`** (needed by `load_onnx_classifier`). F4 #72 scope-1 shipped in
+#77, scope-2 as B-28/#83.
+
+**Decision**: B-29 as framed is the visible tip of a larger unwiring. Recommend
+splitting: **B-29a** manifest→ONNX-loader dispatcher (bounded, L2; add manifest
+`labels: Option<Vec<String>>`) and **B-29b** unified GGUF/ONNX model abstraction so
+the registry can hold ONNX (epic, L3, the real end-to-end enabler). Scope fork is an
+operator decision at cycle start. Shadow Genome Entry #9 recorded.
+
+**Content Hash** (SHA256 of docs/research-brief-b29-onnx-dispatch-2026-07-28.md): `b0e62f5097ca5b8638ef55445266e33f46dcf5e340bcf487cfe605fe04eda86d`
+
+**Previous Hash**: `e4a7c6b2f9845271a3b34ecc869d33a13879e9eac68cd7f6f4df0ba0d5f9e575`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `37fb187ff8a9b88772d3fef5a57fef6cb3f3362539b5de95deecbd4fceed4aff`
+
+**Decision**: B-29 research complete and queued for post-clear implementation; scope
+fork documented. Chain tip:
+`37fb187ff8a9b88772d3fef5a57fef6cb3f3362539b5de95deecbd4fceed4aff`.

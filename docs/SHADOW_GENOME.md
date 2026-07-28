@@ -258,4 +258,30 @@ failure) rather than hand-rolling error handling on a crypto path.
 
 ---
 
+## Entry #9: an unwired surface can hide a deeper unwiring
+
+**Session**: 2026-07-28T-b29-onnx-dispatch · **Phase**: RESEARCH (B-29)
+
+**Pattern**: B-29 was framed as "add manifest-driven selection over the ONNX
+loaders" — implying the loaders were reachable and only the *selection* was missing.
+Investigation found the loaders (`load_onnx_classifier`/`load_onnx_model`) have
+**zero** production callers (both prod load sites hard-code `load_gguf_model`), and
+the engine registry is typed `Arc<dyn GgufModel>` (`inference.rs:19`) — an ONNX model
+(`Arc<dyn OnnxModel>`, a different trait) cannot even be stored in it. So the stated
+gap ("no selection") was the visible tip of a larger one: ONNX has no entry point and
+no registry home. A dispatcher built to the literal ask would compile, pass its unit
+tests, and still not make ONNX servable.
+
+**Root cause**: scoping an "add X over Y" item without tracing Y all the way to a
+live entry point and a concrete home type. The backlog row described the symptom
+(selection absent) not the cause (surface unwired end-to-end).
+
+**Countermeasure**: before scoping an integration item, grep for a *production*
+caller of the thing you're extending (exclude its own module + tests) and confirm the
+value it returns has a place to live (registry/trait). If either is missing, the real
+work is wiring/abstraction, not the stated feature — split accordingly and say so.
+Pairs with [[exists-tested-not-wired]] (this is its registry-level sibling).
+
+---
+
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._
