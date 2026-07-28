@@ -1,0 +1,57 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-27T-b24b",
+  "ts": "2026-07-27T21:27:26Z",
+  "questions": [
+    "Does the streaming path sanitize egress PII?",
+    "Where should detokenization+sanitization sit, and what does the stream emit?",
+    "What holdback keeps a multi-word PII from leaking across the window boundary?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "info",
+      "claim": "GGUF detokenize + sanitize_output both exist and are reusable",
+      "source": "engine/gguf/backend.rs:212; security/pipeline.rs:113",
+      "status": "info"
+    },
+    {
+      "id": "F2",
+      "severity": "info",
+      "claim": "StreamChunk.text already exists; no wire-format change",
+      "source": "ipc/protocol_types.rs",
+      "status": "match"
+    },
+    {
+      "id": "F3",
+      "severity": "high",
+      "claim": "holdback must be capped (>=H chars) not whitespace-only; multi-word PII (Address/DOB) leaks otherwise",
+      "source": "security/pii_patterns.rs:19,20",
+      "status": "drift"
+    },
+    {
+      "id": "F4",
+      "severity": "info",
+      "claim": "re-detokenize token buffer each step is simplest-correct (UTF-8 via encoding_rs)",
+      "source": "engine/gguf/backend.rs:213",
+      "status": "info"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/engine/gguf/backend.rs:212",
+    "core-runtime/src/security/pipeline.rs:113",
+    "core-runtime/src/security/pii_patterns.rs",
+    "core-runtime/src/ipc/protocol_types.rs"
+  ],
+  "brief_path": "docs/research-brief-b24b-streaming-egress-2026-07-27.md",
+  "decision": "3 forks to operator: sanitize-in-run_stream_sync; emit sanitized text only; holdback H=128 + alnum-run guard",
+  "risk_grade": "L3",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "claude",
+    "human_oversight": "absent",
+    "ts": "2026-07-27T21:27:26Z"
+  }
+}

@@ -1,49 +1,54 @@
-# AUDIT REPORT — B-28: Real Subword Tokenizer (ONNX path)
+# AUDIT REPORT — B-24b: Streaming Egress PII Sanitization
 
-**Session ID**: 2026-07-27T-b28-tokenizer
+**Session ID**: 2026-07-27T-b24b
 **Auditor**: Judge (independent pass)
-**Target**: docs/plan-b28-tokenizer-2026-07-27.md
-**Risk Grade**: L2
+**Target**: docs/plan-b24b-streaming-egress-2026-07-27.md
+**Risk Grade**: L3 (egress security path)
 **Verdict**: **PASS**
 
 ---
 
 ## Checks
 
-### 1. Offline / forbidden-deps constraint (constitutional, highest risk) — PASS (empirical)
-Added `tokenizers = { version = "0.21", default-features = false, optional = true }`
-and inspected the resolved tree: `cargo tree --features onnx` pulls `tokenizers
-v0.21.4` and **no** network/TLS crate — grep for `reqwest|hyper|hf-hub|ureq|native-tls|
-rustls` over the onnx tree returns NONE. `http` (the only Hub path, gated behind that
-feature) is not enabled, so `from_pretrained` is not even compiled. `from_file` is
-local-only. C.O.R.E. offline boundary preserved with evidence.
+### 1. Threat closure — the plan actually closes F1 — PASS
+Sanitizing inside `run_stream_sync` and emitting sanitized `Text` only means raw
+token ids never leave the runtime on the secured path; a client cannot reconstruct
+unsanitized output. This is the correct enforcement point (the producer owns the
+detokenizer).
 
-### 2. Defect is real — CONFIRMED
-`simple_tokenize` (`embedder.rs:120`) emits hash-bucket ids; both embed and classify
-paths consume it. Replacing it with real vocab ids is correct and necessary.
+### 2. Holdback correctness argument — PASS (with test mandate)
+The release rule (cut = len − H, backed off a char boundary not inside an
+alphanumeric run, whole-buffer re-sanitize) makes any PII fully within `[0, cut)`
+final, because the cut trails the growing end by ≥ H and never bisects a numeric run.
+The residual risk (PII longer than H split at the cut) is explicitly documented.
+**Mandate**: IMPLEMENT must include adversarial tests that split a multi-word address
+and a month-name DOB across `push` calls and across the H boundary, and assert
+redaction — not just a happy-path test.
 
-### 3. Design soundness — PASS
-`OnnxTokenizer` enum (WordPiece | HashFallback) with `for_model(path)` sibling-convention
-resolution + graceful warn-and-fallback matches the operator decisions. `tokenizers::
-Tokenizer` is `Send + Sync`, so it is safe inside `Arc<dyn OnnxModel>`. Inference path
-never panics (encode error → fallback encoding, logged).
+### 3. Signature ripple — PASS (flagged)
+`run_stream_sync` gains `&SecurityPipeline`; the ripple reaches `infer_stream`
+(facade), `worker_streaming::run_stream`, and any test caller. IMPLEMENT must update
+all call sites; the "no worker/no pipeline" case (Python binding path) must pass
+`None`/skip sanitization coherently (it already routes through `infer`, not
+`infer_stream`, so likely unaffected — verify).
 
-### 4. Non-breaking — PASS
-Absent `tokenizer.json` → `HashFallback` (prior behavior, honestly named + logged), so
-existing ONNX tests/usages keep working; no fail-loud regression.
+### 4. UTF-8 safety — PASS
+Re-detokenizing the whole token buffer via `encoding_rs` (as `detokenize` already
+does) yields valid UTF-8; releasing only on `char_indices` boundaries prevents
+mid-codepoint cuts. Test mandate: a multibyte (e.g. emoji / accented) split.
 
-### 5. Razor + scope — PASS
-New `tokenizer.rs` is a fresh small file (< 250). Loaders gain one resolution call.
-B-32 (serialize the two `cli` env tests) is a bounded, in-scope hygiene fold-in.
+### 5. Razor + constitutional — PASS
+New `stream_sanitizer.rs` is a focused file (< 250). No network, no new forbidden
+dep (reuses `SecurityPipeline` + regex already present). `StreamItem::Text` is a
+minimal protocol addition consistent with B-24a.
 
-### 6. Test adequacy — PASS (with mandate)
-Plan requires: HashFallback determinism; a WordPiece round-trip built via the
-`tokenizers` API into a tempfile (proves offline `from_file` + real vocab ids);
-`for_model` miss → HashFallback. IMPLEMENT must actually add these (not just assert
-compilation).
+### 6. Terminal semantics — PASS
+Flush-on-terminal sanitizes the tail; `End(Error)` for an unrecoverable sanitizer
+state; `Rejected` stays ingress-only (egress redacts rather than rejects). Consistent
+with B-24a's terminal.
 
 ## Verdict
 
-**PASS.** Proceed to IMPLEMENT. Carry two mandates: (a) after wiring, re-confirm the
-lock has no network crate from tokenizers; (b) the WordPiece test must exercise a real
-`from_file` load, not only the fallback.
+**PASS.** Proceed to IMPLEMENT. Carry the three test mandates (multi-word PII across
+boundary; UTF-8 multibyte split; terminal-flush redaction) — a happy-path-only test
+suite is insufficient for an L3 redaction control.

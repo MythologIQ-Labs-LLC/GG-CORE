@@ -100,9 +100,10 @@ impl GgufGenerator {
         config: &InferenceConfig,
         sender: &crate::engine::TokenStreamSender,
         is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
+        sanitizer: Option<&mut crate::security::stream_sanitizer::StreamSanitizer>,
     ) -> Result<(), InferenceError> {
         if let Some(inner) = &self.inner {
-            return inner.generate_stream(prompt, config, sender, is_cancelled);
+            return inner.generate_stream(prompt, config, sender, is_cancelled, sanitizer);
         }
         Err(InferenceError::ModelError("no model loaded".into()))
     }

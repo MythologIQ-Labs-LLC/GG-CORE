@@ -444,6 +444,12 @@ impl IpcHandler {
                             let chunk = StreamChunk::token(request_id, token);
                             sender.send(IpcMessage::StreamChunk(chunk)).await?;
                         }
+                        Some(crate::engine::StreamItem::Text(text)) => {
+                            // Security-enforced streaming (B-24b): sanitized text,
+                            // no raw token id.
+                            let chunk = StreamChunk::token_with_text(request_id, 0, text);
+                            sender.send(IpcMessage::StreamChunk(chunk)).await?;
+                        }
                         Some(crate::engine::StreamItem::End(terminal)) => {
                             let chunk = match terminal {
                                 crate::engine::StreamTerminal::Complete => {

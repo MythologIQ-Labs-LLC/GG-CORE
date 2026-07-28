@@ -7724,3 +7724,110 @@ WordPiece tokenizer (garbage hash ids gone) with a graceful named fallback; B-32
 flaky test fixed. This unblocks B-24b's faithful detokenization. Next: B-24b, then
 B-29. Chain tip:
 `3aedb7928b2ec763f90afd2214ee4211855901e1df0996b1505d4d93e686c070`.
+
+---
+
+### Entry #121: RESEARCH BRIEF (B-24b streaming egress sanitization)
+
+**Timestamp**: 2026-07-27T15:05:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3 (egress security path)
+**Session ID**: 2026-07-27T-b24b
+
+**Target**: B-24b — close B-24 F1 (streaming bypasses egress PII sanitization) via
+in-runtime detokenization + a streaming-safe windowed sanitizer.
+
+**Findings (verified)**: F1 both primitives exist — GGUF `detokenize`
+(`backend.rs:212`, `token_to_piece` + encoding_rs) and `sanitize_output(&str)`
+(`pipeline.rs:113`). F2 the wire already carries text (`StreamChunk.text` +
+`token_with_text`) — no wire-format change. F3 holdback must be **capped**, not
+whitespace-boundary-only: multi-word PII (Address, month DOB) would leak on early
+release; hold back ≥ H chars, re-sanitize on arrival, flush on terminal;
+`[A-Za-z\s]+` is unbounded so any finite H has a documented residual risk (H≈128
+covers fixed patterns). F4 re-detokenize the token buffer each step (correct UTF-8,
+O(n²) over bounded output) vs incremental decoder.
+
+**Design forks (operator)**: (1) sanitize inside `run_stream_sync` vs facade wrapper
+[rec: in run_stream_sync]; (2) emit sanitized text only vs both [rec: text only];
+(3) holdback H=128 + alnum-run guard [rec].
+
+**Content Hash**:
+
+```
+SHA256(docs/research-brief-b24b-streaming-egress-2026-07-27.md)
+= 614a5d4652a60b43e75ad9eebabc79c8d898caed3fc8b217fc57f5c070ebea5e
+```
+
+**Previous Hash**: 3aedb7928b2ec763f90afd2214ee4211855901e1df0996b1505d4d93e686c070
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= ec262c9ceef21ac11068be5e605a6526166d4adb6a6a210d1534f63f62c14165
+```
+
+**Decision**: B-24b direction analyzed; 3 design forks await operator confirmation
+before planning. Chain tip:
+`ec262c9ceef21ac11068be5e605a6526166d4adb6a6a210d1534f63f62c14165`.
+
+---
+
+### Entry #122: SESSION SEAL (B-24b streaming egress PII sanitization)
+
+**Timestamp**: 2026-07-27T16:20:00-04:00
+**Phase**: IMPLEMENT → SUBSTANTIATE (local; PR at operator direction)
+**Author**: Specialist + Judge
+**Risk Grade**: L3 (egress security path)
+**Session ID**: 2026-07-27T-b24b
+
+**Target**: docs/plan-b24b-streaming-egress-2026-07-27.md (audit PASS, 3 test mandates).
+
+**Reality vs Promise**: MATCH. Closes B-24 F1. New `security/stream_sanitizer.rs`
+`StreamSanitizer` (windowed: re-sanitize the full buffer, release only the prefix ≥
+HOLDBACK=128 chars behind the end + alnum-run guard; flush on terminal). The GGUF
+generation loop (`backend.rs generate_stream` + `emit_token`/`flush_sanitizer`)
+detokenizes + drives the sanitizer and emits `StreamItem::Text` (new) — raw token
+ids never leave the runtime; `run_stream_sync`/`stream_tokens` thread an
+`Option<&SecurityPipeline>`; `infer_stream` passes `Some(&security)`;
+`worker_streaming` passes it through the spawn_blocking address trick;
+`relay_stream` maps `Text` → `StreamChunk::token_with_text`. Operator decisions:
+sanitize-in-run_stream_sync; sanitized-text-only; H=128 + alnum-run guard.
+`stream_sanitizer` module gated on `gguf` (its only user).
+
+**Verification (authoritative, at seal)**:
+- fmt `--check` → 0
+- clippy `--all-targets -- -D warnings` on default + gguf + onnx,ffi,python → 0
+- test `--lib` → 554; `--lib --features gguf` → 558 (4 adversarial sanitizer tests:
+  multi-word PII split across pushes redacted; UTF-8 multibyte intact; terminal-flush
+  redaction; clean passthrough)
+- integration (gguf): security_pipeline_wiring 2, streaming 10, secure_facade 4 → pass
+
+**Content Hash**:
+
+```
+SHA256(core-runtime/src/security/stream_sanitizer.rs)
+= d83b3fe31d6bcf17198d77f06b4a9a1a01920b2092af19225f50306938ef7ad2
+```
+
+**Previous Hash**: ec262c9ceef21ac11068be5e605a6526166d4adb6a6a210d1534f63f62c14165
+
+**Chain Hash**:
+
+```
+SHA256(content_hash + "|" + previous_hash)
+= e4a7c6b2f9845271a3b34ecc869d33a13879e9eac68cd7f6f4df0ba0d5f9e575
+```
+
+**Session Seal**:
+
+```
+SHA256(chain_hash + "SEALED")
+= 3965858be05c8414dabdccd0396f8bfc43469838d1de4e098764d3f45c54cd25
+```
+
+**Decision**: B-24b COMPLETE — the streaming surface now egress-PII-sanitizes in
+runtime (raw tokens never leave); B-24 (F1+F2) fully closed. Next: B-29, then B-07,
+B-16. Chain tip:
+`e4a7c6b2f9845271a3b34ecc869d33a13879e9eac68cd7f6f4df0ba0d5f9e575`.

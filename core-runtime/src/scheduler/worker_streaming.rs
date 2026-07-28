@@ -38,6 +38,7 @@ pub(crate) async fn execute(
         request.prompt,
         request.config,
         request.token_sender,
+        security,
     )
     .await;
     let latency_ms = start.elapsed().as_millis() as u64;
@@ -84,23 +85,26 @@ async fn run_stream(
     prompt: String,
     config: crate::engine::InferenceConfig,
     sender: crate::engine::TokenStreamSender,
+    security: Option<&SecurityPipeline>,
 ) -> Result<Result<(), crate::engine::inference::InferenceError>, tokio::task::JoinError> {
     #[cfg(feature = "gguf")]
     {
-        // Cast to usize to avoid capturing a raw pointer (which is !Send).
-        // SAFETY: the caller awaits the JoinHandle, so the engine reference
-        // outlives the spawned task.
+        // Cast to usize to avoid capturing raw pointers (which are !Send).
+        // SAFETY: the caller awaits the JoinHandle, so both the engine and the
+        // security pipeline references outlive the spawned task.
         let engine_addr = engine as *const InferenceEngine as usize;
+        let sec_addr = security.map(|s| s as *const SecurityPipeline as usize);
         let mid = model_id.to_string();
         tokio::task::spawn_blocking(move || {
             let engine = unsafe { &*(engine_addr as *const InferenceEngine) };
-            engine.run_stream_sync(&mid, &prompt, &config, sender)
+            let security = sec_addr.map(|a| unsafe { &*(a as *const SecurityPipeline) });
+            engine.run_stream_sync(&mid, &prompt, &config, sender, security)
         })
         .await
     }
     #[cfg(not(feature = "gguf"))]
     {
-        let _ = (engine, model_id, prompt, config, sender);
+        let _ = (engine, model_id, prompt, config, sender, security);
         Ok(Err(
             crate::engine::inference::InferenceError::ExecutionFailed(
                 "streaming requires gguf feature".into(),

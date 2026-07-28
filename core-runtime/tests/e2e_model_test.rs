@@ -76,7 +76,8 @@ mod tests {
             // run_stream_sync).
             let gen_handle = tokio::task::spawn_blocking({
                 move || {
-                    let r = gen.generate_stream(prompt, &inf_config, &sender, None);
+                    // No sanitizer here: this test exercises the raw token path.
+                    let r = gen.generate_stream(prompt, &inf_config, &sender, None, None);
                     let terminal = match &r {
                         Ok(()) => StreamTerminal::Complete,
                         Err(e) => StreamTerminal::Error(e.to_string()),
@@ -94,6 +95,7 @@ mod tests {
                         count_clone.fetch_add(1, Ordering::SeqCst);
                         print!("[tok:{}]", tok);
                     }
+                    StreamItem::Text(t) => print!("{t}"),
                     StreamItem::End(_) => {
                         println!(" [DONE]");
                         break;
