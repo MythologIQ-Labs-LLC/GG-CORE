@@ -1,0 +1,69 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-28T-b29b2-manifest-dispatch",
+  "ts": "2026-07-28T23:01:51Z",
+  "questions": [
+    "Where do the prod load sites branch on architecture?",
+    "How is a sibling manifest.json resolved?",
+    "Must manifest loading be optional?",
+    "Do the loaders share the registry return type?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "summary": "Both prod load sites structurally identical -> one shared dispatch helper",
+      "refs": [
+        "core-runtime/src/ffi/models.rs:52",
+        "core-runtime/src/python/session.rs:99"
+      ]
+    },
+    {
+      "id": "F2",
+      "summary": "Sibling manifest.json via with_file_name (B-28 idiom); ModelManifest::from_file parses it",
+      "refs": [
+        "core-runtime/src/engine/onnx/tokenizer.rs:25",
+        "core-runtime/src/models/manifest.rs:61"
+      ]
+    },
+    {
+      "id": "F3",
+      "summary": "Manifest resolution must be optional with GGUF default (existing GGUF models have no manifest)",
+      "refs": [
+        "core-runtime/src/models/loader.rs:110"
+      ]
+    },
+    {
+      "id": "F4",
+      "summary": "ModelMetadata stays for lifecycle.load; manifest drives dispatch only; no merge needed",
+      "refs": [
+        "core-runtime/src/models/lifecycle.rs:91"
+      ]
+    },
+    {
+      "id": "F5",
+      "summary": "load_onnx_from_manifest + load_gguf_model both return Arc<dyn Model> (B-29b-1)",
+      "refs": [
+        "core-runtime/src/engine/onnx/dispatch.rs",
+        "core-runtime/src/engine/gguf/mod.rs"
+      ]
+    }
+  ],
+  "sources": [
+    "core-runtime/src/ffi/models.rs",
+    "core-runtime/src/python/session.rs",
+    "core-runtime/src/engine/onnx/tokenizer.rs",
+    "core-runtime/src/models/manifest.rs",
+    "core-runtime/src/models/loader.rs",
+    "core-runtime/src/models/lifecycle.rs",
+    "core-runtime/src/engine/onnx/dispatch.rs"
+  ],
+  "brief_path": "docs/research-brief-b29b2-manifest-dispatch-2026-07-28.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-28T23:01:51Z"
+  }
+}

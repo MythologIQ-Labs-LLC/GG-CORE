@@ -103,11 +103,7 @@ impl Session {
         let metadata = self.runtime.model_loader.load_metadata(&validated)?;
         let model_id = metadata.name.clone();
 
-        let model = crate::engine::gguf::load_gguf_model(
-            validated.as_path(),
-            &model_id,
-            &crate::engine::gguf::GgufConfig::default(),
-        )?;
+        let model = crate::models::load_model_dispatch(validated.as_path(), &model_id)?;
 
         let handle = self
             .tokio
