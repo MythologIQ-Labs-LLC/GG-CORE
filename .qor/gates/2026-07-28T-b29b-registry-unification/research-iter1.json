@@ -1,0 +1,72 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-28T-b29b-registry-unification",
+  "ts": "2026-07-28T21:32:12Z",
+  "questions": [
+    "Can the engine registry hold ONNX models?",
+    "How do GgufModel and OnnxModel traits differ?",
+    "Do the prod load sites have architecture input?",
+    "How does streaming interact with non-streaming ONNX?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "summary": "OnnxModel is a strict subset of GgufModel; unified Model trait is a mechanical promotion",
+      "refs": [
+        "core-runtime/src/engine/gguf/mod.rs:47",
+        "core-runtime/src/engine/onnx/mod.rs:45"
+      ]
+    },
+    {
+      "id": "F2",
+      "summary": "~6 prod + ~5 test Arc<dyn GgufModel> sites (registry, lifecycle.load, load returns)",
+      "refs": [
+        "core-runtime/src/engine/inference.rs:19",
+        "core-runtime/src/models/lifecycle.rs:95"
+      ]
+    },
+    {
+      "id": "F3",
+      "summary": "BLOCKING: prod load path never loads ModelManifest; load_metadata returns name+size only",
+      "refs": [
+        "core-runtime/src/models/loader.rs:110",
+        "core-runtime/src/ffi/models.rs:52",
+        "core-runtime/src/python/session.rs:106"
+      ]
+    },
+    {
+      "id": "F4",
+      "summary": "Two parallel metadata concepts (ModelMetadata vs ModelManifest) need reconciliation",
+      "refs": [
+        "core-runtime/src/models/loader.rs:139",
+        "core-runtime/src/models/manifest.rs:12"
+      ]
+    },
+    {
+      "id": "F5",
+      "summary": "Streaming needs no special-casing; as_any downcast rejects ONNX correctly",
+      "refs": [
+        "core-runtime/src/engine/inference.rs:255"
+      ]
+    }
+  ],
+  "sources": [
+    "core-runtime/src/engine/inference.rs",
+    "core-runtime/src/engine/gguf/mod.rs",
+    "core-runtime/src/engine/onnx/mod.rs",
+    "core-runtime/src/models/lifecycle.rs",
+    "core-runtime/src/models/loader.rs",
+    "core-runtime/src/ffi/models.rs",
+    "core-runtime/src/python/session.rs",
+    "core-runtime/src/engine/onnx/dispatch.rs"
+  ],
+  "brief_path": "docs/research-brief-b29b-registry-unification-2026-07-28.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-28T21:32:12Z"
+  }
+}

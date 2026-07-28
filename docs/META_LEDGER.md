@@ -8046,3 +8046,45 @@ shipped as an internal, unit-tested seam; B-29b registry unification remains the
 end-to-end enabler. Review Boundary honored — no push/PR/merge. Next queue: B-29b
 (when scoped), then B-07, B-16. Chain tip:
 `ef7f8513ab90b61c0db94466289b5405d3e62609085eaf46f34f7f04878505a8`.
+
+---
+
+### Entry #128: RESEARCH BRIEF (B-29b registry unification)
+
+**Timestamp**: 2026-07-28T18:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3 (registry/trait refactor + prod load-path change)
+**Session ID**: 2026-07-28T-b29b-registry-unification
+
+**Target**: B-29b (issue #72 follow-up) — unify GGUF/ONNX so the engine registry holds
+ONNX models and manifest-driven ONNX inference is reachable end-to-end.
+
+**Findings (verified)**: F1 `OnnxModel` (`onnx/mod.rs:45`) is a strict **subset** of
+`GgufModel` (`gguf/mod.rs:47`) — missing only `infer_cancellable`/`set_device_placement`
+(both defaulted) and `as_any`; a unified `Model` trait = the `GgufModel` superset, a
+mechanical promotion. F2 blast radius ~6 prod `Arc<dyn GgufModel>` sites (`inference.rs`
+registry:19/35/119/142/150, `lifecycle.rs:95`, `gguf/mod.rs:89/106`) + ~5 test sites.
+**F3 (blocking DRIFT)**: the prod load path never loads a `ModelManifest` —
+`ModelLoader::load_metadata` (`loader.rs:110`) returns `ModelMetadata{name,size_bytes}`
+from the file; `ffi/models.rs:52` + `python/session.rs:106` have no architecture input.
+F4 two parallel metadata concepts (`ModelMetadata` loader vs `ModelManifest`
+preload/swap) need reconciliation. F5 streaming needs no special-casing — the existing
+`as_any().downcast_ref::<GgufGenerator>()` naturally rejects ONNX with "does not support
+streaming."
+
+**Decision**: recommend staging B-29b into **B-29b-1** (unified `Model` trait + registry/
+lifecycle migration, GGUF-only, behavior-preserving) and **B-29b-2** (manifest loading in
+the prod load path + architecture dispatch wiring `load_onnx_from_manifest` + ONNX impls
+satisfy `Model`). Big-bang viable but higher VETO surface. Scope fork + metadata-
+reconciliation are operator decisions at cycle start. Shadow Genome Entry #11 recorded.
+
+**Content Hash** (SHA256 of docs/research-brief-b29b-registry-unification-2026-07-28.md): `5838b9af53cde0e8d7d9ce8d8cd6cbc72e604951ca270db0e1f219fe9f140428`
+
+**Previous Hash**: `ef7f8513ab90b61c0db94466289b5405d3e62609085eaf46f34f7f04878505a8`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `cae58b571c0223eb394042996edb760cc06adb79e5217fd5f8d0bf0b8d98d8d9`
+
+**Decision**: B-29b research complete; staged-cycle recommendation pending operator scope
+fork. Chain tip:
+`cae58b571c0223eb394042996edb760cc06adb79e5217fd5f8d0bf0b8d98d8d9`.
