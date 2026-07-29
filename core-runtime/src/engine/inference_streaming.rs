@@ -12,7 +12,7 @@ impl InferenceEngine {
     ///
     /// Looks up the model, downcasts to `GgufGenerator`, and calls
     /// `generate_stream()`. Designed for use with `spawn_blocking`.
-    pub fn run_stream_sync(
+    pub(crate) fn run_stream_sync(
         &self,
         model_id: &str,
         prompt: &str,

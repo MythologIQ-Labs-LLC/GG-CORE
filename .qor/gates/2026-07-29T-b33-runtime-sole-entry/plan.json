@@ -1,0 +1,50 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-29T-b33-runtime-sole-entry",
+  "ts": "2026-07-29T19:36:36Z",
+  "plan_path": "docs/plan-b33-runtime-sole-entry-2026-07-29.md",
+  "change_class": "breaking",
+  "doc_tier": "standard",
+  "phases": [
+    "Demote raw inference methods to pub(crate)",
+    "Relocate engine-direct tests in-crate"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core --all-features",
+    "cargo clippy -p gg-core --all-targets --all-features -- -D warnings",
+    "cargo test -p gg-core",
+    "cargo test -p gg-core --features gguf",
+    "cargo fmt --check"
+  ],
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "high_risk_target": false,
+  "boundaries": {
+    "non_goals": [
+      "No inference/security/scheduler behavior change (visibility + test relocation only)",
+      "No change to Runtime::infer",
+      "COREFORGE-side migration tracked in #538"
+    ]
+  },
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-39",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/tests/security_pipeline_wiring_test.rs",
+      "test_descriptor": "external inference only via Runtime::infer (raw run* pub(crate)); clean prompt reaches engine, injection rejected"
+    }
+  ],
+  "open_questions": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-29T19:36:36Z"
+  }
+}

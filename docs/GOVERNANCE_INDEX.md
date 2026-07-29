@@ -1,6 +1,6 @@
 # Governance Index
 
-**Last Reviewed**: 2026-07-28
+**Last Reviewed**: 2026-07-29
 
 A single authoritative map of every governance artifact in this project, organized
 into six freshness tiers with explicit drift contracts. A stale entry here is
@@ -82,6 +82,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-07 degraded-mode research brief | `docs/research-brief-b07-degraded-mode-2026-07-28.md` | b07-degraded-mode |
 | B-16 sandbox Razor refactor plan | `docs/plan-b16-sandbox-unix-razor-2026-07-28.md` | b16-sandbox-unix-razor |
 | B-16 sandbox Razor refactor research brief | `docs/research-brief-b16-sandbox-unix-razor-2026-07-28.md` | b16-sandbox-unix-razor |
+| B-33 Runtime sole-entry plan | `docs/plan-b33-runtime-sole-entry-2026-07-29.md` | b33-runtime-sole-entry |
+| B-33 Runtime sole-entry research brief | `docs/research-brief-b33-runtime-sole-entry-2026-07-29.md` | b33-runtime-sole-entry |
 
 ## Tier 5 — Reference Material
 

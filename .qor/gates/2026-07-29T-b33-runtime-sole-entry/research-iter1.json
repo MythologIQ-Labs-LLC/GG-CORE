@@ -1,0 +1,68 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-29T-b33-runtime-sole-entry",
+  "ts": "2026-07-29T19:35:27Z",
+  "questions": [
+    "Is the raw InferenceEngine run surface publicly reachable?",
+    "Is Runtime::infer the intended secure path?",
+    "Which callers break under pub(crate)?",
+    "What external tests use the raw engine?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "summary": "InferenceEngine run methods are all pub -> consumers can bypass SecurityPipeline",
+      "refs": [
+        "core-runtime/src/engine/mod.rs:77",
+        "core-runtime/src/engine/inference.rs:59"
+      ]
+    },
+    {
+      "id": "F2",
+      "summary": "Runtime::infer (scan->engine->sanitize) is the documented + FFI/PyO3 path",
+      "refs": [
+        "core-runtime/src/runtime_facade.rs:60",
+        "docs/USAGE_GUIDE.md:127"
+      ]
+    },
+    {
+      "id": "F3",
+      "summary": "All in-crate callers (facade, scheduler workers) survive pub(crate)",
+      "refs": [
+        "core-runtime/src/runtime_facade.rs:76",
+        "core-runtime/src/scheduler/worker.rs:195"
+      ]
+    },
+    {
+      "id": "F4",
+      "summary": "Only 3 chaos_inference_engine_* tests break; relocate to inference_tests.rs",
+      "refs": [
+        "core-runtime/tests/chaos_scheduler_shutdown_test.rs:162"
+      ]
+    },
+    {
+      "id": "F5",
+      "summary": "No CLI/bin caller of raw run",
+      "refs": [
+        "core-runtime/src/cli/"
+      ]
+    }
+  ],
+  "sources": [
+    "core-runtime/src/engine/mod.rs",
+    "core-runtime/src/engine/inference.rs",
+    "core-runtime/src/runtime_facade.rs",
+    "core-runtime/tests/chaos_scheduler_shutdown_test.rs",
+    "core-runtime/tests/security_pipeline_wiring_test.rs",
+    "docs/USAGE_GUIDE.md"
+  ],
+  "brief_path": "docs/research-brief-b33-runtime-sole-entry-2026-07-29.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-29T19:35:27Z"
+  }
+}
