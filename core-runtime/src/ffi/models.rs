@@ -8,7 +8,6 @@ use std::ffi::{c_char, CStr, CString};
 use super::error::{set_last_error, CoreErrorCode};
 use super::runtime::CoreRuntime;
 use super::types::CoreModelMetadata;
-use crate::engine::gguf;
 
 /// Load a model via ModelLifecycle.
 /// # Safety
