@@ -8264,3 +8264,168 @@ a Rust archetype), seal_entry_check (ledger parser chokes on grandfathered `✓`
 end-to-end ONNX serving is B-29b-2 (manifest loading + architecture dispatch). Review
 Boundary honored — no push/PR/merge. Chain tip:
 `a07e3a8203987af4b0714f41026c66d03d24656e1291cc3e086151845afa6896`.
+
+---
+
+### Entry #133: RESEARCH BRIEF (B-29b-2 manifest loading + architecture dispatch)
+
+**Timestamp**: 2026-07-28T21:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2
+**Session ID**: 2026-07-28T-b29b2-manifest-dispatch
+
+**Target**: B-29b-2 (issue #72 follow-up) — make ONNX servable end-to-end by loading a
+`ModelManifest` in the prod load path and dispatching on `ModelArchitecture`.
+
+**Findings (verified)**: F1 the two prod load sites (`ffi/models.rs` `core_model_load`,
+`python/session.rs:99` `load_model`) are structurally identical (validate_path →
+load_metadata → load_gguf_model → lifecycle.load) → dispatch belongs in ONE shared helper,
+not duplicated. F2 sibling-file convention precedented by B-28
+(`OnnxTokenizer::for_model` uses `with_file_name("tokenizer.json")`) → manifest sibling =
+`with_file_name("manifest.json")`; `ModelManifest::from_file` (`manifest.rs:61`) parses it.
+F3 (behavior guard) manifest resolution MUST be optional with a GGUF default — existing
+GGUF models ship no `manifest.json`; a mandatory manifest breaks every current load. F4
+`ModelMetadata`{name,size} stays for `lifecycle.load`; the manifest drives dispatch only —
+no metadata merge required (deferred, non-blocking). F5 the pieces connect:
+`load_onnx_from_manifest` (B-29a) + `load_gguf_model` both return `Arc<dyn Model>`
+(B-29b-1), the registry's type.
+
+**Decision**: single bounded L2 cycle — a shared `load_model_dispatch(path, model_id)`
+(pure decision `manifest_backend` + thin IO; temp-dir-testable) resolving the optional
+sibling manifest and branching on architecture, called from both load sites in place of
+`load_gguf_model`. The staged split paid off: B-29b-2 is thin wiring, not a refactor.
+
+**Content Hash** (SHA256 of docs/research-brief-b29b2-manifest-dispatch-2026-07-28.md): `5330eb6010bdfc3290d0aa15606da3232d27f4e97dee1096dbf4cf16cee2c86a`
+
+**Previous Hash**: `a07e3a8203987af4b0714f41026c66d03d24656e1291cc3e086151845afa6896`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `7228421413642492abcadade51d466fb6ef8ceb45e86e973ec3c1b174f2be4a7`
+
+**Decision**: B-29b-2 research complete; single-cycle shared-helper design recommended.
+Chain tip:
+`7228421413642492abcadade51d466fb6ef8ceb45e86e973ec3c1b174f2be4a7`.
+
+---
+
+### Entry #134: GATE TRIBUNAL (B-29b-2 manifest dispatch — PASS)
+
+**Timestamp**: 2026-07-28T21:30:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-28T-b29b2-manifest-dispatch
+
+**Target**: `docs/plan-b29b2-manifest-dispatch-2026-07-28.md`.
+
+**Passes**: all twelve clear. Shared `models/backend_dispatch.rs` — pure `choose_backend`
+(Option<ModelManifest> → `BackendChoice::{Onnx(Box<ModelManifest>), GgufDefault}`; the
+Onnx variant carries the manifest so the loader has no `unwrap`/`expect`) + IO
+`load_model_dispatch` (reads optional sibling `manifest.json` via the B-28
+`with_file_name` idiom, defaults to GGUF), called from both prod load sites
+(`ffi/models.rs:52`, `python/session.rs:106` — both enumerated, bare-grep confirms no
+others). Infra grep-verified: `ModelManifest::from_file` (manifest.rs:61),
+`ModelArchitecture::Onnx` (:50), both loaders return `Arc<dyn Model>` (B-29a + B-29b-1).
+Razor: new files ≤250; call-site edits reduce line counts. Behavior-preserving default:
+existing GGUF loads (no manifest) unchanged.
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `9669827b8b8b7a691189f41e8d7eae2a20c64ca56bcc6fc3000743cef5884e91`
+
+**Previous Hash**: `7228421413642492abcadade51d466fb6ef8ceb45e86e973ec3c1b174f2be4a7`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `c0de17cd5fc4e6175464be3b27a44da4fd7d17787e3f61b6ad0591047477cbfc`
+
+**Decision**: B-29b-2 plan PASS; proceed to `/qor-implement`. Chain tip:
+`c0de17cd5fc4e6175464be3b27a44da4fd7d17787e3f61b6ad0591047477cbfc`.
+
+---
+
+### Entry #135: IMPLEMENTATION (B-29b-2 manifest dispatch)
+
+**Timestamp**: 2026-07-28T22:00:00-04:00
+**Phase**: IMPLEMENT
+**Author**: Specialist
+**Risk Grade**: L2
+**Session ID**: 2026-07-28T-b29b2-manifest-dispatch
+
+**Files**:
+- NEW `models/backend_dispatch.rs` (53) — `BackendChoice::{Onnx(Box<ModelManifest>),
+  GgufDefault}`, pure `choose_backend`, `load_model_dispatch` (reads optional sibling
+  `manifest.json` via `with_file_name`, defaults GGUF). NEW `models/backend_dispatch_tests.rs`
+  (102) — 4 pure `choose_backend` tests + 2 routing tests (gated `not(onnx)` / `not(gguf)`
+  so each asserts its loader's feature-gated error).
+- `models/mod.rs` — `pub mod backend_dispatch;` + `pub use ...{load_model_dispatch, BackendChoice}`.
+- `ffi/models.rs` (230→229), `python/session.rs` (225→221) — both `load_gguf_model(...)`
+  call sites replaced with `crate::models::load_model_dispatch(validated.as_path(), &model_id)`.
+
+**Verification**: clippy `-D warnings` clean (default + gguf + onnx, all-targets); default
+lib 572; backend_dispatch 6 (default) / 5 (gguf) / 5 (onnx, routing tests gate per
+feature); integration backend_test 13; `fmt --check` clean; Razor all ≤250. Behavior:
+existing GGUF loads (no manifest) unchanged; a sibling `manifest.json` with
+`architecture: onnx` now routes an ONNX model through FFI/Python end-to-end. Closes issue
+#72 scope-3. FEATURE_INDEX F-57 added.
+
+**Content Hash** (SHA256 of core-runtime/src/models/backend_dispatch.rs): `b29db23b188c9dd0931bb2130fc15373c1eda5075900d2d7595aa72573b43a94`
+
+**Previous Hash**: `c0de17cd5fc4e6175464be3b27a44da4fd7d17787e3f61b6ad0591047477cbfc`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `37cc22577a68fa8c9bbb253028ea5cea0965d39ee22c89f50be41d827bfe6798`
+
+**Decision**: B-29b-2 implemented and green; ONNX servable end-to-end; proceed to
+`/qor-substantiate`. Chain tip:
+`37cc22577a68fa8c9bbb253028ea5cea0965d39ee22c89f50be41d827bfe6798`.
+
+---
+
+### Entry #136: SESSION SEAL (B-29b-2 manifest dispatch — closes #72 scope-3)
+
+**Entry ID**: `42d13a1451b7`
+**Timestamp**: 2026-07-28T22:30:00-04:00
+**Phase**: SUBSTANTIATE (local seal; Review Boundary — no push/PR/merge)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-28T-b29b2-manifest-dispatch
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Target**: `docs/plan-b29b2-manifest-dispatch-2026-07-28.md` (audit PASS Entry #134,
+first pass).
+
+**Reality vs Promise**: MATCH. The production load path now dispatches on an optional
+sibling `manifest.json`: new `models/backend_dispatch.rs` (`choose_backend` +
+`load_model_dispatch`) reads the manifest, routes `architecture: onnx` →
+`load_onnx_from_manifest` (B-29a) else GGUF (default — existing manifest-less loads
+unchanged). Both prod load sites (`ffi/models.rs`, `python/session.rs`) call the shared
+dispatcher. With B-29a (dispatch) + B-29b-1 (registry neutrality) + B-29b-2 (load-path
+wiring), **an ONNX model with a manifest is now servable end-to-end through FFI/Python** —
+this closes issue #72 scope-3.
+
+**Verification (authoritative, at seal)**:
+- clippy `-D warnings` clean — default + `gguf` + `onnx`, all-targets
+- lib tests: 572 (default); backend_dispatch 6 (default) / 5 (gguf) / 5 (onnx) — routing
+  tests gate `not(onnx)`/`not(gguf)` so each asserts its loader's feature-gated error;
+  integration backend_test 13
+- `fmt --check` clean; Razor: every file ≤250 (dispatch 53, tests 102; both call sites
+  reduced: ffi 230→229, python 225→221)
+- `--all-features` not built locally (Windows; `metal` macOS-only) — CI matrix covers
+
+**Seal-gate ladder**: intent_lock VERIFIED; secret_scanner clean; merge_velocity healthy;
+data_api_acl SKIP (no SQL); governance-index enforce → registered the 2 new cycle docs
+(plan-b29b2, research-brief-b29b2) into Tier 4, exit 0; gate_chain_completeness OK.
+FEATURE_INDEX F-57 added. **Environmental SKIPs (disclosed, unchanged from #127/#132)**:
+doc_integrity (no glossary), badge_currency (pytest on a Rust archetype), seal_entry_check
+(ledger parser chokes on grandfathered `✓` in #64/#68). Chain integrity confirmed:
+`qor-logic verify-ledger` → #123–#136 all verified.
+
+**Content Hash** (SHA256 of docs/SYSTEM_STATE.md): `1f33961128328987bb320f84cb283952cb95212635643266457399aeab528e1d`
+
+**Previous Hash**: `37cc22577a68fa8c9bbb253028ea5cea0965d39ee22c89f50be41d827bfe6798`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `4fdef99d1695db45a63fa253717a06916ba3c705e426d2402809d48805764127`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `fe0937441b515589c1a34e988456d168af760ed5f440e43efc26728dd0d9851b`
+
+**Decision**: B-29b-2 COMPLETE and sealed (local). Issue #72 scope-3 closed — ONNX is
+servable end-to-end. Review Boundary honored — no push/PR/merge. Remaining Phase 1 queue:
+B-07 (degraded-mode policy), B-16 (`sandbox/unix.rs` Razor refactor). Chain tip:
+`4fdef99d1695db45a63fa253717a06916ba3c705e426d2402809d48805764127`.

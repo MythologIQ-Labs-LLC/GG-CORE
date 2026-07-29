@@ -2,6 +2,7 @@
 //!
 //! Handles model loading, registry tracking, manifest parsing, and hot-swap operations.
 
+pub mod backend_dispatch;
 pub mod manifest;
 pub mod pool;
 pub mod pool_types;
@@ -29,6 +30,7 @@ pub mod persistence;
 pub mod search;
 pub mod version;
 
+pub use backend_dispatch::{load_model_dispatch, BackendChoice};
 pub use drain::{DrainError, FlightGuard, FlightTracker};
 pub use history::{VersionHistory, VersionHistoryEntry, VersionSource};
 pub use lifecycle::{LifecycleError, ModelLifecycle};

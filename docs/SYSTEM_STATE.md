@@ -89,6 +89,7 @@ core-runtime/
 │   │   ├── mod.rs                   [Hot-Swap + ADR-007 exports]
 │   │   ├── loader.rs                [Tier 2 - MappedModel]
 │   │   ├── manifest.rs
+│   │   ├── backend_dispatch.rs      [B-29b-2 - manifest→GGUF/ONNX load dispatch]
 │   │   ├── registry.rs              [Hot-Swap - ModelHandle::new()]
 │   │   ├── router.rs                [Hot-Swap - atomic routing]
 │   │   ├── drain.rs                 [Hot-Swap - flight tracking]

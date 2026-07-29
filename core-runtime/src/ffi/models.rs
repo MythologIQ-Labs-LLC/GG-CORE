@@ -8,7 +8,6 @@ use std::ffi::{c_char, CStr, CString};
 use super::error::{set_last_error, CoreErrorCode};
 use super::runtime::CoreRuntime;
 use super::types::CoreModelMetadata;
-use crate::engine::gguf;
 
 /// Load a model via ModelLifecycle.
 /// # Safety
@@ -47,15 +46,14 @@ pub unsafe extern "C" fn core_model_load(
 
     let model_id = metadata.name.clone();
 
-    // Load GGUF model (or stub if feature disabled)
-    let model =
-        match gguf::load_gguf_model(validated.as_path(), &model_id, &gguf::GgufConfig::default()) {
-            Ok(m) => m,
-            Err(e) => {
-                set_last_error(format!("model load: {}", e));
-                return CoreErrorCode::ModelLoadFailed;
-            }
-        };
+    // Dispatch on an optional sibling manifest.json (ONNX) else GGUF default.
+    let model = match crate::models::load_model_dispatch(validated.as_path(), &model_id) {
+        Ok(m) => m,
+        Err(e) => {
+            set_last_error(format!("model load: {}", e));
+            return CoreErrorCode::ModelLoadFailed;
+        }
+    };
 
     // Atomic load via lifecycle coordinator
     let result = rt.tokio.block_on(async {

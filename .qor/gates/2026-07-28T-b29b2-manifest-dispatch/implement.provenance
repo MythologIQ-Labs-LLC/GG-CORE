@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "02c08f36cca418892f6f56b7028d4c95271263b0641ad7e45e81c360a1c13fff",
+  "payload_sha256": "a36fb681c4ea23b0802f3274318cd8e0f6d99f654bd0fe64a1faa4c02c7be8e1",
+  "phase": "implement",
+  "session_id": "2026-07-28T-b29b2-manifest-dispatch"
+}

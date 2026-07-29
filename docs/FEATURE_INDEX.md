@@ -85,6 +85,7 @@ judgment.
 | F-54 | Speculative benchmark matrix | core-runtime/benches/speculative_matrix.rs | docs/BENCHMARKS.md | core-runtime/benches/speculative_matrix.rs | verified |
 | F-55 | Security: pipeline wiring (ingress scan + egress sanitize) | core-runtime/src/security/pipeline.rs | docs/security | core-runtime/tests/security_pipeline_wiring_test.rs | verified |
 | F-56 | Secure inference façade (Runtime::infer/infer_stream) | core-runtime/src/runtime_facade.rs | docs/security | core-runtime/tests/secure_facade_test.rs | verified |
+| F-57 | Manifest-driven model-load dispatch (GGUF/ONNX by sibling manifest.json; prod FFI+Python) | core-runtime/src/models/backend_dispatch.rs | docs/research-brief-b29b2-manifest-dispatch-2026-07-28.md | core-runtime/src/models/backend_dispatch_tests.rs | verified |
 
 ## Open coverage gaps
 

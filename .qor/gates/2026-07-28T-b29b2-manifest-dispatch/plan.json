@@ -1,0 +1,51 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-28T-b29b2-manifest-dispatch",
+  "ts": "2026-07-28T23:05:12Z",
+  "plan_path": "docs/plan-b29b2-manifest-dispatch-2026-07-28.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "phases": [
+    "Shared dispatch helper",
+    "Wire both production load sites"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core --all-features",
+    "cargo clippy -p gg-core --all-targets --all-features -- -D warnings",
+    "cargo test -p gg-core",
+    "cargo test -p gg-core --features onnx",
+    "cargo test -p gg-core --features gguf",
+    "cargo fmt --check"
+  ],
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "high_risk_target": false,
+  "boundaries": {
+    "non_goals": [
+      "Full metadata merge",
+      "No lifecycle/registry changes",
+      "No new manifest fields"
+    ]
+  },
+  "feature_inventory_touches": [
+    {
+      "entry_id": "FX-model-load-dispatch",
+      "operation": "NEW",
+      "test_path": "core-runtime/src/models/backend_dispatch_tests.rs",
+      "test_descriptor": "routes onnx-manifest to ONNX loader, manifest-absent to GGUF"
+    }
+  ],
+  "open_questions": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-28T23:05:12Z"
+  }
+}

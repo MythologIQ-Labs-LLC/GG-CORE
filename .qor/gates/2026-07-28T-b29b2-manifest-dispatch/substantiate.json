@@ -1,0 +1,17 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-28T-b29b2-manifest-dispatch",
+  "ts": "2026-07-28T23:13:42Z",
+  "verdict": "PASS",
+  "merkle_seal": "fe0937441b515589c1a34e988456d168af760ed5f440e43efc26728dd0d9851b",
+  "ledger_entry": 136,
+  "reality_matches_promise": true,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-28T23:13:42Z"
+  }
+}
