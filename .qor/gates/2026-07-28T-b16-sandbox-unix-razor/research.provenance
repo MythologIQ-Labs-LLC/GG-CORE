@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "e83d96b3e4061b5dbfb0e754005ca48a04210005c0ad2d58efc9b3e51a7766d5",
+  "payload_sha256": "48cee339c72d3d16b8808b2483a981674c72471a483c5da2b2a598d3a5a13dde",
+  "phase": "research",
+  "session_id": "2026-07-28T-b16-sandbox-unix-razor"
+}

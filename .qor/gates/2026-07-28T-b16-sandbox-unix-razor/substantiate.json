@@ -1,0 +1,17 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-28T-b16-sandbox-unix-razor",
+  "ts": "2026-07-29T00:33:00Z",
+  "verdict": "PASS",
+  "merkle_seal": "0fd505d9916b03f2c0b4e225234332bb6408a8be9b99e2f5ed3f8757ee34927a",
+  "ledger_entry": 144,
+  "reality_matches_promise": true,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-29T00:33:00Z"
+  }
+}

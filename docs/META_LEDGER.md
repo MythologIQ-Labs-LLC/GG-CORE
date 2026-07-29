@@ -8599,3 +8599,168 @@ archetype), seal_entry_check (ledger parser + grandfathered `✓`). Chain integr
 intentional, explained degradation under resource pressure. Review Boundary honored — no
 push/PR/merge. Remaining Phase 1 queue: B-16 (`sandbox/unix.rs` Razor refactor). Chain tip:
 `5bb344355abaf84467d6fbba8cc753e1d17e36fae2519a27272131df09d5be7d`.
+
+---
+
+### Entry #141: RESEARCH BRIEF (B-16 sandbox/unix.rs Razor refactor)
+
+**Timestamp**: 2026-07-29T01:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3 (security-sensitive: seccomp-BPF + cgroup code)
+**Session ID**: 2026-07-28T-b16-sandbox-unix-razor
+
+**Target**: B-16 — `core-runtime/src/sandbox/unix.rs` (535 lines) exceeds the Section 4
+Razor 250-line limit; split without changing behavior.
+
+**Note (branch/ledger)**: on `feat/b16-sandbox-unix-razor` off `feat/b07-degraded-mode`
+(tip #140) to keep the Merkle chain linear while the B-29/B-07 stack is unmerged.
+
+**Findings (verified)**: F1 three cohesive concerns behind one `UnixSandbox` type —
+seccomp-BPF filtering (~230 lines: consts `:33-41`/`:103-108`, `bpf*` submodules `:49-102`,
+`SeccompData`/`SockFilter`/`SockFprog` `:116-141`, `gpu_syscalls_x86_64`,
+`apply_seccomp_filter` both cfg forms), cgroup v2 (~60 lines: consts `:26-29`,
+`cgroups_v2_available`, `apply_cgroup_limits`), and core (struct `:142`, `new`, `impl
+Sandbox` `:396`). F2 `impl UnixSandbox` can span sibling files as child-module blocks
+(private-field access retained) — precedent `inference_streaming.rs`/`inference_degraded.rs`;
+methods `apply` calls become `pub(super)`. F3 inline tests (`:491-535`) externalize via
+`#[path]`. F4 `sandbox_test` + `security_sandbox_escape_test` are the behavior-preservation
+gate — a pure relocation leaves both green (no new tests).
+
+**Decision**: single bounded L3 refactor — split into `unix_seccomp.rs` (~230),
+`unix_cgroup.rs` (~65), `unix_tests.rs` (~45), leaving `unix.rs` ~150; strictly mechanical
+(verbatim line moves + `mod` decls + `pub(super)` on the two cross-boundary methods). No
+logic/const/filter-byte changes. Security suites gate correctness.
+
+**Content Hash** (SHA256 of docs/research-brief-b16-sandbox-unix-razor-2026-07-28.md): `de436adf5d7f86f0a2b13c1d684058319304118cd20e3a5e790573adab6f3b86`
+
+**Previous Hash**: `5bb344355abaf84467d6fbba8cc753e1d17e36fae2519a27272131df09d5be7d`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `bb92b9032bb0bc3d4cf021adac91dc54db341a465abee1332adff7a755f87190`
+
+**Decision**: B-16 research complete; single mechanical concern-split refactor recommended.
+Chain tip:
+`bb92b9032bb0bc3d4cf021adac91dc54db341a465abee1332adff7a755f87190`.
+
+---
+
+### Entry #142: GATE TRIBUNAL (B-16 sandbox/unix.rs Razor refactor — PASS)
+
+**Timestamp**: 2026-07-29T01:30:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L3
+**Verdict**: PASS
+**Session ID**: 2026-07-28T-b16-sandbox-unix-razor
+
+**Target**: `docs/plan-b16-sandbox-unix-razor-2026-07-28.md`.
+
+**Passes**: all twelve clear. Pure, byte-identical concern-split of `unix.rs` (535→~150)
+into `unix_seccomp.rs` (~230), `unix_cgroup.rs` (~70), `unix_tests.rs` (~45) — all ≤250, the
+refactor's whole purpose. Security L3: no seccomp-filter/whitelist/cgroup/`prctl`/`Sandbox`
+impl change; verbatim relocation with `pub(super)` (= `pub(in unix)`) on the three
+cross-boundary methods. Disclosed local-verification limitation: `unix.rs` is
+`#[cfg(unix)]` (`sandbox/mod.rs:5`) and the dev host is Windows, so the seal is held until
+CI (`.github/workflows/rust.yml` Linux+macOS) compiles + runs the sandbox suites green
+(plan D4.d waiver). Operator authorized refactor→push→seal-after-CI-green.
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `e30ee32a81554960cfea97b10c3c6410224c3d6e6a922eb4712e93834674cdd7`
+
+**Previous Hash**: `bb92b9032bb0bc3d4cf021adac91dc54db341a465abee1332adff7a755f87190`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `041c7908724cd150b1679cb4b86d34b801c825a5f783da867596494009126386`
+
+**Decision**: B-16 plan PASS; proceed to `/qor-implement`. Chain tip:
+`041c7908724cd150b1679cb4b86d34b801c825a5f783da867596494009126386`.
+
+---
+
+### Entry #143: IMPLEMENTATION (B-16 sandbox/unix.rs Razor refactor)
+
+**Timestamp**: 2026-07-29T02:00:00-04:00
+**Phase**: IMPLEMENT
+**Author**: Specialist
+**Risk Grade**: L3
+**Session ID**: 2026-07-28T-b16-sandbox-unix-razor
+
+**Files** (byte-identical relocation): `sandbox/unix.rs` 535→**147** (struct, `new`,
+`impl Sandbox`, 3 mod decls). NEW `unix_seccomp.rs` (244), NEW `unix_cgroup.rs` (77),
+NEW `unix_tests.rs` (44) as child-module `impl UnixSandbox` blocks; `apply_seccomp_filter`
+/ `apply_cgroup_limits` / `cgroups_v2_available` made `pub(super)`.
+
+**Plan deviation (disclosed)**: the audited plan projected 3 new files with
+`unix_seccomp.rs` ~230; the verbatim seccomp content was 295 (> 250), so a **4th** file
+NEW `unix_seccomp_defs.rs` (60) was added holding the five `bpf*` opcode reference modules
+(pure `pub const` data, `pub(super)`), imported back via `use defs::{...}` — the `bpf::LD`
+call sites are unchanged. Every `sandbox/unix*.rs` is now ≤250. Behavior-preserving; no
+logic/const/filter-byte change.
+
+**Verification**: `cargo fmt --check` clean (parses all four new files — syntactic
+validation); `cargo build` clean on the Windows dev host (crate compiles; cfg wiring
+intact). **`unix.rs` is `#[cfg(unix)]` — NOT compiled on this Windows host**, so
+clippy/type-check + the sandbox security suites run only on CI (`.github/workflows/rust.yml`
+Linux + macOS). Per the plan D4.d waiver, the `/qor-substantiate` seal is HELD until CI is
+green on the pushed branch.
+
+**Content Hash** (SHA256 of core-runtime/src/sandbox/unix.rs): `0134188a505c49d48b2a4daec256a9b2b523a93c13628e60578cab1ebc49f582`
+
+**Previous Hash**: `041c7908724cd150b1679cb4b86d34b801c825a5f783da867596494009126386`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `4a7d5bdc0494700a0c003c358ca971be4907e8222bfa015afdc9c525b8761484`
+
+**Decision**: B-16 implemented (Windows-syntactic-verified); push to run CI, seal after
+green. Chain tip:
+`4a7d5bdc0494700a0c003c358ca971be4907e8222bfa015afdc9c525b8761484`.
+
+---
+
+### Entry #144: SESSION SEAL (B-16 sandbox/unix.rs Razor refactor)
+
+**Entry ID**: `2871697a72c1`
+**Timestamp**: 2026-07-29T03:00:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L3
+**Session ID**: 2026-07-28T-b16-sandbox-unix-razor
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Target**: `docs/plan-b16-sandbox-unix-razor-2026-07-28.md` (audit PASS Entry #142).
+
+**Reality vs Promise**: MATCH. `sandbox/unix.rs` byte-identically split 535→147 into
+child-module `impl UnixSandbox` blocks: `unix_seccomp.rs` (244), `unix_seccomp_defs.rs`
+(60, BPF opcode tables — the +1 file over plan, disclosed in #143), `unix_cgroup.rs` (77),
+`unix_tests.rs` (44). All `sandbox/unix*.rs` ≤250. No logic/const/syscall-whitelist/
+filter-byte change; `apply_seccomp_filter`/`apply_cgroup_limits`/`cgroups_v2_available`
+made `pub(super)`.
+
+**Verification (authoritative — CI, not local)**: `unix.rs` is `#[cfg(unix)]` and the dev
+host is `x86_64-pc-windows-msvc`, so local proof was limited to `fmt --check` (syntactic) +
+Windows `cargo build` (cfg wiring). The seal was **held until CI green** per the plan D4.d
+waiver. **PR #89 run 30411044103 = SUCCESS (all 10 jobs)**: `fmt + clippy` and `test` on
+ubuntu + macos (compile `unix.rs` under `-D warnings` + run the sandbox/seccomp security
+suites) all pass; `features/{ffi,gguf,onnx,python}` all pass. This run also validates the
+whole integrated Phase-1 stack (B-29a→B-29b-1→B-29b-2→B-07→B-16).
+
+**CI-caught cross-cycle defect (fixed)**: the first run (30410519473) failed `features/ffi`
+on a stale `use crate::engine::gguf;` in `ffi/models.rs` left by the B-29b-2 rewire —
+invisible to the Windows default-feature clippy (`src/ffi` is `#[cfg(feature="ffi")]`).
+Fixed (commit `c2936d0`); Shadow Genome #13 records the "feature/platform-gated files are
+CI-gated by construction on a Windows host" lesson.
+
+**Seal-gate ladder**: intent_lock VERIFIED; secret_scanner clean; merge_velocity healthy;
+governance-index enforce → 2 new cycle docs registered, exit 0; gate_chain_completeness OK.
+**Environmental SKIPs (disclosed)**: doc_integrity (no glossary), badge_currency (pytest on
+Rust archetype), seal_entry_check (ledger parser + grandfathered ✓). `verify-ledger` →
+#123–#144 all verified.
+
+**Content Hash** (SHA256 of docs/SYSTEM_STATE.md): `59619e72fe6af6e5c10c865101afe1270f3a5af30031b1a570e059ba3150c5a8`
+
+**Previous Hash**: `4a7d5bdc0494700a0c003c358ca971be4907e8222bfa015afdc9c525b8761484`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `b89a4b8fc76f3c58bca8207e3aa8dc6361428f389d261ea2522b909024b86801`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `0fd505d9916b03f2c0b4e225234332bb6408a8be9b99e2f5ed3f8757ee34927a`
+
+**Decision**: B-16 COMPLETE and sealed — CI-verified. `sandbox/unix.rs` Razor debt
+cleared; Phase 1 queue (B-24a→B-28→B-24b→B-29→B-07→B-16) is fully closed. Chain tip:
+`b89a4b8fc76f3c58bca8207e3aa8dc6361428f389d261ea2522b909024b86801`.
