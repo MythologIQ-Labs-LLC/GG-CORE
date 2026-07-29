@@ -8711,3 +8711,56 @@ green on the pushed branch.
 **Decision**: B-16 implemented (Windows-syntactic-verified); push to run CI, seal after
 green. Chain tip:
 `4a7d5bdc0494700a0c003c358ca971be4907e8222bfa015afdc9c525b8761484`.
+
+---
+
+### Entry #144: SESSION SEAL (B-16 sandbox/unix.rs Razor refactor)
+
+**Entry ID**: `2871697a72c1`
+**Timestamp**: 2026-07-29T03:00:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L3
+**Session ID**: 2026-07-28T-b16-sandbox-unix-razor
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Target**: `docs/plan-b16-sandbox-unix-razor-2026-07-28.md` (audit PASS Entry #142).
+
+**Reality vs Promise**: MATCH. `sandbox/unix.rs` byte-identically split 535→147 into
+child-module `impl UnixSandbox` blocks: `unix_seccomp.rs` (244), `unix_seccomp_defs.rs`
+(60, BPF opcode tables — the +1 file over plan, disclosed in #143), `unix_cgroup.rs` (77),
+`unix_tests.rs` (44). All `sandbox/unix*.rs` ≤250. No logic/const/syscall-whitelist/
+filter-byte change; `apply_seccomp_filter`/`apply_cgroup_limits`/`cgroups_v2_available`
+made `pub(super)`.
+
+**Verification (authoritative — CI, not local)**: `unix.rs` is `#[cfg(unix)]` and the dev
+host is `x86_64-pc-windows-msvc`, so local proof was limited to `fmt --check` (syntactic) +
+Windows `cargo build` (cfg wiring). The seal was **held until CI green** per the plan D4.d
+waiver. **PR #89 run 30411044103 = SUCCESS (all 10 jobs)**: `fmt + clippy` and `test` on
+ubuntu + macos (compile `unix.rs` under `-D warnings` + run the sandbox/seccomp security
+suites) all pass; `features/{ffi,gguf,onnx,python}` all pass. This run also validates the
+whole integrated Phase-1 stack (B-29a→B-29b-1→B-29b-2→B-07→B-16).
+
+**CI-caught cross-cycle defect (fixed)**: the first run (30410519473) failed `features/ffi`
+on a stale `use crate::engine::gguf;` in `ffi/models.rs` left by the B-29b-2 rewire —
+invisible to the Windows default-feature clippy (`src/ffi` is `#[cfg(feature="ffi")]`).
+Fixed (commit `c2936d0`); Shadow Genome #13 records the "feature/platform-gated files are
+CI-gated by construction on a Windows host" lesson.
+
+**Seal-gate ladder**: intent_lock VERIFIED; secret_scanner clean; merge_velocity healthy;
+governance-index enforce → 2 new cycle docs registered, exit 0; gate_chain_completeness OK.
+**Environmental SKIPs (disclosed)**: doc_integrity (no glossary), badge_currency (pytest on
+Rust archetype), seal_entry_check (ledger parser + grandfathered ✓). `verify-ledger` →
+#123–#144 all verified.
+
+**Content Hash** (SHA256 of docs/SYSTEM_STATE.md): `59619e72fe6af6e5c10c865101afe1270f3a5af30031b1a570e059ba3150c5a8`
+
+**Previous Hash**: `4a7d5bdc0494700a0c003c358ca971be4907e8222bfa015afdc9c525b8761484`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `b89a4b8fc76f3c58bca8207e3aa8dc6361428f389d261ea2522b909024b86801`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `0fd505d9916b03f2c0b4e225234332bb6408a8be9b99e2f5ed3f8757ee34927a`
+
+**Decision**: B-16 COMPLETE and sealed — CI-verified. `sandbox/unix.rs` Razor debt
+cleared; Phase 1 queue (B-24a→B-28→B-24b→B-29→B-07→B-16) is fully closed. Chain tip:
+`b89a4b8fc76f3c58bca8207e3aa8dc6361428f389d261ea2522b909024b86801`.

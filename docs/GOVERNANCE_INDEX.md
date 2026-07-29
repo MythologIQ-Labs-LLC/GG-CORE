@@ -80,6 +80,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-29b-2 manifest dispatch research brief | `docs/research-brief-b29b2-manifest-dispatch-2026-07-28.md` | b29b2-manifest-dispatch |
 | B-07 degraded-mode plan | `docs/plan-b07-degraded-mode-2026-07-28.md` | b07-degraded-mode |
 | B-07 degraded-mode research brief | `docs/research-brief-b07-degraded-mode-2026-07-28.md` | b07-degraded-mode |
+| B-16 sandbox Razor refactor plan | `docs/plan-b16-sandbox-unix-razor-2026-07-28.md` | b16-sandbox-unix-razor |
+| B-16 sandbox Razor refactor research brief | `docs/research-brief-b16-sandbox-unix-razor-2026-07-28.md` | b16-sandbox-unix-razor |
 
 ## Tier 5 — Reference Material
 

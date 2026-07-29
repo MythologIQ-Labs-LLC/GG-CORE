@@ -117,7 +117,11 @@ core-runtime/
 │   ├── sandbox/
 │   │   ├── mod.rs
 │   │   ├── windows.rs
-│   │   └── unix.rs
+│   │   ├── unix.rs                  [B-16 - struct + Sandbox impl (535→147, Razor)]
+│   │   ├── unix_seccomp.rs          [B-16 - seccomp-bpf filter]
+│   │   ├── unix_seccomp_defs.rs     [B-16 - BPF opcode tables]
+│   │   ├── unix_cgroup.rs           [B-16 - cgroup v2 limits]
+│   │   └── unix_tests.rs            [B-16 - sandbox unit tests]
 │   └── telemetry/                   [Observability Stack]
 │       ├── mod.rs                   [Metrics Export - store exports]
 │       ├── logging.rs
