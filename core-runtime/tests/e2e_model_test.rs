@@ -6,8 +6,8 @@
 mod tests {
     use gg_core::engine::gguf::{GgufConfig, GgufGenerator};
     use gg_core::engine::{
-        ChatMessage, ChatRole, GgufModel, InferenceConfig, InferenceInput, InferenceOutput,
-        StreamItem, StreamTerminal, TokenStream,
+        ChatMessage, ChatRole, InferenceConfig, InferenceInput, InferenceOutput, Model, StreamItem,
+        StreamTerminal, TokenStream,
     };
     use std::path::Path;
     use std::sync::atomic::{AtomicUsize, Ordering};

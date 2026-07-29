@@ -74,6 +74,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | Backlog reconciliation brief | `docs/research-brief-backlog-reconciliation-2026-07-27.md` | backlog-reconciliation |
 | rand 0.9 migration brief | `docs/research-brief-rand-0.9-migration-2026-07-27.md` | rand-0.9-migration |
 | B-29 ONNX dispatch research brief | `docs/research-brief-b29-onnx-dispatch-2026-07-28.md` | b29-onnx-dispatch |
+| B-29b-1 Model trait unification plan | `docs/plan-b29b1-model-trait-unification-2026-07-28.md` | b29b1-model-trait-unification |
+| B-29b registry unification research brief | `docs/research-brief-b29b-registry-unification-2026-07-28.md` | b29b-registry-unification |
 
 ## Tier 5 — Reference Material
 

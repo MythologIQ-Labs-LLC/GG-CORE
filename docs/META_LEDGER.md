@@ -8046,3 +8046,221 @@ shipped as an internal, unit-tested seam; B-29b registry unification remains the
 end-to-end enabler. Review Boundary honored — no push/PR/merge. Next queue: B-29b
 (when scoped), then B-07, B-16. Chain tip:
 `ef7f8513ab90b61c0db94466289b5405d3e62609085eaf46f34f7f04878505a8`.
+
+---
+
+### Entry #128: RESEARCH BRIEF (B-29b registry unification)
+
+**Timestamp**: 2026-07-28T18:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3 (registry/trait refactor + prod load-path change)
+**Session ID**: 2026-07-28T-b29b-registry-unification
+
+**Target**: B-29b (issue #72 follow-up) — unify GGUF/ONNX so the engine registry holds
+ONNX models and manifest-driven ONNX inference is reachable end-to-end.
+
+**Findings (verified)**: F1 `OnnxModel` (`onnx/mod.rs:45`) is a strict **subset** of
+`GgufModel` (`gguf/mod.rs:47`) — missing only `infer_cancellable`/`set_device_placement`
+(both defaulted) and `as_any`; a unified `Model` trait = the `GgufModel` superset, a
+mechanical promotion. F2 blast radius ~6 prod `Arc<dyn GgufModel>` sites (`inference.rs`
+registry:19/35/119/142/150, `lifecycle.rs:95`, `gguf/mod.rs:89/106`) + ~5 test sites.
+**F3 (blocking DRIFT)**: the prod load path never loads a `ModelManifest` —
+`ModelLoader::load_metadata` (`loader.rs:110`) returns `ModelMetadata{name,size_bytes}`
+from the file; `ffi/models.rs:52` + `python/session.rs:106` have no architecture input.
+F4 two parallel metadata concepts (`ModelMetadata` loader vs `ModelManifest`
+preload/swap) need reconciliation. F5 streaming needs no special-casing — the existing
+`as_any().downcast_ref::<GgufGenerator>()` naturally rejects ONNX with "does not support
+streaming."
+
+**Decision**: recommend staging B-29b into **B-29b-1** (unified `Model` trait + registry/
+lifecycle migration, GGUF-only, behavior-preserving) and **B-29b-2** (manifest loading in
+the prod load path + architecture dispatch wiring `load_onnx_from_manifest` + ONNX impls
+satisfy `Model`). Big-bang viable but higher VETO surface. Scope fork + metadata-
+reconciliation are operator decisions at cycle start. Shadow Genome Entry #11 recorded.
+
+**Content Hash** (SHA256 of docs/research-brief-b29b-registry-unification-2026-07-28.md): `5838b9af53cde0e8d7d9ce8d8cd6cbc72e604951ca270db0e1f219fe9f140428`
+
+**Previous Hash**: `ef7f8513ab90b61c0db94466289b5405d3e62609085eaf46f34f7f04878505a8`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `cae58b571c0223eb394042996edb760cc06adb79e5217fd5f8d0bf0b8d98d8d9`
+
+**Decision**: B-29b research complete; staged-cycle recommendation pending operator scope
+fork. Chain tip:
+`cae58b571c0223eb394042996edb760cc06adb79e5217fd5f8d0bf0b8d98d8d9`.
+
+---
+
+### Entry #129: GATE TRIBUNAL (B-29b-1 unified Model trait — VETO)
+
+**Timestamp**: 2026-07-28T19:00:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L3
+**Verdict**: VETO
+**Session ID**: 2026-07-28T-b29b-registry-unification
+
+**Target**: `docs/plan-b29b1-model-trait-unification-2026-07-28.md`.
+
+**Finding** (`infrastructure-mismatch`): the plan deletes both `GgufModel` and
+`OnnxModel` traits but omits two caller sites from Affected Files, each a hard compile
+error once the traits are gone: (1) `engine/mod.rs:94` publicly re-exports `OnnxModel`
+(plan handled only the gguf re-export at :85); (2) `tests/backend_test.rs:6-7` imports
+both traits (Phase 4 enumerated only inference/lifecycle/worker tests). Root cause: the
+grounding grep matched `dyn`/`impl`/trait sites but not `use …Model` imports — the same
+SG-AffectedFilesContract-A recurrence as B-29a (which missed `tests/` construction
+sites). All other passes (Prompt Injection, Security L3, OWASP, Ghost UI, Razor — incl.
+the inference.rs 271→~213 streaming extraction, Test Functionality, Dependency,
+Macro-Architecture, Feature-Test, Filter-Stage, Orphan) PASS.
+
+**Required next action**: Governor → `/qor-plan` to add `engine/mod.rs:94` (drop
+`OnnxModel` from the onnx re-export) and `tests/backend_test.rs` (repoint imports to
+`crate::engine::Model`) to Affected Files, re-run the grep with a `use .*(Gguf|Onnx)Model`
+pattern over src/ + tests/, then re-`/qor-audit`. Self-audit note (SG-007): VETO raised
+by the plan's author — a real self-caught enumeration gap.
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `3522cdff53df845a21b8d673adf78a8f4e29033011dbade1aa677ced745faffb`
+
+**Previous Hash**: `cae58b571c0223eb394042996edb760cc06adb79e5217fd5f8d0bf0b8d98d8d9`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `98c83c2d4cb255daefb9f7dcef0b710ba2de9d82e133d3f0877673f75722fa7c`
+
+**Decision**: B-29b-1 plan VETOed on incomplete caller enumeration; return to plan.
+Chain tip:
+`98c83c2d4cb255daefb9f7dcef0b710ba2de9d82e133d3f0877673f75722fa7c`.
+
+---
+
+### Entry #130: GATE TRIBUNAL (B-29b-1 unified Model trait — PASS, iter2)
+
+**Timestamp**: 2026-07-28T19:20:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L3
+**Verdict**: PASS
+**Session ID**: 2026-07-28T-b29b-registry-unification
+
+**Target**: `docs/plan-b29b1-model-trait-unification-2026-07-28.md`, iter2.
+
+**Remediation of #129**: the `infrastructure-mismatch` VETO is resolved. Added
+`engine/mod.rs:94` (drop `OnnxModel` from the onnx re-export) and `tests/backend_test.rs`
+(repoint imports → `Model`) to Affected Files; applying Shadow Genome #12's bare-identifier
+grep also surfaced a **third** missed site, `tests/e2e_model_test.rs:9` (imports `GgufModel`
+via the engine re-export), now also enumerated. `grep -rn '\b(Gguf|Onnx)Model\b'` yields 14
+files, all in Affected Files — bare-grep verified, no site outside.
+
+**Passes**: all twelve clear (Prompt Injection, Security L3, OWASP, Ghost UI, Razor incl.
+inference.rs 271→~213 streaming extraction, Test Functionality, Dependency,
+Macro-Architecture, Feature-Test [exempt], Infrastructure Alignment, Filter-Stage, Orphan).
+`set_device_placement` confirmed dead (dropped from the unified trait); `as_any` retained
+for the streaming downcast.
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `187f30f7c31f9dca53cc78ff311598dfcbf68bd4db9df22efa5bd248fc35f766`
+
+**Previous Hash**: `98c83c2d4cb255daefb9f7dcef0b710ba2de9d82e133d3f0877673f75722fa7c`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `32329744a4ae7e7619bb9755410455ad450bfa90e8c97e7eaf9a1c3b23d10868`
+
+**Decision**: B-29b-1 plan PASS; proceed to `/qor-implement`. Chain tip:
+`32329744a4ae7e7619bb9755410455ad450bfa90e8c97e7eaf9a1c3b23d10868`.
+
+---
+
+### Entry #131: IMPLEMENTATION (B-29b-1 unified Model trait + registry migration)
+
+**Timestamp**: 2026-07-28T20:00:00-04:00
+**Phase**: IMPLEMENT
+**Author**: Specialist
+**Risk Grade**: L3
+**Session ID**: 2026-07-28T-b29b-registry-unification
+
+**Files (14 + 2 new)**:
+- NEW `engine/model.rs` (42) — unified `Model` trait (GgufModel superset minus dead
+  `set_device_placement`). NEW `engine/inference_streaming.rs` (72) — GGUF streaming
+  extracted from `inference.rs` (child module; Razor: `inference.rs` 271→212).
+- `engine/mod.rs` — `mod model; pub use model::Model;`; dropped `GgufModel`/`OnnxModel`
+  from the gguf/onnx re-exports (lines 85/94).
+- `engine/gguf/mod.rs` (123→86) — deleted `GgufModel` trait; loaders → `Arc<dyn Model>`.
+  `engine/gguf/generator.rs` — `impl Model for GgufGenerator`.
+- `engine/inference.rs` — registry `Arc<dyn Model>`; streaming methods relocated.
+- `models/lifecycle.rs` — `load(..)` takes `Arc<dyn Model>`.
+- `engine/onnx/{mod.rs (130→113), dispatch.rs}` — deleted `OnnxModel` trait; loaders +
+  `load_onnx_from_manifest` → `Arc<dyn Model>`. `onnx/{embedder,classifier}.rs` —
+  `impl Model` + added `as_any`.
+- Tests migrated: `inference_tests.rs` (+2 tests), `lifecycle_tests.rs`,
+  `worker_tests.rs`, `tests/backend_test.rs`, `tests/e2e_model_test.rs`;
+  `onnx/dispatch_tests.rs` (+1 test).
+
+**Verification**: clippy `-D warnings` clean (default + gguf + onnx, all-targets); lib
+tests 566 (default) / 571 (gguf) / 572 (onnx); integration 17 (backend 13, e2e 4);
+`fmt --check` clean. New tests: `registry_holds_non_gguf_model_and_infers`,
+`non_gguf_model_stream_reports_unsupported` (F5), `onnx_embedder_as_any_downcasts_to_concrete`.
+Razor: every touched/new file ≤250. `--all-features` not built locally (Windows host;
+`metal`/`core-foundation` is macOS-only) — CI matrix covers it. Behavior-preserving:
+GGUF still the only backend wired into the prod load path; ONNX registerable, unreached
+(B-29b-2).
+
+**Content Hash** (SHA256 of core-runtime/src/engine/model.rs): `4695d5e6c3cf174d7610d51233cf9ac1e3b3fe696a0dcde4d3de007a0686ff2a`
+
+**Previous Hash**: `32329744a4ae7e7619bb9755410455ad450bfa90e8c97e7eaf9a1c3b23d10868`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `7da747784a650c5903382184485c8d9c90726183e1c118fa057703e7ef376b99`
+
+**Decision**: B-29b-1 implemented and green (14-file behavior-preserving migration);
+proceed to `/qor-substantiate`. Chain tip:
+`7da747784a650c5903382184485c8d9c90726183e1c118fa057703e7ef376b99`.
+
+---
+
+### Entry #132: SESSION SEAL (B-29b-1 unified Model trait + registry migration)
+
+**Entry ID**: `1c63c855fcaf`
+**Timestamp**: 2026-07-28T20:30:00-04:00
+**Phase**: SUBSTANTIATE (local seal; Review Boundary — no push/PR/merge)
+**Author**: Specialist + Judge
+**Risk Grade**: L3
+**Session ID**: 2026-07-28T-b29b-registry-unification
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Target**: `docs/plan-b29b1-model-trait-unification-2026-07-28.md` (audit PASS Entry
+#130, after iter1 infra-mismatch VETO #129).
+
+**Reality vs Promise**: MATCH. The engine registry is now backend-neutral
+(`Arc<dyn Model>`); a unified `Model` trait (`engine/model.rs`) replaces the deleted
+`GgufModel`/`OnnxModel` traits; GGUF + ONNX implementors, the lifecycle coordinator, and
+all loaders migrated; `load_onnx_from_manifest` (B-29a) now returns `Arc<dyn Model>` — so
+an ONNX model is *registerable*. `set_device_placement` (dead) dropped from the
+abstraction. `inference.rs` streaming extracted to `inference_streaming.rs` (271→212,
+Razor). 14 files migrated (bare-grep verified complete, incl. the 3 sites the iter1 audit
++ remediation surfaced). Behavior-preserving: GGUF remains the only backend wired into
+the prod load path; ONNX is unreached (B-29b-2 wires manifest loading + architecture
+dispatch).
+
+**Verification (authoritative, at seal)**:
+- clippy `-D warnings` clean — default + `gguf` + `onnx`, all-targets
+- lib tests: 566 (default) / 571 (gguf) / 572 (onnx); integration 17 (backend 13, e2e 4)
+- new: `registry_holds_non_gguf_model_and_infers`, `non_gguf_model_stream_reports_unsupported`
+  (F5 downcast-rejects-ONNX), `onnx_embedder_as_any_downcasts_to_concrete`
+- `fmt --check` clean; Razor: every touched/new file ≤250
+- `--all-features` not built locally (Windows; `metal`/`core-foundation` macOS-only) — CI matrix covers
+
+**Seal-gate ladder**: intent_lock VERIFIED; skill_admission/gate_skill_matrix OK;
+secret_scanner clean; merge_velocity healthy; data_api_acl SKIP (no SQL); governance-index
+enforce → registered the 2 new cycle docs (plan-b29b1, research-brief-b29b) into Tier 4,
+exit 0; gate_chain_completeness OK. **Environmental SKIPs (disclosed, unchanged from
+#127)**: doc_integrity strict (no `qor/references/glossary.md`), badge_currency (pytest on
+a Rust archetype), seal_entry_check (ledger parser chokes on grandfathered `✓` in
+#64/#68). Chain integrity confirmed by `qor-logic verify-ledger` (#123–#132 all verified).
+
+**Content Hash** (SHA256 of docs/SYSTEM_STATE.md): `b27b65c437c77c7d2de0f3757ae5b81b2f99aeb4510f32f1824d119146981a18`
+
+**Previous Hash**: `7da747784a650c5903382184485c8d9c90726183e1c118fa057703e7ef376b99`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `a07e3a8203987af4b0714f41026c66d03d24656e1291cc3e086151845afa6896`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `2e3424a1f88cdbc4119cdc821ebc2f2c223055c6bf241175a74827e5c949d3e7`
+
+**Decision**: B-29b-1 COMPLETE and sealed (local). The registry can now hold ONNX models;
+end-to-end ONNX serving is B-29b-2 (manifest loading + architecture dispatch). Review
+Boundary honored — no push/PR/merge. Chain tip:
+`a07e3a8203987af4b0714f41026c66d03d24656e1291cc3e086151845afa6896`.

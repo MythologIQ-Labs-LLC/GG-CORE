@@ -10,8 +10,8 @@ use tokio::sync::RwLock;
 
 use super::loader::ModelMetadata;
 use super::registry::{ModelHandle, ModelRegistry};
-use crate::engine::gguf::GgufModel;
 use crate::engine::InferenceEngine;
+use crate::engine::Model;
 
 #[derive(Error, Debug)]
 pub enum LifecycleError {
@@ -92,7 +92,7 @@ impl ModelLifecycle {
         &self,
         model_id: String,
         metadata: ModelMetadata,
-        model: Arc<dyn GgufModel>,
+        model: Arc<dyn Model>,
     ) -> Result<ModelHandle, LifecycleError> {
         let mut index = self.index.write().await;
 

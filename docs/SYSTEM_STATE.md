@@ -62,7 +62,9 @@ core-runtime/
 │   │   ├── input.rs
 │   │   ├── output.rs
 │   │   ├── filter.rs               [Pre-Testing - NFC normalization] **MODIFIED**
-│   │   ├── inference.rs             [Runtime Enhancements - timeout_ms field]
+│   │   ├── inference.rs             [B-29b-1 - registry holds Arc<dyn Model>]
+│   │   ├── inference_streaming.rs   [B-29b-1 - extracted GGUF streaming (Razor)]
+│   │   ├── model.rs                 [B-29b-1 - unified backend-neutral Model trait]
 │   │   ├── tokenizer.rs
 │   │   ├── streaming.rs
 │   │   ├── simd_tokenizer.rs        [Tier 3]

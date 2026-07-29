@@ -126,3 +126,16 @@ fn load_from_manifest_stub_valid_manifest_reports_feature_absent() {
     let err = load_onnx_from_manifest(&m, Path::new("x.onnx"), &OnnxConfig::default());
     assert!(err_message(err).contains("not compiled in"));
 }
+
+/// An `OnnxEmbedder` used as `&dyn Model` recovers its concrete type via
+/// `as_any().downcast_ref` — confirming the B-29b-1 `as_any` impl returns
+/// `self` (the streaming downcast relies on this).
+#[test]
+fn onnx_embedder_as_any_downcasts_to_concrete() {
+    use crate::engine::onnx::OnnxEmbedder;
+    use crate::engine::Model;
+
+    let embedder = OnnxEmbedder::new("m".into(), 384);
+    let as_model: &dyn Model = &embedder;
+    assert!(as_model.as_any().downcast_ref::<OnnxEmbedder>().is_some());
+}

@@ -1,0 +1,46 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-28T-b29b-registry-unification",
+  "ts": "2026-07-28T22:15:57Z",
+  "plan_path": "docs/plan-b29b1-model-trait-unification-2026-07-28.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "phases": [
+    "Define unified Model trait",
+    "Migrate GGUF + registry/lifecycle to Model",
+    "Migrate ONNX implementors + dyn OnnxModel sites",
+    "Migrate test doubles"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core --all-features",
+    "cargo clippy -p gg-core --all-targets --all-features -- -D warnings",
+    "cargo test -p gg-core --features onnx",
+    "cargo test -p gg-core",
+    "cargo test -p gg-core --features gguf",
+    "cargo fmt --check"
+  ],
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "high_risk_target": false,
+  "boundaries": {
+    "non_goals": [
+      "Manifest loading in prod load path + ModelArchitecture dispatch (B-29b-2)",
+      "Wiring load_onnx_from_manifest into FFI/Python (B-29b-2)",
+      "ModelMetadata/ModelManifest reconciliation (B-29b-2)"
+    ]
+  },
+  "feature_inventory_touches": [],
+  "open_questions": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-28T22:15:57Z"
+  }
+}

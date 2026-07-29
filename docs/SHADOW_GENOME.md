@@ -306,4 +306,57 @@ new logical unit (here: dispatch) deserves its own file regardless.
 
 ---
 
+### Entry #11: a "unification" epic can be a subset-promotion in disguise
+
+**Context**: B-29b research (unify GGUF/ONNX so the registry holds ONNX), ledger #128.
+
+**Pattern**: The B-29a brief (F2) flagged `GgufModel` and `OnnxModel` as "different
+traits" with ONNX having "no registry home," framing B-29b as a large abstraction
+refactor. Diffing the two trait bodies side-by-side showed `OnnxModel` is a strict
+**subset** of `GgufModel` (missing only `infer_cancellable`/`set_device_placement` —
+both defaulted — and `as_any`). The "big refactor" collapses to a mechanical
+superset-promotion (~6 prod sites).
+
+**Corollary (F3)**: sizing a dispatch feature also requires confirming the dispatch
+*input* is loaded in production. Here the prod path (`ffi/models.rs`,
+`python/session.rs`) never loads a `ModelManifest` at all — `load_metadata` synthesizes
+name+size from the file — so architecture dispatch had no input regardless of trait
+shape. A second blocking gap the "different traits" framing hid.
+
+**Countermeasure**: before sizing a "unify X and Y" epic, diff the actual trait/interface
+signatures (one may subsume the other) AND trace whether the feature's required inputs
+are even present in the target execution path. Frame the epic from the two verified facts,
+not the inherited narrative. Pairs with [[b29-onnx-dispatch-queued]].
+
+---
+
+### Entry #12: grounding grep matched dyn/impl but not `use` imports — caller miss recurred
+
+**Context**: B-29b-1 plan GATE VETO (Entry #129); recurrence of the B-29a caller-miss
+(SG-AffectedFilesContract-A).
+
+**Failure**: The B-29b-1 plan deleted the `GgufModel`/`OnnxModel` traits but its
+Affected Files missed two reference sites — `engine/mod.rs:94` (a `pub use onnx::{..,
+OnnxModel}` re-export) and `tests/backend_test.rs:6-7` (a `use ...::{GgufModel}` /
+`use ...::{OnnxModel}` import). Both are hard compile errors once the traits are gone.
+The plan's grounding grep matched `dyn <Trait>`, `impl <Trait>`, and `trait <Trait>`
+forms but NOT `use ...::<Trait>` imports or `pub use` re-exports — so an integration
+test and a module re-export slipped through. This is the SAME class as B-29a (which
+missed `tests/` `ModelManifest` struct-literal sites); the B-29b-1 plan even cited the
+B-29a lesson yet under-scoped the grep.
+
+**Root cause**: "enumerate every caller" was operationalized as "grep the usage forms I
+thought of" (dyn/impl), not "grep every syntactic form that references the symbol"
+(dyn/impl/trait/**use**/**pub use**/type-alias/bound).
+
+**Countermeasure**: when deleting or renaming a trait/type/fn, the grounding grep MUST
+cover the full reference-form set — at minimum `\b<Name>\b` across `src/` AND `tests/`
+(and `benches/`/`examples/` if present) — then bucket the hits, not just the
+dyn/impl ones. A bare-identifier grep (`grep -rn '\bGgufModel\b'`) over the whole crate
+is the floor; narrower patterns are an optimization only after the bare grep's hits are
+all accounted for. Applies to every "delete/rename symbol" plan. Strengthens
+[[b29-onnx-dispatch-queued]] SG-AffectedFilesContract-A.
+
+---
+
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._

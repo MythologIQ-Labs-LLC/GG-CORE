@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use super::*;
-use crate::engine::gguf::GgufModel;
+use crate::engine::Model;
 use crate::engine::{
     GenerationResult, InferenceCapability, InferenceConfig, InferenceError as EngineError,
     InferenceInput, InferenceOutput,
@@ -18,7 +18,7 @@ struct MockModel {
 impl MockModel {
     // Constructs a trait object rather than Self by design (test mock factory).
     #[allow(clippy::new_ret_no_self)]
-    fn new(id: &str, memory: usize) -> Arc<dyn GgufModel> {
+    fn new(id: &str, memory: usize) -> Arc<dyn Model> {
         Arc::new(Self {
             id: id.to_string(),
             memory,
@@ -27,7 +27,7 @@ impl MockModel {
 }
 
 #[async_trait::async_trait]
-impl GgufModel for MockModel {
+impl Model for MockModel {
     fn model_id(&self) -> &str {
         &self.id
     }

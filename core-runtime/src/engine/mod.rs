@@ -21,6 +21,7 @@ pub mod gpu_pool;
 pub mod inference;
 pub mod inference_types;
 pub mod input;
+pub mod model;
 pub mod moe;
 #[cfg(feature = "advanced")]
 pub mod multi_gpu_exec;
@@ -82,7 +83,7 @@ pub use tokenizer::{TokenizerError, TokenizerWrapper};
 // Backend re-exports
 #[cfg(feature = "gguf")]
 pub use gguf::LlamaBackendInner;
-pub use gguf::{GgufConfig, GgufGenerator, GgufModel};
+pub use gguf::{GgufConfig, GgufGenerator};
 pub use gpu::{DevicePlacement, GpuBackend, GpuConfig, GpuDevice, GpuError, GpuMemory};
 #[cfg(feature = "cuda")]
 pub use gpu_allocator::CudaGpuAllocator;
@@ -91,7 +92,8 @@ pub use gpu_allocator::MetalGpuAllocator;
 pub use gpu_allocator::{GpuAllocation, GpuAllocator, MockGpuAllocator};
 pub use gpu_manager::GpuManager;
 pub use gpu_pool::GpuMemoryPool;
-pub use onnx::{OnnxClassifier, OnnxConfig, OnnxEmbedder, OnnxModel};
+pub use model::Model;
+pub use onnx::{OnnxClassifier, OnnxConfig, OnnxEmbedder};
 
 // --- Advanced re-exports (behind feature gate) ---
 #[cfg(feature = "advanced")]

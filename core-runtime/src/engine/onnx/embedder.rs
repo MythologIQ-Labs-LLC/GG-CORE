@@ -129,7 +129,7 @@ fn mean_pool(tensor: &candle_core::Tensor) -> candle_core::Result<candle_core::T
 }
 
 #[async_trait::async_trait]
-impl super::OnnxModel for OnnxEmbedder {
+impl crate::engine::Model for OnnxEmbedder {
     fn model_id(&self) -> &str {
         &self.model_id
     }
@@ -173,6 +173,10 @@ impl super::OnnxModel for OnnxEmbedder {
             self.model = None;
         }
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
