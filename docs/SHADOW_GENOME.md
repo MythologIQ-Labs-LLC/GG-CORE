@@ -359,4 +359,31 @@ all accounted for. Applies to every "delete/rename symbol" plan. Strengthens
 
 ---
 
+### Entry #13: a feature-gated unused import only CI could catch (Windows host)
+
+**Context**: B-16 integration CI (PR #89) `features / ffi` leg failed at
+`ffi/models.rs:11` — an unused `use crate::engine::gguf;` left behind by the B-29b-2
+rewire (the `load_gguf_model` call was replaced with `load_model_dispatch`).
+
+**Failure**: B-29b-2 sealed (#136) with local verification = `cargo clippy` under
+**default features** on a **Windows** host. But `src/ffi/` is `#[cfg(feature="ffi")]`
+and the ffi leg is a separate CI job (`cargo ... --features ffi -D warnings`). The default
+clippy never compiled `ffi/models.rs`, so the stale import passed locally and only the
+CI ffi leg (Linux) flagged it as an error under `-D warnings`.
+
+**Root cause**: "clippy clean locally" was scoped to the features that actually compile on
+this host. Feature-gated modules (`ffi`, and anything `#[cfg(unix)]`) are invisible to a
+default-feature Windows build; a symbol whose last use is removed in such a module leaves a
+dangling import no local gate sees.
+
+**Countermeasure**: when an edit removes the last use of an imported symbol in a
+**feature-gated or platform-gated** file (`#[cfg(feature=...)]`, `#[cfg(unix)]`), the
+unused-import/dead-code check must be run under *that* feature/target — and on this Windows
+host that is impossible for `unix`/native-dep features, so those edits are **CI-gated by
+construction**: push and let the matrix verify before sealing (as B-16 did). After any
+change to a `crate::engine::gguf`/`onnx` caller inside `ffi`/`python`, grep the touched
+file for now-orphaned `use` lines before sealing. Relates to [[b29-onnx-dispatch-queued]].
+
+---
+
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._
