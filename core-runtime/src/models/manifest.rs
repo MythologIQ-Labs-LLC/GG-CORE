@@ -26,6 +26,12 @@ pub struct ModelManifest {
     pub architecture: ModelArchitecture,
     /// License identifier (SPDX).
     pub license: String,
+    /// Ordered class labels for sequence-classification models
+    /// (label `i` corresponds to logit `i`). Required when the manifest
+    /// declares `TextClassification` and is dispatched to an ONNX classifier;
+    /// `None`/absent for non-classifier models.
+    #[serde(default)]
+    pub labels: Option<Vec<String>>,
 }
 
 /// What a model can do.

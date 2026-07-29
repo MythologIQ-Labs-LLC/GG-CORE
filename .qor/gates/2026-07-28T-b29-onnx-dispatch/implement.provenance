@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "7b9a40af6978605c5b095b8cef1b2156b9abeaaa1482b957c5b3d480daba8a26",
+  "payload_sha256": "d3b4b73feebce5bf3df87e4dfd0a189e377800854665d708ea571828719f5962",
+  "phase": "implement",
+  "session_id": "2026-07-28T-b29-onnx-dispatch"
+}

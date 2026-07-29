@@ -1,0 +1,17 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-28T-b29-onnx-dispatch",
+  "ts": "2026-07-28T20:52:11Z",
+  "verdict": "PASS",
+  "merkle_seal": "71f762d3ab232e83325c509007146c0d3780e9d425ffd9e1868d0222c85bbd13",
+  "ledger_entry": 127,
+  "reality_matches_promise": true,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-28T20:52:11Z"
+  }
+}

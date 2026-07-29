@@ -3,11 +3,13 @@
 //! Provides classification and embedding models via pure Rust ONNX runtime.
 
 mod classifier;
+mod dispatch;
 mod embedder;
 #[cfg(feature = "onnx")]
 mod tokenizer;
 
 pub use classifier::OnnxClassifier;
+pub use dispatch::{load_onnx_from_manifest, plan_onnx_load, OnnxLoadPlan};
 pub use embedder::OnnxEmbedder;
 
 use std::path::Path;

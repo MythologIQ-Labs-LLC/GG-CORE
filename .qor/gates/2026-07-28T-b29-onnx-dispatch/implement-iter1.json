@@ -1,0 +1,22 @@
+{
+  "phase": "implement",
+  "session_id": "2026-07-28T-b29-onnx-dispatch",
+  "ts": "2026-07-28T20:45:13Z",
+  "files_touched": [
+    "core-runtime/src/engine/onnx/dispatch.rs",
+    "core-runtime/src/engine/onnx/dispatch_tests.rs",
+    "core-runtime/src/engine/onnx/mod.rs",
+    "core-runtime/src/models/manifest.rs",
+    "core-runtime/tests/preload_test.rs",
+    "core-runtime/tests/security_hash_verification_test.rs",
+    "core-runtime/tests/swap_integration_test.rs"
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-28T20:45:13Z"
+  }
+}
