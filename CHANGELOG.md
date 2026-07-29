@@ -2,6 +2,19 @@
 
 All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Execution) are documented in this file.
 
+## [Unreleased]
+
+### Added
+- ONNX inference servable end-to-end: `core_model_load` selects the GGUF or ONNX backend from a sibling `manifest.json` (`load_model_dispatch`); ONNX embed/classify reachable through FFI/Python (closes #72 scope-3).
+- Degraded-mode policy: intentional, explained degradation under resource pressure — over-budget prompts are context-reduced instead of hard-failing (closes #53).
+
+### Changed
+- Unified GGUF/ONNX behind a single `engine::Model` trait; the registry now holds `Arc<dyn Model>`.
+- `sandbox/unix.rs` split for Section 4 Razor (behavior unchanged).
+
+### Security / **BREAKING**
+- **`Runtime::infer`/`infer_stream` is now the sole external inference entry point.** `InferenceEngine::{run, run_cancellable, run_cancellable_with_memory_limit, run_stream_sync}` are `pub(crate)` — a consumer can no longer bypass the `SecurityPipeline` (ingress scan + egress PII sanitize). Embedded consumers that called the raw engine must switch to `runtime.infer()` (see COREFORGE #538). `InferenceEngine`/`new` remain public.
+
 ## [0.8.2] - 2026-07-27
 
 ### Security & Dependency Hardening

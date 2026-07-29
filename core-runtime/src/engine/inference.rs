@@ -56,7 +56,7 @@ impl InferenceEngine {
     }
 
     /// Run inference on text prompt using the specified model.
-    pub async fn run(
+    pub(crate) async fn run(
         &self,
         model_id: &str,
         prompt: &str,
@@ -72,7 +72,7 @@ impl InferenceEngine {
     ///
     /// The cancellation flag is checked before inference and also
     /// threaded through to the GGUF backend for per-token checks.
-    pub async fn run_cancellable(
+    pub(crate) async fn run_cancellable(
         &self,
         model_id: &str,
         prompt: &str,
@@ -100,7 +100,7 @@ impl InferenceEngine {
     /// Run inference with per-token cancellation and a per-call memory budget.
     ///
     /// The `max_memory_bytes` is enforced before calling into the model.
-    pub async fn run_cancellable_with_memory_limit(
+    pub(crate) async fn run_cancellable_with_memory_limit(
         &self,
         model_id: &str,
         prompt: &str,
@@ -226,3 +226,7 @@ mod degraded_impl;
 #[cfg(test)]
 #[path = "inference_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "inference_chaos_tests.rs"]
+mod chaos_tests;
