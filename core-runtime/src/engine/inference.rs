@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use crate::engine::DegradedModePolicy;
 #[cfg(feature = "gguf")]
 use crate::engine::InferenceConfig;
 use crate::engine::Model;
@@ -17,6 +18,8 @@ pub struct InferenceEngine {
     max_context_length: usize,
     /// Models indexed by model_id for lookup.
     models: Arc<RwLock<HashMap<String, Arc<dyn Model>>>>,
+    /// Degraded-mode policy applied under resource pressure (B-07).
+    degraded: DegradedModePolicy,
 }
 
 impl InferenceEngine {
@@ -24,6 +27,16 @@ impl InferenceEngine {
         Self {
             max_context_length,
             models: Arc::new(RwLock::new(HashMap::new())),
+            degraded: DegradedModePolicy::default(),
+        }
+    }
+
+    /// Construct with a custom degraded-mode policy (overrides the default).
+    pub fn with_degraded_policy(max_context_length: usize, degraded: DegradedModePolicy) -> Self {
+        Self {
+            max_context_length,
+            models: Arc::new(RwLock::new(HashMap::new())),
+            degraded,
         }
     }
 
@@ -51,8 +64,8 @@ impl InferenceEngine {
     ) -> Result<InferenceResult, InferenceError> {
         params.validate()?;
         let model = self.get_model(model_id).await?;
-        self.check_context(prompt)?;
-        Self::infer_with_model(&model, prompt, params).await
+        let prompt = self.apply_degraded_context(prompt)?;
+        Self::infer_with_model(&model, &prompt, params).await
     }
 
     /// Run inference with cooperative per-token cancellation.
@@ -206,6 +219,9 @@ impl InferenceEngine {
 #[cfg(feature = "gguf")]
 #[path = "inference_streaming.rs"]
 mod streaming;
+
+#[path = "inference_degraded.rs"]
+mod degraded_impl;
 
 #[cfg(test)]
 #[path = "inference_tests.rs"]

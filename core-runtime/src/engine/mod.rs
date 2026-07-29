@@ -10,6 +10,7 @@
 // --- Core modules (always available) ---
 pub mod config;
 pub mod decode;
+pub mod degraded_mode;
 pub mod error;
 pub mod filter;
 pub mod flash_attn;
@@ -67,6 +68,9 @@ pub mod metal;
 // --- Core re-exports (always available) ---
 pub use config::InferenceConfig;
 pub use decode::{DecodeConfig, DecodeExecutor, DecodeStepResult};
+pub use degraded_mode::{
+    DegradedDecision, DegradedModeConfig, DegradedModePolicy, ResourcePressure,
+};
 pub use error::InferenceError;
 pub use filter::{FilterConfig, OutputFilter};
 pub use flash_attn::{FlashAttn, FlashAttnConfig};

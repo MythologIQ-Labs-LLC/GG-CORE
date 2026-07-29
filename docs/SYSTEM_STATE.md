@@ -64,6 +64,8 @@ core-runtime/
 │   │   ├── filter.rs               [Pre-Testing - NFC normalization] **MODIFIED**
 │   │   ├── inference.rs             [B-29b-1 - registry holds Arc<dyn Model>]
 │   │   ├── inference_streaming.rs   [B-29b-1 - extracted GGUF streaming (Razor)]
+│   │   ├── inference_degraded.rs    [B-07 - apply_degraded_context (Razor)]
+│   │   ├── degraded_mode.rs         [B-07 - degraded-mode policy + evaluate]
 │   │   ├── model.rs                 [B-29b-1 - unified backend-neutral Model trait]
 │   │   ├── tokenizer.rs
 │   │   ├── streaming.rs
