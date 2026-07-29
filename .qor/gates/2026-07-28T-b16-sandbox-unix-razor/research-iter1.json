@@ -1,0 +1,57 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-28T-b16-sandbox-unix-razor",
+  "ts": "2026-07-28T23:58:45Z",
+  "questions": [
+    "What are unix.rs's separable concerns?",
+    "Can impl UnixSandbox span files?",
+    "How are inline tests externalized?",
+    "What gates behavior preservation?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "summary": "Three cohesive concerns: seccomp-BPF (~230L), cgroup v2 (~60L), core struct + Sandbox impl",
+      "refs": [
+        "core-runtime/src/sandbox/unix.rs:142",
+        "core-runtime/src/sandbox/unix.rs:396"
+      ]
+    },
+    {
+      "id": "F2",
+      "summary": "impl UnixSandbox splits into child-module sibling files (private access retained); pub(super) on apply's callees",
+      "refs": [
+        "core-runtime/src/engine/inference_degraded.rs:12"
+      ]
+    },
+    {
+      "id": "F3",
+      "summary": "Inline tests (491-535) externalize via #[path]",
+      "refs": [
+        "core-runtime/src/sandbox/unix.rs:491"
+      ]
+    },
+    {
+      "id": "F4",
+      "summary": "sandbox_test + security_sandbox_escape_test gate behavior preservation",
+      "refs": [
+        "core-runtime/tests/sandbox_test.rs",
+        "core-runtime/tests/security_sandbox_escape_test.rs"
+      ]
+    }
+  ],
+  "sources": [
+    "core-runtime/src/sandbox/unix.rs",
+    "core-runtime/tests/sandbox_test.rs",
+    "core-runtime/tests/security_sandbox_escape_test.rs"
+  ],
+  "brief_path": "docs/research-brief-b16-sandbox-unix-razor-2026-07-28.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-28T23:58:45Z"
+  }
+}

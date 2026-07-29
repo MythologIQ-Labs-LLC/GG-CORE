@@ -1,0 +1,42 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-28T-b16-sandbox-unix-razor",
+  "ts": "2026-07-29T00:05:29Z",
+  "plan_path": "docs/plan-b16-sandbox-unix-razor-2026-07-28.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "phases": [
+    "Extract seccomp + cgroup + tests into sibling files"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core",
+    "cargo clippy -p gg-core --all-targets --all-features -- -D warnings",
+    "cargo test -p gg-core --test sandbox_test",
+    "cargo test -p gg-core --test security_sandbox_escape_test",
+    "cargo fmt --check"
+  ],
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "high_risk_target": false,
+  "boundaries": {
+    "non_goals": [
+      "Any sandbox behavior change (seccomp/cgroup/whitelist) \u2014 pure relocation",
+      "No new tests",
+      "No logic edits"
+    ]
+  },
+  "feature_inventory_touches": [],
+  "open_questions": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-29T00:05:29Z"
+  }
+}
