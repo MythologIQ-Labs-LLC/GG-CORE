@@ -196,6 +196,10 @@ harness = false
 name = "speculative_matrix"
 harness = false
 
+[[bench]]
+name = "security_overhead"
+harness = false
+
 [profile.release]
 opt-level = 3
 lto = "thin"

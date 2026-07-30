@@ -9155,3 +9155,138 @@ doc_integrity (no glossary), badge_currency (pytest on Rust archetype), seal_ent
 **Decision**: B-34 COMPLETE and sealed — CI-verified. Optimization initiative has its
 measurement foundation; next: B-34b (threshold gate), then B-35 (profile). Chain tip:
 `3d2f351277312df572d9c7d99e232d772f1e6a0c6204a2fa31a3b64f41d51370`.
+
+---
+
+### Entry #155: RESEARCH BRIEF (B-35 profile default Runtime::infer hot path)
+
+**Timestamp**: 2026-07-29T10:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2
+**Session ID**: 2026-07-29T-b35-profile-infer-hotpath
+
+**Target**: B-35 — quantify the per-call `SecurityPipeline` overhead every `Runtime::infer`
+pays (B-33) + rank default-path hotspots. Branch `feat/b35-profile-infer-hotpath` off `main`
+(#154).
+
+**Findings (verified)**: F1 `Runtime::infer` (`runtime_facade.rs:66,77`) runs `scan_prompt`
+(regex injection) + `sanitize_output` (regex PII) per call — unmeasured. F2 benchable
+without a model: `SecurityPipeline::from_config(&SecurityConfig{..})` (per
+`security_pipeline_wiring_test:17`), public API, CI-safe. F3 cost = regex × input size
+(bench small/medium/large). F4 the `sanitize_output` size curve decides B-36 (streaming
+sanitizer re-sanitizes the full buffer per push → O(n²) if per-call is linear). F5
+`inference_latency` validation (~3.6 ns) is the comparison anchor.
+
+**Decision**: B-35 = add `benches/security_overhead.rs` (scan_prompt + sanitize_output over
+sized inputs incl. a PII-heavy case), join B-34's CI bench job; profiling analysis ranks the
+default hot path for B-36..B-38. Measure only — no optimization. Shadow Genome: profile the
+tax you add (B-33 made the pipeline mandatory; measure its mandatory cost).
+
+**Content Hash** (SHA256 of docs/research-brief-b35-profile-infer-hotpath-2026-07-29.md): `3fd5d4d18a57f9e02312b392b14f21dd2803145ccbcb4bb6f981b782ab2b4f50`
+
+**Previous Hash**: `3d2f351277312df572d9c7d99e232d772f1e6a0c6204a2fa31a3b64f41d51370`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `c2d5c20c2d00d4422b13e727bff3e576f2ee453bfe0d7f5590797c0b936bd862`
+
+**Decision**: B-35 research complete; security-overhead bench + hotspot ranking cycle. Chain
+tip:
+`c2d5c20c2d00d4422b13e727bff3e576f2ee453bfe0d7f5590797c0b936bd862`.
+
+---
+
+### Entry #156: GATE VERDICT — PASS (B-35 security_overhead bench plan)
+
+**Timestamp**: 2026-07-29T11:00:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-29T-b35-profile-infer-hotpath
+
+**Target**: `docs/plan-b35-profile-infer-hotpath-2026-07-29.md` — add a `security_overhead`
+criterion bench quantifying `SecurityPipeline::scan_prompt` + `sanitize_output` per-call
+latency (the B-33 mandatory tax), join B-34's CI bench job, rank hotspots in the seal.
+
+**Adversarial passes**: Prompt-Injection — 3 governance files scanned clean, plan
+self-authored (PASS). Security L3 / OWASP — bench-only; no auth/secret/deserialization/bypass
+(PASS). Razor — new bench mirrors `inference_latency.rs` (~90 lines, small fns), no source
+file grows (PASS). Test-Functionality — no presence-only test; the bench invokes the real
+`SecurityPipeline` via `from_config(&SecurityConfig::default())` (functional verification,
+same pattern as B-34's PASS). Infrastructure-Alignment — every cited symbol grep-verified:
+`SecurityPipeline::from_config`/`scan_prompt`/`sanitize_output` (`pipeline.rs:56,84,113`),
+`SecurityConfig::default()` both-stages-blocking (`security/mod.rs:55`), public path
+`gg_core::security::{SecurityConfig, SecurityPipeline}` (`security_pipeline_wiring_test.rs:13`)
+(PASS). Feature-Test-Declaration — Feature Inventory empty, justified as measurement infra
+(PASS). Pre-audit lints (test/grep/consistency/ci-coverage/signature-widening) all clean;
+`audit_risk_score` option_b_required=false (solo audit authorized).
+
+**Content Hash** (SHA256 of docs/plan-b35-profile-infer-hotpath-2026-07-29.md): `7ab9b01def01215fa95fa1635b08f2f537e216d87addfb91ce3e7d2a1b07a06c`
+
+**Previous Hash**: `c2d5c20c2d00d4422b13e727bff3e576f2ee453bfe0d7f5590797c0b936bd862`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `e8606ab1267f835d31ddb44e44c7a0697eb84626617d689d680f4b274f42def9`
+
+**Decision**: PASS — B-35 plan cleared for implementation. Chain tip:
+`e8606ab1267f835d31ddb44e44c7a0697eb84626617d689d680f4b274f42def9`.
+
+---
+
+### Entry #157: SESSION SEAL (B-35 security_overhead bench + hotspot ranking)
+
+**Entry ID**: `714a3e2ceefb`
+**Timestamp**: 2026-07-30T12:00:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-29T-b35-profile-infer-hotpath
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Target**: `docs/plan-b35-profile-infer-hotpath-2026-07-29.md` (audit PASS Entry #156).
+
+**Reality vs Promise**: MATCH. New `core-runtime/benches/security_overhead.rs` constructs the
+default product pipeline (`SecurityPipeline::from_config(&SecurityConfig::default())`, both
+stages blocking) and benches `scan_prompt` + `sanitize_output` across 256/2048/16384-byte
+inputs plus a PII-heavy 2048-byte case; `[[bench]] security_overhead` added to `Cargo.toml`;
+`--bench security_overhead` appended to the `rust.yml` bench job (CI-safe set now 7). Second
+cycle of the optimization initiative — the measurement that quantifies the B-33 mandatory tax.
+
+**Hotspot ranking (measured, local, CI-trimmed criterion)**:
+- `sanitize_output` (egress PII) is the **dominant** stage: ~17.9 µs @256B, ~118 µs @2048B,
+  ~871 µs @16384B ≈ **~53 ns/byte, linear per call**. PII-heavy 2048B ≈ 185 µs (+57% over
+  the clean pass — active redaction cost).
+- `scan_prompt` (ingress injection): ~2.9 µs @256B, ~16.7 µs @2048B, ~142 µs @16384B ≈
+  **~8.7 ns/byte, linear** — ~6× cheaper than sanitize; lower optimization priority.
+- Anchor: `inference_latency` validation ~3.6 ns → the security tax is ~10³–10⁴× validation
+  on the non-model default path (per 2KB inference ≈ 135 µs scan+sanitize).
+- **Load-bearing conclusion**: per-call `sanitize_output` is **linear**, so the B-24b
+  streaming egress re-sanitize (full accumulated buffer per push) is **O(n²) over n pushes**
+  → **B-36 (incremental streaming sanitize) is confirmed-warranted** (research F4 proven).
+  Ranking for the initiative: #1 B-36 (streaming O(n²)), then per-call sanitize; scan is
+  secondary. No optimization performed this cycle (B-35 measures; B-36+ act).
+
+**Verification (local + CI — authoritative)**: locally `cargo fmt --check` clean, `cargo
+clippy --bench security_overhead -- -D warnings` clean, and `cargo bench --bench
+security_overhead -- --warm-up-time 1 --measurement-time 2 --sample-size 10` ran to completion
+(exit 0; both groups + `pii_heavy_2048` reported ns + throughput — numbers above). **CI: the
+`bench` job (now incl. `--bench security_overhead`) must conclude SUCCESS on the PR-to-main
+run** — the one thing only CI verifies (a `rust.yml` job runs only on a PR to `main`).
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner
+clean; merge_velocity strained-not-exceeded (exit 0); feature_index_verify total=58
+verified=56 unverified=2 (pre-existing, no B-35 feature); data_api_acl_lint SKIP (no SQL);
+governance-index enforce → 2 new B-35 docs registered, exit 0; gate_chain_completeness OK.
+**Environmental SKIPs (disclosed)**: doc_integrity (no glossary), badge_currency (pytest on
+Rust archetype), seal_entry_check (ledger parser). `verify-ledger` → #155–#157 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `f55647478e56b1eebbdd1416060a3da0f59b7491b0339f9c75ae666dfeed94db`
+
+**Previous Hash**: `e8606ab1267f835d31ddb44e44c7a0697eb84626617d689d680f4b274f42def9`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `b83a397e38a13f0df5d31257159c4ffd8efb2e7ce7d0daaaba43f77ccbce0b28`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `c572571f65ec5b6caaf6d7721c1586688ca7889a198075f1d1032d2ab7b4555d`
+
+**Decision**: B-35 COMPLETE and sealed. Optimization initiative now has evidence: sanitize
+dominates and is linear-per-call → B-36 armed as the next optimization cycle. Chain tip:
+`b83a397e38a13f0df5d31257159c4ffd8efb2e7ce7d0daaaba43f77ccbce0b28`.

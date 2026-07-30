@@ -1,0 +1,38 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-29T-b35-profile-infer-hotpath",
+  "ts": "2026-07-30T17:37:19Z",
+  "plan_path": "docs/plan-b35-profile-infer-hotpath-2026-07-29.md",
+  "phases": [
+    "Phase 1: Add the security_overhead bench"
+  ],
+  "ci_commands": [
+    "cargo bench --bench security_overhead -- --warm-up-time 1 --measurement-time 2 --sample-size 10",
+    "cargo fmt --check",
+    "cargo clippy --benches -- -D warnings"
+  ],
+  "open_questions": [],
+  "doc_tier": "standard",
+  "change_class": "feature",
+  "boundaries": {
+    "limitations": [
+      "Measurement-only: a security_overhead bench + hotspot ranking; no optimization (B-36..B-38 act)."
+    ],
+    "non_goals": [
+      "No SecurityPipeline/sanitizer/filter logic change.",
+      "No timing threshold (B-34b)."
+    ],
+    "exclusions": [
+      "No test/clippy/fmt/features job change; no runtime source change."
+    ]
+  },
+  "feature_inventory_touches": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-30T17:37:19Z"
+  }
+}
