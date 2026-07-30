@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-30T-b36-incremental-stream-sanitize",
+  "ts": "2026-07-30T21:19:26Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 3
+  },
+  "merkle_seal": "722a9d11d71cc11ad46344ca4f133955f8a2bb3f9b663cd9e1ec8bbcdcecc3ef",
+  "content_hash": "f0ef9d07a74b659cbbb38049ceb4483cfd4224425a172bda099c6f8fe4c90618",
+  "ledger_entry": 164,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-30T21:19:26Z"
+  }
+}

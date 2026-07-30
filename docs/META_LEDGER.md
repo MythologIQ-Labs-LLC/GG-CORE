@@ -9290,3 +9290,298 @@ Rust archetype), seal_entry_check (ledger parser). `verify-ledger` → #155–#1
 **Decision**: B-35 COMPLETE and sealed. Optimization initiative now has evidence: sanitize
 dominates and is linear-per-call → B-36 armed as the next optimization cycle. Chain tip:
 `b83a397e38a13f0df5d31257159c4ffd8efb2e7ce7d0daaaba43f77ccbce0b28`.
+
+---
+
+### Entry #158: RESEARCH BRIEF (B-36 incremental streaming egress sanitize)
+
+**Timestamp**: 2026-07-30T13:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2
+**Session ID**: 2026-07-30T-b36-incremental-stream-sanitize
+
+**Target**: B-36 — remove the O(n²) re-sanitize in `StreamSanitizer` (each `push`
+re-sanitizes the whole buffer; B-35 proved per-call sanitize is linear). Branch
+`feat/b36-incremental-stream-sanitize` off `main` (#157).
+
+**Findings (verified)**: F1 `push`/`flush` sanitize the full buffer every token
+(`stream_sanitizer.rs:43,55`) → O(n²) over the stream (B-35: ~53 ns/byte linear per call).
+F2 the module already asserts the settled prefix is **byte-stable across pushes** (`:13-14`)
+— the enabling invariant. F3 bounded-tail design: cursor `emitted` (sanitized offset) →
+`raw_released` (raw offset); each push sanitizes only `full_text[raw_released..cut]` with
+`cut = release_cut(full_text, holdback)` on the raw buffer → O(n); no API/caller change. F4
+equivalence to whole-buffer sanitize rests on the SAME HOLDBACK>max-match assumption the
+current code documents (B-24b residual, #121) — **binding gate: a differential test asserting
+incremental == whole-buffer output over randomized adversarial streams (mid-match + HOLDBACK-
+boundary splits) and never emitting raw PII**. F5 preserve UTF-8 (char-boundary slicing),
+multi-word-split, clean-passthrough, flush-tail (3 existing tests are the regression floor).
+
+**Decision**: B-36 = bounded-tail sanitize (O(n²)→O(n)) in `stream_sanitizer.rs` (single
+self-contained file), guarded by a differential equivalence test as the binding acceptance
+gate. Shadow Genome: optimize behind an asserted invariant, PROVE it with a differential
+against the un-optimized reference — not a hand argument.
+
+**Content Hash** (SHA256 of docs/research-brief-b36-incremental-stream-sanitize-2026-07-30.md): `303572e91061241e531d5f06cc7df7a460c8df49760afc4df86df5c6ecc7954e`
+
+**Previous Hash**: `b83a397e38a13f0df5d31257159c4ffd8efb2e7ce7d0daaaba43f77ccbce0b28`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `b2950f6ca2210952f840a14b5df4d6349c986336538e778cfea28ccb13c160d3`
+
+**Decision**: B-36 research complete; bounded-tail + differential-test cycle. Chain tip:
+`b2950f6ca2210952f840a14b5df4d6349c986336538e778cfea28ccb13c160d3`.
+
+---
+
+### Entry #159: GATE VERDICT — VETO (B-36 plan iter1)
+
+**Timestamp**: 2026-07-30T14:00:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: VETO
+**Session ID**: 2026-07-30T-b36-incremental-stream-sanitize
+
+**Finding** (`feature-test-undeclared`): the plan's Feature Inventory Touches cited an invented
+id `FX-STREAM-SANITIZE` as an *existing* MODIFIED entry, but no such FEATURE_INDEX row exists —
+the streaming egress sanitizer (`stream_sanitizer.rs`, shipped B-24b) was never individually
+indexed (the index runs F-1…F-58 with no row for it). Submitting on a non-existent id is a
+`feature-test-undeclared` violation (the same drift class as SG-AffectedFilesContract-A: verify
+cited infrastructure exists). All other passes (injection, security-L3, OWASP, Razor,
+test-functionality, infrastructure-alignment) were clean; lints clean; `audit_risk_score`
+option_b_required=false.
+
+**Remediation** (applied, → iter2): declare **F-59 NEW** (register the previously-unindexed
+streaming egress sanitizer this cycle) and add a `docs/FEATURE_INDEX.md` row-F-59 task to Phase 2
+with `test_path` = the new differential-test file. Shadow Genome: a Feature Inventory `MODIFIED`
+row must name an id that exists in FEATURE_INDEX; an unindexed touched feature is `NEW`, not
+`MODIFIED` against a fabricated id.
+
+**Content Hash** (SHA256 of the iter1 VETO finding record): `433adb049956499c07564206ae7dd753048c41f8d7f9a64e4230d75531d87c8a`
+
+**Previous Hash**: `b2950f6ca2210952f840a14b5df4d6349c986336538e778cfea28ccb13c160d3`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `e0c480675f193a4e07e43bddb505eccdaf37931cf6e99e2480bf4d7a5525ff4d`
+
+**Decision**: VETO — plan returned to /qor-plan; remediated in iter2 (F-59 NEW). Chain tip:
+`e0c480675f193a4e07e43bddb505eccdaf37931cf6e99e2480bf4d7a5525ff4d`.
+
+---
+
+### Entry #160: GATE VERDICT — PASS (B-36 plan iter2, remediated)
+
+**Timestamp**: 2026-07-30T14:20:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-30T-b36-incremental-stream-sanitize
+
+**Target**: `docs/plan-b36-incremental-stream-sanitize-2026-07-30.md` (amended: F-59 NEW +
+FEATURE_INDEX row task). The iter1 VETO's sole finding is resolved; re-lint (text-consistency,
+feature-tdd) clean.
+
+**Adversarial passes**: Prompt-Injection — governance files clean, plan self-authored (PASS).
+Security-L3 — this IS PII-egress code; the plan changes no security check (HOLDBACK,
+`release_cut`, the sanitize call all preserved) and makes the safety property an **executable
+gate**: `incremental_never_emits_raw_pii` + a differential test vs a preserved whole-buffer
+reference (`incremental_matches_reference_byte_for_byte`). No weakening; no new PII residual
+(same HOLDBACK>max-match assumption as B-24b #121) (PASS). OWASP — UTF-8-safe slicing at
+char/`\b` boundaries, tested (PASS). Razor — `stream_sanitizer.rs` (178 lines) gains a cursor
+rename + 2 re-scoped method bodies; the new differential test lives in a sibling
+`stream_sanitizer_diff_tests.rs` via `#[path]`, keeping both files < 250 (PASS).
+Test-Functionality — all tests invoke the units (drive push/flush, assert byte output + no raw
+PII); the differential compares against a reference oracle, not presence (PASS).
+Infrastructure-Alignment — cited symbols (`push`/`flush`/`emitted`/`release_cut`/`HOLDBACK`/
+`with_holdback`, module invariant `:13-14`) all verified in-file (PASS). Feature-Declaration —
+F-59 NEW correctly registers the unindexed feature with a real invoking test (PASS).
+
+**Content Hash** (SHA256 of docs/plan-b36-incremental-stream-sanitize-2026-07-30.md): `ccbc4204a545911dbadb006dac3cb01f88378f00765b1ef6434623c181e7554d`
+
+**Previous Hash**: `e0c480675f193a4e07e43bddb505eccdaf37931cf6e99e2480bf4d7a5525ff4d`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `b65cab9cef67c93f63000bbb00f3de5e8b519cad8e81ca46daa47a0410acecc4`
+
+**Decision**: PASS — B-36 plan (iter2) cleared for implementation. Chain tip:
+`b65cab9cef67c93f63000bbb00f3de5e8b519cad8e81ca46daa47a0410acecc4`.
+
+---
+
+### Entry #161: GATE VERDICT — PASS (B-36 plan iter3, test-oracle refined)
+
+**Timestamp**: 2026-07-30T15:00:00-04:00
+**Phase**: GATE (audit re-run after implementation-time plan refinement)
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-30T-b36-incremental-stream-sanitize
+
+**Why re-audit**: at implementation the Specialist traced the `multi_word_pii_split` case
+(holdback 8 < email 20) and found the iter2 plan's binding gate — *byte-identical to the
+pre-B-36 whole-buffer streaming reference* — is unsound below `HOLDBACK`: the SHIPPED
+whole-buffer code re-indexes a stale sanitized offset into a freshly-redacted (shorter) string
+and emits a fragment of the redaction token, while the bounded-tail code emits a different
+partial; **neither leaks the full raw PII token, but they are not byte-identical there**
+(documented residual, consistent with B-24b #121). Byte-identity vs the shipped code is thus
+the wrong oracle. The plan was refined (Phase 2 + D4) to the correct oracle: **stream+flush ==
+one-shot `sanitize_output(complete)` at production `HOLDBACK`** (binding correctness) + **no raw
+PII token released at any holdback** (safety) + byte-identity vs whole-buffer asserted only at
+`holdback ≥ longest match` (the well-behaved production regime). The bounded-tail
+implementation is unchanged — only the test spec was corrected.
+
+**Adversarial passes** (re-run on the refined plan): Security-L3 — the corrected one-shot
+oracle is a STRONGER correctness statement (indistinguishable from sanitizing the whole output)
+and the safety assertion now holds explicitly at small holdback too; no security check weakened
+(PASS). Test-Functionality — all tests invoke the unit and assert output (PASS). Razor,
+Infrastructure-Alignment, Feature-Declaration (F-59 NEW), Injection, OWASP — unchanged from
+#160 (PASS). Lints (consistency/test/feature-tdd) clean. Shadow Genome: when an optimization's
+oracle is "match the old code," first verify the old code is well-defined on the test inputs —
+a quirky reference makes a false gate; prefer an implementation-independent oracle (one-shot).
+
+**Content Hash** (SHA256 of docs/plan-b36-incremental-stream-sanitize-2026-07-30.md): `7ab16a658bb5c9522f3e0f9f277deaa495072f9fde0157cbd7bfbd5655134fdc`
+
+**Previous Hash**: `b65cab9cef67c93f63000bbb00f3de5e8b519cad8e81ca46daa47a0410acecc4`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `027eabb5485821236d039c3a9eefe4f940e3363ef83e4b104c2e14060ba78abe`
+
+**Decision**: PASS — B-36 plan (iter3, one-shot oracle) cleared for implementation. Chain tip:
+`027eabb5485821236d039c3a9eefe4f940e3363ef83e4b104c2e14060ba78abe`.
+
+---
+
+### Entry #162: IMPLEMENTATION-PHASE FINDING — bounded-tail-on-raw design VETOED (empirical PII leak)
+
+**Timestamp**: 2026-07-30T16:00:00-04:00
+**Phase**: IMPLEMENT (blocking finding → re-plan)
+**Author**: Specialist + Judge
+**Risk Grade**: L3 (PII egress leak)
+**Session ID**: 2026-07-30T-b36-incremental-stream-sanitize
+
+**Finding**: the iter3 design (apply `release_cut` to the RAW tail, then sanitize the slice)
+**empirically leaks space-separated PII** at production `HOLDBACK=128`. `release_cut` only backs
+up over ALPHANUMERIC runs, so it splits any PII value containing an internal space/dash/dot
+(credit-card `4111 1111 1111 1111`, address, etc.) at that separator; the two clean-looking
+halves are released and concatenate back into the raw value. Proven under `--features gguf` (a
+probe reported `CC_LEAKED=true`; streamed output = raw CC vs one-shot `[REDACTED:Credit Card]`).
+The whole-buffer code avoids this by running `release_cut` on ALREADY-SANITIZED text (PII already
+`[REDACTED:…]`, a contiguous token). Secondary finding: `stream_sanitizer` is
+`#[cfg(feature="gguf")]`-gated — not compiled under default features, so it must be verified with
+`--features gguf` (earlier default-feature runs never compiled it).
+
+**Decision**: bounded-tail-on-raw is VETOED (unsafe). Operator elected (AskUserQuestion) to
+implement the correct design. **Pivot**: cached-stable-prefix reconstruction — keep the OLD
+semantics (`release_cut` on SANITIZED text, `emitted` sanitized cursor) but cache the sanitized
+stable prefix and per push reconstruct `san = stable_san + sanitize(&full[stable_raw..])`,
+re-sanitizing only the bounded tail; rebase `stable_raw` forward at boundaries verified match-free
+by a windowed split-vs-joint sanitize check. Byte-identical to the whole-buffer output (all
+existing tests + no leak, by construction) and O(n). Shadow Genome (**SG-StreamSanitizeRawCut**):
+never make a release/cut decision on RAW text in a redaction pipeline — a raw boundary can split
+an internal-separator PII match; decide on SANITIZED text where matches are already atomic tokens.
+
+**Content Hash** (SHA256 of the impl-phase finding record): `ab592d597df224189151ab13f981785c9dbb5dff4f6e1b0326ea7af6b54397c4`
+
+**Previous Hash**: `027eabb5485821236d039c3a9eefe4f940e3363ef83e4b104c2e14060ba78abe`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `6ad8313b88c900dce3d2eecbdd20c4b33782a1d4fc1c7f7ff1077cbe577b1676`
+
+**Decision**: design pivoted to cached-stable-prefix (byte-identical, O(n)); plan re-drafted;
+re-audit required before implementation. Chain tip:
+`6ad8313b88c900dce3d2eecbdd20c4b33782a1d4fc1c7f7ff1077cbe577b1676`.
+
+---
+
+### Entry #163: GATE VERDICT — PASS (B-36 plan iter4, cached-stable-prefix pivot)
+
+**Timestamp**: 2026-07-30T16:40:00-04:00
+**Phase**: GATE (audit re-run after the #162 design pivot)
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-30T-b36-incremental-stream-sanitize
+
+**Target**: `docs/plan-b36-incremental-stream-sanitize-2026-07-30.md` (pivoted to
+cached-stable-prefix reconstruction). Resolves the #162 leak by keeping `release_cut` on
+SANITIZED text.
+
+**Adversarial passes**: Security-L3 — the decisive fix: the release/cut decision stays on
+sanitized text (PII already atomic `[REDACTED:…]` tokens), so the #162 raw-split leak cannot
+recur; the reconstruction `san = stable_san + sanitize(&full[stable_raw..])` is byte-identical to
+`sanitize(full)` whenever `stable_raw` is match-free, and rebase commits a boundary ONLY after a
+windowed split-vs-joint sanitize check proves it match-free — no security check weakened, no new
+residual (PASS). Test-Functionality — the binding gates invoke the unit and compare against a
+whole-buffer reference AND the one-shot oracle, plus the credit-card no-leak regression guard for
+#162 (PASS). Razor — new non-test code ≈60 lines (cache + `sanitized`/`maybe_rebase`/
+`splits_cleanly`); differential tests in the sibling `stream_sanitizer_diff_tests.rs` via
+`#[path]`; both files < 250 (PASS). Infrastructure-Alignment — `stream_sanitizer` is
+`#[cfg(feature="gguf")]`-gated (verified `security/mod.rs:26-27`); tests + CI use `--features
+gguf`; token format `[REDACTED:{name}]` verified (`output_sanitizer.rs:121,187`) (PASS).
+Feature-Declaration — F-59 NEW with an invoking test (PASS). Injection/OWASP/lints clean.
+
+**Content Hash** (SHA256 of docs/plan-b36-incremental-stream-sanitize-2026-07-30.md): `42abb2d3269d12af0968ef2f460843c8ac50de56097be32a1779e0b002a5375d`
+
+**Previous Hash**: `6ad8313b88c900dce3d2eecbdd20c4b33782a1d4fc1c7f7ff1077cbe577b1676`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `b2fa0af4d51843b8fc134c9b884cebf10edb7f1a03cbef98c022bb568a539f23`
+
+**Decision**: PASS — B-36 cached-stable-prefix plan cleared for implementation. Chain tip:
+`b2fa0af4d51843b8fc134c9b884cebf10edb7f1a03cbef98c022bb568a539f23`.
+
+---
+
+### Entry #164: SESSION SEAL (B-36 incremental streaming egress sanitize — O(n²)→O(n))
+
+**Entry ID**: `a926aa22ffd1`
+**Timestamp**: 2026-07-30T18:00:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L2 (implementation) / L3 subject-matter (PII egress)
+**Session ID**: 2026-07-30T-b36-incremental-stream-sanitize
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1, PW.7.2
+
+**Target**: `docs/plan-b36-incremental-stream-sanitize-2026-07-30.md` (audit PASS Entry #163).
+
+**Reality vs Promise**: MATCH. `stream_sanitizer.rs` now caches the sanitized stable prefix and
+re-sanitizes only a bounded tail (`sanitized()` = `stable_san + sanitize(&full[stable_raw..])`),
+rebasing `stable_raw` forward at boundaries proven match-free by a windowed split-vs-joint check
+(`maybe_rebase`/`clean_split_at_or_before`/`splits_cleanly`). The release decision stays on
+SANITIZED text (`release_cut` unchanged), so an N-byte stream is O(N) not O(N²) while output is
+byte-identical to the pre-B-36 whole-buffer sanitize. NEW sibling test files
+`stream_sanitizer_diff_tests.rs` (differential vs a whole-buffer reference + one-shot oracle +
+CC-leak safety) and `stream_sanitizer_behavior_tests.rs` (the 4 relocated behavior tests, Razor);
+FEATURE_INDEX F-59 registers the previously-unindexed feature. Third optimization cycle.
+
+**Governance arc (this session)**: research #158 → audit VETO #159 (invented FEATURE_INDEX id) →
+PASS #160 → PASS #161 (test-oracle refinement) → **impl-phase finding #162** (the audited
+bounded-tail-on-raw design EMPIRICALLY leaked a credit card at production HOLDBACK — `release_cut`
+on raw text splits internal-separator PII; `SG-StreamSanitizeRawCut`) → operator elected the
+correct design → re-audit PASS #163 (cached-stable-prefix, byte-identical) → this seal. The gates
+and an empirical probe caught a real PII-egress leak before it could ship.
+
+**Verification (local, authoritative for this leg)**: `cargo test -p gg-core --features gguf
+security::stream_sanitizer` → **7 passed / 0 failed** — the 4 relocated behavior tests (incl.
+`multi_word_pii_split_across_pushes_is_redacted` at holdback=8, unchanged), plus
+`matches_whole_buffer_reference_byte_for_byte` (byte-identity, holdback 128 & 8, rebase
+exercised), `terminal_equals_one_shot_at_production_holdback`, and
+`never_emits_raw_pii_including_space_separated` (the #162 credit-card regression guard). `cargo
+fmt --check` clean; `cargo clippy -p gg-core --features gguf -- -D warnings` clean. Razor:
+stream_sanitizer.rs 176, behavior_tests 94, diff_tests 180 (all < 250). **CI: the `features /
+gguf` leg must conclude SUCCESS on the PR-to-main run** (the module is gguf-gated).
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity exit 0; feature_index_verify total=59 verified=57 unverified=2 (pre-existing);
+governance-index enforce → 2 new B-36 docs registered, exit 0; gate_chain_completeness OK.
+**Environmental SKIPs (disclosed)**: doc_integrity (no glossary), badge_currency (Rust archetype),
+seal_entry_check (ledger parser). `verify-ledger` → #158–#164 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `f0ef9d07a74b659cbbb38049ceb4483cfd4224425a172bda099c6f8fe4c90618`
+
+**Previous Hash**: `b2fa0af4d51843b8fc134c9b884cebf10edb7f1a03cbef98c022bb568a539f23`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `ec8e87c806f4c82798158d5b8c7027c2ae69e2741e6c0aa80040304a2823316f`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `722a9d11d71cc11ad46344ca4f133955f8a2bb3f9b663cd9e1ec8bbcdcecc3ef`
+
+**Decision**: B-36 COMPLETE and sealed. Streaming egress sanitize is O(n), byte-identical,
+PII-safe (credit-card leak of the naive design proven impossible by the differential + safety
+tests). Chain tip:
+`ec8e87c806f4c82798158d5b8c7027c2ae69e2741e6c0aa80040304a2823316f`.

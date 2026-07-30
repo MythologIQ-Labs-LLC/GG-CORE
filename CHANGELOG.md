@@ -16,6 +16,9 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 - Added a `bench` CI job (B-34) that runs the CI-safe default-feature benches on every PR to `main`, failing on compile error / bench panic and uploading the criterion baseline — preventing benchmark rot. (It immediately caught a rotted `ipc_throughput` bench → B-39.)
 - Added a `security_overhead` bench (B-35) quantifying the per-call `SecurityPipeline` tax every `Runtime::infer` pays: `scan_prompt` ~8.7 ns/byte, `sanitize_output` ~53 ns/byte (the dominant stage), both linear per call. Joins the CI `bench` job. The linear-per-call sanitize result confirms the streaming egress re-sanitize is O(n²) over pushes → B-36 armed.
 
+### Performance
+- Streaming egress PII sanitizer is now O(n) per stream instead of O(n²) (B-36). Previously every generated token re-sanitized the entire accumulated buffer; it now caches the sanitized stable prefix and re-sanitizes only a bounded tail, rebasing the prefix at boundaries proven to split no PII match. Output is byte-identical to the previous whole-buffer sanitize (verified by a differential test against a whole-buffer reference + a one-shot oracle), and the release decision stays on sanitized text so internal-separator PII (e.g. credit-card numbers) is never split and leaked.
+
 ### Security / **BREAKING**
 - **`Runtime::infer`/`infer_stream` is now the sole external inference entry point.** `InferenceEngine::{run, run_cancellable, run_cancellable_with_memory_limit, run_stream_sync}` are `pub(crate)` — a consumer can no longer bypass the `SecurityPipeline` (ingress scan + egress PII sanitize). Embedded consumers that called the raw engine must switch to `runtime.infer()` (see COREFORGE #538). `InferenceEngine`/`new` remain public.
 
