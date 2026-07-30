@@ -17,10 +17,13 @@ fn load_fixture(name: &str) -> serde_json::Value {
 }
 
 fn fixture_to_request(fixture: &serde_json::Value, request_id: u64) -> InferenceRequest {
-    let prompt = fixture["prompt"]
-        .as_str()
-        .expect("prompt must be a string")
-        .to_string();
+    // Fixtures encode payload size as `prompt_tokens` (the size ladder: 100/1000/4000);
+    // derive a proportionally-sized prompt string, since `InferenceRequest.prompt` is a String.
+    let token_count = fixture["prompt_tokens"]
+        .as_array()
+        .expect("prompt_tokens must be an array")
+        .len();
+    let prompt = vec!["word"; token_count].join(" ");
 
     let params = &fixture["parameters"];
     InferenceRequest {

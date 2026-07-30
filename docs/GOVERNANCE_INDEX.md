@@ -91,6 +91,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-35 profile infer hot path research brief | `docs/research-brief-b35-profile-infer-hotpath-2026-07-29.md` | b35-profile-infer-hotpath |
 | B-36 incremental stream sanitize plan | `docs/plan-b36-incremental-stream-sanitize-2026-07-30.md` | b36-incremental-stream-sanitize |
 | B-36 incremental stream sanitize research brief | `docs/research-brief-b36-incremental-stream-sanitize-2026-07-30.md` | b36-incremental-stream-sanitize |
+| B-39 fix ipc_throughput bench plan | `docs/plan-b39-fix-ipc-throughput-bench-2026-07-30.md` | b39-fix-ipc-throughput-bench |
+| B-39 fix ipc_throughput bench research brief | `docs/research-brief-b39-fix-ipc-throughput-bench-2026-07-30.md` | b39-fix-ipc-throughput-bench |
 
 ## Tier 5 — Reference Material
 

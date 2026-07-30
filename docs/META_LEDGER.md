@@ -9585,3 +9585,116 @@ seal_entry_check (ledger parser). `verify-ledger` → #158–#164 verified.
 PII-safe (credit-card leak of the naive design proven impossible by the differential + safety
 tests). Chain tip:
 `ec8e87c806f4c82798158d5b8c7027c2ae69e2741e6c0aa80040304a2823316f`.
+
+---
+
+### Entry #165: RESEARCH BRIEF (B-39 fix rotted ipc_throughput bench)
+
+**Timestamp**: 2026-07-30T19:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1
+**Session ID**: 2026-07-30T-b39-fix-ipc-throughput-bench
+
+**Target**: B-39 — repair `ipc_throughput` (fixture schema drift caught by B-34's bench gate) and
+re-admit it to the CI bench set. Branch `feat/b39-fix-ipc-throughput-bench` off `main` (#164).
+
+**Findings (verified)**: F1 `fixture_to_request` (`ipc_throughput.rs:20-23`) reads
+`fixture["prompt"].as_str().expect(...)` but the fixtures have no `prompt` key → panic. F2 the
+fixtures carry `prompt_tokens` (100/1000/4000 ints — the size ladder) and are read ONLY by this
+bench (no other `.rs` consumes `fixtures/prompts/`). F3 `InferenceRequest.prompt` is a `String`
+(`protocol_types.rs:75`) → derive it from `prompt_tokens` (one word per token) to keep the size
+ladder + a single source of size truth. F4 re-admit by adding `--bench ipc_throughput` to the CI
+`bench` job (`rust.yml:105-113`) and dropping the exclusion comment; it is model/GPU-free
+default-feature → CI-safe.
+
+**Decision**: B-39 = derive the prompt from `prompt_tokens` in the bench + re-add to CI. No
+runtime or fixture-data change. Shadow Genome: a bench nothing runs rots when its data drifts;
+the CI bench gate surfaced it, B-39 closes the loop.
+
+**Content Hash** (SHA256 of docs/research-brief-b39-fix-ipc-throughput-bench-2026-07-30.md): `9b2afd14a4b6fb3b565ee7d08084ffb31981a52e7ee2e8eff584f2d6588dac11`
+
+**Previous Hash**: `ec8e87c806f4c82798158d5b8c7027c2ae69e2741e6c0aa80040304a2823316f`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `9a7f52d95b27ebf169fe4ffcf58da0ee09c4448838d961b36b3fd53c2c80aabf`
+
+**Decision**: B-39 research complete; bench-reader repair + CI re-admission cycle. Chain tip:
+`9a7f52d95b27ebf169fe4ffcf58da0ee09c4448838d961b36b3fd53c2c80aabf`.
+
+---
+
+### Entry #166: GATE VERDICT — PASS (B-39 ipc_throughput bench fix plan)
+
+**Timestamp**: 2026-07-30T19:30:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L1
+**Verdict**: PASS
+**Session ID**: 2026-07-30T-b39-fix-ipc-throughput-bench
+
+**Target**: `docs/plan-b39-fix-ipc-throughput-bench-2026-07-30.md` — derive the bench prompt from
+`prompt_tokens` and re-add `--bench ipc_throughput` to the CI bench job.
+
+**Adversarial passes**: Injection — governance files clean, plan self-authored (PASS). Security /
+OWASP — bench-only; `serde_json::from_str` is safe deserialization; no auth/secret/bypass (PASS).
+Razor — a few-line reader change + one CI flag (PASS). Test-Functionality — no unit test; the
+bench IS the executable verification and the plan's D4 asserts observed behavior (runs to
+completion over the size ladder), same pattern as B-34/B-35 PASS (PASS). Infrastructure-Alignment
+— every cited symbol grep-verified: `fixture_to_request`/`fixture["prompt"]`
+(`ipc_throughput.rs:20`), `prompt_tokens` arrays (100/1000/4000), `InferenceRequest.prompt: String`
+(`protocol_types.rs:75`), CI exclusion (`rust.yml:106-107`) (PASS). Feature-Declaration — empty,
+justified as measurement infra (PASS). Lints clean; option_b_required=false.
+
+**Content Hash** (SHA256 of docs/plan-b39-fix-ipc-throughput-bench-2026-07-30.md): `b8a2adc4c3a6c9fce59d026e8c867f52204cac1157ece58d38fd80961a5cfc97`
+
+**Previous Hash**: `9a7f52d95b27ebf169fe4ffcf58da0ee09c4448838d961b36b3fd53c2c80aabf`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `79efb1bfd6e0cbb2ea1d69037024e7994c96326568619eb904c756875ed5b5bf`
+
+**Decision**: PASS — B-39 plan cleared for implementation. Chain tip:
+`79efb1bfd6e0cbb2ea1d69037024e7994c96326568619eb904c756875ed5b5bf`.
+
+---
+
+### Entry #167: SESSION SEAL (B-39 fix rotted ipc_throughput bench)
+
+**Entry ID**: `70df846af10c`
+**Timestamp**: 2026-07-30T20:00:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L1
+**Session ID**: 2026-07-30T-b39-fix-ipc-throughput-bench
+**SSDF Practices**: PO.1.4, PS.2.1
+
+**Target**: `docs/plan-b39-fix-ipc-throughput-bench-2026-07-30.md` (audit PASS Entry #166).
+
+**Reality vs Promise**: MATCH. `ipc_throughput.rs` `fixture_to_request` now derives the prompt
+from `fixture["prompt_tokens"]` (array length → `vec!["word"; n].join(" ")`, preserving the
+100/1000/4000 size ladder) instead of the absent top-level `prompt` string that made it panic;
+`rust.yml`'s `bench` job re-adds `--bench ipc_throughput` and the B-39 exclusion comment is
+removed (CI-safe set now 8). No fixture-data or runtime change. Closes the loop B-34's bench gate
+opened.
+
+**Verification (local + CI)**: `cargo bench --bench ipc_throughput -- --warm-up-time 1
+--measurement-time 2 --sample-size 10` ran all six functions (encode/decode/roundtrip ×
+message/binary) over small/medium/large to completion (exit 0, no panic — the exact failure B-34
+caught). `cargo fmt --check` + `cargo clippy --bench ipc_throughput -- -D warnings` clean. **CI:
+the `bench` job (now incl. `--bench ipc_throughput`) must conclude SUCCESS on the PR-to-main run.**
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity exit 0; feature_index_verify total=59 verified=57 unverified=2 (pre-existing);
+governance-index enforce → 2 new B-39 docs registered, exit 0; gate_chain_completeness OK.
+**Environmental SKIPs (disclosed)**: doc_integrity (no glossary), badge_currency (Rust archetype),
+seal_entry_check (ledger parser). `verify-ledger` → #165–#167 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `261043587ed57f9e7f29ae5fa5f4ce0e93ce44a7cb3da4e4ef6ac1b3fcd14828`
+
+**Previous Hash**: `79efb1bfd6e0cbb2ea1d69037024e7994c96326568619eb904c756875ed5b5bf`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `d44dd4d3ea2f1238122e140548436852f598f242c17563f717fb47b797a49f65`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `fd1490d3e46f217c7b6062bfb97de59e706b29be425121280ed7dec1f6564ebd`
+
+**Decision**: B-39 COMPLETE and sealed. The CI bench set is whole again (8 CI-safe benches); the
+IPC-encoding size-ladder throughput is measured. Chain tip:
+`d44dd4d3ea2f1238122e140548436852f598f242c17563f717fb47b797a49f65`.
