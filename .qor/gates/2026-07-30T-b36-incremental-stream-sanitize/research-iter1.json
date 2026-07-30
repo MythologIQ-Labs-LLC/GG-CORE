@@ -1,0 +1,50 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-30T-b36-incremental-stream-sanitize",
+  "ts": "2026-07-30T18:00:32Z",
+  "questions": [
+    "What causes the O(n^2) in StreamSanitizer and can it be made O(n)?",
+    "What invariant makes incrementalization safe?",
+    "How to prove the optimized path never emits raw PII?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "push/flush sanitize the full buffer every token (stream_sanitizer.rs:43,55) -> O(n^2); B-35 proved sanitize linear.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "module asserts settled prefix is byte-stable across pushes (:13-14) -> enabling invariant.",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "bounded-tail: emitted (sanitized offset) -> raw_released; sanitize only full_text[raw_released..cut]; O(n); no API/caller change.",
+      "status": "verified"
+    },
+    {
+      "id": "F4",
+      "detail": "equivalence rests on HOLDBACK>max-match (B-24b #121); binding gate = differential test incremental==whole-buffer over adversarial streams.",
+      "status": "verified"
+    },
+    {
+      "id": "F5",
+      "detail": "preserve UTF-8 char-boundary slicing, multi-word-split, clean-passthrough, flush-tail (3 existing tests = regression floor).",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/security/stream_sanitizer.rs:13-14,42-63,68-82",
+    "docs/META_LEDGER.md#157"
+  ],
+  "brief_path": "docs/research-brief-b36-incremental-stream-sanitize-2026-07-30.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-30T18:00:32Z"
+  }
+}

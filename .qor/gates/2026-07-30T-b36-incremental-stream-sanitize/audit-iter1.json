@@ -1,0 +1,27 @@
+{
+  "phase": "audit",
+  "session_id": "2026-07-30T-b36-incremental-stream-sanitize",
+  "ts": "2026-07-30T18:03:45Z",
+  "target": "B-36 incremental stream sanitize plan (iter1)",
+  "verdict": "VETO",
+  "risk_grade": "L2",
+  "violations": [
+    {
+      "category": "feature-test-undeclared",
+      "detail": "Feature Inventory cites invented id FX-STREAM-SANITIZE; no such FEATURE_INDEX row (stream_sanitizer.rs / B-24b was never indexed; highest is F-58). Remediation: declare F-59 NEW + add the FEATURE_INDEX row."
+    }
+  ],
+  "report_path": "docs/plan-b36-incremental-stream-sanitize-2026-07-30.md",
+  "target_content_hash": "1bafe73dadb6696ab9b7d0757e9e48654f26704edcb5e8ede429f0180af36cb1",
+  "findings_categories": [
+    "feature-test-undeclared"
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "veto",
+    "ts": "2026-07-30T18:03:45Z"
+  }
+}

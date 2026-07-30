@@ -1,0 +1,46 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-30T-b36-incremental-stream-sanitize",
+  "ts": "2026-07-30T18:01:57Z",
+  "plan_path": "docs/plan-b36-incremental-stream-sanitize-2026-07-30.md",
+  "phases": [
+    "Phase 1: Bounded-tail sanitize in push/flush",
+    "Phase 2: Differential equivalence + safety test"
+  ],
+  "ci_commands": [
+    "cargo test -p gg-core security::stream_sanitizer",
+    "cargo fmt --check",
+    "cargo clippy -p gg-core -- -D warnings"
+  ],
+  "open_questions": [],
+  "doc_tier": "standard",
+  "change_class": "feature",
+  "boundaries": {
+    "limitations": [
+      "Optimizes push/flush to bounded raw tail (O(n^2)->O(n)); observable output unchanged, proven by differential test."
+    ],
+    "non_goals": [
+      "No SecurityPipeline/OutputSanitizer/PII-pattern/HOLDBACK/release_cut change.",
+      "No API change."
+    ],
+    "exclusions": [
+      "No caller change."
+    ]
+  },
+  "feature_inventory_touches": [
+    {
+      "entry_id": "FX-STREAM-SANITIZE",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/src/security/stream_sanitizer_diff_tests.rs",
+      "test_descriptor": "incremental_matches_reference_byte_for_byte asserts new==whole-buffer reference; incremental_never_emits_raw_pii asserts no raw PII released."
+    }
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-30T18:01:57Z"
+  }
+}

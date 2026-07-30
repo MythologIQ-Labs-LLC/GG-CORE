@@ -87,6 +87,7 @@ judgment.
 | F-56 | Secure inference façade (Runtime::infer/infer_stream) | core-runtime/src/runtime_facade.rs | docs/security | core-runtime/tests/secure_facade_test.rs | verified |
 | F-57 | Manifest-driven model-load dispatch (GGUF/ONNX by sibling manifest.json; prod FFI+Python) | core-runtime/src/models/backend_dispatch.rs | docs/research-brief-b29b2-manifest-dispatch-2026-07-28.md | core-runtime/src/models/backend_dispatch_tests.rs | verified |
 | F-58 | Degraded-mode policy (intentional, explained degradation under resource pressure; context reduction before hard-fail) | core-runtime/src/engine/degraded_mode.rs | docs/research-brief-b07-degraded-mode-2026-07-28.md | core-runtime/src/engine/degraded_mode_tests.rs | verified |
+| F-59 | Streaming egress PII sanitizer (token-by-token redaction; O(n) cached-stable-prefix; gguf-gated) | core-runtime/src/security/stream_sanitizer.rs | docs/research-brief-b36-incremental-stream-sanitize-2026-07-30.md | core-runtime/src/security/stream_sanitizer_diff_tests.rs | verified |
 
 ## Open coverage gaps
 

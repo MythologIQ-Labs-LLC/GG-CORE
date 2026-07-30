@@ -89,6 +89,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-34 perf baseline CI-gate research brief | `docs/research-brief-b34-perf-baseline-ci-gate-2026-07-29.md` | b34-perf-baseline-ci-gate |
 | B-35 profile infer hot path plan | `docs/plan-b35-profile-infer-hotpath-2026-07-29.md` | b35-profile-infer-hotpath |
 | B-35 profile infer hot path research brief | `docs/research-brief-b35-profile-infer-hotpath-2026-07-29.md` | b35-profile-infer-hotpath |
+| B-36 incremental stream sanitize plan | `docs/plan-b36-incremental-stream-sanitize-2026-07-30.md` | b36-incremental-stream-sanitize |
+| B-36 incremental stream sanitize research brief | `docs/research-brief-b36-incremental-stream-sanitize-2026-07-30.md` | b36-incremental-stream-sanitize |
 
 ## Tier 5 — Reference Material
 

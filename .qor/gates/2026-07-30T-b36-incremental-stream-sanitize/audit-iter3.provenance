@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "deb5dd113ee3e95ef1704fd5063909aee93c861749b8d36fb249cb69f1262aab",
+  "payload_sha256": "95314705f88febb0c5bee0b7976589759b3e456caef5aeb286819f6de398c93d",
+  "phase": "audit",
+  "session_id": "2026-07-30T-b36-incremental-stream-sanitize"
+}
