@@ -9111,3 +9111,47 @@ job only runs on a PR-to-`main`, so CI confirms the job wiring on push.
 **Decision**: B-34 implemented + locally green (6 benches); push to CI, seal after the
 `bench` job is green. Chain tip:
 `7a50a42f3c8679d9b5991de00893783be2727a5ad1fbbf5d32b419c59aa660ef`.
+
+---
+
+### Entry #154: SESSION SEAL (B-34 perf baseline + CI bench job)
+
+**Entry ID**: `49c2388e59bd`
+**Timestamp**: 2026-07-29T09:30:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-29T-b34-perf-baseline-ci-gate
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Target**: `docs/plan-b34-perf-baseline-ci-gate-2026-07-29.md` (audit PASS Entry #152).
+
+**Reality vs Promise**: MATCH. `rust.yml` gains a `bench` job running the 6 CI-safe
+default-feature benches (`scheduler_throughput`, `concurrent_load`, `memory_overhead`,
+`kv_cache_throughput`, `generation_throughput`, `inference_latency`) with trimmed criterion
+args, failing on compile/panic + uploading the criterion baseline artifact. First cycle of
+the optimization initiative — measurement before optimization. The gate immediately caught a
+rotted bench (`ipc_throughput`, fixture schema drift) → excluded + filed B-39; B-06 folded;
+the timing-**threshold** gate is B-34b (absolute baselines are hardware-unsound, research F4).
+
+**Verification (local + CI — authoritative)**: locally, all 6 benches compile + run to
+completion with the trimmed args (exit 0, criterion output). **CI: PR #92 run 30554189748
+= SUCCESS across all 11 jobs, including the new `bench (default-feature, CI-safe set)`
+job** — the one thing only CI can verify (a `rust.yml` job runs only on a PR to `main`).
+
+**Seal-gate ladder**: intent_lock VERIFIED; secret_scanner clean; governance-index enforce →
+2 new docs registered, exit 0; gate_chain_completeness OK. **Environmental SKIPs (disclosed)**:
+doc_integrity (no glossary), badge_currency (pytest on Rust archetype), seal_entry_check
+(ledger parser). `verify-ledger` → #151–#154 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `cec238bb37a84f102a947344cc9e2a2c585c66136a9b0f43b425c1703e9a290f`
+
+**Previous Hash**: `7a50a42f3c8679d9b5991de00893783be2727a5ad1fbbf5d32b419c59aa660ef`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `3d2f351277312df572d9c7d99e232d772f1e6a0c6204a2fa31a3b64f41d51370`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `668acddb78bc4fd39bbdc35a0253e45464d9476e29a397559a7c02dd4de31014`
+
+**Decision**: B-34 COMPLETE and sealed — CI-verified. Optimization initiative has its
+measurement foundation; next: B-34b (threshold gate), then B-35 (profile). Chain tip:
+`3d2f351277312df572d9c7d99e232d772f1e6a0c6204a2fa31a3b64f41d51370`.
