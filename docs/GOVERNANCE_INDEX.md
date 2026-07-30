@@ -1,6 +1,6 @@
 # Governance Index
 
-**Last Reviewed**: 2026-07-29
+**Last Reviewed**: 2026-07-30
 
 A single authoritative map of every governance artifact in this project, organized
 into six freshness tiers with explicit drift contracts. A stale entry here is
@@ -87,6 +87,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | Optimization pass research brief | `docs/research-brief-optimization-pass-2026-07-29.md` | optimization-pass |
 | B-34 perf baseline CI-gate plan | `docs/plan-b34-perf-baseline-ci-gate-2026-07-29.md` | b34-perf-baseline-ci-gate |
 | B-34 perf baseline CI-gate research brief | `docs/research-brief-b34-perf-baseline-ci-gate-2026-07-29.md` | b34-perf-baseline-ci-gate |
+| B-35 profile infer hot path plan | `docs/plan-b35-profile-infer-hotpath-2026-07-29.md` | b35-profile-infer-hotpath |
+| B-35 profile infer hot path research brief | `docs/research-brief-b35-profile-infer-hotpath-2026-07-29.md` | b35-profile-infer-hotpath |
 
 ## Tier 5 — Reference Material
 

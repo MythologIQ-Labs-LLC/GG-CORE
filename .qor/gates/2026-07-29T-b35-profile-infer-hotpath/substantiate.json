@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-29T-b35-profile-infer-hotpath",
+  "ts": "2026-07-30T17:47:40Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 3
+  },
+  "merkle_seal": "c572571f65ec5b6caaf6d7721c1586688ca7889a198075f1d1032d2ab7b4555d",
+  "content_hash": "f55647478e56b1eebbdd1416060a3da0f59b7491b0339f9c75ae666dfeed94db",
+  "ledger_entry": 157,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-30T17:47:40Z"
+  }
+}

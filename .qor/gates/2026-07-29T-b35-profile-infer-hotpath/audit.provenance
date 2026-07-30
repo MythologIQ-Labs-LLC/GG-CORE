@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "7a1f7b087d102a4b3b22a31d9c03128cc8b014f62a4134d23706f2599a61938f",
+  "payload_sha256": "ab05bf2c22c7a49dc7b5891a62c23cf70fa39e9d9afa2f0a498d8675ebf2e864",
+  "phase": "audit",
+  "session_id": "2026-07-29T-b35-profile-infer-hotpath"
+}

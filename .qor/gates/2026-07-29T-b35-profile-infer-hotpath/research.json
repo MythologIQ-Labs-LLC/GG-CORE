@@ -1,0 +1,51 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-29T-b35-profile-infer-hotpath",
+  "ts": "2026-07-30T17:35:48Z",
+  "questions": [
+    "What per-call cost does SecurityPipeline add to every Runtime::infer (B-33)?",
+    "Can the pipeline be benched without a model fixture (CI-safe)?",
+    "What is the sanitize_output size curve that decides B-36?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "Runtime::infer runs scan_prompt+sanitize_output per call (runtime_facade.rs:66,77) - unmeasured.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "SecurityPipeline::from_config(&SecurityConfig{..}) constructs without a model; public API; CI-safe.",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "cost = regex x input size; bench small/medium/large.",
+      "status": "verified"
+    },
+    {
+      "id": "F4",
+      "detail": "sanitize_output size curve decides B-36 (streaming re-sanitize O(n^2) if per-call linear).",
+      "status": "verified"
+    },
+    {
+      "id": "F5",
+      "detail": "inference_latency validation ~3.6ns is the comparison anchor.",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/runtime_facade.rs:66,77",
+    "core-runtime/src/security/pipeline.rs:44,84,113",
+    "core-runtime/tests/security_pipeline_wiring_test.rs:17"
+  ],
+  "brief_path": "docs/research-brief-b35-profile-infer-hotpath-2026-07-29.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-30T17:35:48Z"
+  }
+}

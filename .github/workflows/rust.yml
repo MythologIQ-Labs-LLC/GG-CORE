@@ -110,6 +110,7 @@ jobs:
             --bench scheduler_throughput --bench concurrent_load \
             --bench memory_overhead --bench kv_cache_throughput \
             --bench generation_throughput --bench inference_latency \
+            --bench security_overhead \
             -- --warm-up-time 1 --measurement-time 2 --sample-size 10
       - name: Upload criterion baseline
         if: always()
