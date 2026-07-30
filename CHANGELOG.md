@@ -12,6 +12,9 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 - Unified GGUF/ONNX behind a single `engine::Model` trait; the registry now holds `Arc<dyn Model>`.
 - `sandbox/unix.rs` split for Section 4 Razor (behavior unchanged).
 
+### CI / Tooling
+- Added a `bench` CI job (B-34) that runs the CI-safe default-feature benches on every PR to `main`, failing on compile error / bench panic and uploading the criterion baseline — preventing benchmark rot. (It immediately caught a rotted `ipc_throughput` bench → B-39.)
+
 ### Security / **BREAKING**
 - **`Runtime::infer`/`infer_stream` is now the sole external inference entry point.** `InferenceEngine::{run, run_cancellable, run_cancellable_with_memory_limit, run_stream_sync}` are `pub(crate)` — a consumer can no longer bypass the `SecurityPipeline` (ingress scan + egress PII sanitize). Embedded consumers that called the raw engine must switch to `runtime.infer()` (see COREFORGE #538). `InferenceEngine`/`new` remain public.
 

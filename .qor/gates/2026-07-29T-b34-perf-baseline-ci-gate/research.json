@@ -1,0 +1,63 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-29T-b34-perf-baseline-ci-gate",
+  "ts": "2026-07-30T14:37:55Z",
+  "questions": [
+    "Which benches are CI-safe (no model/GPU/advanced)?",
+    "How must the CI job select benches?",
+    "Is a committed absolute baseline sound for a regression gate?",
+    "What tooling exists?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "summary": "7 CI-safe benches: ipc/scheduler/concurrent_load/memory_overhead/kv_cache/generation(result-creation)/inference_latency(validation)",
+      "refs": [
+        "core-runtime/benches/generation_throughput.rs:19",
+        "core-runtime/benches/inference_latency.rs:28"
+      ]
+    },
+    {
+      "id": "F2",
+      "summary": "4 excluded: llama_cpp_comparison(model), gpu_allocation(gpu), multi_gpu_scaling(#[cfg advanced]), speculative_matrix(advanced)",
+      "refs": [
+        "core-runtime/benches/multi_gpu_scaling.rs:8"
+      ]
+    },
+    {
+      "id": "F3",
+      "summary": "Job must run --bench <name> explicitly; no required-features so bare cargo bench compiles gpu/advanced targets",
+      "refs": [
+        "core-runtime/Cargo.toml"
+      ]
+    },
+    {
+      "id": "F4",
+      "summary": "Committed absolute-timing baseline is UNSOUND (hardware-relative); real gate needs run-over-run cache+critcmp",
+      "refs": [
+        "core-runtime/benches/kv_cache_throughput.rs"
+      ]
+    },
+    {
+      "id": "F5",
+      "summary": "No bench job / no regression tooling; CI triggers only on PR/push to main",
+      ".refs": [
+        ".github/workflows/rust.yml"
+      ]
+    }
+  ],
+  "sources": [
+    "core-runtime/benches/",
+    ".github/workflows/rust.yml",
+    "core-runtime/Cargo.toml"
+  ],
+  "brief_path": "docs/research-brief-b34-perf-baseline-ci-gate-2026-07-29.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-30T14:37:55Z"
+  }
+}

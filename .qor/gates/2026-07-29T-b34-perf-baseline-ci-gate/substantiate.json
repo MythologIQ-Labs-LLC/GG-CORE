@@ -1,0 +1,17 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-29T-b34-perf-baseline-ci-gate",
+  "ts": "2026-07-30T15:04:20Z",
+  "verdict": "PASS",
+  "merkle_seal": "668acddb78bc4fd39bbdc35a0253e45464d9476e29a397559a7c02dd4de31014",
+  "ledger_entry": 154,
+  "reality_matches_promise": true,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-30T15:04:20Z"
+  }
+}

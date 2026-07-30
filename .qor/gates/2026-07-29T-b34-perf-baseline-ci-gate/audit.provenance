@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "1d1ffdcee17166c164659a76e6e565466614fb70b271e970d931d09bba590b66",
+  "payload_sha256": "81caba90c7f0c9709fe4e6b6efa6008dd51ba92ada9ce130e75c273add7524e4",
+  "phase": "audit",
+  "session_id": "2026-07-29T-b34-perf-baseline-ci-gate"
+}
