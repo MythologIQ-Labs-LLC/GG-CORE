@@ -75,7 +75,10 @@ fn utf8_multibyte_is_not_corrupted() {
         out.push_str(&o);
     }
     // Concatenated release reconstructs the original clean text intact.
-    assert_eq!(out, text, "multibyte text must round-trip without corruption");
+    assert_eq!(
+        out, text,
+        "multibyte text must round-trip without corruption"
+    );
 }
 
 #[test]
