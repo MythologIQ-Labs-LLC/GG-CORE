@@ -1,0 +1,67 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-29T-reconcile-optimize-pass",
+  "ts": "2026-07-30T03:32:04Z",
+  "questions": [
+    "Is perf measured/regression-guarded?",
+    "What is the default-runtime Runtime::infer overhead?",
+    "Which fast paths are advanced-gated vs default?",
+    "What are the candidate default hotspots?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "summary": "9 criterion benches exist but no baseline + no CI regression gate",
+      "refs": [
+        "core-runtime/benches/inference_latency.rs",
+        ".github/workflows/rust.yml"
+      ]
+    },
+    {
+      "id": "F2",
+      "summary": "Runtime::infer scan+sanitize overhead unmeasured; B-24b sanitizer re-sanitizes full buffer per push (possible O(n^2))",
+      "refs": [
+        "core-runtime/src/runtime_facade.rs:60",
+        "core-runtime/src/security/stream_sanitizer.rs"
+      ]
+    },
+    {
+      "id": "F3",
+      "summary": "Fast paths (SIMD/flash-attn/speculative/quantize) are advanced-gated; consumer target is default feature set",
+      "refs": [
+        "core-runtime/src/engine/mod.rs:44"
+      ]
+    },
+    {
+      "id": "F4",
+      "summary": "Candidate default hotspots (tokenize/batching/memory/ONNX-eval/IPC) to be profiled not assumed",
+      "refs": [
+        "core-runtime/src/engine/simd_tokenizer.rs",
+        "core-runtime/src/scheduler/continuous.rs"
+      ]
+    },
+    {
+      "id": "F5",
+      "summary": "benches/llama_cpp_comparison.rs is a perf yardstick",
+      "refs": [
+        "core-runtime/benches/llama_cpp_comparison.rs"
+      ]
+    }
+  ],
+  "sources": [
+    "core-runtime/benches/",
+    ".github/workflows/rust.yml",
+    "core-runtime/src/runtime_facade.rs",
+    "core-runtime/src/engine/mod.rs",
+    "core-runtime/src/security/stream_sanitizer.rs"
+  ],
+  "brief_path": "docs/research-brief-optimization-pass-2026-07-29.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-30T03:32:04Z"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "4783ad69d1ef3d3fbc6c109f5144371f42c9e3d302380ff51a1b8afa075c0aa7",
+  "payload_sha256": "c4654271df596a27951eb974e915fb57e1ae668229b18a90ee020e179ba375c8",
+  "phase": "research",
+  "session_id": "2026-07-29T-reconcile-optimize-pass"
+}

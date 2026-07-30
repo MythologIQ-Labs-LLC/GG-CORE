@@ -8926,3 +8926,74 @@ Rust archetype; breaking-class would ABORT but the tool can't run here), seal_en
 `Runtime::infer` is the only external inference path; no bypass exists. Next: push + PR to
 main, update COREFORGE #538. Chain tip:
 `def306ffdb0239a80315104ce2f8a900289c4fb986227df1ebf886bd4a89ef65`.
+
+---
+
+### Entry #149: RECONCILIATION (backlog vs green main @17a758d)
+
+**Timestamp**: 2026-07-29T07:00:00-04:00
+**Phase**: RECONCILE
+**Author**: Governor
+**Risk Grade**: L1 (governance doc)
+**Session ID**: 2026-07-29T-reconcile-optimize-pass
+
+**Target**: reconcile `docs/BACKLOG.md` against green `main` (@17a758d, ledger #148).
+
+**Changes**: B-24 (was `decided`) → **done** — both children B-24a (#118) + B-24b (#122)
+shipped and merged; F1+F2 closed. B-26 (was `open`) → **done from the GG-CORE side** — the
+secure façade (B-24) + B-33 (#148, raw engine `pub(crate)`) compiler-enforce the embedded
+security path; the COREFORGE-side call-site change is tracked in COREFORGE #538 (their
+workspace). Confirmed genuinely open (accurate, unchanged): B-21 (ADR-007 epic), B-02..B-06
+(Backend Capability Contract + BitNet), B-13 (`docs/architecture/CORE_RUNTIME_ARCHITECTURE.md`
+still missing + cited CLAUDE.md:92), B-14 (FEATURE_INDEX SG-035 deep-verify). Phase 1
+(B-24a→B-28→B-24b→B-29→B-07→B-16) + B-33 all merged to `main`, `verify-ledger` clean
+#123–#148. Optimization initiative opened (see #150; adds B-34..B-38).
+
+**Content Hash** (SHA256 of docs/BACKLOG.md): `0b484e1e86f226a17af15f1cc17285efa86c55ed157e5f8e5d43bfbf4fb4ba44`
+
+**Previous Hash**: `def306ffdb0239a80315104ce2f8a900289c4fb986227df1ebf886bd4a89ef65`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `3e63ae2e94b4594982c97c478802f6c4c05adc8fd73477952a491e5eaacb7d13`
+
+**Decision**: backlog reconciled truthful against green `main`; two stale rows resolved,
+four genuinely-open items confirmed. Chain tip:
+`3e63ae2e94b4594982c97c478802f6c4c05adc8fd73477952a491e5eaacb7d13`.
+
+---
+
+### Entry #150: RESEARCH BRIEF (optimization pass — opened)
+
+**Timestamp**: 2026-07-29T07:15:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2
+**Session ID**: 2026-07-29T-reconcile-optimize-pass
+
+**Target**: open a governed optimization initiative on green `main`; catalog opportunities
++ seed a measurement-first optimization backlog.
+
+**Findings (verified)**: F1 9 criterion benches exist (`inference_latency`,
+`generation_throughput`, `scheduler_throughput`, ...) but there is **no baseline and no CI
+regression gate** (`rust.yml` runs fmt/clippy/test only) → optimization is unmeasured. F2
+every `Runtime::infer` (sole path, B-33) runs `SecurityPipeline` scan+sanitize (unmeasured);
+the B-24b streaming egress sanitizer re-sanitizes the full buffer per push (possible
+O(n²)). F3 the fast paths (SIMD/flash-attn/speculative/quantize) are `advanced`-gated
+(TierSynergy); the consumer target is the DEFAULT feature set. F4 candidate default hotspots
+(tokenize/batching/memory/ONNX-eval/IPC) — to be confirmed by profiling, not assumed. F5
+`benches/llama_cpp_comparison.rs` provides a yardstick.
+
+**Decision**: open the initiative measurement-first. Seeded backlog: **B-34** (perf baseline
++ CI regression gate — do first), **B-35** (profile default `Runtime::infer`: security
+overhead + hotspot ranking), **B-36** (incrementalize streaming sanitizer if B-35 confirms
+superlinear), **B-37** (scheduler/batching throughput), **B-38** (memory overhead). B-06
+overlaps B-34 (fold/sequence); B-21 is the separate `advanced`-tier track. No optimization
+executed — this is the opening. Shadow Genome discipline: instrument (B-34) before editing.
+
+**Content Hash** (SHA256 of docs/research-brief-optimization-pass-2026-07-29.md): `f40c5d48ca7f5a9d79d6ba3de833ee59154c4d7c269284d9e991b8506ed0ba83`
+
+**Previous Hash**: `3e63ae2e94b4594982c97c478802f6c4c05adc8fd73477952a491e5eaacb7d13`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `3f053ad0f307c1520d8706f2884ebf2662d56597b28f0d09bbb456682018cfa7`
+
+**Decision**: optimization pass opened; B-34..B-38 seeded, measurement-first. Chain tip:
+`3f053ad0f307c1520d8706f2884ebf2662d56597b28f0d09bbb456682018cfa7`.
