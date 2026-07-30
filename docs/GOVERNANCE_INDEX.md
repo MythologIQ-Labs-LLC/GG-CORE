@@ -84,6 +84,7 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-16 sandbox Razor refactor research brief | `docs/research-brief-b16-sandbox-unix-razor-2026-07-28.md` | b16-sandbox-unix-razor |
 | B-33 Runtime sole-entry plan | `docs/plan-b33-runtime-sole-entry-2026-07-29.md` | b33-runtime-sole-entry |
 | B-33 Runtime sole-entry research brief | `docs/research-brief-b33-runtime-sole-entry-2026-07-29.md` | b33-runtime-sole-entry |
+| Optimization pass research brief | `docs/research-brief-optimization-pass-2026-07-29.md` | optimization-pass |
 
 ## Tier 5 — Reference Material
 
