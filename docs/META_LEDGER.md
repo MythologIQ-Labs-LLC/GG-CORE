@@ -8997,3 +8997,117 @@ executed — this is the opening. Shadow Genome discipline: instrument (B-34) be
 
 **Decision**: optimization pass opened; B-34..B-38 seeded, measurement-first. Chain tip:
 `3f053ad0f307c1520d8706f2884ebf2662d56597b28f0d09bbb456682018cfa7`.
+
+---
+
+### Entry #151: RESEARCH BRIEF (B-34 perf baseline + CI regression gate)
+
+**Timestamp**: 2026-07-29T08:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2 (CI infra)
+**Session ID**: 2026-07-29T-b34-perf-baseline-ci-gate
+
+**Target**: B-34 — run default-feature benches in CI + establish a perf baseline (first
+optimization cycle). Branch `feat/b34-perf-baseline-ci-gate` off `main` (#150).
+
+**Findings (verified)**: F1 seven benches are CI-safe (model-free/GPU-free/default) — verified
+by reading each: `ipc_throughput`, `scheduler_throughput`, `concurrent_load` (PriorityQueue),
+`memory_overhead` (pool), `kv_cache_throughput` (KvCacheManager), and — despite their names —
+`generation_throughput` (result/stream-frame creation) + `inference_latency` (validation/
+params). F2 four excluded: `llama_cpp_comparison` (model), `gpu_allocation` (GPU),
+`multi_gpu_scaling` (`#[cfg(advanced)]`), `speculative_matrix` (advanced). F3 the job must
+select benches explicitly (`--bench <name>`) — no `required-features`, so a bare `cargo bench`
+would try to compile the gpu/advanced targets. **F4 (soundness) a committed absolute-timing
+baseline is UNSOUND** — criterion ns are hardware-relative (CI runner ≠ dev host), so a
+threshold vs a checked-in JSON is pure noise; a real gate needs run-over-run CI-persisted
+baselines (`actions/cache` + `critcmp`), threshold tuned to observed CI variance. F5 no bench
+job / no regression tooling today; CI triggers only on PR/push to `main`.
+
+**Decision (autonomous, grounded in F4)**: split the deliverable — **B-34** = a `bench` CI
+job running the 7 CI-safe benches (fail on compile error/panic = kill bench-rot; upload
+`target/criterion` as the baseline artifact); **B-34b** (seeded follow-up) = the run-over-run
+threshold gate (cache + critcmp, threshold from B-34's observed noise). Measurement-first:
+run+observe before auto-fail. B-06 folded (default-feature harness intent satisfied). Shadow
+Genome: absolute-timing baselines can't gate CI — establish CI runs before thresholds.
+
+**Content Hash** (SHA256 of docs/research-brief-b34-perf-baseline-ci-gate-2026-07-29.md): `e318f0a78425ff982982a352583c5e77c7a3f09ca4e4e604bcbb3cb62df5dda2`
+
+**Previous Hash**: `3f053ad0f307c1520d8706f2884ebf2662d56597b28f0d09bbb456682018cfa7`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `a8c776c0dc835b5a1818b74bcf8f6d63f697ccb3747cdb5cfa320fca7cbe97c7`
+
+**Decision**: B-34 research complete; smoke+baseline CI-bench-job cycle recommended, threshold
+gate seeded as B-34b. Chain tip:
+`a8c776c0dc835b5a1818b74bcf8f6d63f697ccb3747cdb5cfa320fca7cbe97c7`.
+
+---
+
+### Entry #152: GATE TRIBUNAL (B-34 perf baseline + CI bench job — PASS)
+
+**Timestamp**: 2026-07-29T08:30:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-29T-b34-perf-baseline-ci-gate
+
+**Target**: `docs/plan-b34-perf-baseline-ci-gate-2026-07-29.md`.
+
+**Passes**: all twelve clear. Adds a `bench` job to `rust.yml` running the 7 CI-safe
+default-feature benches explicitly (`--bench ipc_throughput/scheduler_throughput/
+concurrent_load/memory_overhead/kv_cache_throughput/generation_throughput/inference_latency`)
+with trimmed criterion args, fail-on-compile/panic + criterion artifact upload. Locally
+grounded: all 7 compile (7 executables), `inference_latency` runs to completion with the
+trimmed args producing criterion output. Deliverable split (smoke+baseline now, threshold
+gate B-34b) is the sound measurement-first sequence (research F4: absolute baselines are
+hardware-unsound). No secrets; standard actions.
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `3c766429c818d8ce0211135f719564c836378100ca91b16cd5e37edfaa2ffd15`
+
+**Previous Hash**: `a8c776c0dc835b5a1818b74bcf8f6d63f697ccb3747cdb5cfa320fca7cbe97c7`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `1eb892479c92799fbe56a65317d743151b5509132b34279c73df9127e157cea0`
+
+**Decision**: B-34 plan PASS; proceed to `/qor-implement`. Chain tip:
+`1eb892479c92799fbe56a65317d743151b5509132b34279c73df9127e157cea0`.
+
+---
+
+### Entry #153: IMPLEMENTATION (B-34 perf baseline + CI bench job)
+
+**Timestamp**: 2026-07-29T09:00:00-04:00
+**Phase**: IMPLEMENT
+**Author**: Specialist
+**Risk Grade**: L2
+**Session ID**: 2026-07-29T-b34-perf-baseline-ci-gate
+
+**Files**: `.github/workflows/rust.yml` — new `bench` job (ubuntu, `working-directory:
+core-runtime`, mirrors the `features` job's checkout/toolchain/cache) running the CI-safe
+benches with trimmed criterion args (`--warm-up-time 1 --measurement-time 2 --sample-size
+10`) + `upload-artifact@v4` of `core-runtime/target/criterion`. `docs/BACKLOG.md` — B-34
+done, B-06 folded, **B-39 added**.
+
+**Plan deviation (disclosed) — the gate caught rot on first run**: the audited plan named
+7 CI-safe benches; local verification found `ipc_throughput` **panics** (`benches/ipc_throughput.rs:22`
+— expects `fixture["prompt"]` string, but `fixtures/prompts/*.json` schema drifted to
+`prompt_tokens`, no top-level `prompt`). Excluded from the job; filed as **B-39**. The job
+runs the **6** that pass: `scheduler_throughput`, `concurrent_load`, `memory_overhead`,
+`kv_cache_throughput`, `generation_throughput`, `inference_latency`. This is exactly the
+bench-rot B-34's smoke gate exists to catch.
+
+**Verification (local + CI)**: all 6 benches compile (release) and run to completion with
+the trimmed args, EXIT 0, producing `target/criterion` output (verified from
+`working-directory: core-runtime`); YAML valid (`jobs: lint, test, features, bench`); the
+excluded `ipc_throughput` deterministically panics (the discovered rot). The new `bench`
+job only runs on a PR-to-`main`, so CI confirms the job wiring on push.
+
+**Content Hash** (SHA256 of .github/workflows/rust.yml): `89aff2271884d75fbd783a11b97d8f34137bfdfd3952ff343aaa2322afb72fd7`
+
+**Previous Hash**: `1eb892479c92799fbe56a65317d743151b5509132b34279c73df9127e157cea0`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `7a50a42f3c8679d9b5991de00893783be2727a5ad1fbbf5d32b419c59aa660ef`
+
+**Decision**: B-34 implemented + locally green (6 benches); push to CI, seal after the
+`bench` job is green. Chain tip:
+`7a50a42f3c8679d9b5991de00893783be2727a5ad1fbbf5d32b419c59aa660ef`.

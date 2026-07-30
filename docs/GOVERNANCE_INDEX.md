@@ -85,6 +85,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-33 Runtime sole-entry plan | `docs/plan-b33-runtime-sole-entry-2026-07-29.md` | b33-runtime-sole-entry |
 | B-33 Runtime sole-entry research brief | `docs/research-brief-b33-runtime-sole-entry-2026-07-29.md` | b33-runtime-sole-entry |
 | Optimization pass research brief | `docs/research-brief-optimization-pass-2026-07-29.md` | optimization-pass |
+| B-34 perf baseline CI-gate plan | `docs/plan-b34-perf-baseline-ci-gate-2026-07-29.md` | b34-perf-baseline-ci-gate |
+| B-34 perf baseline CI-gate research brief | `docs/research-brief-b34-perf-baseline-ci-gate-2026-07-29.md` | b34-perf-baseline-ci-gate |
 
 ## Tier 5 — Reference Material
 

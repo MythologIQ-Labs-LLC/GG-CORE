@@ -1,0 +1,39 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-29T-b34-perf-baseline-ci-gate",
+  "ts": "2026-07-30T14:43:58Z",
+  "plan_path": "docs/plan-b34-perf-baseline-ci-gate-2026-07-29.md",
+  "change_class": "feature",
+  "doc_tier": "standard",
+  "phases": [
+    "Add a bench job to the CI workflow"
+  ],
+  "ci_commands": [
+    "cargo bench -p gg-core --bench ipc_throughput -- --warm-up-time 1 --measurement-time 2 --sample-size 10",
+    "cargo fmt --check"
+  ],
+  "required_gate_artifacts": [
+    "plan",
+    "audit",
+    "implement",
+    "substantiate"
+  ],
+  "high_risk_target": false,
+  "boundaries": {
+    "non_goals": [
+      "No timing-regression threshold (B-34b)",
+      "No benchmark logic change",
+      "Model/GPU/advanced benches stay out of CI"
+    ]
+  },
+  "feature_inventory_touches": [],
+  "open_questions": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-30T14:43:58Z"
+  }
+}
