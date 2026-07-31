@@ -191,9 +191,8 @@ pub trait VerificationScheduler: Send + Sync {
 
 /// Verifies a draft block against the target model distribution.
 ///
-/// Implementations wrap the target (large) model. The trait is kept
-/// symmetric with [`crate::engine::speculative::TargetModel`] so that
-/// existing GGUF wrappers can implement both without duplication.
+/// Implementations wrap the target (large) model — e.g. the GGUF
+/// `GgufTargetVerifier` adapter.
 #[async_trait::async_trait]
 pub trait TargetVerifier: Send + Sync {
     /// Verify `plan.window` tokens from `draft` given `context`.

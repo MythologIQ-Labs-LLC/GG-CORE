@@ -10664,3 +10664,184 @@ doc_integrity, badge_currency, seal_entry_check. `verify-ledger` → #188–#190
 gated, opt-in); the dormant state is ended.** Next: B-21b-2 (retire v2 → single), then B-21f (KV
 reuse for the speedup), B-21e (e2e bench), B-21d/B-21h loose ends. Chain tip:
 `57ca812d4a486abee7c8bb80bd3e5065a47772019979bab399e13aceebee84c4`.
+
+---
+
+### Entry #191: RESEARCH BRIEF (B-21b-2 retire speculative v2 — minimal, behavior-preserving)
+
+**Timestamp**: 2026-07-31T22:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2 (breaking, advanced-gated)
+**Session ID**: 2026-07-31T-b21b2-retire-speculative-v2
+
+**Target**: B-21b-2 — make `adaptive_speculative` the sole speculative executor by removing the v2
+decoder, preserving the dormant components sharing v2's value types. Branch
+`feat/b21b2-retire-speculative-v2` off `main` (#190).
+
+**Findings (verified)**: F1 no non-test consumer of the v2 DECODER (`SpeculativeDecoder`/`DraftModel`/
+`TargetModel` — only v2 self, the gguf adapter, mod re-export, tests) → clean deletion. F2 the value
+types (`SpeculativeConfig`/`SpeculativeStats`/`VerifyResult`) have 3 DORMANT consumers: `tier_synergy`
+public API (`with_spec_config`/`stats()`/`SynergyStatus.spec_config`), `decode.rs`
+(`DecodeConfig.speculative`, config-type-only), and GGUF `verify_draft_tokens` return type — their
+field shapes differ from the adaptive types, so migrating would change semantics → **relocate the
+structs verbatim**. F3 target: new `engine/speculative_types.rs` (advanced-gated), swap
+`speculative_v2::`→`speculative_types::` imports; drop the decoder re-exports. F4 F-18 folds into
+F-61 (source+test deleted).
+
+**Decision** (operator chose Minimal via AskUserQuestion): delete the v2 decoder/traits + gguf token
+adapter (`gguf/speculative.rs`) + v2 tests; relocate value types to `engine/speculative_types.rs`;
+switch imports; remove F-18. Behavior-preserving; adaptive = sole executor (double→single). Shadow
+Genome: separate the duplicated BEHAVIOR (delete) from the shared VALUE types (relocate verbatim).
+
+**Content Hash** (SHA256 of docs/research-brief-b21b2-retire-speculative-v2-2026-07-31.md): `ba6802ac05a251856bd7688c35a2307c882812896351bad37a0954bb5baed744`
+
+**Previous Hash**: `57ca812d4a486abee7c8bb80bd3e5065a47772019979bab399e13aceebee84c4`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `6c7f92feb7b88fad7418c1dd0c2fa1872c09bceb3f5f8fa743294ff6f67b20bc`
+
+**Decision**: B-21b-2 research complete; minimal behavior-preserving v2-decoder retirement. Chain
+tip: `6c7f92feb7b88fad7418c1dd0c2fa1872c09bceb3f5f8fa743294ff6f67b20bc`.
+
+---
+
+### Entry #192: IMPLEMENTATION PLAN (B-21b-2 retire speculative v2 — minimal, behavior-preserving)
+
+**Timestamp**: 2026-07-31T22:20:00-04:00
+**Phase**: PLAN
+**Author**: Governor
+**Risk Grade**: L2 (breaking change_class; advanced-gated, dormant except the canonical adaptive path)
+**Session ID**: 2026-07-31T-b21b2-retire-speculative-v2
+
+**change_class**: breaking · **doc_tier**: standard
+
+**Plan**: Two phases. Phase 1 — relocate the shared value types (`SpeculativeConfig`+`Default`,
+`SpeculativeStats`+methods, `VerifyResult`+methods) VERBATIM from `speculative_v2.rs` into a new
+`advanced`-gated `engine/speculative_types.rs`; swap `engine/mod.rs` `pub mod speculative_v2;` →
+`pub mod speculative_types;` and re-export only the surviving value types (drop the
+`DraftModel`/`TargetModel`/`SpeculativeDecoder` re-exports). Phase 2 — DELETE `speculative_v2.rs`,
+`gguf/speculative.rs` (the v2 token adapter), `tests/speculative_test.rs`, and the
+`e2e_speculative_decoding` fn in `tests/e2e_model_test.rs`; switch every `speculative_v2::` import
+(`tier_synergy/{mod,status}.rs`, `gguf/{backend,generator}.rs`, `gguf/mod.rs`) to `speculative_types`.
+`adaptive_speculative` becomes the sole speculative executor (double→single). FEATURE_INDEX F-18
+removed (subsumed by F-61).
+
+**Design (Simple Made Easy)**: `speculative_v2.rs` complected the duplicate DECODER (the redundancy)
+with the shared VALUE types (3 dormant consumers). Un-complect: delete the behavior, relocate the
+values verbatim. Consumers change only their import path; behavior identical. Behavior-preservation
+verified by the surviving tier_synergy + adaptive executor tests compiling + passing.
+
+**DoD**: D1 v2 decoder gone, value types relocated, tier_synergy/decode.rs/`verify_draft_tokens`
+unchanged, adaptive = sole executor, F-18 removed. D2 the file moves/deletes + import switches. D3
+ledger #191–seal + BACKLOG B-21b-2 done + FEATURE_INDEX F-18 removed + CHANGELOG note. D4 `cargo
+build/test -p gg-core --features "gguf advanced"` green + `--features gguf`/default compile + fmt/clippy
+clean.
+
+**Content Hash** (SHA256 of docs/plan-b21b2-retire-speculative-v2-2026-07-31.md): `1233d14266644a6ca8f703993dc68f89d0751749de1d78b1194661e631a626a1`
+
+**Previous Hash**: `6c7f92feb7b88fad7418c1dd0c2fa1872c09bceb3f5f8fa743294ff6f67b20bc`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `5b65d08a8f409ffa63589852bbccc8254f9d26da0f544fe439a4600e6fb1e2c7`
+
+**Decision**: B-21b-2 plan sealed; minimal relocation + decoder deletion. Chain tip:
+`5b65d08a8f409ffa63589852bbccc8254f9d26da0f544fe439a4600e6fb1e2c7`.
+
+---
+
+### Entry #193: AUDIT VERDICT — PASS (B-21b-2 retire speculative v2)
+
+**Timestamp**: 2026-07-31T22:35:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L2 (breaking, advanced+gguf-gated, dormant except the canonical adaptive path)
+**Session ID**: 2026-07-31T-b21b2-retire-speculative-v2
+
+**Verdict**: **PASS** (solo audit; `audit_risk_score` → `option_b_required: false`).
+
+**Binding passes**: Prompt Injection PASS (canary scan of ARCHITECTURE_PLAN/META_LEDGER/CONCEPT exit
+0; plan manually canary-free). Security L3 PASS (behavior-preserving; speculative path stays inside
+`InferenceEngine::run`, bracketed by `scan_prompt`/`sanitize_output` in the `Runtime::infer` façade —
+unchanged; no auth/secret/security surface). OWASP PASS (no subprocess/deser/injection). Ghost-UI
+PASS (n/a). **Razor PASS** (new `speculative_types.rs` relocates value types `speculative_v2.rs:14-127`
+~120 lines ≤250; net −~350 decoder lines). **Test Functionality PASS** (no new tests; deleted v2
+tests removed WITH the decoder; behavior-preservation verified by surviving tier_synergy + adaptive
+executor tests + clean `--features "gguf advanced"` build). **Infrastructure Alignment PASS** (full
+re-walk: every `speculative_v2` citation grep-verified — `engine/mod.rs:58,116-118`,
+`tier_synergy/{mod:24,status:3}`, `gguf/{backend:211-212,generator:130,mod:11,19,speculative.rs}`,
+`tests/speculative_test.rs`, `tests/e2e_model_test.rs:199-216`; **decode.rs:6 needs no change** — it
+imports the preserved `engine::SpeculativeConfig` re-export; no missed consumer). Feature Test
+Declaration PASS (F-18 `n/a-justified`, subsumed by F-61).
+
+**Findings (non-blocking)**: N1 advisory — `gguf/adaptive_speculative.rs:5` doc comment references the
+v2 `GgufDraftModel`/`GgufTargetModel` by name (analogy); stale-but-compiles after deletion; tidy
+during implement.
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `83a5538fee85d0cfcf0b2ed8c1ef6eac36edcd1860085ffc70e5f93dd7c095b6`
+
+**Previous Hash**: `5b65d08a8f409ffa63589852bbccc8254f9d26da0f544fe439a4600e6fb1e2c7`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `3142e6a7a4a3f1b0933eb1654aec0c71e835e7ec65375784e7ed7413fedc69b4`
+
+**Decision**: PASS — proceed to /qor-implement. Chain tip:
+`3142e6a7a4a3f1b0933eb1654aec0c71e835e7ec65375784e7ed7413fedc69b4`.
+
+---
+
+### Entry #194: SESSION SEAL (B-21b-2 — speculative v2 decoder retired; ADR-007 double→single complete)
+
+**Entry ID**: `501d9ce01879`
+**Timestamp**: 2026-07-31T22:55:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L2 (breaking change_class; advanced+gguf-gated, dormant except the canonical adaptive path)
+**Session ID**: 2026-07-31T-b21b2-retire-speculative-v2
+**SSDF Practices**: PW.1.1, PW.2.1, PW.7.2
+
+**Target**: `docs/plan-b21b2-retire-speculative-v2-2026-07-31.md` (audit PASS Entry #193).
+
+**Reality vs Promise**: MATCH. **The v2 speculative decoder is retired — `adaptive_speculative` is now
+the sole speculative executor (ADR-007 double→single complete).** Minimal, behavior-preserving path:
+the shared value types (`SpeculativeConfig`+`Default`, `SpeculativeStats`+methods, `VerifyResult`+
+methods) were relocated **verbatim** from `speculative_v2.rs` into a NEW `advanced`-gated
+`engine/speculative_types.rs` (~124 lines); `engine/mod.rs` swaps `pub mod speculative_v2;`→`pub mod
+speculative_types;` and re-exports only the surviving value types (`SpeculativeConfig`/
+`SpeculativeStats`/`VerifyResult` — the `DraftModel`/`TargetModel`/`SpeculativeDecoder` re-exports
+dropped). DELETED: `speculative_v2.rs` (the v2 decoder + traits + `verification` mod), `gguf/
+speculative.rs` (the v2 token adapter `GgufDraftModel`/`GgufTargetModel`), `tests/speculative_test.rs`,
+and the `e2e_speculative_decoding` fn in `tests/e2e_model_test.rs`. Import switches:
+`tier_synergy/{mod,status}.rs`, `gguf/{backend,generator,mod}.rs` → `speculative_types`. `decode.rs`
+needed no change (imports the preserved `engine::SpeculativeConfig` re-export). tier_synergy /
+decode.rs / `verify_draft_tokens` behavior is unchanged (structs relocated verbatim). Two stale v2
+doc-comment references (`gguf/adaptive_speculative.rs`, `adaptive_speculative/mod.rs`) tidied. F-18
+removed (subsumed by F-61).
+
+**Verification (local)**: `cargo check -p gg-core --features "gguf advanced"` clean; `cargo test -p
+gg-core --features "gguf advanced" --lib` → **674 passed, 0 failed** (incl. the 5 `adaptive_speculative
+::executor` tests, `tier_synergy` + `tier_synergy_speculative` tests that consume the relocated value
+types). All test targets compile (`--no-run` clean — the edited e2e test has no unused-import fallout).
+CI-safe legs `cargo check -p gg-core --features gguf` and default both compile (advanced-gated → CI
+legs skip the changed code). `cargo fmt --check` clean; clippy on the changed files clean (the 14
+pre-existing advanced lints are all in unrelated files — quantize/simd/gpu/speculative_config, B-40).
+**Razor**: `speculative_types.rs` ~124 lines ≤ 250; net −~350 decoder lines.
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity exit 0; feature_index_verify total=60 verified=60 (F-18 removed, 61→60); governance-index
+enforce → B-21b-2 plan+brief registered (Tier 4), exit 0. **Environmental SKIPs** (Phase 75 prerequisite-
+absent, consistent with #190): `doc_integrity` strict (no `qor/references/glossary.md` in GG-CORE — the
+standard-tier glossary check has no target; the change introduces no new terms, `terms_introduced=[]`);
+`intent_lock verify` NO LOCK (this cycle ran implement directly, not via the skill's Step 5.5 lock);
+badge_currency; seal_entry_check. `verify-ledger` → #191–#194 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `ccc00d7826bbf1a0021b76e22496afce26e5263bf6d5917ae99a7230173a4a4b`
+
+**Previous Hash**: `3142e6a7a4a3f1b0933eb1654aec0c71e835e7ec65375784e7ed7413fedc69b4`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `501d9ce01879fcd0ede9da50479d378a69384169bd00f4dad889524a69263d77`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `23752650655817ff939cb173cf095d03f0ce97d628a8b423ece099ad537d60ac`
+
+**Decision**: B-21b-2 COMPLETE and sealed — **the v2 decoder is retired; `adaptive_speculative` is the
+sole speculative executor (ADR-007 triple→double→single consolidation complete).** Behavior-preserving;
+no runtime impact (advanced-gated). Next: B-21f (KV-cache reuse — the actual speedup), B-21e (real e2e
+bench, gated on B-21f), B-21d/B-21h loose ends, B-40 (advanced in CI matrix). Chain tip:
+`501d9ce01879fcd0ede9da50479d378a69384169bd00f4dad889524a69263d77`.

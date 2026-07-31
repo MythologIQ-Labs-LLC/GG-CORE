@@ -127,7 +127,7 @@ impl GgufGenerator {
         &self,
         context: &[u32],
         draft: &[u32],
-    ) -> Result<crate::engine::speculative_v2::VerifyResult, InferenceError> {
+    ) -> Result<crate::engine::speculative_types::VerifyResult, InferenceError> {
         if let Some(inner) = &self.inner {
             return inner.verify_tokens(context, draft);
         }

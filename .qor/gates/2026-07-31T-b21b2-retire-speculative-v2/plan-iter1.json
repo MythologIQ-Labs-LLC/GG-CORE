@@ -1,0 +1,49 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-31T-b21b2-retire-speculative-v2",
+  "ts": "2026-07-31T13:14:08Z",
+  "plan_path": "docs/plan-b21b2-retire-speculative-v2-2026-07-31.md",
+  "phases": [
+    "Phase 1: Relocate the value types",
+    "Phase 2: Delete the v2 decoder + adapter + tests; switch imports"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core --features \"gguf advanced\"",
+    "cargo test -p gg-core --features \"gguf advanced\"",
+    "cargo build -p gg-core --features gguf",
+    "cargo build -p gg-core",
+    "cargo fmt --check"
+  ],
+  "open_questions": [],
+  "doc_tier": "standard",
+  "change_class": "breaking",
+  "terms": [],
+  "boundaries": {
+    "limitations": [
+      "Removes the v2 token-level DECODER (SpeculativeDecoder + DraftModel/TargetModel traits) + its GGUF token adapter; adaptive_speculative becomes the sole speculative executor. The shared value types (SpeculativeConfig/SpeculativeStats/VerifyResult) are relocated VERBATIM to engine/speculative_types.rs -- tier_synergy + decode.rs + verify_draft_tokens behavior unchanged."
+    ],
+    "non_goals": [
+      "No migration of tier_synergy/decode.rs onto the adaptive types (would change public API + semantics); no adaptive_speculative change; no retirement of the dormant tier_synergy/decode.rs scaffolding themselves."
+    ],
+    "exclusions": [
+      "No CI/workflow change. All touched code is advanced(+gguf)-gated."
+    ]
+  },
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-18",
+      "operation": "n/a-justified",
+      "test_path": "core-runtime/src/engine/adaptive_speculative/executor_tests.rs",
+      "test_descriptor": "F-18 (speculative v2) removed: source speculative_v2.rs + test speculative_test.rs deleted; feature subsumed by F-61 (adaptive, wired, tested via executor_tests.rs)."
+    }
+  ],
+  "summary": "Retire speculative v2 decoder: relocate value types to engine/speculative_types.rs verbatim, delete the v2 decoder/traits/adapter/tests, switch imports. adaptive_speculative is the sole executor. Behavior-preserving.",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T13:14:08Z"
+  }
+}
