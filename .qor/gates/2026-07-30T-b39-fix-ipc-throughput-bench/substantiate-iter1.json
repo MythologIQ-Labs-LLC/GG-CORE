@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-30T-b39-fix-ipc-throughput-bench",
+  "ts": "2026-07-30T23:52:10Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 2
+  },
+  "merkle_seal": "fd1490d3e46f217c7b6062bfb97de59e706b29be425121280ed7dec1f6564ebd",
+  "content_hash": "261043587ed57f9e7f29ae5fa5f4ce0e93ce44a7cb3da4e4ef6ac1b3fcd14828",
+  "ledger_entry": 167,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-30T23:52:10Z"
+  }
+}

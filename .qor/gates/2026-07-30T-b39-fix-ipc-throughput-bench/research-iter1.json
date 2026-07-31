@@ -1,0 +1,47 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-30T-b39-fix-ipc-throughput-bench",
+  "ts": "2026-07-30T23:46:17Z",
+  "questions": [
+    "Why does ipc_throughput panic?",
+    "Who owns the fixture schema?",
+    "How to re-admit to CI?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "fixture_to_request reads fixture[prompt].as_str().expect but fixtures have no prompt key -> panic.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "fixtures carry prompt_tokens (100/1000/4000) and are read ONLY by this bench.",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "InferenceRequest.prompt is String; derive from prompt_tokens (one word per token).",
+      "status": "verified"
+    },
+    {
+      "id": "F4",
+      "detail": "re-admit via --bench ipc_throughput in rust.yml; model/GPU-free default-feature CI-safe.",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/benches/ipc_throughput.rs:20-23",
+    "core-runtime/fixtures/prompts/small.json",
+    "core-runtime/src/ipc/protocol_types.rs:75",
+    ".github/workflows/rust.yml:105-113"
+  ],
+  "brief_path": "docs/research-brief-b39-fix-ipc-throughput-bench-2026-07-30.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-30T23:46:17Z"
+  }
+}

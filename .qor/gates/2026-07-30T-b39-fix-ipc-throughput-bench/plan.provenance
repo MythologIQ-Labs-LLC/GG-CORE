@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "57dcc39ba7fddc64d194e7eed2bdeecb248079dbef4cca09c1e68d50fa3c8840",
+  "payload_sha256": "9487625db2929963985f986a2fc4a78e0556e50e44b2c26a5c5393d71cef71b2",
+  "phase": "plan",
+  "session_id": "2026-07-30T-b39-fix-ipc-throughput-bench"
+}
