@@ -1,0 +1,42 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-31T-b34c-perfgate-noise-floor",
+  "ts": "2026-07-31T06:59:35Z",
+  "questions": [
+    "Why did the perf-gate flake on PR #101?",
+    "Is it a real regression?",
+    "How to fix without blinding the gate?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "PR #101 (advanced-gated) failed gate only on sub-\u00b5s concurrent_resource_ops at 2.3-2.4x; re-run passed 13/13 unchanged -> CI noise.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "2.0x is below sub-\u00b5s benches' CI noise floor (B-34b F4 predicted).",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "fix = noise floor (skip FAIL for baseline median <~1000ns; still report; gate \u00b5s+ unchanged), not a higher global threshold.",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "PR #101 bench job log",
+    "core-runtime/scripts/perf_gate.py",
+    "core-runtime/benches/memory_overhead.rs",
+    "docs/research-brief-b34b-perf-regression-gate-2026-07-31.md"
+  ],
+  "brief_path": "docs/research-brief-b34c-perfgate-noise-floor-2026-07-31.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T06:59:35Z"
+  }
+}

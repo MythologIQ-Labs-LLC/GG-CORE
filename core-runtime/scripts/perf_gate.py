@@ -14,6 +14,12 @@ import json
 import os
 import sys
 
+# Below this baseline median, CI-trimmed criterion (--measurement-time 2 --sample-size 10)
+# variance exceeds the regression threshold, so those benches are reported but not gated
+# (a 2x "regression" on a sub-microsecond bench is scheduler jitter, not code). B-34c;
+# observed on PR #101 (concurrent_resource_ops ~83-321 ns swinging 2.3-2.4x between runners).
+NOISE_FLOOR_NS = 1000.0
+
 
 def medians(root):
     """Map "<group>/<id>" -> median point estimate (ns) for each criterion bench."""
@@ -46,6 +52,13 @@ def main(argv):
             print(f"  NEW        {key}: {cur_ns:.1f} ns (no baseline)")
             continue
         ratio = cur_ns / base_ns if base_ns else float("inf")
+        if base_ns < NOISE_FLOOR_NS:
+            # Sub-floor: report only; CI jitter dominates, not gated (B-34c).
+            print(
+                f"  noisy      {key}: {base_ns:.1f} -> {cur_ns:.1f} ns "
+                f"(x{ratio:.2f}; < {NOISE_FLOOR_NS:.0f}ns floor -- not gated)"
+            )
+            continue
         flag = "REGRESSION" if ratio > threshold else "ok"
         print(f"  {flag:10} {key}: {base_ns:.1f} -> {cur_ns:.1f} ns (x{ratio:.2f})")
         if ratio > threshold:

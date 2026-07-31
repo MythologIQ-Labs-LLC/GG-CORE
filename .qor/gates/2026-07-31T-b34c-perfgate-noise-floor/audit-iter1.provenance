@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "ae1db8ddad290912f58981c29fcd81d0fabc00c218dd26e81c89794afb0addec",
+  "payload_sha256": "c6e76a6222ab6c370d9f1f49b607604358929bb8adf170a9614d1b9e523b1928",
+  "phase": "audit",
+  "session_id": "2026-07-31T-b34c-perfgate-noise-floor"
+}

@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-31T-b34c-perfgate-noise-floor",
+  "ts": "2026-07-31T07:04:12Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 1
+  },
+  "merkle_seal": "8c01028c4c90fa92dc521a95e869376414c6e6f3ce3d3ce87fc0903053dd8a95",
+  "content_hash": "ce18c54f8e91fca23bdb751fa60b4bfb006d0c99a90b446d34058676080489c0",
+  "ledger_entry": 187,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T07:04:12Z"
+  }
+}

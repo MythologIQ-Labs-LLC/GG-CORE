@@ -1,0 +1,35 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-31T-b34c-perfgate-noise-floor",
+  "ts": "2026-07-31T07:00:33Z",
+  "plan_path": "docs/plan-b34c-perfgate-noise-floor-2026-07-31.md",
+  "phases": [
+    "Phase 1: Add the noise floor to perf_gate.py"
+  ],
+  "ci_commands": [
+    "python3 core-runtime/scripts/perf_gate.py <baseline_dir> <current_dir> 2.0"
+  ],
+  "open_questions": [],
+  "doc_tier": "standard",
+  "change_class": "hotfix",
+  "boundaries": {
+    "limitations": [
+      "Add ~1\u00b5s noise floor to perf_gate.py: sub-floor benches report but never FAIL; >=floor gate unchanged at 2.0x."
+    ],
+    "non_goals": [
+      "No global threshold change; no CI workflow change; no bench logic change."
+    ],
+    "exclusions": [
+      "No Rust source change."
+    ]
+  },
+  "feature_inventory_touches": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T07:00:33Z"
+  }
+}
