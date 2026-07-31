@@ -1,0 +1,54 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-31T-b21c-wire-adaptive-speculation",
+  "ts": "2026-07-31T07:24:48Z",
+  "plan_path": "docs/plan-b21c-wire-adaptive-speculation-2026-07-31.md",
+  "phases": [
+    "Phase 1: The executor",
+    "Phase 2: GGUF adaptive adapter",
+    "Phase 3: Engine plumbing + gated branch",
+    "Phase 4: Telemetry read-out"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core --features \"gguf advanced\"",
+    "cargo test -p gg-core --features advanced adaptive_speculative::executor",
+    "cargo fmt --check",
+    "cargo clippy -p gg-core --features \"gguf advanced\" -- -D warnings"
+  ],
+  "open_questions": [],
+  "doc_tier": "system",
+  "change_class": "feature",
+  "terms": [
+    {
+      "term": "AdaptiveSpeculativeExecutor",
+      "home": "core-runtime/src/engine/adaptive_speculative/executor.rs"
+    }
+  ],
+  "boundaries": {
+    "limitations": [
+      "Wire adaptive speculation LIVE via a config-gated branch in InferenceEngine::run; correct + off-by-default + observable. No KV reuse (B-21f) -> correct-not-fast."
+    ],
+    "non_goals": [
+      "No KV reuse; no per-token log-probs; no TierSynergy/engine ModelHandle unification; no security-pipeline change."
+    ],
+    "exclusions": [
+      "No change to the default non-speculative path."
+    ]
+  },
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-61",
+      "operation": "NEW",
+      "test_path": "core-runtime/src/engine/adaptive_speculative/executor_tests.rs",
+      "test_descriptor": "executor tests: accepts_full_block, commits_correction_on_reject (rejected suffix absent), empty_draft_falls_back_to_one, stops_at_eos, disabled_scheduler_plan_fallback."
+    }
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T07:24:48Z"
+  }
+}

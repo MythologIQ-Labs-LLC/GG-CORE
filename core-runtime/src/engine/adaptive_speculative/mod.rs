@@ -214,6 +214,7 @@ pub trait TargetVerifier: Send + Sync {
     fn eos_token(&self) -> Option<u32>;
 }
 
+pub mod executor;
 pub mod heuristic;
 pub mod telemetry;
 

@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-31T-b21c-wire-adaptive-speculation",
+  "ts": "2026-07-31T07:49:48Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 3
+  },
+  "merkle_seal": "49b6aaac345dd146c79991363434d8bdf21aee4b41e7b39800a56ea7169a4443",
+  "content_hash": "cd7b62be823e3674ea2d8f2033803e8341faa1da95ee5a4adb8abd09ffbdb8d8",
+  "ledger_entry": 190,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T07:49:48Z"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "9aa7ef0bbb3fff4898b9787c6514d8878962d5fed86b9a599c25ae73f9aeb48e",
+  "payload_sha256": "f1d98f9741a31e049652b7e8111c881b65dbcc7a12b044564c99963f193ff084",
+  "phase": "substantiate",
+  "session_id": "2026-07-31T-b21c-wire-adaptive-speculation"
+}

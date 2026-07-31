@@ -89,6 +89,7 @@ judgment.
 | F-58 | Degraded-mode policy (intentional, explained degradation under resource pressure; context reduction before hard-fail) | core-runtime/src/engine/degraded_mode.rs | docs/research-brief-b07-degraded-mode-2026-07-28.md | core-runtime/src/engine/degraded_mode_tests.rs | verified |
 | F-59 | Streaming egress PII sanitizer (token-by-token redaction; O(n) cached-stable-prefix; gguf-gated) | core-runtime/src/security/stream_sanitizer.rs | docs/research-brief-b36-incremental-stream-sanitize-2026-07-30.md | core-runtime/src/security/stream_sanitizer_diff_tests.rs | verified |
 | F-60 | Prompt KV cache (exact + longest-prefix match; O(n) find_prefix) | core-runtime/src/memory/prompt_cache.rs | docs/research-brief-b38-profile-memory-2026-07-30.md | core-runtime/tests/prompt_cache_test.rs | verified |
+| F-61 | Adaptive speculative decoding — LIVE on the inference path (config-gated in Runtime::infer; rejected suffix never committed; single-model fallback; advanced-gated) | core-runtime/src/engine/adaptive_speculative/executor.rs | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/engine/adaptive_speculative/executor_tests.rs | verified |
 
 ## Open coverage gaps
 

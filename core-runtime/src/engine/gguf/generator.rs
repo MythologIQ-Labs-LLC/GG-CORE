@@ -140,6 +140,30 @@ impl GgufGenerator {
         self.inner.as_ref().and_then(|i| i.eos_token())
     }
 
+    /// Tokenize a prompt into token ids (for the speculative decode path, B-21c).
+    #[cfg(all(feature = "gguf", feature = "advanced"))]
+    pub fn tokenize(&self, text: &str) -> Result<Vec<u32>, InferenceError> {
+        if let Some(inner) = &self.inner {
+            return Ok(inner
+                .tokenize(text)?
+                .into_iter()
+                .map(|t| t.0 as u32)
+                .collect());
+        }
+        Err(InferenceError::ModelError("no model loaded".into()))
+    }
+
+    /// Detokenize token ids back into text (for the speculative decode path, B-21c).
+    #[cfg(all(feature = "gguf", feature = "advanced"))]
+    pub fn detokenize(&self, tokens: &[u32]) -> Result<String, InferenceError> {
+        use llama_cpp_2::token::LlamaToken;
+        if let Some(inner) = &self.inner {
+            let lt: Vec<LlamaToken> = tokens.iter().map(|&t| LlamaToken(t as i32)).collect();
+            return inner.detokenize(&lt);
+        }
+        Err(InferenceError::ModelError("no model loaded".into()))
+    }
+
     /// Format chat messages into a prompt string.
     fn format_chat_prompt(
         &self,

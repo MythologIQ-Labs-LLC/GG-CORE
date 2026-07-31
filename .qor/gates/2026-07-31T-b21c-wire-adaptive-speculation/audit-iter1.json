@@ -1,0 +1,20 @@
+{
+  "phase": "audit",
+  "session_id": "2026-07-31T-b21c-wire-adaptive-speculation",
+  "ts": "2026-07-31T07:25:58Z",
+  "target": "B-21c wire adaptive speculation into Runtime::infer plan",
+  "verdict": "PASS",
+  "violations": [],
+  "risk_grade": "L3",
+  "report_path": "docs/plan-b21c-wire-adaptive-speculation-2026-07-31.md",
+  "target_content_hash": "9b578f63b8ffbdd40a8b7765caacf0b80a5f52f53cb1a37f4410d30e288ac61b",
+  "findings_categories": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T07:25:58Z"
+  }
+}
