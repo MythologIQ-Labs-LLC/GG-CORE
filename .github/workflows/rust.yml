@@ -102,6 +102,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core-runtime
+      # B-34b: on PRs, restore the most recent main baseline (same runner class) so the
+      # gate below can compare. Cache paths are repo-root-relative (not working-directory).
+      - name: Restore perf baseline (PR)
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: core-runtime/perf-baseline
+          key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            criterion-baseline-${{ runner.os }}-
       - name: Perf benches (default-feature, CI-safe set)
         run: |
           cargo bench \
@@ -111,6 +121,21 @@ jobs:
             --bench security_overhead --bench scheduler_queue_overhead \
             --bench prompt_cache_overhead \
             -- --warm-up-time 1 --measurement-time 2 --sample-size 10
+      # B-34b: fail the PR if any bench's median regressed > 2.0x vs the main baseline.
+      # Generous by design (trimmed criterion is noisy); a cache miss skips-and-passes.
+      - name: Perf regression gate (PR)
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/perf_gate.py perf-baseline target/criterion 2.0
+      # B-34b: refresh the cached baseline for future PRs on every push to main.
+      - name: Save perf baseline (main)
+        if: github.event_name == 'push'
+        run: cp -r target/criterion perf-baseline
+      - name: Cache perf baseline (main)
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: core-runtime/perf-baseline
+          key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
       - name: Upload criterion baseline
         if: always()
         uses: actions/upload-artifact@v4

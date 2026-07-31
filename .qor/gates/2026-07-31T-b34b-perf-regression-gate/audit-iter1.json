@@ -1,0 +1,20 @@
+{
+  "phase": "audit",
+  "session_id": "2026-07-31T-b34b-perf-regression-gate",
+  "ts": "2026-07-31T01:11:02Z",
+  "target": "B-34b perf-regression gate plan",
+  "verdict": "PASS",
+  "violations": [],
+  "risk_grade": "L2",
+  "report_path": "docs/plan-b34b-perf-regression-gate-2026-07-31.md",
+  "target_content_hash": "5cda4095a02f27f1060e5315f8729eab176500b9dabe64c3ad7fb63d5958360e",
+  "findings_categories": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T01:11:02Z"
+  }
+}

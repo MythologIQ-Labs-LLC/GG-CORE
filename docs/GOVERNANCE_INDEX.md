@@ -97,6 +97,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-37 profile scheduler research brief | `docs/research-brief-b37-profile-scheduler-2026-07-30.md` | b37-profile-scheduler |
 | B-38 profile memory plan | `docs/plan-b38-profile-memory-2026-07-30.md` | b38-profile-memory |
 | B-38 profile memory research brief | `docs/research-brief-b38-profile-memory-2026-07-30.md` | b38-profile-memory |
+| B-34b perf-regression gate plan | `docs/plan-b34b-perf-regression-gate-2026-07-31.md` | b34b-perf-regression-gate |
+| B-34b perf-regression gate research brief | `docs/research-brief-b34b-perf-regression-gate-2026-07-31.md` | b34b-perf-regression-gate |
 
 ## Tier 5 — Reference Material
 

@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "73089c1ac127f748ac6567507c50e33dd70c2c9e64f4f55e41dbb4f06a14c99f",
+  "payload_sha256": "863f36e7f0633cb92696a716482f62c406c3be79fb61c481f1a97fd1a7422db8",
+  "phase": "audit",
+  "session_id": "2026-07-31T-b34b-perf-regression-gate"
+}

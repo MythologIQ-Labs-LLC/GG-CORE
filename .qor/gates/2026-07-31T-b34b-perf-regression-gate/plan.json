@@ -1,0 +1,37 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-31T-b34b-perf-regression-gate",
+  "ts": "2026-07-31T01:10:34Z",
+  "plan_path": "docs/plan-b34b-perf-regression-gate-2026-07-31.md",
+  "phases": [
+    "Phase 1: The comparison script",
+    "Phase 2: Wire the gate into the CI bench job"
+  ],
+  "ci_commands": [
+    "python3 core-runtime/scripts/perf_gate.py <dirA> <dirB> 2.0",
+    "cargo bench --bench inference_latency -- --warm-up-time 1 --measurement-time 2 --sample-size 10"
+  ],
+  "open_questions": [],
+  "doc_tier": "standard",
+  "change_class": "feature",
+  "boundaries": {
+    "limitations": [
+      "Run-over-run perf-regression gate: cache main baseline, restore on PR, fail on >2.0x median regression. No source/bench-logic change; no committed absolute baseline."
+    ],
+    "non_goals": [
+      "No per-bench thresholds, no critcmp/external service, no change to which benches run."
+    ],
+    "exclusions": [
+      "No lint/test/features job change; no Rust source change."
+    ]
+  },
+  "feature_inventory_touches": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T01:10:34Z"
+  }
+}
