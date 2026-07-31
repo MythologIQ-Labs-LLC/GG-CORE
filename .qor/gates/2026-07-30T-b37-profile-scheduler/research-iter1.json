@@ -1,0 +1,47 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-30T-b37-profile-scheduler",
+  "ts": "2026-07-31T00:05:02Z",
+  "questions": [
+    "Is the PriorityQueue a hotspot?",
+    "What does production scheduling actually cost?",
+    "Is the async RequestQueue path benched?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "PriorityQueue = BinaryHeap O(log n), cheap Ord; existing benches measure the bare structure -> no algorithmic win.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "RequestQueue::enqueue/dequeue wrap the heap in async tokio::Mutex + Notify -> per-request concurrency tax, UNMEASURED.",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "async bench feasible via tokio Runtime + block_on; RequestQueue public; no new criterion feature.",
+      "status": "verified"
+    },
+    {
+      "id": "F4",
+      "detail": "async round-trip vs bare-heap isolates the Mutex+Notify tax -> decides any follow-up.",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/scheduler/priority.rs:49-84",
+    "core-runtime/src/scheduler/queue.rs:41-56,61,128",
+    "core-runtime/benches/scheduler_throughput.rs",
+    "core-runtime/Cargo.toml:17"
+  ],
+  "brief_path": "docs/research-brief-b37-profile-scheduler-2026-07-30.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T00:05:02Z"
+  }
+}

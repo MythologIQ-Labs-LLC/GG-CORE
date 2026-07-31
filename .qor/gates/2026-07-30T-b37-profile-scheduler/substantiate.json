@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-30T-b37-profile-scheduler",
+  "ts": "2026-07-31T00:11:15Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 3
+  },
+  "merkle_seal": "3b2a75cb8e78850ba1b95f8d42bc9e49eb47c315bb26ffbc84d18df8df7ae939",
+  "content_hash": "019da982586ed415de4753d11bd066a0c75e24eb576369e44b629761766edbc9",
+  "ledger_entry": 170,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T00:11:15Z"
+  }
+}

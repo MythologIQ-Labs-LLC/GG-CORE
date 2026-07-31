@@ -1,6 +1,6 @@
 # Governance Index
 
-**Last Reviewed**: 2026-07-30
+**Last Reviewed**: 2026-07-31
 
 A single authoritative map of every governance artifact in this project, organized
 into six freshness tiers with explicit drift contracts. A stale entry here is
@@ -93,6 +93,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-36 incremental stream sanitize research brief | `docs/research-brief-b36-incremental-stream-sanitize-2026-07-30.md` | b36-incremental-stream-sanitize |
 | B-39 fix ipc_throughput bench plan | `docs/plan-b39-fix-ipc-throughput-bench-2026-07-30.md` | b39-fix-ipc-throughput-bench |
 | B-39 fix ipc_throughput bench research brief | `docs/research-brief-b39-fix-ipc-throughput-bench-2026-07-30.md` | b39-fix-ipc-throughput-bench |
+| B-37 profile scheduler plan | `docs/plan-b37-profile-scheduler-2026-07-30.md` | b37-profile-scheduler |
+| B-37 profile scheduler research brief | `docs/research-brief-b37-profile-scheduler-2026-07-30.md` | b37-profile-scheduler |
 
 ## Tier 5 — Reference Material
 

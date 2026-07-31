@@ -1,0 +1,38 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-30T-b37-profile-scheduler",
+  "ts": "2026-07-31T00:06:19Z",
+  "plan_path": "docs/plan-b37-profile-scheduler-2026-07-30.md",
+  "phases": [
+    "Phase 1: Add the scheduler_queue_overhead bench"
+  ],
+  "ci_commands": [
+    "cargo bench --bench scheduler_queue_overhead -- --warm-up-time 1 --measurement-time 2 --sample-size 10",
+    "cargo fmt --check",
+    "cargo clippy --bench scheduler_queue_overhead -- -D warnings"
+  ],
+  "open_questions": [],
+  "doc_tier": "standard",
+  "change_class": "feature",
+  "boundaries": {
+    "limitations": [
+      "Measurement-only: scheduler_queue_overhead bench quantifying async RequestQueue Mutex+Notify tax over the bare heap; no scheduler logic change."
+    ],
+    "non_goals": [
+      "No optimization (follow-up only if tax material).",
+      "No PriorityQueue/RequestQueue source change."
+    ],
+    "exclusions": [
+      "No test/clippy/fmt/features job change beyond adding the bench."
+    ]
+  },
+  "feature_inventory_touches": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T00:06:19Z"
+  }
+}
