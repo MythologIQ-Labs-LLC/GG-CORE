@@ -1,0 +1,50 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-31T-b34b-perf-regression-gate",
+  "ts": "2026-07-31T01:09:12Z",
+  "questions": [
+    "How to gate perf regressions soundly?",
+    "Where is the criterion data?",
+    "What threshold avoids flakiness?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "criterion data at target/criterion/<g>/<id>/new/estimates.json -> median.point_estimate ns.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "rust.yml triggers push+PR to main; github.event_name splits save vs gate.",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "run-over-run via actions/cache keyed by runner OS (rotating sha + prefix restore-key); restore into separate perf-baseline dir.",
+      "status": "verified"
+    },
+    {
+      "id": "F4",
+      "detail": "trimmed criterion high variance -> generous gross-regression threshold (ratio>=2.0); missing baseline skip-and-pass.",
+      "status": "verified"
+    },
+    {
+      "id": "F5",
+      "detail": "~40-line perf_gate.py (python3 on ubuntu) more controllable than critcmp, no cargo install.",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/target/criterion/**/new/estimates.json",
+    ".github/workflows/rust.yml:3-7,95-125"
+  ],
+  "brief_path": "docs/research-brief-b34b-perf-regression-gate-2026-07-31.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T01:09:12Z"
+  }
+}

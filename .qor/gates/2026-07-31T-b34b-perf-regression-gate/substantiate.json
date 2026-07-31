@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-31T-b34b-perf-regression-gate",
+  "ts": "2026-07-31T01:15:45Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 2
+  },
+  "merkle_seal": "808a98e37217a046a1472cb7bbed566bb3a251015c4309a092cfc996312ad7ca",
+  "content_hash": "315fa6118aaf8e04902dea5308d4358cbbff33cb974a5bb3273f20c85ff30a7c",
+  "ledger_entry": 176,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T01:15:45Z"
+  }
+}

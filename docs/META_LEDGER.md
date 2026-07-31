@@ -9951,3 +9951,132 @@ seal_entry_check (ledger parser). `verify-ledger` → #171–#173 verified.
 sound. Optimization pass (B-34/35/36/39/37/38) substantially complete; remaining: B-34b (timing
 gate). Chain tip:
 `4a1df6cb3cdceef814903d91dbea7dd3ad05910f57cab84e30608eaabbd03a5c`.
+
+---
+
+### Entry #174: RESEARCH BRIEF (B-34b run-over-run perf-regression gate)
+
+**Timestamp**: 2026-07-31T11:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2
+**Session ID**: 2026-07-31T-b34b-perf-regression-gate
+
+**Target**: B-34b — the timing-regression gate deferred from B-34 (closes the optimization pass).
+Branch `feat/b34b-perf-regression-gate` off `main` (#173).
+
+**Findings (verified)**: F1 criterion data is machine-readable at
+`target/criterion/<group>/<id>/new/estimates.json` → `median.point_estimate` ns. F2 `rust.yml`
+triggers on both push+PR to main; `github.event_name` splits save (push) vs gate (PR). F3 sound
+baseline = run-over-run via `actions/cache` keyed by runner OS (rotating sha + prefix restore-key),
+restored into a separate `perf-baseline/` dir so the PR bench run doesn't clobber it — same
+runner-class comparison (B-34 F4 soundness). F4 trimmed criterion (2s/10-sample) has high variance
+→ threshold must be GENEROUS; a gross-regression gate (ratio ≥ 2.0 / +100% median) is non-flaky and
+still catches dropped-optimization / O(n)→O(n²); missing baseline ⇒ skip-and-pass. F5 a ~40-line
+`scripts/perf_gate.py` (python3 on ubuntu) is more controllable than critcmp + no cargo install.
+
+**Decision**: B-34b = `perf_gate.py` (median compare, +100% threshold, skip-on-missing) + rust.yml
+save-on-main / restore+gate-on-PR via actions/cache. CI-only verifiable (cache mechanics absent
+locally); first PR sees a cache miss (skip-pass) until a main push seeds the baseline. Shadow
+Genome: a perf gate must be tuned to its own measurement noise — a gate tighter than its noise
+floor flakes and gets disabled.
+
+**Content Hash** (SHA256 of docs/research-brief-b34b-perf-regression-gate-2026-07-31.md): `fc8653bdfaf718f611794cafb8d5b4e93f695bc5d99a55aae3140443a84c8f98`
+
+**Previous Hash**: `4a1df6cb3cdceef814903d91dbea7dd3ad05910f57cab84e30608eaabbd03a5c`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `b7e652db20933394c574087fc7e7ad41ac422039484978ecef325ab422b2b3d0`
+
+**Decision**: B-34b research complete; run-over-run perf-gate cycle. Chain tip:
+`b7e652db20933394c574087fc7e7ad41ac422039484978ecef325ab422b2b3d0`.
+
+---
+
+### Entry #175: GATE VERDICT — PASS (B-34b perf-regression gate plan)
+
+**Timestamp**: 2026-07-31T11:30:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-31T-b34b-perf-regression-gate
+
+**Target**: `docs/plan-b34b-perf-regression-gate-2026-07-31.md` — `perf_gate.py` + `rust.yml`
+run-over-run cache baseline (save on push-to-main, restore+gate on PR, fail on >2.0× median).
+
+**Adversarial passes**: Injection — governance files clean, plan self-authored (PASS). Security /
+OWASP A03/A08 — `perf_gate.py` reads baselines via `json.load` (safe, not `eval`) and runs with
+fixed argv (no shell interpolation of untrusted input); `actions/cache` is a trusted action and
+this repo's PRs are branch-based (no fork cache-poisoning surface); a poisoned baseline could only
+make the gate more lenient, not exfiltrate/execute — not a security defect (PASS). Razor —
+`perf_gate.py` ~45 lines, small fns; YAML only otherwise (PASS). Test-Functionality — no unit test;
+the script's local check (identical→pass / slower→fail / empty→skip) is the executable
+verification and D4 asserts it, same pattern as B-34's CI-config PASS (PASS). Infrastructure-
+Alignment — verified: `median.point_estimate` in `target/criterion/<g>/<id>/new/estimates.json`;
+`rust.yml` triggers push+PR to main (`:3-7`); `actions/cache` paths are repo-root-relative
+(`core-runtime/perf-baseline`), `run:` steps inherit `working-directory: core-runtime` (PASS).
+Feature-Declaration — empty, justified as CI infra (PASS). Lints (iteration/consistency/test/
+ci-coverage/grep/canaries) clean; option_b_required=false.
+
+**Content Hash** (SHA256 of docs/plan-b34b-perf-regression-gate-2026-07-31.md): `5cda4095a02f27f1060e5315f8729eab176500b9dabe64c3ad7fb63d5958360e`
+
+**Previous Hash**: `b7e652db20933394c574087fc7e7ad41ac422039484978ecef325ab422b2b3d0`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `b4b63d78987e4162e477363a45ae5dd927400877b5018add26b797051dd3c83b`
+
+**Decision**: PASS — B-34b plan cleared for implementation. Chain tip:
+`b4b63d78987e4162e477363a45ae5dd927400877b5018add26b797051dd3c83b`.
+
+---
+
+### Entry #176: SESSION SEAL (B-34b run-over-run perf-regression gate — closes the optimization pass)
+
+**Entry ID**: `a3248ce06b33`
+**Timestamp**: 2026-07-31T12:00:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-31T-b34b-perf-regression-gate
+**SSDF Practices**: PO.1.4, PS.2.1, PW.7.2
+
+**Target**: `docs/plan-b34b-perf-regression-gate-2026-07-31.md` (audit PASS Entry #175).
+
+**Reality vs Promise**: MATCH. New `core-runtime/scripts/perf_gate.py` compares two criterion trees
+by median (`median.point_estimate`), skips-and-passes on a missing baseline, and exits 1 iff any
+bench's current/baseline median ratio > threshold. `rust.yml` `bench` job now: restores the cached
+`main` baseline on PRs (`actions/cache/restore`, key `criterion-baseline-<os>-<sha>` + prefix
+restore-key), runs the gate (`perf_gate.py perf-baseline target/criterion 2.0`) on PRs, and saves
+the baseline (`cp target/criterion perf-baseline` + `actions/cache/save`) on push-to-main. Cache
+paths are repo-root-relative (`core-runtime/perf-baseline`); `run:` steps inherit
+`working-directory: core-runtime`. No committed absolute baseline (hardware-unsound, B-34 F4). Sixth
+and final optimization cycle — closes the pass.
+
+**Verification (local + CI)**: locally, `perf_gate.py` returns **1** for a 3× -slower synthetic
+baseline (all 88 benches flagged REGRESSION), **0** for identical trees, and **0** (skip) for an
+empty baseline — the three gate behaviors, exercised via the exact CLI form CI uses. Workflow YAML
+parses; the `bench` job's step order is restore → bench → gate → save → upload. **CI: on the
+PR-to-main run the `Perf regression gate (PR)` step executes; the FIRST PR sees a cache miss →
+skip-pass (no `main` baseline yet), and the gate goes live after this merges and a `main` push seeds
+the cache.**
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity exit 0; feature_index_verify total=60 verified=58 unverified=2 (pre-existing);
+governance-index enforce → 2 new B-34b docs registered, exit 0; gate_chain_completeness OK.
+**Environmental SKIPs (disclosed)**: doc_integrity (no glossary), badge_currency (Rust archetype),
+seal_entry_check (ledger parser). `verify-ledger` → #174–#176 verified.
+
+**Optimization initiative COMPLETE**: B-34 (bench job) → B-35 (security bench) → B-36 (streaming
+sanitize O(n²)→O(n), real win) → B-39 (ipc_throughput repair) → B-37 (scheduler — negative result)
+→ B-38 (find_prefix O(n²)→O(n), real win) → B-34b (regression gate). 10 CI-safe benches gated;
+2 algorithmic wins; 1 disciplined negative result; a CC-PII-leak caught before shipping.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `315fa6118aaf8e04902dea5308d4358cbbff33cb974a5bb3273f20c85ff30a7c`
+
+**Previous Hash**: `b4b63d78987e4162e477363a45ae5dd927400877b5018add26b797051dd3c83b`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `6673871f8eb3dfe7251acfba9bb55be38ee65e4448e892db0cb801794ffcda54`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `808a98e37217a046a1472cb7bbed566bb3a251015c4309a092cfc996312ad7ca`
+
+**Decision**: B-34b COMPLETE and sealed — the optimization pass is closed. Chain tip:
+`6673871f8eb3dfe7251acfba9bb55be38ee65e4448e892db0cb801794ffcda54`.
