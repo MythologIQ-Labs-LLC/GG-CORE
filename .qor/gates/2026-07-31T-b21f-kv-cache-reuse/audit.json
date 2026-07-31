@@ -1,0 +1,20 @@
+{
+  "phase": "audit",
+  "session_id": "2026-07-31T-b21f-kv-cache-reuse",
+  "ts": "2026-07-31T20:51:15Z",
+  "target": "docs/plan-b21f-kv-cache-reuse-2026-07-31.md",
+  "verdict": "PASS",
+  "violations": [],
+  "risk_grade": "L3",
+  "report_path": ".agent/staging/AUDIT_REPORT.md",
+  "target_content_hash": "4ba8b7afa9ee30885cc3b1f1beda98bd7fc8febb5fb2260a17871a335ffed2be",
+  "findings_categories": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T20:51:15Z"
+  }
+}

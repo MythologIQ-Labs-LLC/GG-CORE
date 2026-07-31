@@ -11,8 +11,11 @@
 //!
 //! [`AdaptiveSpeculativeExecutor`]: crate::engine::adaptive_speculative::executor::AdaptiveSpeculativeExecutor
 
+use std::sync::Mutex;
+
 use async_trait::async_trait;
 
+use super::speculative_session::GgufSpeculativeSession;
 use super::GgufGenerator;
 use crate::engine::adaptive_speculative::{
     BlockDraftModel, DraftBlock, TargetVerifier, VerificationPlan, VerificationResult,
@@ -40,14 +43,42 @@ impl BlockDraftModel for GgufBlockDraftModel<'_> {
     }
 }
 
-/// Target-verifier adapter: greedily verifies draft tokens against a GGUF model.
+/// Target-verifier adapter: greedily verifies draft tokens against a GGUF model,
+/// reusing one persistent KV session across steps (B-21f). The session is created
+/// lazily on the first call from the incoming prompt context.
 pub struct GgufTargetVerifier<'a> {
     generator: &'a GgufGenerator,
+    session: Mutex<Option<GgufSpeculativeSession>>,
 }
 
 impl<'a> GgufTargetVerifier<'a> {
     pub fn new(generator: &'a GgufGenerator) -> Self {
-        Self { generator }
+        Self {
+            generator,
+            session: Mutex::new(None),
+        }
+    }
+
+    /// Get-or-create the persistent session (keyed to the initial prompt context)
+    /// and run `f` against it. The lock is held only for the synchronous decode —
+    /// never across an `.await` — so the future stays `Send`.
+    fn with_session<R>(
+        &self,
+        context: &[u32],
+        f: impl FnOnce(&mut GgufSpeculativeSession) -> Result<R, InferenceError>,
+    ) -> Result<R, InferenceError> {
+        let mut guard = self
+            .session
+            .lock()
+            .map_err(|_| InferenceError::ModelError("session lock poisoned".into()))?;
+        if guard.is_none() {
+            let inner = self
+                .generator
+                .backend_arc()
+                .ok_or_else(|| InferenceError::ModelError("no model loaded".into()))?;
+            *guard = Some(GgufSpeculativeSession::new(inner, context)?);
+        }
+        f(guard.as_mut().expect("session initialized above"))
     }
 }
 
@@ -59,12 +90,10 @@ impl TargetVerifier for GgufTargetVerifier<'_> {
         draft: &DraftBlock,
         _plan: &VerificationPlan,
     ) -> Result<VerificationResult, InferenceError> {
-        // The GGUF backend verifies the whole draft greedily (first-divergence);
-        // the plan window is advisory and not enforced here.
-        let vr = self
-            .generator
-            .verify_draft_tokens(context, &draft.tokens)
-            .await?;
+        // Greedy first-divergence check over the whole draft; the plan window is
+        // advisory. KV reuse: only the committed delta + draft are decoded, and the
+        // draft positions are rolled back after the check.
+        let vr = self.with_session(context, |s| s.verify(context, &draft.tokens))?;
         Ok(match vr.correction_token {
             Some(correction) => VerificationResult::reject_at(vr.accepted_count, correction),
             None => VerificationResult::accept_all(vr.accepted_count),
@@ -72,11 +101,7 @@ impl TargetVerifier for GgufTargetVerifier<'_> {
     }
 
     async fn generate_one(&self, context: &[u32]) -> Result<u32, InferenceError> {
-        let tokens = self.generator.generate_tokens(context, 1).await?;
-        tokens
-            .into_iter()
-            .next()
-            .ok_or_else(|| InferenceError::ModelError("target generated no token".into()))
+        self.with_session(context, |s| s.generate_one(context))
     }
 
     fn eos_token(&self) -> Option<u32> {

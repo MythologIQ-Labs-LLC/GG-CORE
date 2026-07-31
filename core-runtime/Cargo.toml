@@ -42,6 +42,8 @@ tokenizers = { version = "0.21", default-features = false, features = [
 # GGUF inference backend (llama-cpp-rs)
 llama-cpp-2 = { version = "0.1.133", optional = true }
 encoding_rs = { version = "0.8", optional = true }
+# Self-referential persistent KV session (B-21f): owns Arc<LlamaBackendInner> + its borrowed LlamaContext
+self_cell = { version = "1", optional = true }
 
 # CUDA support - safe CUDA bindings
 cudarc = { version = "0.12", optional = true }
@@ -135,7 +137,7 @@ gguf = ["llama-cpp-2", "encoding_rs"]
 llama-cpp-backend = ["gguf"]  # Alias for GGUF backend via llama-cpp-2
 cuda = ["cudarc"]  # GPU support via CUDA (requires CUDA toolkit)
 metal = ["dep:metal"]  # GPU support via Metal (macOS only)
-advanced = []  # Proprietary modules (TierSynergy): GPU kernels, quantization, SIMD, speculative, multi-GPU
+advanced = ["dep:self_cell"]  # Proprietary modules (TierSynergy): GPU kernels, quantization, SIMD, speculative, multi-GPU
 full = ["onnx", "gguf"]
 gpu = ["cuda"]  # GPU support alias
 ffi = ["cbindgen"]  # C FFI support (generates gg_core.h)

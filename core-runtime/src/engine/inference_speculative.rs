@@ -40,8 +40,9 @@ impl InferenceEngine {
     }
 
     /// Attempt an adaptive speculative decode. Returns `None` (fall through to
-    /// single-model) unless speculation is active, a draft pair is registered, and
-    /// both models downcast to GGUF generators.
+    /// single-model) unless speculation is active and the target downcasts to a GGUF
+    /// generator. A registered draft pair uses the model-based draft; otherwise the
+    /// model-free prompt-lookup draft runs against the same target (B-21f).
     #[cfg(all(feature = "gguf", feature = "advanced"))]
     pub(super) async fn try_speculative(
         &self,
@@ -55,22 +56,25 @@ impl InferenceEngine {
         if !self.spec_config.is_active() {
             return None;
         }
-        let draft_id = self.draft_pairs.read().await.get(target_id).cloned()?;
-        let draft_model = self.get_model(&draft_id).await.ok()?;
         let target_gen = target_model.as_any().downcast_ref::<GgufGenerator>()?;
-        let draft_gen = draft_model.as_any().downcast_ref::<GgufGenerator>()?;
+        let draft_model = match self.draft_pairs.read().await.get(target_id).cloned() {
+            Some(draft_id) => self.get_model(&draft_id).await.ok(),
+            None => None,
+        };
         Some(
-            self.run_speculative(target_gen, draft_gen, prompt, params)
+            self.run_speculative(target_gen, draft_model.as_ref(), prompt, params)
                 .await,
         )
     }
 
-    /// The speculative decode itself, once the GGUF pair is resolved (B-21c).
+    /// The speculative decode itself: builds the verifier + drafter and runs the
+    /// executor. KV reuse lives in the session-backed verifier; the drafter is the
+    /// model pair when one resolves, else the model-free prompt-lookup (B-21f).
     #[cfg(all(feature = "gguf", feature = "advanced"))]
     async fn run_speculative(
         &self,
         target_gen: &crate::engine::gguf::GgufGenerator,
-        draft_gen: &crate::engine::gguf::GgufGenerator,
+        draft_model: Option<&Arc<dyn Model>>,
         prompt: &str,
         params: &InferenceParams,
     ) -> Result<InferenceResult, InferenceError> {
@@ -78,20 +82,31 @@ impl InferenceEngine {
         use crate::engine::adaptive_speculative::heuristic::{
             AdaptiveVerificationScheduler, HeuristicConfidenceEstimator,
         };
-        use crate::engine::gguf::{GgufBlockDraftModel, GgufTargetVerifier};
+        use crate::engine::adaptive_speculative::prompt_lookup::PromptLookupDraft;
+        use crate::engine::adaptive_speculative::BlockDraftModel;
+        use crate::engine::gguf::{GgufBlockDraftModel, GgufGenerator, GgufTargetVerifier};
 
-        // The executor + GGUF adapters use `engine::error::InferenceError`; map it
-        // to the `inference_types::InferenceError` this façade returns.
         let cfg = params.to_config();
         let prompt_tokens = target_gen
             .tokenize(prompt)
             .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))?;
-        let drafter = GgufBlockDraftModel::new(draft_gen);
         let verifier = GgufTargetVerifier::new(target_gen);
+        // Drafter: model-pair when the draft downcasts to GGUF, else prompt-lookup.
+        let model_drafter = draft_model
+            .and_then(|m| m.as_any().downcast_ref::<GgufGenerator>())
+            .map(GgufBlockDraftModel::new);
+        let lookup_drafter = PromptLookupDraft::new(
+            self.spec_config.prompt_lookup_ngram,
+            self.spec_config.max_draft_tokens,
+        );
+        let drafter: &dyn BlockDraftModel = match &model_drafter {
+            Some(d) => d,
+            None => &lookup_drafter,
+        };
         let estimator = HeuristicConfidenceEstimator::new(cfg.temperature, cfg.repetition_penalty);
         let scheduler = AdaptiveVerificationScheduler::new(self.spec_config.clone());
         let executor = AdaptiveSpeculativeExecutor::new(
-            &drafter,
+            drafter,
             &verifier,
             &estimator,
             &scheduler,
@@ -102,6 +117,15 @@ impl InferenceEngine {
             .run(&prompt_tokens, params.max_tokens)
             .await
             .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))?;
+        Self::into_result(target_gen, out_tokens)
+    }
+
+    /// Detokenize the generated tokens into an `InferenceResult`.
+    #[cfg(all(feature = "gguf", feature = "advanced"))]
+    fn into_result(
+        target_gen: &crate::engine::gguf::GgufGenerator,
+        out_tokens: Vec<u32>,
+    ) -> Result<InferenceResult, InferenceError> {
         let tokens_generated = out_tokens.len();
         let text = target_gen
             .detokenize(&out_tokens)

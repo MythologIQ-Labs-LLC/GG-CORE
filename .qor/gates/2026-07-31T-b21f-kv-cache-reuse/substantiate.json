@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-31T-b21f-kv-cache-reuse",
+  "ts": "2026-07-31T21:51:31Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 3
+  },
+  "merkle_seal": "d0570860e8c80317af7fc4646a2b567954457eb039ff7738da5d44f104572979",
+  "content_hash": "772bc5aa4f02e98fae0bec28fe73387515b2e4326200ee92b771897a9639cef9",
+  "ledger_entry": 198,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T21:51:31Z"
+  }
+}

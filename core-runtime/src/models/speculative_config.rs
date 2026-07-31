@@ -54,6 +54,9 @@ pub struct AdaptiveSpeculativeConfig {
     pub cost_profiling: bool,
     /// Use tier metadata (Light/Balanced/Quality) to restrict eligible pairings.
     pub tier_aware: bool,
+    /// Trailing n-gram length for the model-free prompt-lookup draft (B-21f), used
+    /// when no model draft pair is registered.
+    pub prompt_lookup_ngram: usize,
 }
 
 impl Default for AdaptiveSpeculativeConfig {
@@ -71,6 +74,7 @@ impl Default for AdaptiveSpeculativeConfig {
             telemetry_enabled: true,
             cost_profiling: false,
             tier_aware: true,
+            prompt_lookup_ngram: 3,
         }
     }
 }

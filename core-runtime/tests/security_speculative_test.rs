@@ -136,6 +136,7 @@ mod t3_telemetry_pii {
             telemetry_enabled,
             cost_profiling,
             tier_aware,
+            prompt_lookup_ngram,
         } = cfg;
 
         // All bool fields: no text content
@@ -149,6 +150,7 @@ mod t3_telemetry_pii {
         let _: usize = max_draft_tokens;
         let _: usize = min_verification_tokens;
         let _: usize = max_verification_tokens;
+        let _: usize = prompt_lookup_ngram;
 
         // All f32 fields: numeric thresholds, cannot store text
         let _: f32 = confidence_floor;
