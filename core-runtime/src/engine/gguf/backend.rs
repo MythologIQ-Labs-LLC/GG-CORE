@@ -208,8 +208,8 @@ impl LlamaBackendInner {
         &self,
         context: &[u32],
         draft: &[u32],
-    ) -> Result<crate::engine::speculative::VerifyResult, InferenceError> {
-        use crate::engine::speculative::VerifyResult;
+    ) -> Result<crate::engine::speculative_v2::VerifyResult, InferenceError> {
+        use crate::engine::speculative_v2::VerifyResult;
         let all_tokens: Vec<LlamaToken> = context
             .iter()
             .chain(draft.iter())

@@ -103,6 +103,7 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-13/B-14 doc-accuracy research brief | `docs/research-brief-b13-b14-doc-accuracy-2026-07-31.md` | b13-b14-doc-accuracy |
 | B-21 ADR-007 scoping research brief | `docs/research-brief-b21-adr007-scoping-2026-07-31.md` | b21-adr007-scoping |
 | B-21a ADR-007 doc plan | `docs/plan-b21a-adr007-doc-2026-07-31.md` | b21a-adr007-doc |
+| B-21b-1 retire speculative v1 plan | `docs/plan-b21b1-retire-speculative-v1-2026-07-31.md` | b21b1-retire-speculative-v1 |
 
 ## Tier 5 — Reference Material
 

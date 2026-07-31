@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-31T-b21b1-retire-speculative-v1",
+  "ts": "2026-07-31T06:33:46Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 2
+  },
+  "merkle_seal": "39a0b61833aafd0b918fd03a68de0bee44ba62cfcd5f4654379b74e469256da2",
+  "content_hash": "f633de2df8e86a65ed7362069a9242159f214a3727997b856508bb0495429c99",
+  "ledger_entry": 184,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T06:33:46Z"
+  }
+}
