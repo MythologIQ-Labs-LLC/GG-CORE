@@ -9826,3 +9826,128 @@ verified.
 **Decision**: B-37 COMPLETE and sealed — negative result recorded. The scheduler needs no
 optimization; the queue overhead is negligible vs inference. Chain tip:
 `28478343861ab1997c71f26321142bcc2e273e19bf8316bf7b44b4998d4d276b`.
+
+---
+
+### Entry #171: RESEARCH BRIEF (B-38 profile memory — pool / prompt-cache)
+
+**Timestamp**: 2026-07-31T09:30:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2
+**Session ID**: 2026-07-30T-b38-profile-memory
+
+**Target**: B-38 — memory-overhead profiling (pool / prompt-cache). Branch `feat/b38-profile-memory`
+off `main` (#170). Fifth optimization cycle; measurement-first.
+
+**Findings (verified)**: F1 `MemoryPool` is a real `parking_lot::Mutex<VecDeque<Vec<u8>>>` pool
+(genuine reuse; `pool.rs:60-79`), already benched by `memory_overhead` — no unbenched production
+memory hotspot. F2 `PromptCache::find_prefix` (`prompt_cache.rs:85-98`) re-hashes each prefix
+`tokens[..len]` via SHA256 for every `len` N→1 → **O(N²)** hashing per call (same shape B-36 fixed).
+F3 `PromptCache` is DORMANT — exported (`memory/mod.rs:32`) but NO production caller (only
+`tests/prompt_cache_test.rs`), so the O(N²) costs nothing today (a latent trap). PromptCache is
+unbenched. F4 the O(N) fix is clean + test-covered: `Sha256` is `Clone`, so one forward pass
+(feed token, clone+finalize per prefix) gives all prefix hashes in O(N); existing tests guard
+`find_prefix` semantics.
+
+**Decision**: B-38 = add a `prompt_cache_overhead` bench quantifying the O(N²) `find_prefix`
+(always). Whether to ALSO ship the O(N) fix for the dormant cache is a scope fork for the operator
+(A: measure+fix; B: measure+flag→B-38b) — optimizing dormant code is a YAGNI judgment. Do NOT touch
+MemoryPool. Shadow Genome: measure dormant components before optimizing them.
+
+**Content Hash** (SHA256 of docs/research-brief-b38-profile-memory-2026-07-30.md): `8792e26b70df04283827c318aaf48e5fc103a71f7309d02fa882831d632e7e8f`
+
+**Previous Hash**: `28478343861ab1997c71f26321142bcc2e273e19bf8316bf7b44b4998d4d276b`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `d8f8d0c8659845612b5dec9e52e5d43dca0b2660dadcde278c7794eedb3c61ca`
+
+**Decision**: B-38 research complete; prompt_cache_overhead bench + a fix-scope fork. Chain tip:
+`d8f8d0c8659845612b5dec9e52e5d43dca0b2660dadcde278c7794eedb3c61ca`.
+
+---
+
+### Entry #172: GATE VERDICT — PASS (B-38 memory profile + find_prefix O(N) fix plan)
+
+**Timestamp**: 2026-07-31T10:00:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-30T-b38-profile-memory
+
+**Target**: `docs/plan-b38-profile-memory-2026-07-30.md` — add a `prompt_cache_overhead` bench and
+fix `PromptCache::find_prefix` from O(N²) to O(N) (operator chose measure+fix at the scope fork).
+
+**Adversarial passes**: Injection — governance files clean, plan self-authored (PASS). Security /
+OWASP — the `find_prefix` rewrite preserves the exact SHA256 hashing (feed token → clone hasher →
+finalize gives the same `hash_tokens(&tokens[..len])` bytes); no crypto weakening, no
+auth/secret/bypass (PASS). Razor — `prompt_cache.rs` (127 lines) gains a ~16-line forward-pass
+`find_prefix`; the bench is a new file; all < 250, fns < 40 (PASS). Test-Functionality — the four
+existing `tests/prompt_cache_test.rs` `find_prefix` tests (exact/partial/longest/no-match) invoke
+the unit and assert the returned `(len, entry)`, guarding the rewrite; the bench is executable
+verification (PASS). Infrastructure-Alignment — cited symbols verified: `find_prefix`/`hash_tokens`
+(`prompt_cache.rs:45-98`), `Sha256` is `Clone` (`sha2`), `entries` HashMap, dormant status
+(`memory/mod.rs:32`, no production caller), existing tests (PASS). Feature-Declaration — F-60 NEW
+(first index row for the prompt cache) with an invoking test path (PASS). Lints clean;
+option_b_required=false.
+
+**Content Hash** (SHA256 of docs/plan-b38-profile-memory-2026-07-30.md): `0ecaa838a4af364484a9eb0f716b6733d09c18ae122c4c7dab9617efc4e77289`
+
+**Previous Hash**: `d8f8d0c8659845612b5dec9e52e5d43dca0b2660dadcde278c7794eedb3c61ca`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `a0d09e63bbfa09c676392ae8ef7968a91a3f7c682839a735431cb517bdfd2945`
+
+**Decision**: PASS — B-38 plan cleared for implementation. Chain tip:
+`a0d09e63bbfa09c676392ae8ef7968a91a3f7c682839a735431cb517bdfd2945`.
+
+---
+
+### Entry #173: SESSION SEAL (B-38 profile memory + find_prefix O(n²)→O(n))
+
+**Entry ID**: `0ffdd7bf42b4`
+**Timestamp**: 2026-07-31T10:30:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-30T-b38-profile-memory
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1, PW.7.2
+
+**Target**: `docs/plan-b38-profile-memory-2026-07-30.md` (audit PASS Entry #172).
+
+**Reality vs Promise**: MATCH. New `benches/prompt_cache_overhead.rs` measures
+`hash_tokens`/`get`/`find_prefix` across 64/512/2048 tokens (added to `Cargo.toml` + the `rust.yml`
+bench job, CI-safe set → 10). `PromptCache::find_prefix` rewritten from O(n²) (re-hash every prefix)
+to O(n) (one forward SHA256 pass, cloning the running hasher per prefix — `sha2::Sha256` is `Clone`),
+identical hashes + longest-match semantics. `MemoryPool` untouched (a sound `parking_lot` pool,
+already benched). Operator chose measure+fix at the scope fork (the cache is dormant, so this removes
+a latent trap before wiring). FEATURE_INDEX F-60 registers the prompt cache. Fifth optimization cycle.
+
+**Measured result**: `find_prefix_miss` (full longest-prefix scan) throughput is **flat ~2.9
+Melem/s** across 64/512/2048 tokens (21.8 µs → 192 µs → 706 µs) — the O(n) signature; the old O(n²)
+would collapse throughput ~32× from 64→2048. `hash_tokens`/`get` are O(n) (~55 Melem/s flat, single
+hash — optimal). No MemoryPool hotspot.
+
+**Verification (local + CI)**: `cargo test -p gg-core --test prompt_cache_test` → **11 passed / 0
+failed** (incl. `cache_find_prefix_{exact,partial,longest_match,no_match}` — the rewrite is
+behavior-identical). `cargo bench --bench prompt_cache_overhead -- …` ran all three groups to
+completion (numbers above). `cargo fmt --check` + `cargo clippy --bench prompt_cache_overhead -- -D
+warnings` clean. **CI: the `test` + `bench` jobs must conclude SUCCESS on the PR-to-main run.**
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity exit 0; feature_index_verify total=60 verified=58 unverified=2 (pre-existing);
+governance-index enforce → 2 new B-38 docs registered, exit 0; gate_chain_completeness OK.
+**Environmental SKIPs (disclosed)**: doc_integrity (no glossary), badge_currency (Rust archetype),
+seal_entry_check (ledger parser). `verify-ledger` → #171–#173 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `679efb1c713432c682e065b8c2306883d2671a5d16610dad41673cbf974511ea`
+
+**Previous Hash**: `a0d09e63bbfa09c676392ae8ef7968a91a3f7c682839a735431cb517bdfd2945`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `4a1df6cb3cdceef814903d91dbea7dd3ad05910f57cab84e30608eaabbd03a5c`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `cd18742d8846e47eaed960124af16b89e0714cb0487fed97c0923d5a56b9f7c5`
+
+**Decision**: B-38 COMPLETE and sealed — `find_prefix` O(n²)→O(n), measured; MemoryPool confirmed
+sound. Optimization pass (B-34/35/36/39/37/38) substantially complete; remaining: B-34b (timing
+gate). Chain tip:
+`4a1df6cb3cdceef814903d91dbea7dd3ad05910f57cab84e30608eaabbd03a5c`.

@@ -18,6 +18,9 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 - Repaired the rotted `ipc_throughput` bench (B-39): `fixture_to_request` now derives the prompt from the fixtures' `prompt_tokens` size ladder instead of a missing top-level `prompt` string, and the bench is re-added to the CI `bench` job (the gate that caught the rot in B-34).
 - Added a `scheduler_queue_overhead` bench (B-37) measuring the async `RequestQueue` enqueue/dequeue tax (tokio `Mutex` + `Notify`) over the bare `BinaryHeap`. Result (measurement only, no code change): ~550–620 ns per roundtrip, depth-insensitive, ~250 ns/op amortized under batch drain — <0.1% of per-request inference latency, so the scheduler is confirmed not a hotspot and needs no optimization.
 
+### Fixed
+- `PromptCache::find_prefix` was O(n²) — it re-hashed every prefix `tokens[..len]` from scratch for each length. It now does a single forward SHA256 pass (cloning the running hasher per prefix), making longest-prefix lookup O(n) with identical results (B-38). Confirmed by the new `prompt_cache_overhead` bench (flat throughput across 64/512/2048 tokens). The prompt cache is dormant (not yet wired into inference), so this removes a latent trap before it ships.
+
 ### Performance
 - Streaming egress PII sanitizer is now O(n) per stream instead of O(n²) (B-36). Previously every generated token re-sanitized the entire accumulated buffer; it now caches the sanitized stable prefix and re-sanitizes only a bounded tail, rebasing the prefix at boundaries proven to split no PII match. Output is byte-identical to the previous whole-buffer sanitize (verified by a differential test against a whole-buffer reference + a one-shot oracle), and the release decision stays on sanitized text so internal-separator PII (e.g. credit-card numbers) is never split and leaked.
 

@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "b620801afd645d5f8c2b9e83b3a97f14ffd9fde1915324e26124fee8c15eca0b",
+  "payload_sha256": "4bc5e8290dc061e9bfdb0caf980d68f4f6b9fc4f0a59f7b3ed8605401aeb328e",
+  "phase": "plan",
+  "session_id": "2026-07-30T-b38-profile-memory"
+}

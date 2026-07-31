@@ -1,0 +1,47 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-30T-b38-profile-memory",
+  "ts": "2026-07-31T00:25:05Z",
+  "questions": [
+    "Is MemoryPool a hotspot?",
+    "Is PromptCache benched / wired?",
+    "Is find_prefix efficient?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "MemoryPool is a real parking_lot pool, already benched by memory_overhead; no hotspot.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "PromptCache::find_prefix re-hashes each prefix -> O(N^2) SHA256 per call.",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "PromptCache is DORMANT (exported, no production caller; only tests) -> O(N^2) is latent, costs nothing today. Unbenched.",
+      "status": "verified"
+    },
+    {
+      "id": "F4",
+      "detail": "O(N) fix is clean+test-covered: Sha256 is Clone; one forward pass gives all prefix hashes.",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/memory/pool.rs:60-79",
+    "core-runtime/src/memory/prompt_cache.rs:45-98",
+    "core-runtime/src/memory/mod.rs:32",
+    "core-runtime/tests/prompt_cache_test.rs"
+  ],
+  "brief_path": "docs/research-brief-b38-profile-memory-2026-07-30.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T00:25:05Z"
+  }
+}
