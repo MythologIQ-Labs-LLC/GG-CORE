@@ -1,6 +1,6 @@
 //! Synergy status snapshot.
 
-use crate::engine::speculative_v2::SpeculativeConfig;
+use crate::engine::speculative_types::SpeculativeConfig;
 use crate::models::smart_loader::ModelTier;
 
 use super::SynergyMode;

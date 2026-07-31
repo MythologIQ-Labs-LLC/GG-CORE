@@ -7,16 +7,12 @@ pub mod adaptive_speculative;
 #[cfg(feature = "gguf")]
 pub mod backend;
 mod generator;
-#[cfg(all(feature = "gguf", feature = "advanced"))]
-pub mod speculative;
 
 #[cfg(all(feature = "gguf", feature = "advanced"))]
 pub use adaptive_speculative::{GgufBlockDraftModel, GgufTargetVerifier};
 #[cfg(feature = "gguf")]
 pub use backend::LlamaBackendInner;
 pub use generator::GgufGenerator;
-#[cfg(all(feature = "gguf", feature = "advanced"))]
-pub use speculative::{GgufDraftModel, GgufTargetModel};
 
 use std::path::Path;
 use std::sync::Arc;

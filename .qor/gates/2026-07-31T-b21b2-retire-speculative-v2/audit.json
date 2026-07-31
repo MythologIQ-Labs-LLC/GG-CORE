@@ -1,0 +1,20 @@
+{
+  "phase": "audit",
+  "session_id": "2026-07-31T-b21b2-retire-speculative-v2",
+  "ts": "2026-07-31T13:19:17Z",
+  "target": "docs/plan-b21b2-retire-speculative-v2-2026-07-31.md",
+  "verdict": "PASS",
+  "violations": [],
+  "risk_grade": "L2",
+  "report_path": ".agent/staging/AUDIT_REPORT.md",
+  "target_content_hash": "1233d14266644a6ca8f703993dc68f89d0751749de1d78b1194661e631a626a1",
+  "findings_categories": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T13:19:17Z"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "e1ae029f06a613130c74d4890c26d4473582caada1932f8d5d984ad76f576472",
+  "payload_sha256": "d31d3650d4edcad3a5b16cbd8968c767a54073e0363c3fea81a960e1fd8bc83e",
+  "phase": "audit",
+  "session_id": "2026-07-31T-b21b2-retire-speculative-v2"
+}

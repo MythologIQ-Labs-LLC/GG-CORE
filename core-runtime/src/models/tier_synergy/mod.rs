@@ -21,7 +21,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use super::smart_loader::{LoadHint, ModelTier, SmartLoader, SmartLoaderError};
-use crate::engine::speculative_v2::{SpeculativeConfig, SpeculativeStats};
+use crate::engine::speculative_types::{SpeculativeConfig, SpeculativeStats};
 
 /// Mapping of tiers to model IDs.
 #[derive(Debug, Default)]

@@ -1,8 +1,7 @@
 //! Adaptive-speculative GGUF adapter (B-21c).
 //!
 //! Implements the adaptive-speculative model-side traits over a `GgufGenerator`,
-//! so the [`AdaptiveSpeculativeExecutor`] can drive a GGUF draft/target pair.
-//! Analogous to the token-level `GgufDraftModel`/`GgufTargetModel` (v2), but for
+//! so the [`AdaptiveSpeculativeExecutor`] can drive a GGUF draft/target pair via
 //! the block-level `BlockDraftModel`/`TargetVerifier`.
 //!
 //! Degradation: the GGUF backend surfaces no per-token draft log-probs, so
