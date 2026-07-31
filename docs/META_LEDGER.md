@@ -10323,3 +10323,93 @@ brief + B-21a plan registered, exit 0; gate_chain_completeness OK. **Environment
 **Decision**: B-21a COMPLETE and sealed. Canonical ADR-007 on `main`; dangling citations resolved;
 B-21 decomposition reconciled. Next: B-21b-1 (retire v1). Chain tip:
 `9fe27d7e0eab1bf6fc9d26530d7db1eaae4adf0922efdf30a867dbf237ac7017`.
+
+---
+
+### Entry #183: GATE VERDICT — PASS (B-21b-1 retire speculative v1 plan)
+
+**Timestamp**: 2026-07-31T16:40:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L2 (breaking, advanced-gated + dormant)
+**Verdict**: PASS
+**Session ID**: 2026-07-31T-b21b1-retire-speculative-v1
+
+**Target**: `docs/plan-b21b1-retire-speculative-v1-2026-07-31.md` — remove v1 `engine/speculative.rs`,
+promote v2 to the canonical unsuffixed `engine::{…}` re-export, port the GGUF adapter + backend
+signatures v1→v2. Triple→double.
+
+**Adversarial passes**: Injection — governance files clean, plan self-authored (PASS). Security /
+OWASP — all speculative code is `#[cfg(feature="advanced")]`-gated + dormant (no `Runtime::infer`
+consumer); removing v1 does not touch the secure path; the GGUF `get_probabilities` uniform stub is
+an honest "no probability signal" placeholder (PASS). Razor — deletes a file; `gguf/speculative.rs`
+gains 2 small methods (PASS). Test-Functionality — the 6 F-18 tests are PORTED to invoke v2's
+decoder + assert the same outcomes (functional, not presence) (PASS). Infrastructure-Alignment /
+SG-AffectedFilesContract — every caller of v1 enumerated + grep-verified: `gguf/speculative.rs:9`,
+`gguf/backend.rs:211-212`, `gguf/generator.rs:130`, `engine/mod.rs:58,118`, `engine/decode.rs:6`,
+`tests/speculative_test.rs`, `tests/e2e_model_test.rs:200`; the suffixed v2 re-exports confirmed
+unused; v2 is a verified superset (VerifyResult.probabilities, get_probabilities, 3 config fields)
+(PASS). Feature-Declaration — F-18 MODIFIED (retarget v1→v2) with a ported invoking test (PASS).
+Breaking-change: declared, advanced-gated + dormant, all callers enumerated (PASS). Lints clean;
+option_b_required=false.
+
+**Content Hash** (SHA256 of docs/plan-b21b1-retire-speculative-v1-2026-07-31.md): `8ae71b9bf9d491f6fc112996ac3caa9e7a8d4da2fb243032c3689ce8b3cee53e`
+
+**Previous Hash**: `9fe27d7e0eab1bf6fc9d26530d7db1eaae4adf0922efdf30a867dbf237ac7017`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `d6b3753776f96c315444559643d438f1f39ec370e2498a054d7aa1322b53a9a9`
+
+**Decision**: PASS — B-21b-1 plan cleared for implementation. Chain tip:
+`d6b3753776f96c315444559643d438f1f39ec370e2498a054d7aa1322b53a9a9`.
+
+---
+
+### Entry #184: SESSION SEAL (B-21b-1 retire speculative v1 — triple→double)
+
+**Entry ID**: `086924004bf1`
+**Timestamp**: 2026-07-31T17:20:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L2 (breaking, advanced-gated + dormant)
+**Session ID**: 2026-07-31T-b21b1-retire-speculative-v1
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Target**: `docs/plan-b21b1-retire-speculative-v1-2026-07-31.md` (audit PASS Entry #183).
+
+**Reality vs Promise**: MATCH. `engine/speculative.rs` (v1) **deleted**; `speculative_v2` promoted to
+the canonical unsuffixed re-export `engine::{DraftModel, TargetModel, VerifyResult, SpeculativeConfig,
+SpeculativeDecoder, SpeculativeStats}` (unused `…V2Config`/`…V2Decoder` aliases dropped); the GGUF
+adapter (`gguf/speculative.rs`) ported to v2's traits (uniform `get_probabilities` stubs) and the two
+GGUF `VerifyResult` return sites (`backend.rs:211`, `generator.rs:130`) switched to v2;
+`speculative_test.rs` + `e2e_model_test.rs` ported to v2 (mocks add `get_probabilities`; e2e config
+`..Default::default()`); F-18 retargeted to `speculative_v2.rs`. **Triple → double** (`speculative_v2`
++ `adaptive_speculative`). All advanced-gated + dormant — no `Runtime::infer` impact.
+
+**Verification (local + CI)**: `cargo build -p gg-core --features advanced` clean; `cargo test
+--features advanced --test speculative_test` → **9 passed**; `cargo fmt --check` clean; clippy on the
+changed files clean (`gguf/speculative.rs`/`engine/mod.rs`/tests — 0 errors). **CI-safety proven**:
+`gguf/mod.rs` gates `speculative` behind `cfg(all(gguf, advanced))`, `cargo build --features gguf`
+(the CI leg) passes; the test files are `#![cfg(feature="advanced")]` / fn-`#[cfg]`-gated so default +
+gguf/onnx/ffi/python CI legs skip them; `advanced` is NOT in the CI matrix so no leg runs it.
+
+**Out-of-scope finding → B-40 filed**: the `advanced` feature is absent from the CI clippy/test
+matrix (`[gguf,onnx,ffi,python]`), so advanced-gated code is never linted — 14 pre-existing clippy
+lints (quantize.rs ×10, flash_attn_gpu, multi_gpu, simd_tokenizer_v2, speculative_config) sit
+unsurfaced. Not fixed here (scope); filed B-40 (add `advanced` to CI, then fix). Relevant to B-21c.
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity exit 0; feature_index_verify 60/60; governance-index enforce → B-21b-1 plan registered,
+exit 0; gate_chain_completeness OK. **Environmental SKIPs (disclosed)**: doc_integrity, badge_currency,
+seal_entry_check. `verify-ledger` → #183–#184 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `f633de2df8e86a65ed7362069a9242159f214a3727997b856508bb0495429c99`
+
+**Previous Hash**: `d6b3753776f96c315444559643d438f1f39ec370e2498a054d7aa1322b53a9a9`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `0319686aedb27f3d2ba08767e267e721fd5528e53d4a0bc89752770cd1a62e39`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `39a0b61833aafd0b918fd03a68de0bee44ba62cfcd5f4654379b74e469256da2`
+
+**Decision**: B-21b-1 COMPLETE and sealed. v1 retired; triple→double. Next: **B-21c** (adaptive
+executor + GGUF backend + wire into `Runtime::infer`, L3). Chain tip:
+`0319686aedb27f3d2ba08767e267e721fd5528e53d4a0bc89752770cd1a62e39`.

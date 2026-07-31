@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn e2e_speculative_decoding() {
         use gg_core::engine::gguf::{GgufDraftModel, GgufTargetModel};
-        use gg_core::engine::speculative::{SpeculativeConfig, SpeculativeDecoder};
+        use gg_core::engine::{SpeculativeConfig, SpeculativeDecoder};
 
         let Some(gen) = load_test_model() else { return };
         println!("\n=== SPECULATIVE DECODING TEST ===");
@@ -211,6 +211,7 @@ mod tests {
             draft_tokens: 4,
             acceptance_threshold: 0.9,
             enabled: true,
+            ..Default::default()
         };
         let decoder = SpeculativeDecoder::new(draft, target, config);
 

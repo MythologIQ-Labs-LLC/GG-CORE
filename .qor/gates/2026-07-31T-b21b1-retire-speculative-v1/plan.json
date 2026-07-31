@@ -1,0 +1,47 @@
+{
+  "phase": "plan",
+  "session_id": "2026-07-31T-b21b1-retire-speculative-v1",
+  "ts": "2026-07-31T06:23:53Z",
+  "plan_path": "docs/plan-b21b1-retire-speculative-v1-2026-07-31.md",
+  "phases": [
+    "Phase 1: Port GGUF adapter + backend signatures to v2",
+    "Phase 2: Promote v2 to canonical + delete v1"
+  ],
+  "ci_commands": [
+    "cargo build -p gg-core --features advanced",
+    "cargo test -p gg-core --features advanced --test speculative_test",
+    "cargo fmt --check",
+    "cargo clippy -p gg-core --features advanced -- -D warnings"
+  ],
+  "open_questions": [],
+  "doc_tier": "standard",
+  "change_class": "breaking",
+  "boundaries": {
+    "limitations": [
+      "Remove v1 engine/speculative.rs; promote v2 to canonical unsuffixed re-export; port GGUF adapter+backend to v2. All advanced-gated + dormant (no Runtime::infer effect)."
+    ],
+    "non_goals": [
+      "No adaptive_speculative change; no wiring (B-21c); v2 not yet retired (B-21b-2).",
+      "No v2 behavior change."
+    ],
+    "exclusions": [
+      "No CI/workflow change."
+    ]
+  },
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-18",
+      "operation": "MODIFIED",
+      "test_path": "core-runtime/tests/speculative_test.rs",
+      "test_descriptor": "6 behavioral tests (accept/reject/fallback/eos/draft-tokens/disabled) ported to v2's SpeculativeDecoder; mocks add get_probabilities, configs add ..Default::default()."
+    }
+  ],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T06:23:53Z"
+  }
+}

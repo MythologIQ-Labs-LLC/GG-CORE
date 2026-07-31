@@ -20,6 +20,10 @@ impl DraftModel for MockDraft {
     ) -> Result<Vec<u32>, InferenceError> {
         Ok(self.tokens.iter().take(count).copied().collect())
     }
+
+    fn get_probabilities(&self, _context: &[u32], tokens: &[u32]) -> Vec<f32> {
+        vec![1.0; tokens.len()]
+    }
 }
 
 // Mock target model for testing
@@ -40,6 +44,7 @@ impl TargetModel for MockTarget {
         Ok(VerifyResult {
             accepted_count: self.accept_count,
             correction_token: self.correction,
+            probabilities: vec![1.0; self.accept_count],
         })
     }
 
@@ -49,6 +54,10 @@ impl TargetModel for MockTarget {
 
     fn eos_token(&self) -> Option<u32> {
         self.eos
+    }
+
+    fn get_probabilities(&self, _context: &[u32], tokens: &[u32]) -> Vec<f32> {
+        vec![1.0; tokens.len()]
     }
 }
 

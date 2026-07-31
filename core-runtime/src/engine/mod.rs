@@ -55,8 +55,6 @@ mod simd_neon;
 #[cfg(feature = "advanced")]
 pub mod simd_tokenizer_v2;
 #[cfg(feature = "advanced")]
-pub mod speculative;
-#[cfg(feature = "advanced")]
 pub mod speculative_v2;
 
 // --- GPU backend modules (conditionally compiled) ---
@@ -115,13 +113,8 @@ pub use simd_tokenizer_v2::{
     SimdTokenizer as SimdTokenizerV2, TokenizerError as TokenizerV2Error, TokenizerStats,
 };
 #[cfg(feature = "advanced")]
-pub use speculative::{
-    DraftModel, SpeculativeConfig, SpeculativeDecoder, TargetModel, VerifyResult,
-};
-#[cfg(feature = "advanced")]
 pub use speculative_v2::{
-    SpeculativeConfig as SpeculativeV2Config, SpeculativeDecoder as SpeculativeV2Decoder,
-    SpeculativeStats,
+    DraftModel, SpeculativeConfig, SpeculativeDecoder, SpeculativeStats, TargetModel, VerifyResult,
 };
 
 // Adaptive speculative telemetry (requires `advanced` feature)

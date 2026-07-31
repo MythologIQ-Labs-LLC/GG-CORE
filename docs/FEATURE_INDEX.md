@@ -46,7 +46,7 @@ judgment.
 | F-15 | GPU allocation & management | core-runtime/src/engine/gpu_allocator.rs | docs/architecture/SCALABILITY_REMEDIATION_UPGRADE_PATH.md | core-runtime/tests/gpu_v2_test.rs | verified |
 | F-16 | Multi-GPU exec/partition/pipeline | core-runtime/src/engine/multi_gpu_exec.rs | docs/architecture/SCALABILITY_REMEDIATION_UPGRADE_PATH.md | core-runtime/src/engine/multi_gpu_tests.rs | verified |
 | F-17 | Flash attention | core-runtime/src/engine/flash_attn.rs | docs/architecture/V0.6.0_TRADE_OFFS.md | core-runtime/tests/flash_attn_test.rs | verified |
-| F-18 | Speculative decoding | core-runtime/src/engine/speculative.rs | docs/architecture/V0.6.0_TRADE_OFFS.md | core-runtime/tests/speculative_test.rs | verified |
+| F-18 | Speculative decoding (token-level; v2 canonical, advanced-gated) | core-runtime/src/engine/speculative_v2.rs | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/tests/speculative_test.rs | verified |
 | F-19 | Quantization & KV quant | core-runtime/src/engine/quantize.rs | docs/architecture/V0.6.0_TRADE_OFFS.md | core-runtime/tests/kv_quant_test.rs | verified |
 | F-20 | SIMD matmul / NEON | core-runtime/src/engine/simd_matmul.rs | docs/architecture/V0.6.0_TRADE_OFFS.md | core-runtime/tests/simd_matmul_test.rs | verified |
 | F-21 | KV cache & paged/continuous | core-runtime/src/memory/ | docs/architecture/SCALABILITY_REMEDIATION_UPGRADE_PATH.md | core-runtime/tests/kv_cache_test.rs | verified |

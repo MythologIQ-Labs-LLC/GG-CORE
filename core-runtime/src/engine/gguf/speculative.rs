@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use super::GgufGenerator;
-use crate::engine::speculative::{DraftModel, TargetModel, VerifyResult};
+use crate::engine::speculative_v2::{DraftModel, TargetModel, VerifyResult};
 use crate::engine::InferenceError;
 
 /// Wrapper for using GgufGenerator as a draft model.
@@ -28,6 +28,13 @@ impl DraftModel for GgufDraftModel {
         count: usize,
     ) -> Result<Vec<u32>, InferenceError> {
         self.generator.generate_tokens(context, count).await
+    }
+
+    /// Uniform placeholder: the GGUF generator exposes no per-token draft
+    /// probabilities, so verification relies on `verify_tokens` (target-side
+    /// comparison), not draft-probability weighting.
+    fn get_probabilities(&self, _context: &[u32], tokens: &[u32]) -> Vec<f32> {
+        vec![1.0; tokens.len()]
     }
 }
 
@@ -62,5 +69,11 @@ impl TargetModel for GgufTargetModel {
 
     fn eos_token(&self) -> Option<u32> {
         self.generator.eos_token_id()
+    }
+
+    /// Uniform placeholder: per-token target probabilities are not surfaced by the
+    /// GGUF generator; `verify_tokens` performs the greedy target comparison.
+    fn get_probabilities(&self, _context: &[u32], tokens: &[u32]) -> Vec<f32> {
+        vec![1.0; tokens.len()]
     }
 }
