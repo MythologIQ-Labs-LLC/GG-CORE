@@ -95,6 +95,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-39 fix ipc_throughput bench research brief | `docs/research-brief-b39-fix-ipc-throughput-bench-2026-07-30.md` | b39-fix-ipc-throughput-bench |
 | B-37 profile scheduler plan | `docs/plan-b37-profile-scheduler-2026-07-30.md` | b37-profile-scheduler |
 | B-37 profile scheduler research brief | `docs/research-brief-b37-profile-scheduler-2026-07-30.md` | b37-profile-scheduler |
+| B-38 profile memory plan | `docs/plan-b38-profile-memory-2026-07-30.md` | b38-profile-memory |
+| B-38 profile memory research brief | `docs/research-brief-b38-profile-memory-2026-07-30.md` | b38-profile-memory |
 
 ## Tier 5 — Reference Material
 

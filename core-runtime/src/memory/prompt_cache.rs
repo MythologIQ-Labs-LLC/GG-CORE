@@ -82,19 +82,27 @@ impl PromptCache {
     }
 
     /// Find longest cached prefix of tokens. Returns (prefix_len, cloned entry).
+    ///
+    /// O(N): a single forward SHA256 pass produces every prefix hash (clone the
+    /// running hasher and finalize the clone at each length — same bytes as
+    /// `hash_tokens(&tokens[..len])`), replacing the old O(N²) per-length re-hash.
+    /// Scanning short→long, the last prefix that hits the map is the longest match.
     pub fn find_prefix(&mut self, tokens: &[u32]) -> Option<(usize, CachedKv)> {
-        for len in (1..=tokens.len()).rev() {
-            let hash = Self::hash_tokens(&tokens[..len]);
+        let mut hasher = Sha256::new();
+        let mut best: Option<(usize, [u8; 32])> = None;
+        for (i, &t) in tokens.iter().enumerate() {
+            hasher.update(t.to_le_bytes());
+            let hash: [u8; 32] = hasher.clone().finalize().into();
             if self.entries.contains_key(&hash) {
-                self.access_counter += 1;
-                let counter = self.access_counter;
-                if let Some(entry) = self.entries.get_mut(&hash) {
-                    entry.last_used = counter;
-                    return Some((len, entry.clone()));
-                }
+                best = Some((i + 1, hash));
             }
         }
-        None
+        let (len, hash) = best?;
+        self.access_counter += 1;
+        let counter = self.access_counter;
+        let entry = self.entries.get_mut(&hash)?;
+        entry.last_used = counter;
+        Some((len, entry.clone()))
     }
 
     /// Evict least recently used entry.

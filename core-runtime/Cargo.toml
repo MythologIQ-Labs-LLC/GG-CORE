@@ -204,6 +204,10 @@ harness = false
 name = "scheduler_queue_overhead"
 harness = false
 
+[[bench]]
+name = "prompt_cache_overhead"
+harness = false
+
 [profile.release]
 opt-level = 3
 lto = "thin"
