@@ -1,0 +1,53 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-31T-b13-b14-doc-accuracy",
+  "ts": "2026-07-31T01:43:51Z",
+  "questions": [
+    "Does the cited arch doc exist?",
+    "Which FEATURE_INDEX rows are unverified and why?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "CORE_RUNTIME_ARCHITECTURE.md absent; cited CLAUDE.md:92 + TANDEM_EXPERIMENTS_PROPOSAL.md -> create it.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "content determinable from code+docs; no invention.",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "F-45 shim cites n/a but src/shim/ real with 14 inline tests -> mis-cited.",
+      "status": "verified"
+    },
+    {
+      "id": "F4",
+      "detail": "F-38 sandbox test real+functional but unix-gated -> CI-verified not on Windows.",
+      "status": "verified"
+    },
+    {
+      "id": "F5",
+      "detail": "other 58 rows tool-verified (exist+pass); SG-035 = exercise-not-presence lens.",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "docs/architecture/",
+    "CLAUDE.md:92",
+    "docs/TANDEM_EXPERIMENTS_PROPOSAL.md:14",
+    "docs/FEATURE_INDEX.md",
+    "core-runtime/src/shim/",
+    "core-runtime/tests/sandbox_test.rs"
+  ],
+  "brief_path": "docs/research-brief-b13-b14-doc-accuracy-2026-07-31.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T01:43:51Z"
+  }
+}

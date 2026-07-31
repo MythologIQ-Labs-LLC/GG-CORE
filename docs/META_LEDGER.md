@@ -10080,3 +10080,122 @@ sanitize O(n²)→O(n), real win) → B-39 (ipc_throughput repair) → B-37 (sch
 
 **Decision**: B-34b COMPLETE and sealed — the optimization pass is closed. Chain tip:
 `6673871f8eb3dfe7251acfba9bb55be38ee65e4448e892db0cb801794ffcda54`.
+
+---
+
+### Entry #177: RESEARCH BRIEF (B-13 + B-14 documentation & feature-index accuracy)
+
+**Timestamp**: 2026-07-31T13:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1
+**Session ID**: 2026-07-31T-b13-b14-doc-accuracy
+
+**Target**: B-13 (CLAUDE.md cites a nonexistent `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md`)
++ B-14 (deep-verify FEATURE_INDEX `verified` rows, SG-035). Branch `feat/b13-b14-doc-accuracy` off
+`main` (#176). Combined documentation-accuracy cycle.
+
+**Findings (verified)**: F1 the cited arch doc is genuinely absent (dir has ADR-006/007,
+SCALABILITY, V0.6.0 only); cited `CLAUDE.md:92` + `TANDEM_EXPERIMENTS_PROPOSAL.md:14,20-26`
+(C.O.R.E. source) → deleting the ref orphans citations → CREATE it. F2 the content is fully
+determinable from code+docs (no invention). F3 F-45 (Veritas shim) cites test `n/a` but `src/shim/`
+is real (`lib.rs:51`) with **14 inline tests** (mod 3 + rate_limiter 6 + service_tier 5) →
+mis-cited, fix + verify. F4 F-38 (sandbox) cites a real functional test (`sandbox_test.rs` asserts
+config invariants) that is unix-gated → CI-verified, not on the Windows host → mark verified
+(CI-gated note). F5 the other 58 rows are tool-verified (exist+pass); SG-035 adds the
+exercise-not-presence lens (recent F-53..F-60 authored to that standard).
+
+**Decision**: B-13 = create a code-grounded `CORE_RUNTIME_ARCHITECTURE.md`; B-14 = fix F-45 (cite
+inline shim tests) + F-38 (verified, CI-gated) + record deep-verify methodology. Documentation-only.
+Shadow Genome: an index row can be wrong by UNDER-crediting (F-45 marked untested despite 14 tests)
+— deep-verify reconciles the citation vs reality, not just path existence.
+
+**Content Hash** (SHA256 of docs/research-brief-b13-b14-doc-accuracy-2026-07-31.md): `a32bffcf98204e0b8d4e0c0307940ff74c163449b61ea44584e3321691f5467c`
+
+**Previous Hash**: `6673871f8eb3dfe7251acfba9bb55be38ee65e4448e892db0cb801794ffcda54`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `8fe07f5ddc924f97f39c0719743acec7cfd9e2e0b0ce7bed0d6352944b58fbc6`
+
+**Decision**: B-13/B-14 research complete; documentation-accuracy cycle. Chain tip:
+`8fe07f5ddc924f97f39c0719743acec7cfd9e2e0b0ce7bed0d6352944b58fbc6`.
+
+---
+
+### Entry #178: GATE VERDICT — PASS (B-13 + B-14 documentation-accuracy plan)
+
+**Timestamp**: 2026-07-31T13:30:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L1
+**Verdict**: PASS
+**Session ID**: 2026-07-31T-b13-b14-doc-accuracy
+
+**Target**: `docs/plan-b13-b14-doc-accuracy-2026-07-31.md` — create
+`docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` (B-13) + correct FEATURE_INDEX F-45/F-38 (B-14).
+
+**Adversarial passes**: Injection — governance files clean, plan self-authored (PASS). Security /
+OWASP — documentation only; no code, no auth/secret/deserialization (PASS). Razor — the 250-line
+limit is a CODE-file contract; docs are exempt, though the new doc is a bounded overview (PASS).
+Infrastructure-Alignment — the load-bearing pass for a doc cycle: the new architecture doc MUST
+cite only real modules/files and the F-45/F-38 fixes MUST cite real tests; research verified the
+targets (`src/shim/` + 14 inline tests; `sandbox_test.rs` functional + unix-gated; the module
+tree), and the plan commits to grep-verifying every cited path at implement — no fabrication (PASS).
+Test-Functionality — no tests (doc); verification is `feature_index_verify` + path-existence
+grep, and the SG-035 deep-verify is recorded (PASS). Feature-Declaration — empty, justified (the
+change corrects existing rows) (PASS). Lints clean; option_b_required=false.
+
+**Content Hash** (SHA256 of docs/plan-b13-b14-doc-accuracy-2026-07-31.md): `28e00d42d610ffcffbf39805f0aee872f592553270e585e0622daeca8f03e07b`
+
+**Previous Hash**: `8fe07f5ddc924f97f39c0719743acec7cfd9e2e0b0ce7bed0d6352944b58fbc6`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `a95a7e410c60efe130491190d512fa16c146a5a8943761e0321f657a1a383640`
+
+**Decision**: PASS — B-13/B-14 plan cleared for implementation (doc must be grep-grounded). Chain
+tip: `a95a7e410c60efe130491190d512fa16c146a5a8943761e0321f657a1a383640`.
+
+---
+
+### Entry #179: SESSION SEAL (B-13 + B-14 documentation & feature-index accuracy)
+
+**Entry ID**: `855239fdfcd5`
+**Timestamp**: 2026-07-31T14:00:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L1
+**Session ID**: 2026-07-31T-b13-b14-doc-accuracy
+**SSDF Practices**: PO.1.4, PS.2.1
+
+**Target**: `docs/plan-b13-b14-doc-accuracy-2026-07-31.md` (audit PASS Entry #178).
+
+**Reality vs Promise**: MATCH. B-13: NEW `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` — a
+code-grounded technical spec (C.O.R.E., security boundaries, crate shape, module map, the secure
+`Runtime::infer` path, GGUF/ONNX dispatch, scheduler/memory, observability/degraded-mode,
+governance); the `CLAUDE.md:92` + `TANDEM_EXPERIMENTS_PROPOSAL.md` references now resolve. B-14:
+`FEATURE_INDEX.md` F-45 (Veritas shim) test citation `n/a` → the real 14 inline tests (verified);
+F-38 (sandbox) → verified with a unix-gated/CI-verified note. Documentation only; no Rust/behavior
+change (no `.rs` staged).
+
+**Verification (local)**: the new doc exists; **every `core-runtime/{src,include}` path it cites
+was grep-confirmed to exist** (no fabrication — the audit's load-bearing condition); `CLAUDE.md:92`
+resolves. F-45's cited shim tests pass (`cargo test shim::` → 14 passed). `feature_index_verify`
+→ **total=60 verified=60 unverified=0** (was 58/2). Deep-verify (SG-035): the two defects were
+citation-vs-reality mismatches (F-45 under-credited a tested feature; F-38 a platform-gated one),
+now reconciled; the 58 pre-existing rows remain tool-confirmed (exist+pass).
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity exit 0; feature_index_verify 60/60; governance-index enforce → new arch doc +
+research/plan registered, exit 0; gate_chain_completeness OK. **Environmental SKIPs (disclosed)**:
+doc_integrity (no glossary), badge_currency (Rust archetype), seal_entry_check (ledger parser).
+`verify-ledger` → #177–#179 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `7c352755bfc406ebcd691da416ff2df5924e043d7904db529c128efd846544b4`
+
+**Previous Hash**: `a95a7e410c60efe130491190d512fa16c146a5a8943761e0321f657a1a383640`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `d7c90aa40d481e65417415eda27827ce9bf03bca1ad63eb844e08e1bb4e4326b`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `662ec544d6d646da326186ccbed5a72bd1247161843290265102b242b5ac9f97`
+
+**Decision**: B-13 + B-14 COMPLETE and sealed. The architecture doc exists (grounded) and the
+feature index is 60/60 accurate. Chain tip:
+`d7c90aa40d481e65417415eda27827ce9bf03bca1ad63eb844e08e1bb4e4326b`.
