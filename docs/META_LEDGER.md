@@ -10199,3 +10199,47 @@ doc_integrity (no glossary), badge_currency (Rust archetype), seal_entry_check (
 **Decision**: B-13 + B-14 COMPLETE and sealed. The architecture doc exists (grounded) and the
 feature index is 60/60 accurate. Chain tip:
 `d7c90aa40d481e65417415eda27827ce9bf03bca1ad63eb844e08e1bb4e4326b`.
+
+---
+
+### Entry #180: RESEARCH BRIEF (B-21 ADR-007 epic scoping/decomposition)
+
+**Timestamp**: 2026-07-31T15:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2
+**Session ID**: 2026-07-31T-b21-adr007-scoping
+
+**Target**: B-21 — scope/decompose the ADR-007 epic (#60–#68) by reconciling
+`docs/plan-adr007-epic-execution.md` against the code + ledger. Branch `feat/b21-adr007-scoping`
+off `main` (#179). Read-only scoping — no implementation.
+
+**Findings (verified, file:line-grounded via survey)**: F1 all 8 issues #61–#68 are BUILT +
+unit-tested + SEALED (ledger #87–#94; features F-48–F-54) — B-21 is not unbuilt. F2 (load-bearing)
+the entire ADR-007 surface is **built-but-DORMANT**: no production wiring — `engine/inference.rs`/
+`Runtime::infer` have zero speculative refs; the decoders/plan/traits are instantiated only in
+tests. F3 three parallel impls coexist (`speculative.rs`, `speculative_v2.rs`,
+`adaptive_speculative/`); the #68 consolidation audit (2026-07-08) predates `adaptive_speculative`
+→ stale, never flagged the redundancy. F4 B-13-class doc-drift: `ADR-007-TIERSYNERGY-ADAPTIVE-
+SPECULATIVE-DECODING.md` is absent on main (only on unmerged PR #59) yet F-48/49/50/51/53 cite it.
+F5 audit F2 (stale `engine/mod.rs:8,42` comments) undone, F3 partial; THREAT_MODEL §12.2 cites a
+`t1_..allowlist` test that doesn't exist. F6 the benchmark is overhead-only (synthetic, no e2e
+speedup).
+
+**Decision**: reframed decomposition — the #61–#68 build shipped (sealed); the remainder is B-21a
+(create/merge the canonical ADR doc; doc-only), B-21b (refresh audit + resolve triple-redundancy),
+B-21d (audit loose ends + missing security test), and — behind a STRATEGIC operator go/no-go
+(ADR still "Proposed", PR #59 unmerged) — B-21c (production wiring into `Runtime::infer`, L3) +
+B-21e (real e2e benchmark, gated on B-21c). Backlog: mark #61–#68 done; re-scope B-21 to a/b/c/d/e.
+Shadow Genome: **a sealed epic can be built-but-dormant — "sealed" ≠ "wired to production"; scope by
+grepping the real entry points, not just tests+seals.**
+
+**Content Hash** (SHA256 of docs/research-brief-b21-adr007-scoping-2026-07-31.md): `483ccdded6da00e476edf751769e46a8b0c61b05a45211cd995cf4857dc9ea05`
+
+**Previous Hash**: `d7c90aa40d481e65417415eda27827ce9bf03bca1ad63eb844e08e1bb4e4326b`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `3fe507a1649e14fb724ba6820cd118dd9d637e340d76060f897282af999ca80c`
+
+**Decision**: B-21 scoping complete; epic is built-dormant, remainder decomposed a/b/c/d/e with a
+wiring go/no-go fork. Chain tip:
+`3fe507a1649e14fb724ba6820cd118dd9d637e340d76060f897282af999ca80c`.

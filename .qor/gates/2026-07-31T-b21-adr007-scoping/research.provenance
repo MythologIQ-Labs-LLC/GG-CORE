@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "871dae3e5bea0be1ee49f9256a3fbdb8764241ea997a7a729d3e6ff39041276e",
+  "payload_sha256": "ffc12bcfdc4eea116da37ad7e7b5dfa812cbddf15418f98e044a091541a6d4ee",
+  "phase": "research",
+  "session_id": "2026-07-31T-b21-adr007-scoping"
+}
