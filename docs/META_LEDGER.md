@@ -10413,3 +10413,112 @@ seal_entry_check. `verify-ledger` → #183–#184 verified.
 **Decision**: B-21b-1 COMPLETE and sealed. v1 retired; triple→double. Next: **B-21c** (adaptive
 executor + GGUF backend + wire into `Runtime::infer`, L3). Chain tip:
 `0319686aedb27f3d2ba08767e267e721fd5528e53d4a0bc89752770cd1a62e39`.
+
+---
+
+### Entry #185: RESEARCH BRIEF (B-34c perf-gate noise floor for sub-µs benches)
+
+**Timestamp**: 2026-07-31T18:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L1
+**Session ID**: 2026-07-31T-b34c-perfgate-noise-floor
+
+**Target**: B-34c — harden `perf_gate.py` so it does not FAIL on sub-µs benches whose CI variance
+exceeds 2.0×. Branch `feat/b34c-perfgate-noise-floor` off `main` (#184). Triggered by the PR #101
+false-positive flake.
+
+**Findings (verified)**: F1 PR #101 (B-21b-1, advanced-gated, cannot touch `memory/limits.rs`)
+failed the gate solely on `concurrent_resource_ops/sequential/{5,10,20}` — sub-µs `ResourceLimits`
+benches (~83→193/154→372/321→737 ns) at 2.30–2.41×; every µs+ bench `ok`; a `--failed` re-run passed
+13/13 with no code change → measurement noise. F2 2.0× is below these benches' CI noise floor (B-34b
+F4 predicted this; first observed variance datum). F3 fix = a noise floor (skip FAIL for benches with
+baseline median < ~1000 ns; still report; still gate µs+ at 2.0×) — NOT a higher global threshold
+(which would blind the reliable benches).
+
+**Decision**: B-34c = `NOISE_FLOOR_NS = 1000.0` in `perf_gate.py`; sub-floor benches print `noisy …
+(not gated)`, never counted as regressions; ≥floor unchanged. Shadow Genome: gate only where signal
+exceeds jitter; the first flake is the tuning datum, not a reason to drop the gate.
+
+**Content Hash** (SHA256 of docs/research-brief-b34c-perfgate-noise-floor-2026-07-31.md): `eae1ae1e3a3503bcfaa0c8d81650b7c26f99f82e1e3d757a28626b30ddb4f414`
+
+**Previous Hash**: `0319686aedb27f3d2ba08767e267e721fd5528e53d4a0bc89752770cd1a62e39`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `6adf9bec81fb38858dfac0934813cf19b0f689397b20068dabd2b9dc16da001d`
+
+**Decision**: B-34c research complete; perf-gate noise-floor cycle. Chain tip:
+`6adf9bec81fb38858dfac0934813cf19b0f689397b20068dabd2b9dc16da001d`.
+
+---
+
+### Entry #186: GATE VERDICT — PASS (B-34c perf-gate noise floor)
+
+**Timestamp**: 2026-07-31T18:20:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L1
+**Verdict**: PASS
+**Session ID**: 2026-07-31T-b34c-perfgate-noise-floor
+
+**Target**: `docs/plan-b34c-perfgate-noise-floor-2026-07-31.md` — add `NOISE_FLOOR_NS = 1000.0` to
+`perf_gate.py`; sub-floor benches report `noisy`, never FAIL; ≥floor gate unchanged at 2.0×.
+
+**Adversarial passes**: Injection — governance files clean (PASS). Security/OWASP — the change
+NARROWS what the gate ignores to sub-µs benches only (report-not-fail); it does NOT weaken the gate
+for reliable benches, and is grounded in observed CI variance (#101), so it is a principled tuning,
+not a bypass (PASS). Razor — a ~6-line addition to a ~50-line script (PASS). Test-Functionality — no
+unit test (CI script); D4 specifies direct-invocation checks (sub-floor 3× → PASS; ≥floor 3× → FAIL;
+identical → PASS; empty → skip), which invoke the unit and assert exit codes (PASS).
+Infrastructure-Alignment — targets the real `perf_gate.py` loop; the flake data + the sub-µs benches
+(`concurrent_resource_ops`) are verified from the #101 log (PASS). Feature-Declaration — empty,
+justified CI infra (PASS). Lints clean; option_b_required=false.
+
+**Content Hash** (SHA256 of docs/plan-b34c-perfgate-noise-floor-2026-07-31.md): `7f8386468085a97011e93ff5d34ad64206a60443caae54d51adeb56cce6b1ac8`
+
+**Previous Hash**: `6adf9bec81fb38858dfac0934813cf19b0f689397b20068dabd2b9dc16da001d`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `4fb0491e32d106defbb572e02d423778e8885480e076bf2d9fbb496a300f2b23`
+
+**Decision**: PASS — B-34c plan cleared for implementation. Chain tip:
+`4fb0491e32d106defbb572e02d423778e8885480e076bf2d9fbb496a300f2b23`.
+
+---
+
+### Entry #187: SESSION SEAL (B-34c perf-gate noise floor)
+
+**Entry ID**: `5ca7a22eb6d7`
+**Timestamp**: 2026-07-31T18:45:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L1
+**Session ID**: 2026-07-31T-b34c-perfgate-noise-floor
+**SSDF Practices**: PO.1.4, PS.2.1
+
+**Target**: `docs/plan-b34c-perfgate-noise-floor-2026-07-31.md` (audit PASS Entry #186).
+
+**Reality vs Promise**: MATCH. `core-runtime/scripts/perf_gate.py` gains `NOISE_FLOOR_NS = 1000.0`;
+benches with baseline median < 1 µs print `noisy … not gated` and are never counted as regressions;
+benches ≥ 1 µs gate unchanged at the CLI threshold. Fixes the PR #101 false-positive flake without
+weakening the gate where measurement is reliable.
+
+**Verification (local)**: against a synthetic all-3×-slower baseline — `concurrent_resource_ops/*`
+(the #101 flaker, sub-µs) now reports `noisy` (not gated); `decode_binary/tokens/large` (≥floor,
+1561 ns) still `REGRESSION` → gate exits 1 (teeth intact); identical trees → PASS (0); empty baseline
+→ skip (0). `cargo fmt --check` clean.
+
+**Seal-gate ladder**: skill_admission ADMITTED; secret_scanner clean; merge_velocity exit 0;
+feature_index_verify 60/60; governance-index enforce → B-34c research+plan registered, exit 0;
+gate_chain_completeness OK. **Environmental SKIPs (disclosed)**: doc_integrity, badge_currency,
+seal_entry_check. `verify-ledger` → #185–#187 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `ce18c54f8e91fca23bdb751fa60b4bfb006d0c99a90b446d34058676080489c0`
+
+**Previous Hash**: `4fb0491e32d106defbb572e02d423778e8885480e076bf2d9fbb496a300f2b23`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `8406038947bcc8f749c6150a34777195fec1771f18e1bc7099f0d5588f536a7d`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `8c01028c4c90fa92dc521a95e869376414c6e6f3ce3d3ce87fc0903053dd8a95`
+
+**Decision**: B-34c COMPLETE and sealed — perf-gate no longer flakes on sub-µs benches; teeth intact
+above 1 µs. Unblocks B-21c/b-2 wiring PRs. Chain tip:
+`8406038947bcc8f749c6150a34777195fec1771f18e1bc7099f0d5588f536a7d`.

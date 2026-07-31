@@ -104,6 +104,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-21 ADR-007 scoping research brief | `docs/research-brief-b21-adr007-scoping-2026-07-31.md` | b21-adr007-scoping |
 | B-21a ADR-007 doc plan | `docs/plan-b21a-adr007-doc-2026-07-31.md` | b21a-adr007-doc |
 | B-21b-1 retire speculative v1 plan | `docs/plan-b21b1-retire-speculative-v1-2026-07-31.md` | b21b1-retire-speculative-v1 |
+| B-34c perf-gate noise floor plan | `docs/plan-b34c-perfgate-noise-floor-2026-07-31.md` | b34c-perfgate-noise-floor |
+| B-34c perf-gate noise floor research brief | `docs/research-brief-b34c-perfgate-noise-floor-2026-07-31.md` | b34c-perfgate-noise-floor |
 
 ## Tier 5 — Reference Material
 
