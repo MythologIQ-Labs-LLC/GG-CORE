@@ -10199,3 +10199,127 @@ doc_integrity (no glossary), badge_currency (Rust archetype), seal_entry_check (
 **Decision**: B-13 + B-14 COMPLETE and sealed. The architecture doc exists (grounded) and the
 feature index is 60/60 accurate. Chain tip:
 `d7c90aa40d481e65417415eda27827ce9bf03bca1ad63eb844e08e1bb4e4326b`.
+
+---
+
+### Entry #180: RESEARCH BRIEF (B-21 ADR-007 epic scoping/decomposition)
+
+**Timestamp**: 2026-07-31T15:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2
+**Session ID**: 2026-07-31T-b21-adr007-scoping
+
+**Target**: B-21 — scope/decompose the ADR-007 epic (#60–#68) by reconciling
+`docs/plan-adr007-epic-execution.md` against the code + ledger. Branch `feat/b21-adr007-scoping`
+off `main` (#179). Read-only scoping — no implementation.
+
+**Findings (verified, file:line-grounded via survey)**: F1 all 8 issues #61–#68 are BUILT +
+unit-tested + SEALED (ledger #87–#94; features F-48–F-54) — B-21 is not unbuilt. F2 (load-bearing)
+the entire ADR-007 surface is **built-but-DORMANT**: no production wiring — `engine/inference.rs`/
+`Runtime::infer` have zero speculative refs; the decoders/plan/traits are instantiated only in
+tests. F3 three parallel impls coexist (`speculative.rs`, `speculative_v2.rs`,
+`adaptive_speculative/`); the #68 consolidation audit (2026-07-08) predates `adaptive_speculative`
+→ stale, never flagged the redundancy. F4 B-13-class doc-drift: `ADR-007-TIERSYNERGY-ADAPTIVE-
+SPECULATIVE-DECODING.md` is absent on main (only on unmerged PR #59) yet F-48/49/50/51/53 cite it.
+F5 audit F2 (stale `engine/mod.rs:8,42` comments) undone, F3 partial; THREAT_MODEL §12.2 cites a
+`t1_..allowlist` test that doesn't exist. F6 the benchmark is overhead-only (synthetic, no e2e
+speedup).
+
+**Decision**: reframed decomposition — the #61–#68 build shipped (sealed); the remainder is B-21a
+(create/merge the canonical ADR doc; doc-only), B-21b (refresh audit + resolve triple-redundancy),
+B-21d (audit loose ends + missing security test), and — behind a STRATEGIC operator go/no-go
+(ADR still "Proposed", PR #59 unmerged) — B-21c (production wiring into `Runtime::infer`, L3) +
+B-21e (real e2e benchmark, gated on B-21c). Backlog: mark #61–#68 done; re-scope B-21 to a/b/c/d/e.
+Shadow Genome: **a sealed epic can be built-but-dormant — "sealed" ≠ "wired to production"; scope by
+grepping the real entry points, not just tests+seals.**
+
+**Content Hash** (SHA256 of docs/research-brief-b21-adr007-scoping-2026-07-31.md): `483ccdded6da00e476edf751769e46a8b0c61b05a45211cd995cf4857dc9ea05`
+
+**Previous Hash**: `d7c90aa40d481e65417415eda27827ce9bf03bca1ad63eb844e08e1bb4e4326b`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `3fe507a1649e14fb724ba6820cd118dd9d637e340d76060f897282af999ca80c`
+
+**Decision**: B-21 scoping complete; epic is built-dormant, remainder decomposed a/b/c/d/e with a
+wiring go/no-go fork. Chain tip:
+`3fe507a1649e14fb724ba6820cd118dd9d637e340d76060f897282af999ca80c`.
+
+---
+
+### Entry #181: GATE VERDICT — PASS (B-21a canonical ADR-007 doc + backlog reconciliation)
+
+**Timestamp**: 2026-07-31T15:40:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L1
+**Verdict**: PASS
+**Session ID**: 2026-07-31T-b21a-adr007-doc
+
+**Target**: `docs/plan-b21a-adr007-doc-2026-07-31.md` — adopt `ADR-007-TIERSYNERGY-ADAPTIVE-
+SPECULATIVE-DECODING.md` onto `main` from PR #59, reconciled to the built-dormant reality; reconcile
+the BACKLOG to the operator-confirmed B-21 decomposition (a → b-1 → c → b-2 → e, d anytime).
+Operator chose (A) wire it + de-dup, sequence confirmed via AskUserQuestion.
+
+**Adversarial passes**: Injection — governance files clean, plan self-authored (PASS). Security /
+OWASP — documentation only (PASS). Razor — docs exempt from the 250-line code contract (PASS).
+Infrastructure-Alignment — the ADR is adopted from a VERIFIED real branch
+(`origin/docs/adr-007-tiersynergy-dspark`, `git ls-remote` + `cat-file -e` confirmed, 566 lines),
+and the reconciliation addendum's claims (sealed #87–#94, built-dormant, triple-redundancy) are all
+grounded in scoping brief #180 — no fabrication (PASS). Test-Functionality — no tests (doc);
+verification is path-existence + `feature_index_verify` (PASS). Feature-Declaration — empty,
+justified (adds the doc existing rows already cite) (PASS). Lints clean; option_b_required=false.
+
+**Content Hash** (SHA256 of docs/plan-b21a-adr007-doc-2026-07-31.md): `319fdd15fe21623a407d1e77be12fc8a0956fc1113a47187b558582f994de086`
+
+**Previous Hash**: `3fe507a1649e14fb724ba6820cd118dd9d637e340d76060f897282af999ca80c`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `783a7907fac5df00e278e767b3b21b9ec747eb2b3c78f5e20a4019ac21d566dc`
+
+**Decision**: PASS — B-21a plan cleared for implementation. Chain tip:
+`783a7907fac5df00e278e767b3b21b9ec747eb2b3c78f5e20a4019ac21d566dc`.
+
+---
+
+### Entry #182: SESSION SEAL (B-21a canonical ADR-007 doc + backlog reconciliation)
+
+**Entry ID**: `6bae68de87a2`
+**Timestamp**: 2026-07-31T16:00:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch held — no push pending operator; part of the B-21 branch)
+**Author**: Specialist + Judge
+**Risk Grade**: L1
+**Session ID**: 2026-07-31T-b21a-adr007-doc
+**SSDF Practices**: PO.1.4, PS.2.1
+
+**Target**: `docs/plan-b21a-adr007-doc-2026-07-31.md` (audit PASS Entry #181).
+
+**Reality vs Promise**: MATCH. `docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-
+DECODING.md` materialized on `main` from the PR #59 branch (`git show
+origin/docs/adr-007-tiersynergy-dspark:<path>`, 566 lines) and reconciled: Status `Proposed` →
+`Accepted — implemented (dormant)`, plus an **Implementation Status & Consolidation (2026-07-31,
+B-21)** section (built+sealed #87–#94 but dormant; triple-redundancy v1/v2/adaptive;
+`adaptive_speculative` canonical; the confirmed retirement sequence B-21b-1→c→b-2→e; supersedes the
+stale CONSOLIDATION-AUDIT) — final 613 lines. `BACKLOG.md` B-21 re-scoped (#61–#68 done; rows
+B-21a/b-1/c/b-2/d/e added). The 5 FEATURE_INDEX citations (F-48/49/50/51/53) now resolve.
+Documentation/governance only; no `.rs`/`gg_core.h` staged.
+
+**Verification (local)**: ADR doc exists (613 lines); Implementation-Status section + reconciled
+Status present; `grep` → 5 FEATURE_INDEX rows cite the now-present file; `feature_index_verify`
+60/60. Addendum claims (sealed #87–#94, dormancy, redundancy) match scoping brief #180.
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity exit 0; feature_index_verify 60/60; governance-index enforce → ADR doc + scoping
+brief + B-21a plan registered, exit 0; gate_chain_completeness OK. **Environmental SKIPs
+(disclosed)**: doc_integrity (no glossary), badge_currency (Rust archetype), seal_entry_check
+(ledger parser). `verify-ledger` → #180–#182 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `d9837a0fcf76911673a605e600d723521a82c801e371557b992b283cf18a4945`
+
+**Previous Hash**: `783a7907fac5df00e278e767b3b21b9ec747eb2b3c78f5e20a4019ac21d566dc`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `9fe27d7e0eab1bf6fc9d26530d7db1eaae4adf0922efdf30a867dbf237ac7017`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `ae59dee914ea7612d58fd1bb007d7276d40bd1088d211ecfadd4fc93e6640c25`
+
+**Decision**: B-21a COMPLETE and sealed. Canonical ADR-007 on `main`; dangling citations resolved;
+B-21 decomposition reconciled. Next: B-21b-1 (retire v1). Chain tip:
+`9fe27d7e0eab1bf6fc9d26530d7db1eaae4adf0922efdf30a867dbf237ac7017`.

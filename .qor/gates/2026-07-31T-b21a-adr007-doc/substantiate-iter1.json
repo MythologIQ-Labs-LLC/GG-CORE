@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-07-31T-b21a-adr007-doc",
+  "ts": "2026-07-31T05:57:43Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 2
+  },
+  "merkle_seal": "ae59dee914ea7612d58fd1bb007d7276d40bd1088d211ecfadd4fc93e6640c25",
+  "content_hash": "d9837a0fcf76911673a605e600d723521a82c801e371557b992b283cf18a4945",
+  "ledger_entry": 182,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T05:57:43Z"
+  }
+}

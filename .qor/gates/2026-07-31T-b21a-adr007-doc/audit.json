@@ -1,0 +1,20 @@
+{
+  "phase": "audit",
+  "session_id": "2026-07-31T-b21a-adr007-doc",
+  "ts": "2026-07-31T05:53:41Z",
+  "target": "B-21a canonical ADR-007 doc + backlog reconciliation plan",
+  "verdict": "PASS",
+  "violations": [],
+  "risk_grade": "L1",
+  "report_path": "docs/plan-b21a-adr007-doc-2026-07-31.md",
+  "target_content_hash": "319fdd15fe21623a407d1e77be12fc8a0956fc1113a47187b558582f994de086",
+  "findings_categories": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T05:53:41Z"
+  }
+}

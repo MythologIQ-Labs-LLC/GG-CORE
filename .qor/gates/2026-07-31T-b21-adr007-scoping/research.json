@@ -1,0 +1,59 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-31T-b21-adr007-scoping",
+  "ts": "2026-07-31T03:13:29Z",
+  "questions": [
+    "Is the ADR-007 epic built or unbuilt?",
+    "Is any of it wired to production?",
+    "What is B-21's real remaining scope?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "All 8 issues #61-#68 built+unit-tested+SEALED (ledger #87-#94; F-48..F-54). Not unbuilt.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "Entire ADR-007 surface is DORMANT \u2014 no production wiring; Runtime::infer/inference.rs have zero speculative refs; instantiated only in tests.",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "Three parallel impls (speculative.rs, speculative_v2.rs, adaptive_speculative/); #68 audit predates adaptive_speculative -> stale.",
+      "status": "verified"
+    },
+    {
+      "id": "F4",
+      "detail": "ADR-007-TIERSYNERGY doc absent on main (only unmerged PR #59); F-48/49/50/51/53 cite it -> dangling (B-13-class).",
+      "status": "verified"
+    },
+    {
+      "id": "F5",
+      "detail": "Audit F2 undone (engine/mod.rs:8,42), F3 partial; THREAT_MODEL \u00a712.2 cites nonexistent t1_..allowlist test.",
+      "status": "verified"
+    },
+    {
+      "id": "F6",
+      "detail": "speculative_matrix bench is overhead-only (synthetic, no e2e speedup).",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "docs/plan-adr007-epic-execution.md",
+    "core-runtime/src/engine/adaptive_speculative/mod.rs:157-215",
+    "core-runtime/src/engine/inference.rs",
+    "docs/architecture/ADR-007-CONSOLIDATION-AUDIT.md",
+    "docs/FEATURE_INDEX.md:79-85",
+    "docs/META_LEDGER.md#87-#94"
+  ],
+  "brief_path": "docs/research-brief-b21-adr007-scoping-2026-07-31.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T03:13:29Z"
+  }
+}
