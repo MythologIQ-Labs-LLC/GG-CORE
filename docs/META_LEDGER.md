@@ -10522,3 +10522,145 @@ seal_entry_check. `verify-ledger` → #185–#187 verified.
 **Decision**: B-34c COMPLETE and sealed — perf-gate no longer flakes on sub-µs benches; teeth intact
 above 1 µs. Unblocks B-21c/b-2 wiring PRs. Chain tip:
 `8406038947bcc8f749c6150a34777195fec1771f18e1bc7099f0d5588f536a7d`.
+
+---
+
+### Entry #188: RESEARCH BRIEF (B-21c wire adaptive speculation into Runtime::infer)
+
+**Timestamp**: 2026-07-31T19:30:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3 (secure inference path)
+**Session ID**: 2026-07-31T-b21c-wire-adaptive-speculation
+
+**Target**: B-21c — make adaptive speculative decoding LIVE from `Runtime::infer` (config-gated-off
+default, correct, telemetry-observable). Branch `feat/b21c-wire-adaptive-speculation` off `main`
+(#187).
+
+**Findings (verified, file:line via survey)**: F1 executor blueprint = `run_step`
+(`adaptive_speculative/tests.rs:79-100`); commit mechanics mirror v2 `speculative_step`
+(`speculative_v2.rs:216-256`) — accepted_count draft tokens + correction; rejected suffix never
+committed. F2 adaptive traits: draft/verify/generate_one async, estimate/plan/eos_token sync;
+heuristic ctors take temperature/rep hints + `AdaptiveSpeculativeConfig`. F3 GGUF adaptive adapter
+buildable from `generator.rs:{113,126,139}` (log_probs degrade to NEG_INFINITY — no per-token
+probs). F4 config OFF by default (`is_active()=enabled&&mode!=Disabled`; `speculative_config.rs:80`).
+F5 seam = inside `InferenceEngine::run` (scan/sanitize wrap it in the façade); gap = no draft
+plumbing → add `register_draft_pair(target_id,draft_id)` + `as_any` downcast + fallthrough. F6
+telemetry readout unplumbed (`SystemStatus.speculative_stats` hardcoded None, `status.rs:272`). F7
+**CAVEAT**: GGUF backend rebuilds LlamaContext per step (no KV reuse; `backend.rs:175,207`) → wired
+path correct but likely net-slower → auto_disable fires; real speedup needs KV reuse → **B-21f filed**.
+
+**Decision**: B-21c (one cohesive cycle → LIVE): executor.rs + GGUF adaptive adapter + engine
+draft-pair plumbing + config-gated branch in `run` (single-model fallthrough default) + telemetry
+readout; unit + engine tests; advanced(+gguf)-gated. File B-21f (KV reuse) for the actual speedup.
+Shadow Genome: wiring ≠ speedup, but wiring ≠ dormant — ship the live/correct/gated path, file the
+perf follow-on honestly.
+
+**Content Hash** (SHA256 of docs/research-brief-b21c-wire-adaptive-speculation-2026-07-31.md): `7e58f9df79dff32740800a3a17a368518256830a6429a43cb020bc65709a0ac8`
+
+**Previous Hash**: `8406038947bcc8f749c6150a34777195fec1771f18e1bc7099f0d5588f536a7d`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `1673600c5f64c562d0bec3748596b4b390a708a4c5c58206e617d447d5f69531`
+
+**Decision**: B-21c research complete; wire-live executor + engine plumbing cycle; B-21f (KV reuse)
+filed. Chain tip:
+`1673600c5f64c562d0bec3748596b4b390a708a4c5c58206e617d447d5f69531`.
+
+---
+
+### Entry #189: GATE VERDICT — PASS (B-21c wire adaptive speculation, L3)
+
+**Timestamp**: 2026-07-31T20:00:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L3 (secure inference path)
+**Verdict**: PASS
+**Session ID**: 2026-07-31T-b21c-wire-adaptive-speculation
+
+**Target**: `docs/plan-b21c-wire-adaptive-speculation-2026-07-31.md` — executor + GGUF adaptive
+adapter + engine draft-pair plumbing + a config-gated branch in `InferenceEngine::run` (single-model
+fallthrough default) + telemetry readout.
+
+**Adversarial passes**: Injection — governance files clean (PASS). **Security-L3 (decisive, fail-safe
+by construction)** — the speculative branch lives INSIDE `run`, which `Runtime::infer` brackets with
+`scan_prompt` (before) + `sanitize_output` (after) in the façade, so both guarantees are inherited
+untouched (F5; no façade branch). Rejected suffix is NEVER committed — the executor commits only
+`accepted_count` + optional correction (mirrors v2 `speculative_step`), asserted by
+`commits_correction_on_reject`. Single-model fallback is the DEFAULT (any resolution/downcast miss
+falls through) and `AdaptiveSpeculativeConfig` is OFF by default (`is_active()` false) — inert unless
+deliberately enabled + a draft pair registered; self-protecting via `auto_disable`. Telemetry stores
+no prompt/output text (T3). No new network/auth/secret (PASS). OWASP — the `as_any` downcast is
+type-checked; no injection/deserialization (PASS). Razor — new files (executor ~80, gguf adapter
+~60); **CAUTION: `inference.rs` (~230 lines) must extract the speculative branch to a helper to stay
+≤250 / fns ≤40** — binding implementation constraint. Test-Functionality — executor tests invoke the
+unit + assert commit/fallback/eos; the rejected-suffix-absent invariant is a real functional test
+(PASS). Infrastructure-Alignment — every cited symbol grep-verified in survey #188 (run_step, traits,
+generator methods, config gate, run seam, telemetry, status None) (PASS). Feature-Declaration — F-61
+NEW with an invoking executor test (PASS). Lints (incl. signature-widening, feature-tdd,
+live-progress) clean; option_b_required=false. **Perf honesty**: the wired path is correct but
+net-slower without KV reuse (auto-disables) — B-21f filed; this is disclosed, not hidden.
+
+**Content Hash** (SHA256 of docs/plan-b21c-wire-adaptive-speculation-2026-07-31.md): `9b578f63b8ffbdd40a8b7765caacf0b80a5f52f53cb1a37f4410d30e288ac61b`
+
+**Previous Hash**: `1673600c5f64c562d0bec3748596b4b390a708a4c5c58206e617d447d5f69531`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `62dc6e0d34efa07ecac56001b1fd0d01653e2dfd16de21f60ead7483db4b4eb5`
+
+**Decision**: PASS — B-21c cleared for implementation (keep `inference.rs` ≤250 via a helper). Chain
+tip: `62dc6e0d34efa07ecac56001b1fd0d01653e2dfd16de21f60ead7483db4b4eb5`.
+
+---
+
+### Entry #190: SESSION SEAL (B-21c — adaptive speculation WIRED into Runtime::infer; dormant state ended)
+
+**Entry ID**: `c74c6554fa26`
+**Timestamp**: 2026-07-31T21:00:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L3 (secure inference path)
+**Session ID**: 2026-07-31T-b21c-wire-adaptive-speculation
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1, PW.7.2
+
+**Target**: `docs/plan-b21c-wire-adaptive-speculation-2026-07-31.md` (audit PASS Entry #189).
+
+**Reality vs Promise**: MATCH (with one disclosed trim). **The ADR-007 adaptive-speculative stack is
+no longer dormant — it is reachable from `Runtime::infer`.** NEW `adaptive_speculative/executor.rs`
+(`AdaptiveSpeculativeExecutor`: outer decode loop; commits only accepted_count + correction — rejected
+suffix never committed; telemetry per step); NEW `gguf/adaptive_speculative.rs`
+(`GgufBlockDraftModel`/`GgufTargetVerifier` over `GgufGenerator`); `GgufGenerator` gains
+`tokenize`/`detokenize`; `InferenceEngine` gains `spec_config`/`spec_telemetry`/`draft_pairs` +
+`set_speculative_config`/`register_draft_pair`/`speculative_snapshot` and a config-gated branch in
+`run` (`try_speculative`/`run_speculative` relocated to child module `inference_speculative.rs` for
+Razor). Off by default (`AdaptiveSpeculativeConfig::is_active()` false); any miss falls through to
+single-model. Security path unchanged — scan/sanitize wrap `run` in the façade. **Disclosed scope
+trim (Phase 4)**: telemetry is RECORDED (executor) + exposed via `speculative_snapshot()`, but the
+CLI `SystemStatus.speculative_stats` display is deferred to **B-21h** (`build_status` has no engine
+ref → signature plumbing); the observability exists at the API. **Perf**: correct but not yet faster
+(no KV reuse → auto-disables) → **B-21f** filed. **B-40** (advanced not in CI clippy/test matrix) also
+noted.
+
+**Verification (local)**: `cargo test -p gg-core --features "gguf advanced" adaptive_speculative` →
+**36 passed** (5 executor tests incl. `commits_correction_on_reject` — the rejected-suffix invariant).
+Builds clean under `--features "gguf advanced"`, `--features gguf`, and default (my code is
+advanced-gated → the CI legs skip it; CI-safe like B-21b-1). `cargo fmt --check` clean; clippy on the
+changed files clean (the 14 pre-existing advanced lints are in unrelated files, B-40). **Razor**:
+inference.rs 250, inference_speculative.rs 115, executor.rs 118, gguf/adaptive_speculative.rs 86 —
+all ≤ 250.
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity exit 0; feature_index_verify total=61 verified=61 (F-61 NEW); governance-index enforce
+→ B-21c research+plan registered, exit 0; gate_chain_completeness OK. **Environmental SKIPs**:
+doc_integrity, badge_currency, seal_entry_check. `verify-ledger` → #188–#190 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `cd7b62be823e3674ea2d8f2033803e8341faa1da95ee5a4adb8abd09ffbdb8d8`
+
+**Previous Hash**: `62dc6e0d34efa07ecac56001b1fd0d01653e2dfd16de21f60ead7483db4b4eb5`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `57ca812d4a486abee7c8bb80bd3e5065a47772019979bab399e13aceebee84c4`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `49b6aaac345dd146c79991363434d8bdf21aee4b41e7b39800a56ea7169a4443`
+
+**Decision**: B-21c COMPLETE and sealed — **adaptive speculation is LIVE (reachable, correct,
+gated, opt-in); the dormant state is ended.** Next: B-21b-2 (retire v2 → single), then B-21f (KV
+reuse for the speedup), B-21e (e2e bench), B-21d/B-21h loose ends. Chain tip:
+`57ca812d4a486abee7c8bb80bd3e5065a47772019979bab399e13aceebee84c4`.

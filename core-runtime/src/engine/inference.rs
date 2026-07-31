@@ -12,6 +12,10 @@ use crate::engine::{InferenceInput, InferenceOutput};
 use crate::models::ModelHandle;
 
 pub use super::inference_types::{InferenceError, InferenceParams, InferenceResult};
+// Adaptive speculative decode wiring (B-21c); child module for private-field access.
+#[cfg(feature = "advanced")]
+#[path = "inference_speculative.rs"]
+mod speculative_wire;
 
 /// Executes model inference by delegating to registered models.
 pub struct InferenceEngine {
@@ -20,15 +24,18 @@ pub struct InferenceEngine {
     models: Arc<RwLock<HashMap<String, Arc<dyn Model>>>>,
     /// Degraded-mode policy applied under resource pressure (B-07).
     degraded: DegradedModePolicy,
+    // Adaptive speculative decoding (B-21c); off by default, target->draft pairs.
+    #[cfg(feature = "advanced")]
+    spec_config: crate::models::speculative_config::AdaptiveSpeculativeConfig,
+    #[cfg(feature = "advanced")]
+    spec_telemetry: Arc<crate::engine::adaptive_speculative::telemetry::SpeculativeTelemetry>,
+    #[cfg(feature = "advanced")]
+    draft_pairs: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl InferenceEngine {
     pub fn new(max_context_length: usize) -> Self {
-        Self {
-            max_context_length,
-            models: Arc::new(RwLock::new(HashMap::new())),
-            degraded: DegradedModePolicy::default(),
-        }
+        Self::with_degraded_policy(max_context_length, DegradedModePolicy::default())
     }
 
     /// Construct with a custom degraded-mode policy (overrides the default).
@@ -37,6 +44,12 @@ impl InferenceEngine {
             max_context_length,
             models: Arc::new(RwLock::new(HashMap::new())),
             degraded,
+            #[cfg(feature = "advanced")]
+            spec_config: crate::models::speculative_config::AdaptiveSpeculativeConfig::default(),
+            #[cfg(feature = "advanced")]
+            spec_telemetry: Arc::default(),
+            #[cfg(feature = "advanced")]
+            draft_pairs: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -65,13 +78,19 @@ impl InferenceEngine {
         params.validate()?;
         let model = self.get_model(model_id).await?;
         let prompt = self.apply_degraded_context(prompt)?;
+        // B-21c: config-gated speculative decode (off by default); miss -> single-model.
+        #[cfg(all(feature = "gguf", feature = "advanced"))]
+        if let Some(r) = self
+            .try_speculative(model_id, &model, &prompt, params)
+            .await
+        {
+            return r;
+        }
         Self::infer_with_model(&model, &prompt, params).await
     }
 
-    /// Run inference with cooperative per-token cancellation.
-    ///
-    /// The cancellation flag is checked before inference and also
-    /// threaded through to the GGUF backend for per-token checks.
+    /// Run inference with cooperative per-token cancellation (checked before
+    /// inference and threaded to the GGUF backend for per-token checks).
     pub(crate) async fn run_cancellable(
         &self,
         model_id: &str,
@@ -97,9 +116,8 @@ impl InferenceEngine {
         Ok(result)
     }
 
-    /// Run inference with per-token cancellation and a per-call memory budget.
-    ///
-    /// The `max_memory_bytes` is enforced before calling into the model.
+    /// Run inference with per-token cancellation and a per-call memory budget
+    /// (`max_memory_bytes` enforced before calling into the model).
     pub(crate) async fn run_cancellable_with_memory_limit(
         &self,
         model_id: &str,

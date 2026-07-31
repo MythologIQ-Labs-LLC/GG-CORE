@@ -2,12 +2,16 @@
 //!
 //! Provides text generation models via llama.cpp bindings.
 
+#[cfg(all(feature = "gguf", feature = "advanced"))]
+pub mod adaptive_speculative;
 #[cfg(feature = "gguf")]
 pub mod backend;
 mod generator;
 #[cfg(all(feature = "gguf", feature = "advanced"))]
 pub mod speculative;
 
+#[cfg(all(feature = "gguf", feature = "advanced"))]
+pub use adaptive_speculative::{GgufBlockDraftModel, GgufTargetVerifier};
 #[cfg(feature = "gguf")]
 pub use backend::LlamaBackendInner;
 pub use generator::GgufGenerator;

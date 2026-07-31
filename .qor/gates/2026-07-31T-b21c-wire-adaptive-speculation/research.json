@@ -1,0 +1,64 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-31T-b21c-wire-adaptive-speculation",
+  "ts": "2026-07-31T07:23:09Z",
+  "questions": [
+    "Where is the wiring seam?",
+    "What must be built (executor/adapter/plumbing)?",
+    "Will wiring actually speed things up?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "executor blueprint = run_step (adaptive_speculative/tests.rs:79-100); commit mirrors v2 speculative_step; rejected suffix never committed.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "adaptive traits: draft/verify/generate_one async, estimate/plan/eos sync; heuristic ctors take temp/rep + AdaptiveSpeculativeConfig.",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "GGUF adaptive adapter buildable from generator.rs {113,126,139}; log_probs degrade (no per-token probs).",
+      "status": "verified"
+    },
+    {
+      "id": "F4",
+      "detail": "config OFF by default; is_active()=enabled&&mode!=Disabled.",
+      "status": "verified"
+    },
+    {
+      "id": "F5",
+      "detail": "seam = inside InferenceEngine::run (scan/sanitize wrap it); add register_draft_pair + as_any downcast + fallthrough.",
+      "status": "verified"
+    },
+    {
+      "id": "F6",
+      "detail": "telemetry readout unplumbed (SystemStatus.speculative_stats hardcoded None status.rs:272).",
+      "status": "verified"
+    },
+    {
+      "id": "F7",
+      "detail": "CAVEAT: GGUF rebuilds LlamaContext per step (no KV reuse) -> correct but net-slower -> auto_disable; real speedup = B-21f (filed).",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/engine/inference.rs:59-69",
+    "core-runtime/src/engine/adaptive_speculative/tests.rs:79-100",
+    "core-runtime/src/engine/speculative_v2.rs:216-256",
+    "core-runtime/src/engine/gguf/backend.rs:175,207",
+    "core-runtime/src/models/speculative_config.rs:80",
+    "core-runtime/src/cli/status.rs:272"
+  ],
+  "brief_path": "docs/research-brief-b21c-wire-adaptive-speculation-2026-07-31.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T07:23:09Z"
+  }
+}
