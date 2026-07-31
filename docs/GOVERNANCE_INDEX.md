@@ -101,6 +101,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-34b perf-regression gate research brief | `docs/research-brief-b34b-perf-regression-gate-2026-07-31.md` | b34b-perf-regression-gate |
 | B-13/B-14 doc-accuracy plan | `docs/plan-b13-b14-doc-accuracy-2026-07-31.md` | b13-b14-doc-accuracy |
 | B-13/B-14 doc-accuracy research brief | `docs/research-brief-b13-b14-doc-accuracy-2026-07-31.md` | b13-b14-doc-accuracy |
+| B-21 ADR-007 scoping research brief | `docs/research-brief-b21-adr007-scoping-2026-07-31.md` | b21-adr007-scoping |
+| B-21a ADR-007 doc plan | `docs/plan-b21a-adr007-doc-2026-07-31.md` | b21a-adr007-doc |
 
 ## Tier 5 — Reference Material
 
@@ -118,6 +120,7 @@ Informational, slow-drift. Drift signal: factual claims diverge from current cod
 | Recommended models | `docs/RECOMMENDED_MODELS.md` |
 | Benchmarks | `docs/BENCHMARKS.md` |
 | Core runtime architecture (technical spec) | `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` |
+| ADR-007 TierSynergy adaptive speculative decoding | `docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md` |
 | Architecture decision records | `docs/architecture/` |
 | Security docs | `docs/security/` |
 | Analysis & reviews | `docs/analysis/`, `docs/review/` |

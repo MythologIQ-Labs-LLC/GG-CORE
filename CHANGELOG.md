@@ -5,6 +5,7 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 ## [Unreleased]
 
 ### Documentation
+- Adopted the canonical `docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md` onto `main` (B-21a) — the design of record that five FEATURE_INDEX rows (F-48/49/50/51/53) cited but which existed only on the unmerged PR #59 branch. Reconciled to the built reality: status Proposed → Accepted-implemented-(dormant), with an Implementation Status & Consolidation section recording that the ADR-007 stack (#61–#68, sealed #87–#94) is built + sealed but not yet wired into `Runtime::infer`, and the confirmed v1/v2 → single-`adaptive_speculative` retirement sequence.
 - Added `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` (B-13) — the code-grounded technical spec that `CLAUDE.md` and `docs/TANDEM_EXPERIMENTS_PROPOSAL.md` cited but which did not exist (C.O.R.E. principles, security boundaries, module map, the secure `Runtime::infer` path, GGUF/ONNX dispatch, scheduler/memory, consumable-dependency shape).
 - Corrected two mis-stated `docs/FEATURE_INDEX.md` rows (B-14): F-45 (Veritas shim) cited `n/a` despite 14 inline tests — now cited; F-38 (sandbox) marked verified with a unix-gated/CI-verified note. `feature_index_verify` reports 60/60 verified.
 
