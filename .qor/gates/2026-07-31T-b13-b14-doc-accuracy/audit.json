@@ -1,0 +1,20 @@
+{
+  "phase": "audit",
+  "session_id": "2026-07-31T-b13-b14-doc-accuracy",
+  "ts": "2026-07-31T01:45:13Z",
+  "target": "B-13+B-14 documentation-accuracy plan",
+  "verdict": "PASS",
+  "violations": [],
+  "risk_grade": "L1",
+  "report_path": "docs/plan-b13-b14-doc-accuracy-2026-07-31.md",
+  "target_content_hash": "28e00d42d610ffcffbf39805f0aee872f592553270e585e0622daeca8f03e07b",
+  "findings_categories": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-07-31T01:45:13Z"
+  }
+}

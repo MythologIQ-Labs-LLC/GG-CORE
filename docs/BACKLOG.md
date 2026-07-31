@@ -71,8 +71,8 @@ it. Priority and status reflect observable state at reconstruction time.
 |----|------|------------------|----------|--------|-------------|
 | B-11 | Seed scaffold-owned `docs/ARCHITECTURE_PLAN.md` (absent since bootstrap) | governance-health (Phase 109) | P2 | done | RESOLVED (reconciliation 2026-07-27): `governance-health --profile skill-entry` reports `OK docs/ARCHITECTURE_PLAN.md` |
 | B-12 | Seed scaffold-owned `docs/GOVERNANCE_INDEX.md`; restores Governance Index drift check | governance-health / governance-index (Phase 112/120) | P2 | done | RESOLVED (reconciliation 2026-07-27): `governance-health` reports `OK docs/GOVERNANCE_INDEX.md` |
-| B-13 | Doc drift: CLAUDE.md cites `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` which does not exist | CLAUDE.md vs `docs/architecture/` | P3 | open | Create the doc or correct the reference |
-| B-14 | Deep-verify `verified` rows in `docs/FEATURE_INDEX.md` per SG-035 | docs/FEATURE_INDEX.md | P3 | open | Operator confirms each test truly exercises its feature |
+| B-13 | Doc drift: CLAUDE.md cites `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` which does not exist | CLAUDE.md vs `docs/architecture/` | P3 | done | Created (#177–#179): code-grounded `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` (C.O.R.E., module map, secure `Runtime::infer` path, GGUF/ONNX dispatch, scheduler/memory, consumable shape); every cited path grep-verified; CLAUDE.md:92 + TANDEM refs now resolve |
+| B-14 | Deep-verify `verified` rows in `docs/FEATURE_INDEX.md` per SG-035 | docs/FEATURE_INDEX.md | P3 | done | Fixed 2 mis-stated rows (#177–#179): F-45 (Veritas shim) was `n/a` despite 14 inline tests → cited them; F-38 (sandbox) unix-gated → verified (CI-gated note). `feature_index_verify` 60/60 verified. Deep-verify: citations reconciled vs reality (SG-035) |
 
 ## Notes
 

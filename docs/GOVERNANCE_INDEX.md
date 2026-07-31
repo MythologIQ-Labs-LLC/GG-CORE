@@ -99,6 +99,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-38 profile memory research brief | `docs/research-brief-b38-profile-memory-2026-07-30.md` | b38-profile-memory |
 | B-34b perf-regression gate plan | `docs/plan-b34b-perf-regression-gate-2026-07-31.md` | b34b-perf-regression-gate |
 | B-34b perf-regression gate research brief | `docs/research-brief-b34b-perf-regression-gate-2026-07-31.md` | b34b-perf-regression-gate |
+| B-13/B-14 doc-accuracy plan | `docs/plan-b13-b14-doc-accuracy-2026-07-31.md` | b13-b14-doc-accuracy |
+| B-13/B-14 doc-accuracy research brief | `docs/research-brief-b13-b14-doc-accuracy-2026-07-31.md` | b13-b14-doc-accuracy |
 
 ## Tier 5 — Reference Material
 
@@ -115,6 +117,7 @@ Informational, slow-drift. Drift signal: factual claims diverge from current cod
 | Tandem experiments proposal | `docs/TANDEM_EXPERIMENTS_PROPOSAL.md` |
 | Recommended models | `docs/RECOMMENDED_MODELS.md` |
 | Benchmarks | `docs/BENCHMARKS.md` |
+| Core runtime architecture (technical spec) | `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` |
 | Architecture decision records | `docs/architecture/` |
 | Security docs | `docs/security/` |
 | Analysis & reviews | `docs/analysis/`, `docs/review/` |

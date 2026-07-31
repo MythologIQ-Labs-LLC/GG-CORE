@@ -4,6 +4,10 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 
 ## [Unreleased]
 
+### Documentation
+- Added `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` (B-13) — the code-grounded technical spec that `CLAUDE.md` and `docs/TANDEM_EXPERIMENTS_PROPOSAL.md` cited but which did not exist (C.O.R.E. principles, security boundaries, module map, the secure `Runtime::infer` path, GGUF/ONNX dispatch, scheduler/memory, consumable-dependency shape).
+- Corrected two mis-stated `docs/FEATURE_INDEX.md` rows (B-14): F-45 (Veritas shim) cited `n/a` despite 14 inline tests — now cited; F-38 (sandbox) marked verified with a unix-gated/CI-verified note. `feature_index_verify` reports 60/60 verified.
+
 ### Added
 - ONNX inference servable end-to-end: `core_model_load` selects the GGUF or ONNX backend from a sibling `manifest.json` (`load_model_dispatch`); ONNX embed/classify reachable through FFI/Python (closes #72 scope-3).
 - Degraded-mode policy: intentional, explained degradation under resource pressure — over-budget prompts are context-reduced instead of hard-failing (closes #53).

@@ -66,14 +66,14 @@ judgment.
 | F-35 | Security: encryption & FIPS | core-runtime/src/security/encryption.rs | docs/security | core-runtime/src/security/fips_tests.rs | verified |
 | F-36 | Security: PII detection | core-runtime/src/security/pii_detector.rs | docs/security | core-runtime/src/security/pii_tests.rs; core-runtime/src/scheduler/worker_security_tests.rs | verified |
 | F-37 | Security: prompt-injection guard | core-runtime/src/security/prompt_injection.rs | docs/security | core-runtime/src/security/sanitizer_tests.rs; core-runtime/tests/security_pipeline_wiring_test.rs | verified |
-| F-38 | Sandbox isolation | core-runtime/src/sandbox/ | docs/CONCEPT.md | core-runtime/tests/sandbox_test.rs | unverified |
+| F-38 | Sandbox isolation (unix-gated; CI-verified) | core-runtime/src/sandbox/ | docs/CONCEPT.md | core-runtime/tests/sandbox_test.rs | verified |
 | F-39 | C FFI bindings (inference routes through secure façade Runtime::infer; deadlock fixed, security-enforced) | core-runtime/src/ffi/ | docs/USAGE_GUIDE.md | core-runtime/tests/ffi_test.rs (ffi acceptance un-ignored + injection→SecurityRejected; + CI ffi leg: .github/workflows/rust.yml features/ffi — clippy -D warnings + build + test) | verified |
 | F-40 | Python (PyO3 0.29 / pyo3-async-runtimes 0.29) bindings (Session/AsyncSession::infer route through secure façade Runtime::infer; deadlock fixed, security-enforced; RUSTSEC-2026-0176/0177/2025-0020 cleared) | core-runtime/src/python/ | docs/USAGE_GUIDE.md | core-runtime/tests/python_binding_test.rs (CI python leg: .github/workflows/rust.yml features/python — cargo test --features python) | verified |
 | F-41 | CLI (health/status/config/models) | core-runtime/src/cli/ | docs/USAGE_GUIDE.md | core-runtime/tests/cli_test.rs | verified |
 | F-42 | Health probe | core-runtime/src/health.rs | docs/USAGE_GUIDE.md | core-runtime/tests/health_test.rs | verified |
 | F-43 | Config & resource limits | core-runtime/src/config.rs | docs/CONCEPT.md | core-runtime/tests/limits_test.rs | verified |
 | F-44 | K8s hardware profiles | core-runtime/src/k8s/ | docs/CONCEPT.md | core-runtime/src/k8s/profiles_tests.rs | verified |
-| F-45 | Veritas shim (rate-limit/service-tier) | core-runtime/src/shim/ | docs/META_LEDGER.md | n/a | unverified |
+| F-45 | Veritas shim (rate-limit/service-tier) | core-runtime/src/shim/ | docs/META_LEDGER.md | core-runtime/src/shim/rate_limiter.rs; core-runtime/src/shim/service_tier.rs; core-runtime/src/shim/mod.rs | verified |
 | F-46 | Chaos resilience harness | core-runtime/src/deployment/ | docs/architecture/ADR-006-DEPLOYMENT-STRATEGIES.md | core-runtime/tests/chaos_resilience_test.rs | verified |
 | F-47 | Benchmark suite | core-runtime/benches/ | docs/BENCHMARKS.md | core-runtime/tests/bench_fixtures_test.rs | verified |
 | F-48 | Adaptive speculative config (AdaptiveSpeculativeConfig) | core-runtime/src/models/speculative_config.rs | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/models/speculative_config.rs (inline tests) | verified |
