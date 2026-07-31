@@ -9698,3 +9698,131 @@ seal_entry_check (ledger parser). `verify-ledger` → #165–#167 verified.
 **Decision**: B-39 COMPLETE and sealed. The CI bench set is whole again (8 CI-safe benches); the
 IPC-encoding size-ladder throughput is measured. Chain tip:
 `d44dd4d3ea2f1238122e140548436852f598f242c17563f717fb47b797a49f65`.
+
+---
+
+### Entry #168: RESEARCH BRIEF (B-37 profile scheduler queue hot path)
+
+**Timestamp**: 2026-07-30T20:30:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2
+**Session ID**: 2026-07-30T-b37-profile-scheduler
+
+**Target**: B-37 — profile scheduler throughput + rank hotspots. Branch `feat/b37-profile-scheduler`
+off `main` (#167). Fourth optimization cycle; measurement-first.
+
+**Findings (verified)**: F1 `PriorityQueue` is a `BinaryHeap` (O(log n) push/pop) with a cheap
+alloc-free `Ord` (priority u8 then sequence u64, FIFO-stable) — optimal; the two existing benches
+measure this BARE structure → no algorithmic win there. F2 the real op `RequestQueue::enqueue`/
+`dequeue` (`queue.rs:41-56,61,128`) wraps the heap in an async `tokio::Mutex` + `Notify` — the
+per-request concurrency tax, UNMEASURED (the scheduler analogue of B-35's security tax). F3 async
+benching is feasible via a `tokio::Runtime` + `block_on` (tokio is a full dep; no new criterion
+feature); `RequestQueue`/`RequestQueueConfig` public. F4 benching the async round-trip vs the
+bare-heap numbers isolates the Mutex+Notify tax → decides any follow-up (lock sharding / batch-drain).
+
+**Decision**: B-37 = add `benches/scheduler_queue_overhead.rs` quantifying the async RequestQueue
+enqueue/dequeue tax over the bare heap; join CI. No optimization this cycle; do NOT touch the
+optimal `PriorityQueue`. Shadow Genome: profile the concurrency LAYER that actually runs, not the
+bare data structure underneath it.
+
+**Content Hash** (SHA256 of docs/research-brief-b37-profile-scheduler-2026-07-30.md): `8cf611a3711572e0ba59784e02bcb698997d97842b89c4f1d760e4a7f4badd66`
+
+**Previous Hash**: `d44dd4d3ea2f1238122e140548436852f598f242c17563f717fb47b797a49f65`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `bf1f5e825b5166da256cec0d696770f89ae62c08c801936578c932be8325ea60`
+
+**Decision**: B-37 research complete; async-RequestQueue-overhead bench cycle. Chain tip:
+`bf1f5e825b5166da256cec0d696770f89ae62c08c801936578c932be8325ea60`.
+
+---
+
+### Entry #169: GATE VERDICT — PASS (B-37 scheduler_queue_overhead bench plan)
+
+**Timestamp**: 2026-07-30T21:00:00-04:00
+**Phase**: GATE (audit)
+**Author**: Judge
+**Risk Grade**: L2
+**Verdict**: PASS
+**Session ID**: 2026-07-30T-b37-profile-scheduler
+
+**Target**: `docs/plan-b37-profile-scheduler-2026-07-30.md` — add a `scheduler_queue_overhead`
+bench quantifying the async `RequestQueue::enqueue`/`dequeue` (Mutex + Notify) tax over the bare
+heap; join the CI bench job.
+
+**Adversarial passes**: Injection — governance files clean, plan self-authored (PASS). Security /
+OWASP — bench-only; no auth/secret/deserialization/bypass (PASS). Razor — a new bench mirroring the
+existing bench structure (2 fns + a tokio runtime helper), no source file grows (PASS).
+Test-Functionality — no unit test; the bench IS the executable verification, driving a real
+`RequestQueue`; D4 asserts observed behavior (both groups run to completion), same pattern as
+B-35 PASS (PASS). Infrastructure-Alignment — every cited symbol grep-verified:
+`RequestQueue::new`/`RequestQueueConfig{max_pending,max_context_tokens}` (`queue.rs:24-56`),
+`enqueue(model_id,prompt,params,priority)->Result<(u64,usize)>` (`:61`), `dequeue()->Option`
+(`:128`), `InferenceParams` (`inference_types.rs:32`), tokio full dep (`Cargo.toml:17`), public
+exports (`scheduler/mod.rs:28`) (PASS). Feature-Declaration — empty, justified as measurement
+infra (PASS). Pre-audit lints clean; option_b_required=false.
+
+**Content Hash** (SHA256 of docs/plan-b37-profile-scheduler-2026-07-30.md): `c65868bfa75557323cdcf186d165d30611bd7f4bab00bef3a97d4ae00771279b`
+
+**Previous Hash**: `bf1f5e825b5166da256cec0d696770f89ae62c08c801936578c932be8325ea60`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `d7a252dcab797b27438ca8975adc87b5671b3477d3dc403663637ec333f2a1d4`
+
+**Decision**: PASS — B-37 plan cleared for implementation. Chain tip:
+`d7a252dcab797b27438ca8975adc87b5671b3477d3dc403663637ec333f2a1d4`.
+
+---
+
+### Entry #170: SESSION SEAL (B-37 profile scheduler — negative result, no optimization warranted)
+
+**Entry ID**: `7d74cf27bca5`
+**Timestamp**: 2026-07-31T09:00:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch pushed for CI per operator authorization)
+**Author**: Specialist + Judge
+**Risk Grade**: L2
+**Session ID**: 2026-07-30T-b37-profile-scheduler
+**SSDF Practices**: PO.1.4, PS.2.1, PW.1.1
+
+**Target**: `docs/plan-b37-profile-scheduler-2026-07-30.md` (audit PASS Entry #169).
+
+**Reality vs Promise**: MATCH. New `core-runtime/benches/scheduler_queue_overhead.rs` drives the
+real async `RequestQueue` via a current-thread tokio runtime: `scheduler_queue_roundtrip`
+(enqueue+dequeue at depth 0/64/256) + `scheduler_queue_batch_drain` (16/128/512). Added to
+`Cargo.toml` + the `rust.yml` bench job (CI-safe set → 9). No scheduler source change; the
+`PriorityQueue` (already optimal) untouched. Fourth optimization cycle.
+
+**Hotspot ranking (measured, local, CI-trimmed criterion) — NEGATIVE RESULT**:
+- Async `RequestQueue` roundtrip: ~551 ns @depth 0, ~600 ns @64, ~618 ns @256 — only +67 ns across
+  a 256× depth increase → the cost is the FIXED async `Mutex` lock/unlock + `Notify` tax (plus
+  ~block_on harness), and the `BinaryHeap` O(log n) is negligible (confirms research F1).
+- Batch drain: ~4.28 µs/16 = ~268 ns/op, ~31 µs/128 = ~242 ns/op, ~128 µs/512 = ~250 ns/op — flat
+  ~250 ns amortized/op, ~4 Melem/s, independent of batch size.
+- **Load-bearing conclusion: the scheduler is NOT a hotspot.** ~250–620 ns per queue op vs
+  milliseconds-to-seconds per actual inference = <0.1% of request latency. No scheduler
+  optimization is warranted — lock sharding / batch-drain / a different structure are all
+  unjustified (YAGNI). B-37 is a clean measure-and-stop; effort is better spent elsewhere (B-38).
+
+**Verification (local + CI)**: `cargo bench --bench scheduler_queue_overhead -- --warm-up-time 1
+--measurement-time 2 --sample-size 10` ran both groups to completion (exit 0, numbers above);
+`cargo fmt --check` + `cargo clippy --bench scheduler_queue_overhead -- -D warnings` clean. **CI:
+the `bench` job (now incl. `--bench scheduler_queue_overhead`) must conclude SUCCESS on the
+PR-to-main run.**
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity exit 0; feature_index_verify total=59 verified=57 unverified=2 (pre-existing);
+governance-index enforce → 2 new B-37 docs registered + Last-Reviewed advanced, exit 0;
+gate_chain_completeness OK. **Environmental SKIPs (disclosed)**: doc_integrity (no glossary),
+badge_currency (Rust archetype), seal_entry_check (ledger parser). `verify-ledger` → #168–#170
+verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `019da982586ed415de4753d11bd066a0c75e24eb576369e44b629761766edbc9`
+
+**Previous Hash**: `d7a252dcab797b27438ca8975adc87b5671b3477d3dc403663637ec333f2a1d4`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `28478343861ab1997c71f26321142bcc2e273e19bf8316bf7b44b4998d4d276b`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `3b2a75cb8e78850ba1b95f8d42bc9e49eb47c315bb26ffbc84d18df8df7ae939`
+
+**Decision**: B-37 COMPLETE and sealed — negative result recorded. The scheduler needs no
+optimization; the queue overhead is negligible vs inference. Chain tip:
+`28478343861ab1997c71f26321142bcc2e273e19bf8316bf7b44b4998d4d276b`.

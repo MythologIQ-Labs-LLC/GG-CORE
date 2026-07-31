@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "a3e89ff657c4be37064e0e1cd44fe6026f993a78763adecfbeeb86c7618f8d34",
+  "payload_sha256": "fbdd11eecee2b5b17ce0f84ac31854ea832c50766fe6c4415083ecccab373ad6",
+  "phase": "substantiate",
+  "session_id": "2026-07-30T-b37-profile-scheduler"
+}
