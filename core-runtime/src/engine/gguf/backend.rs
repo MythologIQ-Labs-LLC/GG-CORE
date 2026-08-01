@@ -267,7 +267,7 @@ impl LlamaBackendInner {
         Ok(out)
     }
 
-    fn create_context(&self) -> Result<LlamaContext<'_>, InferenceError> {
+    pub(super) fn create_context(&self) -> Result<LlamaContext<'_>, InferenceError> {
         // Use same thread count for both - simpler and avoids cache contention
         // llama.cpp internally optimizes based on workload
         let p = LlamaContextParams::default()
@@ -339,6 +339,30 @@ fn add_one(batch: &mut LlamaBatch, tok: LlamaToken, pos: i32) -> Result<(), Infe
 fn decode(ctx: &mut LlamaContext<'_>, batch: &mut LlamaBatch) -> Result<(), InferenceError> {
     ctx.decode(batch)
         .map_err(|e| InferenceError::ModelError(format!("decode: {e}")))
+}
+
+/// Decode `tokens` into `ctx` at positions `start_pos..start_pos+len` (single sequence 0).
+/// `logits_all` enables logits on every position (verification); otherwise only the last
+/// (generation / prefix commit). Used by the persistent speculative session (B-21f).
+#[cfg(feature = "advanced")]
+pub(super) fn decode_range(
+    ctx: &mut LlamaContext<'_>,
+    tokens: &[LlamaToken],
+    start_pos: i32,
+    logits_all: bool,
+) -> Result<(), InferenceError> {
+    if tokens.is_empty() {
+        return Ok(());
+    }
+    let mut batch = LlamaBatch::new(tokens.len(), 1);
+    let last = tokens.len() - 1;
+    for (i, &tok) in tokens.iter().enumerate() {
+        let logits = logits_all || i == last;
+        batch
+            .add(tok, start_pos + i as i32, &[0], logits)
+            .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
+    }
+    decode(ctx, &mut batch)
 }
 
 fn build_sampler(config: &InferenceConfig) -> LlamaSampler {

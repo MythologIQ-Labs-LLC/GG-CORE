@@ -110,6 +110,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-34c perf-gate noise floor research brief | `docs/research-brief-b34c-perfgate-noise-floor-2026-07-31.md` | b34c-perfgate-noise-floor |
 | B-21b-2 retire speculative v2 plan | `docs/plan-b21b2-retire-speculative-v2-2026-07-31.md` | b21b2-retire-speculative-v2 |
 | B-21b-2 retire speculative v2 research brief | `docs/research-brief-b21b2-retire-speculative-v2-2026-07-31.md` | b21b2-retire-speculative-v2 |
+| B-21f KV-cache reuse plan | `docs/plan-b21f-kv-cache-reuse-2026-07-31.md` | b21f-kv-cache-reuse |
+| B-21f KV-cache reuse research brief | `docs/research-brief-b21f-kv-cache-reuse-2026-07-31.md` | b21f-kv-cache-reuse |
 
 ## Tier 5 — Reference Material
 

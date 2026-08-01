@@ -16,7 +16,7 @@ pub struct GgufGenerator {
     #[allow(dead_code)]
     context_size: u32,
     #[cfg(feature = "gguf")]
-    inner: Option<super::backend::LlamaBackendInner>,
+    inner: Option<std::sync::Arc<super::backend::LlamaBackendInner>>,
 }
 
 impl GgufGenerator {
@@ -44,7 +44,7 @@ impl GgufGenerator {
             model_id,
             memory_bytes: AtomicUsize::new(mem),
             context_size: config.n_ctx,
-            inner: Some(inner),
+            inner: Some(std::sync::Arc::new(inner)),
         })
     }
 
@@ -138,6 +138,12 @@ impl GgufGenerator {
     #[cfg(all(feature = "gguf", feature = "advanced"))]
     pub fn eos_token_id(&self) -> Option<u32> {
         self.inner.as_ref().and_then(|i| i.eos_token())
+    }
+
+    /// Share the loaded backend for a persistent speculative session (B-21f KV reuse).
+    #[cfg(all(feature = "gguf", feature = "advanced"))]
+    pub fn backend_arc(&self) -> Option<std::sync::Arc<super::backend::LlamaBackendInner>> {
+        self.inner.clone()
     }
 
     /// Tokenize a prompt into token ids (for the speculative decode path, B-21c).

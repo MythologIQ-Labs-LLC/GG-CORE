@@ -1,0 +1,7 @@
+{
+  "alg": "HMAC-SHA256",
+  "hmac_tag": "58c510aa6e43e31a855440cab1778d06a3ba95ef41d1a1c4b33ebfa9421484a9",
+  "payload_sha256": "b6dd3c2e00699d1012063d49a13e5f58b0a0351240c1a87553296a315cfd3b2c",
+  "phase": "audit",
+  "session_id": "2026-07-31T-b21f-kv-cache-reuse"
+}

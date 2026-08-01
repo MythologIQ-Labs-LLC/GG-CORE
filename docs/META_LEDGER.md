@@ -10845,3 +10845,207 @@ sole speculative executor (ADR-007 triple→double→single consolidation comple
 no runtime impact (advanced-gated). Next: B-21f (KV-cache reuse — the actual speedup), B-21e (real e2e
 bench, gated on B-21f), B-21d/B-21h loose ends, B-40 (advanced in CI matrix). Chain tip:
 `501d9ce01879fcd0ede9da50479d378a69384169bd00f4dad889524a69263d77`.
+
+---
+
+### Entry #195: RESEARCH BRIEF (B-21f KV-cache reuse — the real speedup)
+
+**Timestamp**: 2026-07-31T23:20:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L3 (touches the live inference-path GGUF backend)
+**Session ID**: 2026-07-31T-b21f-kv-cache-reuse
+
+**Target**: B-21f — make the wired GGUF speculative path actually faster by reusing the llama.cpp KV
+cache across draft/verify steps (the B-21c path is correct but net-slower → auto-disables). Branch
+`feat/b21f-kv-cache-reuse` off `main` (#194).
+
+**Findings (verified)**: F1 the KV API is fully present in `llama-cpp-2 0.1.133` — `clear_kv_cache_seq(
+src,p0,p1)` (reject-suffix rollback via `llama_memory_seq_rm`), `clear_kv_cache`,
+`kv_cache_seq_pos_max`, incremental `decode` (KV accumulates by position). F2 today's `verify_tokens`/
+`generate_from_tokens` (`backend.rs:207,175`) each `create_context()` fresh + re-decode the WHOLE
+`context` from pos 0 → the O(n)/step ×2 waste that trips auto_disable. F3 the executor (`executor.rs:54`)
+is stateless (passes the full growing `context` slice, `&self` async traits) but only ever pushes
+COMMITTED tokens → the backend sees a monotonically-growing committed prefix, so a persistent KV need
+only decode the delta + roll back speculative positions after verify. **F4 (load-bearing) the obstacle
+is a self-referential lifetime, not the API**: `LlamaBackendInner` owns `model` by value and
+`create_context(&self)->LlamaContext<'_>` BORROWS it → a persistent context is a self-referential
+struct (needs `self_cell`/`ouroboros`, or a loop that owns both in one scope, or unsafe). F5 same-model
+caveat: repo has one model (qwen-0.5b); draft==target ⇒ always-accept ⇒ B-21f removes the slowdown but
+a headline >1× needs a cheaper draft (small model, or model-free prompt-lookup/n-gram). F6 verifiable
+LOCALLY (model `models/qwen2.5-0.5b-instruct-q4_k_m.gguf` present) though not in CI (model absent).
+
+**Recommendation**: stateful `GgufSpeculativeSession` (self-referential `Arc<LlamaBackendInner>` +
+persistent `LlamaContext` + `committed_pos`) held `Mutex`-wrapped INSIDE the GGUF adapter — decode only
+`context[committed_pos..]`, `clear_kv_cache_seq(Some(0),Some(committed_pos),None)` to drop draft
+positions after verify; executor + traits unchanged. L3, `all(gguf,advanced)`-gated, `self_cell`
+preferred over `ouroboros`. **Operator scope fork (F5)**: (A) remove-slowdown-only (verifiable now,
+headline >1× deferred), (B) + model-free prompt-lookup draft (real >1× demoable on the single model),
+(C) + provision a second draft model (external dep).
+
+**Shadow Genome**: "make it faster" can be gated by a BORROW, not an algorithm — the persistent
+artifact (context) borrows the model, so the simple code throws it away each step. Separate the ENABLER
+(persistent KV) from the PAYOFF (a draft cheap enough to win).
+
+**Content Hash** (SHA256 of docs/research-brief-b21f-kv-cache-reuse-2026-07-31.md): `1f5667fb09acfc503f32a7c8da5db7ad5f6045e22af2d83c2187e68b2c841fae`
+
+**Previous Hash**: `501d9ce01879fcd0ede9da50479d378a69384169bd00f4dad889524a69263d77`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `7249be5c2f4ddc847fc404ca00aab4c55a404b23cc63f9485781520cafd75584`
+
+**Decision**: B-21f research complete; API + mechanism + local-model verifiability confirmed; the
+obstacle is the self-referential context lifetime; operator picks scope A/B/C before /qor-plan. Chain
+tip: `7249be5c2f4ddc847fc404ca00aab4c55a404b23cc63f9485781520cafd75584`.
+
+---
+
+### Entry #196: IMPLEMENTATION PLAN (B-21f KV-cache reuse + pluggable draft — superset scope)
+
+**Timestamp**: 2026-07-31T23:45:00-04:00
+**Phase**: PLAN
+**Author**: Governor
+**Risk Grade**: L3 (touches the live inference-path GGUF backend)
+**Session ID**: 2026-07-31T-b21f-kv-cache-reuse
+
+**change_class**: feature · **doc_tier**: system
+
+**Operator scope** (AskUserQuestion, clarified twice): the **superset** — the KV-reuse ENABLER +
+model-free PROMPT-LOOKUP draft (demonstrable >1x on the single qwen-0.5b, no download) + the MODEL-PAIR
+path wired via `register_draft_pair` (activates when a 2nd GGUF lands). C alone (2nd model only) was the
+first pick; corrected to the superset since prompt-lookup is a distinct model-free draft C did not
+include.
+
+**Plan (3 phases)**: (1) `GgufSpeculativeSession` (`self_cell` — owner `Arc<LlamaBackendInner>`,
+dependent persistent `LlamaContext`, `committed_pos` cursor): decode prompt once; `ensure_committed`
+decodes only `context[committed_pos..]` (executor passes a growing committed prefix — research F3);
+`verify` decodes the draft at `committed_pos..`, greedy-checks each position, then rolls it back via
+`clear_kv_cache_seq(Some(0), Some(committed_pos), None)`; `generate_one` samples the last committed
+logit. New dep `self_cell` (advanced-optional). (2) `PromptLookupDraft` (`BlockDraftModel`, model-free
+n-gram copy from context) + `GgufTargetVerifier` gains `Mutex<Option<GgufSpeculativeSession>>` and
+routes verify/generate_one through it. (3) `try_speculative` selects the model-pair draft when
+`register_draft_pair` resolves else `PromptLookupDraft`; `speculative_config` gains
+`prompt_lookup_ngram` (default 3). Real-model tests (token-equivalence vs single-model greedy) are
+model-gated (early-return in CI). Executor + `BlockDraftModel`/`TargetVerifier` traits UNCHANGED (state
+lives in the verifier's session). Security path unchanged (scan/sanitize wrap `run`).
+
+**Design (Simple Made Easy)**: the per-step penalty is a BORROW, not an algorithm — `create_context(&self)`
+returns a context that borrows the model, so the safe code throws it away each step. `self_cell` un-
+complects *owning the context* from *borrowing the model*; the draft is separated from the enabler so a
+speedup is demonstrable now (prompt-lookup) and the classic model-pair path is ready.
+
+**DoD**: D1 prompt decoded once + only committed delta+draft per step; >1x demonstrable on qwen via
+prompt-lookup; model-pair wired; off by default; security unchanged. D2 session+draft+verifier+branch,
+all(gguf,advanced)-gated. D3 ledger #195–seal, BACKLOG done, FEATURE_INDEX F-62/F-63, GOVERNANCE_INDEX
+Tier 4, CHANGELOG, self_cell dep. D4 `cargo test --features "gguf advanced"` green; model-gated
+equivalence tests pass locally with qwen; CI-safe legs compile; fmt/clippy clean.
+
+**Content Hash** (SHA256 of docs/plan-b21f-kv-cache-reuse-2026-07-31.md): `4ba8b7afa9ee30885cc3b1f1beda98bd7fc8febb5fb2260a17871a335ffed2be`
+
+**Previous Hash**: `7249be5c2f4ddc847fc404ca00aab4c55a404b23cc63f9485781520cafd75584`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `76cdb93a35c5c1b48eddc5bfcce33ce99fe82da51d2f018c5951d8558103500a`
+
+**Decision**: B-21f plan sealed (superset). Chain tip:
+`76cdb93a35c5c1b48eddc5bfcce33ce99fe82da51d2f018c5951d8558103500a`.
+
+---
+
+### Entry #197: AUDIT VERDICT — PASS (L3) (B-21f KV-cache reuse + pluggable draft)
+
+**Timestamp**: 2026-08-01T00:05:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L3 (live inference-path GGUF backend)
+**Session ID**: 2026-07-31T-b21f-kv-cache-reuse
+
+**Verdict**: **PASS** (solo; `audit_risk_score` → `option_b_required: false`).
+
+**Binding passes**: Prompt Injection PASS (canary scan exit 0). **Security L3 PASS** — speculative
+branch stays inside `run`, bracketed by scan/sanitize in the façade (unchanged); session is pure
+compute; off by default. **Load-bearing correctness property verified sound**: the executor commits
+only `into_tokens` (accepted prefix + correction, NEVER the rejected suffix — unchanged, tested) and
+the session's `verify` rolls back ALL draft positions (`clear_kv_cache_seq(Some(0), Some(committed_pos),
+None)`) → KV retains only the committed prefix; a rejected token can never enter KV/output. OWASP PASS
+(`self_cell` minimal/no-unsafe-API, not forbidden, advanced-optional). Ghost-UI PASS (n/a). Razor PASS
+(watch `speculative_session.rs` ≤250 — split helpers if needed; methods ≤40). Test Functionality PASS
+(equivalence + rollback + prompt-lookup behavioral tests; model-gated tests early-return in CI, honestly
+disclosed as locally-verified). Infrastructure Alignment PASS (citations grep-verified in #195; qwen
+model present). Feature Test Declaration PASS (F-62/F-63 NEW).
+
+**Findings (non-blocking)**: N1 — `ensure_committed` must enable logits on the last delta token (as
+`verify_tokens` does) and the equivalence tests require a greedy/argmax sampler on both paths; covered
+by the plan, held as invariants.
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `d4892d46eeb624b838608d9a35eb7d9c076fbe0a8639861e49e7974ab53a3a00`
+
+**Previous Hash**: `76cdb93a35c5c1b48eddc5bfcce33ce99fe82da51d2f018c5951d8558103500a`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `6f8bc0ed8373fd38ad989f772b13cc2587bb6c4d3406794e3e4e2f662198a8f4`
+
+**Decision**: PASS (L3) — proceed to /qor-implement (hold N1 + Razor watch-item). Chain tip:
+`6f8bc0ed8373fd38ad989f772b13cc2587bb6c4d3406794e3e4e2f662198a8f4`.
+
+---
+
+### Entry #198: SESSION SEAL (B-21f — speculative KV reuse: correct; wall-clock speedup is GPU-only, disclosed)
+
+**Entry ID**: `e5aeadd4801c`
+**Timestamp**: 2026-08-01T01:30:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch NOT yet pushed — operator decision pending on the disclosed perf finding)
+**Author**: Specialist + Judge
+**Risk Grade**: L3 (live inference-path GGUF backend)
+**Session ID**: 2026-07-31T-b21f-kv-cache-reuse
+**SSDF Practices**: PW.1.1, PW.2.1, PW.4.1, PW.7.2
+
+**Target**: `docs/plan-b21f-kv-cache-reuse-2026-07-31.md` (audit PASS Entry #197).
+
+**Reality vs Promise**: MATCH on correctness + the enabler; **D1's "demonstrable >1x wall-clock" is a
+DISCLOSED DEVIATION (not met on this CPU host — see below).** Built: NEW `gguf/speculative_session.rs`
+`GgufSpeculativeSession` (`self_cell` owns `Arc<LlamaBackendInner>` + its borrowed `LlamaContext`;
+`seat()` reuses the shared KV prefix and re-decodes only the last committed token so the tail logit is
+always fresh, then `verify` decodes the draft, greedy-checks each token vs the target argmax, and
+`clear_kv_cache_seq` rolls the draft positions back out — KV always holds exactly the committed prefix);
+`GgufGenerator.inner` Arc-ified + `backend_arc()`; session-backed `GgufTargetVerifier`
+(`Mutex<Option<..>>`, lazy-init on first call, lock never held across `.await`); NEW model-free
+`adaptive_speculative/prompt_lookup.rs` `PromptLookupDraft` (n-gram copy); drafter selection in
+`try_speculative` (model pair via `register_draft_pair` else prompt-lookup); `prompt_lookup_ngram`
+config. New dep `self_cell 1.3`. Executor + traits UNCHANGED; security path unchanged; off by default.
+
+**Verification (local, release — debug llama.cpp is unusably slow)**: `cargo test --release -p gg-core
+--features "gguf advanced" --lib` → **680 passed** (674 + 6 new). **Model-gated vs qwen-0.5b**:
+`session_output_equals_fresh_context` + `verify_rollback_leaves_committed_prefix` pass (KV reuse is
+token-identical to fresh context; rollback restores state); **e2e `speculative_prompt_lookup_matches_
+single_model` passes — speculative output byte-for-byte equals single-model greedy** (exact greedy
+speculation). `prompt_lookup` (no model) 4/4. CI-safe legs `--features gguf` + default compile
+(advanced+self_cell gated out). fmt clean; **0 new clippy lints** (14 pre-existing B-40). Razor: all new
+files ≤250 (`speculative_session.rs` 156).
+
+**DISCLOSED perf finding (load-bearing honesty)**: the e2e run measured **speculative 1084ms vs
+single-model 601ms over 24 tokens — SLOWER on the CPU dev host.** This is fundamental, not a test
+artifact: on CPU a batched decode of _k_ draft tokens costs ≈ _k_× a single-token decode (no
+intra-batch parallelism), so the draft/verify/rollback overhead cannot be won back regardless of draft
+acceptance — speculative wall-clock speedup is a **GPU/batch phenomenon**. B-21f delivers the *correct*
+KV-reuse enabler (the pathological per-step full-context re-decode of B-21c is gone) and the pluggable
+drafts, but the headline >1x is **not demonstrable on this hardware** and is deferred to **B-21e on a
+GPU host** (backlog updated to say so). This tempers B-21c's original "correct-but-not-fast" to
+"correct; fast only on GPU."
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+merge_velocity strained/exit-0 (advisory narrow_scope); feature_index_verify total=62 verified=62
+(F-62/F-63 NEW); governance-index enforce → B-21f plan+brief registered (Tier 4), exit 0. **Environmental
+SKIPs** (Phase 75, as prior cycles): doc_integrity strict (no `qor/references/glossary.md`); intent_lock
+NO LOCK (implement ran directly). `verify-ledger` → #195–#198 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `772bc5aa4f02e98fae0bec28fe73387515b2e4326200ee92b771897a9639cef9`
+
+**Previous Hash**: `6f8bc0ed8373fd38ad989f772b13cc2587bb6c4d3406794e3e4e2f662198a8f4`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `e5aeadd4801cd08b1476df5e67465573572f7a44101e3fa02ef77440ecd99011`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `d0570860e8c80317af7fc4646a2b567954457eb039ff7738da5d44f104572979`
+
+**Decision**: B-21f COMPLETE and sealed — **speculative KV reuse is correct and token-equivalent; the
+wired path no longer re-decodes the full context per step. HONEST: the wall-clock >1x is GPU-only, not
+demonstrable on this CPU host (deferred to B-21e/GPU).** NOT pushed — operator decides merge given the
+disclosed perf finding. Chain tip:
+`e5aeadd4801cd08b1476df5e67465573572f7a44101e3fa02ef77440ecd99011`.

@@ -1,0 +1,59 @@
+{
+  "phase": "research",
+  "session_id": "2026-07-31T-b21f-kv-cache-reuse",
+  "ts": "2026-07-31T20:34:52Z",
+  "questions": [
+    "Does llama-cpp-2 0.1.133 expose KV rollback?",
+    "Can a persistent context survive the executor loop?",
+    "Is B-21f verifiable locally?",
+    "Does same-model speculation yield a speedup?"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "detail": "llama-cpp-2 0.1.133 exposes clear_kv_cache_seq (llama_memory_seq_rm reject-suffix rollback), clear_kv_cache, kv_cache_seq_pos_max, incremental decode. KV mechanism fully supported.",
+      "status": "verified"
+    },
+    {
+      "id": "F2",
+      "detail": "backend.rs:207/175 verify_tokens/generate_from_tokens create a fresh context + re-decode the whole context from pos 0 each call -> O(n)/step x2 waste that trips auto_disable.",
+      "status": "verified"
+    },
+    {
+      "id": "F3",
+      "detail": "executor.rs:54 is stateless (passes full growing context slice) but only pushes committed tokens -> backend sees a monotone committed prefix; persistent KV need only decode the delta + roll back speculative positions.",
+      "status": "verified"
+    },
+    {
+      "id": "F4",
+      "detail": "LOAD-BEARING: LlamaBackendInner owns model by value; create_context(&self)->LlamaContext<'_> borrows it -> a persistent context is a self-referential struct (needs self_cell/ouroboros or a loop owning both in-scope).",
+      "status": "verified"
+    },
+    {
+      "id": "F5",
+      "detail": "same-model caveat: repo has one model (qwen-0.5b); draft==target => always-accept; headline >1x needs a cheaper draft (small model or model-free prompt-lookup/n-gram).",
+      "status": "verified"
+    },
+    {
+      "id": "F6",
+      "detail": "verifiable locally (models/qwen2.5-0.5b-instruct-q4_k_m.gguf present, tests/e2e_model_test.rs:18) though not in CI (model absent).",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    "core-runtime/src/engine/gguf/backend.rs:22,175,207,270",
+    "core-runtime/src/engine/gguf/generator.rs:113,126",
+    "core-runtime/src/engine/adaptive_speculative/executor.rs:54,81",
+    "llama-cpp-2-0.1.133/src/context/kv_cache.rs",
+    "core-runtime/tests/e2e_model_test.rs:18"
+  ],
+  "brief_path": "docs/research-brief-b21f-kv-cache-reuse-2026-07-31.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "claude-code",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-07-31T20:34:52Z"
+  }
+}
