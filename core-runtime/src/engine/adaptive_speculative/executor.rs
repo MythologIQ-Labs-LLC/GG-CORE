@@ -103,6 +103,9 @@ impl<'a> AdaptiveSpeculativeExecutor<'a> {
             .record_acceptance(accepted as f32 / draft_len.max(1) as f32);
         self.telemetry
             .record_step(draft_len as u32, accepted as u32, draft_us, verify_us);
+        // B-21h: also emit the Prometheus counters so the CLI `status` (an IPC
+        // client) can surface live speculative stats via the metrics channel.
+        crate::telemetry::record_speculative_cycle(accepted, draft_len.saturating_sub(accepted));
 
         let committed = result.into_tokens(&block.tokens);
         if committed.is_empty() {

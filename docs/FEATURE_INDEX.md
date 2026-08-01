@@ -91,6 +91,7 @@ judgment.
 | F-61 | Adaptive speculative decoding — LIVE on the inference path (config-gated in Runtime::infer; rejected suffix never committed; single-model fallback; advanced-gated) | core-runtime/src/engine/adaptive_speculative/executor.rs | docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md | core-runtime/src/engine/adaptive_speculative/executor_tests.rs | verified |
 | F-62 | Speculative KV-cache reuse — persistent GGUF session (self_cell; delta-decode + draft rollback; token-equivalent to fresh context; advanced-gated) | core-runtime/src/engine/gguf/speculative_session.rs | docs/research-brief-b21f-kv-cache-reuse-2026-07-31.md | core-runtime/src/engine/gguf/speculative_session_tests.rs | verified |
 | F-63 | Prompt-lookup draft — model-free n-gram speculative draft (BlockDraftModel; advanced-gated) | core-runtime/src/engine/adaptive_speculative/prompt_lookup.rs | docs/research-brief-b21f-kv-cache-reuse-2026-07-31.md | core-runtime/src/engine/adaptive_speculative/prompt_lookup_tests.rs | verified |
+| F-64 | Speculative telemetry in `status` — executor emits Prometheus counters; `build_status` derives live counts + acceptance rate over the metrics channel (advanced-gated) | core-runtime/src/cli/status.rs | docs/plan-b21-loose-ends-b40-ci-2026-08-01.md | core-runtime/src/cli/status_tests.rs | verified |
 
 ## Open coverage gaps
 

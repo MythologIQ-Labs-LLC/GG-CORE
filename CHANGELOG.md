@@ -4,6 +4,15 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 
 ## [Unreleased]
 
+### CI / Tooling
+- The `advanced` feature is now linted and tested in CI (B-40): added an `advanced` leg to the `rust.yml` `features` matrix (`cargo clippy --features advanced --all-targets -- -D warnings` + `cargo test --features advanced`), closing the gap where advanced-gated code shipped unlinted. Fixed the 14 surfaced clippy lints (`div_ceil`, derivable `Default` on two enums, `map_or`→`is_none_or`, `Vec`-push→`resize`, and `#[allow(clippy::needless_range_loop)]` with justification on the 2-D SIMD quantize kernels where the index drives byte-offset arithmetic). The new leg immediately caught a latent unused-import under `advanced`-without-`gguf`.
+
+### Security
+- Added a grounded speculative-decoding security test (B-21d): `speculative_draft_pair_cannot_bypass_model_allowlist` confirms speculation introduces no path-traversal surface — `register_draft_pair` takes model *ids* (not paths) and performs no load, so a traversal-looking draft id is inert; the path allowlist is enforced upstream in `models/loader.rs` at load time (THREAT_MODEL §4.3). Corrected a phantom "THREAT_MODEL §12/§12.2" citation (the doc has §1–8) in the backlog and the speculative security-test header.
+
+### Changed
+- Speculative telemetry is now visible in `status` (B-21h): the executor emits the (previously dormant) Prometheus speculative counters each step, and `build_status` derives live speculative stats (draft/accepted/rejected counts, acceptance rate, mean accepted length) from the metrics snapshot the CLI already receives over IPC. Latency / net-speedup / auto-disable are not on the metrics channel and remain a follow-on (a dedicated IPC status field). F-64 added.
+
 ### Added
 - Speculative KV-cache reuse for the GGUF backend (B-21f): a persistent `GgufSpeculativeSession` (via `self_cell`, owning `Arc<LlamaBackendInner>` + its borrowed `LlamaContext`) decodes the prompt once and, each step, decodes only the committed delta and rolls the speculative draft positions back out of the KV — removing the per-step full-context re-decode that made the wired speculative path net-slower and auto-disable. The session-backed `GgufTargetVerifier` and a new model-free **prompt-lookup draft** (`PromptLookupDraft`, n-gram copy from context) plug into the existing executor; a registered `register_draft_pair` still selects the classic model-based draft. All `#[cfg(feature="advanced")]`(+`gguf`)-gated and off by default. **Correctness is proven token-identical to single-model greedy** (the greedy target accepts a draft token iff it equals the target's argmax, so every committed token is the greedy token) — verified against the local qwen model. **Honest perf caveat**: a wall-clock >1× speedup is a GPU/batch phenomenon and is *not* demonstrable on CPU (a batched decode of _k_ draft tokens costs ≈ _k_× a single token, so speculation cannot win regardless of acceptance rate). On the CPU dev host the speculative path is slower than single-model; the real speedup demonstration is deferred to a GPU benchmark (B-21e). F-62/F-63 added.
 

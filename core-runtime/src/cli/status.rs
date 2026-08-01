@@ -269,8 +269,44 @@ fn build_status(
         gpus: None,
         recent_events: vec![],
         #[cfg(feature = "advanced")]
-        speculative_stats: None,
+        speculative_stats: build_speculative_stats(&metrics),
     }
+}
+
+/// Derive `SpeculativeSessionStats` from the Prometheus speculative counters that
+/// flow over the metrics channel (B-21h). Returns `None` when no speculation has
+/// run. Latency / net-speedup / auto-disable are not carried on the metrics channel
+/// (they live in the in-process telemetry) and are left at defaults until a
+/// dedicated IPC status field surfaces them.
+#[cfg(feature = "advanced")]
+fn build_speculative_stats(
+    metrics: &Option<crate::telemetry::MetricsSnapshot>,
+) -> Option<SpeculativeSessionStats> {
+    let verification_steps = get_counter(metrics, "core_speculative_drafts_total");
+    if verification_steps == 0 {
+        return None;
+    }
+    let accepted_tokens = get_counter(metrics, "core_speculative_accepted_tokens");
+    let rejected_tokens = get_counter(metrics, "core_speculative_rejected_tokens");
+    let draft_tokens_generated = accepted_tokens + rejected_tokens;
+    let acceptance_rate = if draft_tokens_generated > 0 {
+        accepted_tokens as f32 / draft_tokens_generated as f32
+    } else {
+        0.0
+    };
+    Some(SpeculativeSessionStats {
+        draft_tokens_generated,
+        verification_steps,
+        accepted_tokens,
+        rejected_tokens,
+        mean_accepted_length: accepted_tokens as f32 / verification_steps as f32,
+        acceptance_rate,
+        mean_draft_latency_us: 0.0,
+        mean_verify_latency_us: 0.0,
+        net_speedup: 0.0,
+        auto_disable_count: 0,
+        auto_disable_reason: None,
+    })
 }
 
 fn get_counter(m: &Option<crate::telemetry::MetricsSnapshot>, key: &str) -> u64 {

@@ -1,0 +1,22 @@
+{
+  "phase": "substantiate",
+  "session_id": "2026-08-01T-b21-loose-ends-b40-ci",
+  "ts": "2026-08-01T14:56:07Z",
+  "verdict": "PASS",
+  "reality_check": {
+    "missing": [],
+    "unplanned": [],
+    "matches": 3
+  },
+  "merkle_seal": "78d9432bacc6368473479730d80d4e0ceedb06191a6f4dcd204830685a2399a2",
+  "content_hash": "bf238f446c15da23303c5ed59746b64336a3a1054a116e6f6fa57140e9f7da35",
+  "ledger_entry": 202,
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "unknown",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-08-01T14:56:07Z"
+  }
+}

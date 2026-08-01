@@ -11049,3 +11049,179 @@ wired path no longer re-decodes the full context per step. HONEST: the wall-cloc
 demonstrable on this CPU host (deferred to B-21e/GPU).** NOT pushed — operator decides merge given the
 disclosed perf finding. Chain tip:
 `e5aeadd4801cd08b1476df5e67465573572f7a44101e3fa02ef77440ecd99011`.
+
+---
+
+### Entry #199: RESEARCH BRIEF (B-21d + B-21h + B-40 — loose ends + advanced-in-CI)
+
+**Timestamp**: 2026-08-01T14:00:00-04:00
+**Phase**: RESEARCH
+**Author**: Analyst
+**Risk Grade**: L2 (CI + CLI + a security test; advanced-gated)
+**Session ID**: 2026-08-01T-b21-loose-ends-b40-ci
+
+**Target**: close B-21d (audit loose ends + speculative-security test), B-21h (surface speculative
+telemetry in `status`), B-40 (lint `advanced` in CI + fix surfaced lints). Branch
+`feat/b21-loose-ends-b40-ci` off `main` (#198).
+
+**Findings**: **B-40** — 14 clippy lints unenforced (advanced absent from `rust.yml` matrix
+`[gguf,onnx,ffi,python]`), all in non-gguf advanced files: `quantize.rs` ×10 (div_ceil 88/113/159/185/193,
+needless-range-loop 141/143/161/187, same-item-Vec-push 101), `flash_attn_gpu.rs:114`, `multi_gpu.rs:44`,
+`simd_tokenizer_v2.rs:323`, `speculative_config.rs:21`. Adding an `advanced` leg compiles them (fast; the
+`all(gguf,advanced)` integration tests cfg-out). **B-21d** — mostly ALREADY resolved by B-21b-1/b-2/c:
+F2 `engine/mod.rs` comments now accurate + grep-clean of deleted files; F3 standalone test doesn't exist;
+**cited THREAT_MODEL §12.2 is PHANTOM** (doc has §1–8 only). Real security posture: speculation adds no
+path surface — `register_draft_pair` takes model *ids*, drafts load via the allowlist-enforcing
+`loader.rs` (§4.3), bogus draft_id falls through (`get_model().ok()?`). **B-21h** — larger than
+"signature plumbing": `build_status` is an IPC client (no live engine); `record_speculative_cycle`
+(Prometheus) is DORMANT (no caller); executor feeds only in-process `SpeculativeTelemetry`. Fix = wire
+executor→Prometheus + derive `speculative_stats` from metrics (3 counters → counts + acceptance_rate;
+latency/net-speedup/auto-disable NOT IPC-surfaced — disclosed partial).
+
+**Recommendation**: one cycle, 3 phases — (P1/B-40) fix 14 lints (div_ceil/derive-Default/map_or/vec/
+iterators or justified `#[allow]`) + add `advanced` matrix leg; (P2/B-21d) verify F2/F3 resolved + add
+grounded `speculative_draft_pair_cannot_bypass_model_allowlist` test + fix the phantom citation (→ §4.3);
+(P3/B-21h) executor→Prometheus counters + metrics-derived stats in `build_status`.
+
+**Shadow Genome**: pre-consolidation "loose ends" rot — a scoping-era list (#180) can be largely
+obsolete after the main work lands; re-verify each item against current code, and treat doc-section
+citations (§12.2) as claims to verify (the phantom-reference / B-13 pattern applies to one's own
+security docs).
+
+**Content Hash** (SHA256 of docs/research-brief-b21-loose-ends-b40-ci-2026-08-01.md): `f9bed9133dbbf0fde5c781988570bd583a3cf1e63ab676623911896e0098a5ba`
+
+**Previous Hash**: `e5aeadd4801cd08b1476df5e67465573572f7a44101e3fa02ef77440ecd99011`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `6839bc3d520ce45fc4f0b7cfd0f076d18ac37887f2d0464adb220ba4388c4794`
+
+**Decision**: research complete; one 3-phase cycle. B-21d mostly-already-done + phantom §12.2 corrected.
+Chain tip: `6839bc3d520ce45fc4f0b7cfd0f076d18ac37887f2d0464adb220ba4388c4794`.
+
+---
+
+### Entry #200: IMPLEMENTATION PLAN (B-21d + B-21h + B-40 — loose ends + advanced-in-CI)
+
+**Timestamp**: 2026-08-01T14:20:00-04:00
+**Phase**: PLAN
+**Author**: Governor
+**Risk Grade**: L2 (CI + CLI + a security test; advanced-gated)
+**Session ID**: 2026-08-01T-b21-loose-ends-b40-ci
+
+**change_class**: feature · **doc_tier**: standard
+
+**Plan (3 phases)**: (P1/B-40) fix the 14 advanced clippy lints (`quantize.rs` div_ceil×5 /
+needless-range-loop×4 [iterator or justified `#[allow]` on the 2-D SIMD kernels] / same-item-Vec-push;
+`flash_attn_gpu:114` div_ceil; `multi_gpu:44` + `speculative_config:21` → `#[derive(Default)]`+`#[default]`;
+`simd_tokenizer_v2:323` map_or) + add an `advanced` leg to the `rust.yml` `features` matrix
+(clippy+test). (P2/B-21d) verify F2 (mod.rs comments already accurate/grep-clean) + F3 (no standalone
+test) resolved; add grounded `speculative_draft_pair_cannot_bypass_model_allowlist` (unregistered
+draft id → try_speculative falls through, no unvalidated load) tied to THREAT_MODEL §4.3; correct the
+phantom §12.2 citation in BACKLOG. (P3/B-21h) emit the dormant Prometheus speculative counters from the
+executor (`record_speculative_cycle`) + derive `speculative_stats` in `build_status` from the metrics
+snapshot (counter fields only — latency/net-speedup/auto-disable NOT IPC-surfaced, disclosed).
+
+**Design (Simple Made Easy)**: three independent loose ends, one cycle; connect an already-built but
+disconnected telemetry surface to its already-built display via the EXISTING metrics channel rather
+than a new one; close real-vs-phantom B-21d items honestly.
+
+**DoD**: D1 `clippy --features advanced --all-targets -D warnings` clean + in CI; speculative draft
+path proven not to bypass loader allowlist; status shows live counts+acceptance. D2 lint fixes + CI leg
++ security test + citation fix + executor→Prometheus + build_status derivation. D3 ledger #199–seal,
+BACKLOG done, FEATURE_INDEX F-64, GOVERNANCE_INDEX Tier 4, CHANGELOG. D4 clippy clean; `test --features
+"gguf advanced"` green (new security+status tests); CI-safe legs unaffected; fmt clean.
+
+**Content Hash** (SHA256 of docs/plan-b21-loose-ends-b40-ci-2026-08-01.md): `4ded6e3f0172a9bb0fc5e77239d0ebb43ab24f21ec8ff513eee8933a3d007f82`
+
+**Previous Hash**: `6839bc3d520ce45fc4f0b7cfd0f076d18ac37887f2d0464adb220ba4388c4794`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `d3cb11c7d4c81375e2c14caf916a8fc6d72a875d238dd80b261800fc71be368e`
+
+**Decision**: B-21d+B-21h+B-40 plan sealed. Chain tip:
+`d3cb11c7d4c81375e2c14caf916a8fc6d72a875d238dd80b261800fc71be368e`.
+
+---
+
+### Entry #201: AUDIT VERDICT — PASS (L2) (B-21d + B-21h + B-40)
+
+**Timestamp**: 2026-08-01T14:35:00-04:00
+**Phase**: GATE
+**Author**: Judge
+**Risk Grade**: L2 (CI + CLI + a security test; advanced-gated)
+**Session ID**: 2026-08-01T-b21-loose-ends-b40-ci
+
+**Verdict**: **PASS** (solo; `audit_risk_score` → option_b_required false).
+
+**Binding passes**: Prompt Injection PASS. **Security PASS — posture IMPROVED**: no auth/secret change;
+Phase 2 ADDS a grounded test that the speculative draft path can't bypass model-loading security
+(unregistered draft id → fall-through, no unvalidated load; drafts are ids of allowlist-validated
+models, THREAT_MODEL §4.3), and corrects the phantom §12.2 citation. OWASP PASS (mechanical lint fixes).
+Ghost-UI PASS (B-21h feeds real data into the existing `print_speculative`, removing a hardcoded None).
+Razor PASS (in-place edits; justified `#[allow(needless_range_loop)]` on 2-D SIMD kernels). Test
+Functionality PASS (new tests assert behavior; lint refactors covered by existing tests). Infra
+Alignment PASS (citations grep-verified #199; §12.2 confirmed absent/phantom). Feature Test Declaration
+PASS (F-64).
+
+**Findings (non-blocking)**: N1 the `advanced` leg doesn't cover `all(gguf,advanced)` (cfg-out under
+advanced-only; linted locally; `gguf,advanced` leg a cheap future add). N2 B-21h surfaces only
+counter-derived fields (latency/speedup/auto-disable need an IPC field — follow-on). N3 B-21d largely
+already resolved by consolidation; genuine artifact = security test + citation fix.
+
+**Content Hash** (SHA256 of .agent/staging/AUDIT_REPORT.md): `330b2bf34ee4483665e35c68cbd8eff5517ad0daeec045de41f9281ca6d1eb11`
+
+**Previous Hash**: `d3cb11c7d4c81375e2c14caf916a8fc6d72a875d238dd80b261800fc71be368e`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `70051665d856d80e37ee1ecba6acb980dc194554b4db05b7898961567b2bb0a2`
+
+**Decision**: PASS (L2) — proceed to /qor-implement. Chain tip:
+`70051665d856d80e37ee1ecba6acb980dc194554b4db05b7898961567b2bb0a2`.
+
+---
+
+### Entry #202: SESSION SEAL (B-21d + B-21h + B-40 — loose ends closed; advanced linted in CI)
+
+**Entry ID**: `c491f438fd44`
+**Timestamp**: 2026-08-01T15:15:00-04:00
+**Phase**: SUBSTANTIATE (local seal; branch NOT yet pushed — operator decides merge)
+**Author**: Specialist + Judge
+**Risk Grade**: L2 (CI + CLI + a security test; advanced-gated)
+**Session ID**: 2026-08-01T-b21-loose-ends-b40-ci
+
+**Target**: `docs/plan-b21-loose-ends-b40-ci-2026-08-01.md` (audit PASS Entry #201).
+
+**Reality vs Promise**: MATCH. **B-40**: added an `advanced` leg to the `rust.yml` `features` matrix
+(clippy `-D warnings` + test); fixed all 14 surfaced lints — `div_ceil` ×6 (quantize/flash_attn_gpu),
+derivable `Default`+`#[default]` on `MultiGpuStrategy` + `AdaptiveMode`, `map_or`→`is_none_or`
+(simd_tokenizer_v2), Vec-push→`resize` (quantize), and justified `#[allow(clippy::needless_range_loop)]`
+on the three 2-D SIMD matmul kernels (index drives byte offsets). The new leg **immediately caught a
+latent unused-import** in `inference_speculative.rs` under `advanced`-without-`gguf` (fixed by gating the
+import) — the exact class of bug B-40 exists to surface. **B-21d**: F2/F3 confirmed already resolved by
+the B-21b-1/b-2/c consolidation; the scoping-era **THREAT_MODEL §12.2 citation was PHANTOM** (doc has
+§1–8) — corrected to §4.3 in BACKLOG + the `security_speculative_test.rs` header; added grounded
+model-free `speculative_draft_pair_cannot_bypass_model_allowlist` (register_draft_pair takes ids not
+paths + loads nothing → traversal-looking draft id is inert). **B-21h**: executor now emits the
+(previously dormant) Prometheus speculative counters per step; `build_status` derives `speculative_stats`
+from the metrics snapshot the CLI receives over IPC — **partial/disclosed** (counts + acceptance_rate +
+mean_accepted_length; latency/net-speedup/auto-disable need a dedicated IPC field — follow-on).
+
+**Verification (local)**: `cargo clippy --features advanced --all-targets -- -D warnings` CLEAN;
+`--features "gguf,advanced"` CLEAN; default `--all-targets -D warnings` CLEAN. `cargo test --release -p
+gg-core --features "gguf advanced" --lib` → **682 passed** (680 + b21d-security + status). New
+model-free tests pass under `--features advanced`. fmt clean. Razor: in-place edits, no file near 250.
+
+**Seal-gate ladder**: skill_admission ADMITTED; gate_skill_matrix 0 broken; secret_scanner clean;
+feature_index_verify total=63 verified=63 (F-64 NEW); governance-index enforce → plan+brief registered
+(Tier 4) + Last-Reviewed advanced to 2026-08-01, exit 0. **Environmental SKIPs** (Phase 75): doc_integrity
+strict (no glossary); intent_lock NO LOCK (direct implement). `verify-ledger` → #199–#202 verified.
+
+**Content Hash** (SHA256 of CHANGELOG.md): `bf238f446c15da23303c5ed59746b64336a3a1054a116e6f6fa57140e9f7da35`
+
+**Previous Hash**: `70051665d856d80e37ee1ecba6acb980dc194554b4db05b7898961567b2bb0a2`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `c491f438fd44f371517ffb378eb318ffeffc1e999c73acdf4321425d679f3b5b`
+
+**Session Seal** (SHA256 of chain + "SEALED"): `78d9432bacc6368473479730d80d4e0ceedb06191a6f4dcd204830685a2399a2`
+
+**Decision**: B-21d + B-21h + B-40 COMPLETE and sealed — advanced code is now CI-linted, the ADR-007
+loose ends are closed (F2/F3 already-done + phantom §12.2 corrected + grounded security test), and
+speculative telemetry is visible in `status`. NOT pushed — operator decides merge. Chain tip:
+`c491f438fd44f371517ffb378eb318ffeffc1e999c73acdf4321425d679f3b5b`.

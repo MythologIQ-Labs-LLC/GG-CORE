@@ -95,3 +95,40 @@ fn test_system_status_serialization() {
     assert!(json.contains("\"health\":\"healthy\""));
     assert!(json.contains("\"uptime_secs\":3600"));
 }
+
+// B-21h: `status` surfaces live speculative stats derived from the Prometheus
+// counters that flow over the metrics channel.
+#[cfg(feature = "advanced")]
+#[test]
+fn build_status_populates_speculative_stats_from_metrics() {
+    use crate::telemetry::MetricsSnapshot;
+    use std::collections::HashMap;
+
+    let snap = |drafts: u64, accepted: u64, rejected: u64| {
+        let mut counters = HashMap::new();
+        if drafts > 0 {
+            counters.insert("core_speculative_drafts_total".to_string(), drafts);
+            counters.insert("core_speculative_accepted_tokens".to_string(), accepted);
+            counters.insert("core_speculative_rejected_tokens".to_string(), rejected);
+        }
+        MetricsSnapshot {
+            counters,
+            gauges: HashMap::new(),
+            histograms: HashMap::new(),
+            bucketed_histograms: HashMap::new(),
+        }
+    };
+
+    // Active speculation: counts + acceptance_rate derived from the counters.
+    let stats = build_speculative_stats(&Some(snap(10, 30, 10))).expect("Some when drafts > 0");
+    assert_eq!(stats.verification_steps, 10);
+    assert_eq!(stats.accepted_tokens, 30);
+    assert_eq!(stats.rejected_tokens, 10);
+    assert_eq!(stats.draft_tokens_generated, 40);
+    assert!((stats.acceptance_rate - 0.75).abs() < 1e-6);
+    assert!((stats.mean_accepted_length - 3.0).abs() < 1e-6);
+
+    // No speculative activity, or no metrics at all -> None.
+    assert!(build_speculative_stats(&Some(snap(0, 0, 0))).is_none());
+    assert!(build_speculative_stats(&None).is_none());
+}

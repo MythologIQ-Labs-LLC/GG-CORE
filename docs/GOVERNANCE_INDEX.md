@@ -1,6 +1,6 @@
 # Governance Index
 
-**Last Reviewed**: 2026-07-31
+**Last Reviewed**: 2026-08-01
 
 A single authoritative map of every governance artifact in this project, organized
 into six freshness tiers with explicit drift contracts. A stale entry here is
@@ -112,6 +112,8 @@ Live for plan duration; archived at substantiate. Drift signal: plan shipped but
 | B-21b-2 retire speculative v2 research brief | `docs/research-brief-b21b2-retire-speculative-v2-2026-07-31.md` | b21b2-retire-speculative-v2 |
 | B-21f KV-cache reuse plan | `docs/plan-b21f-kv-cache-reuse-2026-07-31.md` | b21f-kv-cache-reuse |
 | B-21f KV-cache reuse research brief | `docs/research-brief-b21f-kv-cache-reuse-2026-07-31.md` | b21f-kv-cache-reuse |
+| B-21d/h/B-40 loose-ends plan | `docs/plan-b21-loose-ends-b40-ci-2026-08-01.md` | b21-loose-ends-b40-ci |
+| B-21d/h/B-40 loose-ends research brief | `docs/research-brief-b21-loose-ends-b40-ci-2026-08-01.md` | b21-loose-ends-b40-ci |
 
 ## Tier 5 — Reference Material
 
