@@ -2,7 +2,7 @@
 
 **Repository:** `MythologIQ-Labs-LLC/GG-CORE`  
 **Audit date:** 2026-08-01  
-**Baseline:** `main` at `99019d90dd955d16d9fe4190cc72449a9e39c468`  
+**Baseline:** `main` at `d81296196471eae6dbfa629c009f81b94a49c690`  
 **README target:** platinum upgrade with standalone and consumer guidance
 
 ## Purpose
@@ -43,6 +43,8 @@ The audit used this authority order:
 - `core-runtime/src/models/backend_dispatch.rs`
 - `core-runtime/src/models/manifest.rs`
 - `core-runtime/src/engine/onnx/`
+- `core-runtime/src/engine/adaptive_speculative/`
+- `core-runtime/src/engine/gguf/speculative_session.rs`
 - `core-runtime/src/ffi/` and `core-runtime/include/gg_core.h`
 - `core-runtime/src/python/`
 - `.github/workflows/rust.yml`
@@ -79,7 +81,7 @@ The audit used this authority order:
 | Single binary / no dependencies | **Narrowed** | A CLI/daemon binary is produced, but build and runtime linkage vary by selected native backend, platform, and packaging choices. |
 | 40 tokens/sec baseline | **Retained with exact scope** | Historical release benchmark records Qwen 2.5 0.5B Q4_K_M on an i7-7700K Windows host at approximately 40 tokens/sec. No extrapolated hardware promise is made. |
 | Infrastructure multiplier advantage over other runtimes | **Not promoted** | Existing comparisons mix control-path measurements and external runtime assumptions. GG-CORE's differentiated boundary is described without claiming model-kernel superiority. |
-| Speculative decoding speedup | **Reclassified: experimental performance** | Adaptive speculation is wired behind `advanced`, off by default, and correctness/fallback tested. Current `main` explicitly does not substantiate general wall-clock speedup. PR #105 continues KV-reuse work. |
+| Speculative decoding speedup | **Reclassified: experimental performance** | Adaptive speculation, persistent target KV reuse, prompt-lookup draft support, and model-pair wiring are merged behind `advanced` and off by default. Correctness and rollback are tested, but the merged PR #105 records the CPU path as slower than single-model inference; a general speedup still requires hardware-specific evidence, especially the GPU benchmark work tracked as B-21e. |
 | CUDA/Metal/multi-GPU | **Experimental + conditional** | Feature-gated implementations and test bindings exist. Default CI does not provide complete hardware-specific end-to-end acceptance. |
 | Commercial advanced components | **Clarified** | The repository is Apache 2.0 licensed. `advanced` is a feature group in this source tree; commercial extension policy belongs to separate product packaging such as the shim/Nexus boundary, not an unsupported README licensing claim. |
 | Model encryption, prompt scanning, PII sanitization, audit/telemetry | **Retained** | Source and test bindings exist. Deployment and threat-model caveats are explicit. |
