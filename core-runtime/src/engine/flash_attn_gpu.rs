@@ -111,7 +111,7 @@ impl FlashAttnGpuConfig {
 
     /// Get number of blocks for sequence
     pub fn num_blocks(&self) -> usize {
-        (self.seq_len + self.block_size - 1) / self.block_size
+        self.seq_len.div_ceil(self.block_size)
     }
 }
 

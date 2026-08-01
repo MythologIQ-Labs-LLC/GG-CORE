@@ -85,7 +85,7 @@ impl QuantizedTensor {
     }
 
     fn quantize_q8(data: &[f32], rows: usize, cols: usize) -> Self {
-        let num_blocks = (data.len() + QUANT_BLOCK_SIZE - 1) / QUANT_BLOCK_SIZE;
+        let num_blocks = data.len().div_ceil(QUANT_BLOCK_SIZE);
         let mut quantized = Vec::with_capacity(num_blocks * QUANT_BLOCK_SIZE);
         let mut scales = Vec::with_capacity(num_blocks);
 
@@ -97,9 +97,7 @@ impl QuantizedTensor {
                 let q = (val / scale).round().clamp(-128.0, 127.0) as i8;
                 quantized.push(q as u8);
             }
-            for _ in block.len()..QUANT_BLOCK_SIZE {
-                quantized.push(0);
-            }
+            quantized.resize(quantized.len() + (QUANT_BLOCK_SIZE - block.len()), 0);
         }
         Self {
             format: QuantFormat::Q8_0,
@@ -110,7 +108,7 @@ impl QuantizedTensor {
     }
 
     fn quantize_q4(data: &[f32], rows: usize, cols: usize) -> Self {
-        let num_blocks = (data.len() + QUANT_BLOCK_SIZE - 1) / QUANT_BLOCK_SIZE;
+        let num_blocks = data.len().div_ceil(QUANT_BLOCK_SIZE);
         let mut quantized = Vec::with_capacity(num_blocks * QUANT_BLOCK_SIZE / 2);
         let mut scales = Vec::with_capacity(num_blocks);
 
@@ -136,6 +134,9 @@ impl QuantizedTensor {
         }
     }
 
+    // Range loops: `i`/`j` index output/input AND drive `(i*cols+j)*4` byte offsets,
+    // so the index is load-bearing (not a needless range loop).
+    #[allow(clippy::needless_range_loop)]
     fn matmul_f32(&self, input: &[f32], output: &mut [f32]) {
         let [rows, cols] = self.shape;
         for i in 0..rows {
@@ -154,9 +155,11 @@ impl QuantizedTensor {
         }
     }
 
+    // `i` indexes output AND drives `i*blocks_per_row` scale/data offsets — load-bearing.
+    #[allow(clippy::needless_range_loop)]
     fn matmul_q8(&self, input: &[f32], output: &mut [f32]) {
         let [rows, cols] = self.shape;
-        let blocks_per_row = (cols + QUANT_BLOCK_SIZE - 1) / QUANT_BLOCK_SIZE;
+        let blocks_per_row = cols.div_ceil(QUANT_BLOCK_SIZE);
 
         for i in 0..rows {
             let mut sum = 0.0f32;
@@ -180,9 +183,11 @@ impl QuantizedTensor {
         }
     }
 
+    // `i` indexes output AND drives `i*blocks_per_row` scale/data offsets — load-bearing.
+    #[allow(clippy::needless_range_loop)]
     fn matmul_q4(&self, input: &[f32], output: &mut [f32]) {
         let [rows, cols] = self.shape;
-        let blocks_per_row = (cols + QUANT_BLOCK_SIZE - 1) / QUANT_BLOCK_SIZE;
+        let blocks_per_row = cols.div_ceil(QUANT_BLOCK_SIZE);
 
         for i in 0..rows {
             let mut sum = 0.0f32;
@@ -190,7 +195,7 @@ impl QuantizedTensor {
                 let block_start = b * QUANT_BLOCK_SIZE;
                 let block_end = (block_start + QUANT_BLOCK_SIZE).min(cols).min(input.len());
                 let block_len = block_end.saturating_sub(block_start);
-                let packed_len = (block_len + 1) / 2;
+                let packed_len = block_len.div_ceil(2);
 
                 if packed_len == 0 {
                     continue;

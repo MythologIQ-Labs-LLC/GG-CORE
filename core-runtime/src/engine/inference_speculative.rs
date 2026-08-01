@@ -10,6 +10,7 @@
 #[cfg(all(feature = "gguf", feature = "advanced"))]
 use std::sync::Arc;
 
+#[cfg(all(feature = "gguf", feature = "advanced"))]
 use super::{InferenceError, InferenceParams, InferenceResult};
 use crate::engine::InferenceEngine;
 #[cfg(all(feature = "gguf", feature = "advanced"))]
@@ -135,5 +136,32 @@ impl InferenceEngine {
             tokens_generated,
             finished: true,
         })
+    }
+}
+
+#[cfg(test)]
+mod b21d_security_tests {
+    use crate::engine::InferenceEngine;
+
+    /// B-21d / THREAT_MODEL §4.3 (Model Loading): speculation introduces no
+    /// path-traversal surface. `register_draft_pair` takes model **ids**, not paths,
+    /// and performs no load — a traversal-looking draft id is simply an unresolved id
+    /// (inert until it names an already-registered, allowlist-validated model). The
+    /// allowlist is enforced upstream in `models/loader.rs` at load time; the
+    /// speculative path only looks up `Arc<dyn Model>` by id.
+    #[tokio::test]
+    async fn speculative_draft_pair_cannot_bypass_model_allowlist() {
+        let engine = InferenceEngine::new(2048);
+        engine
+            .register_draft_pair("target".into(), "../../etc/passwd".into())
+            .await;
+        assert!(
+            engine.get_model("../../etc/passwd").await.is_err(),
+            "a traversal-looking draft id must never resolve to a loaded model"
+        );
+        assert!(
+            engine.get_model("target").await.is_err(),
+            "registering a draft pair must not load the target either"
+        );
     }
 }

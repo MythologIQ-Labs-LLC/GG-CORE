@@ -1,0 +1,44 @@
+{
+  "phase": "research",
+  "session_id": "2026-08-01T-b21-loose-ends-b40-ci",
+  "ts": "2026-08-01T14:36:19Z",
+  "questions": [
+    "Which advanced lints does CI miss?",
+    "Are B-21d's F2/F3/\u00a712.2 still valid?",
+    "How does speculative telemetry reach the CLI status?"
+  ],
+  "findings": [
+    {
+      "id": "B40",
+      "detail": "14 clippy lints in non-gguf advanced files (quantize x10, flash_attn_gpu:114, multi_gpu:44, simd_tokenizer_v2:323, speculative_config:21); advanced absent from rust.yml matrix.",
+      "status": "verified"
+    },
+    {
+      "id": "B21d",
+      "detail": "F2 mod.rs comments accurate/grep-clean; F3 standalone test absent; THREAT_MODEL \u00a712.2 is PHANTOM (doc has s1-8). Speculation adds no path surface (register_draft_pair takes ids; loader enforces allowlist).",
+      "status": "verified"
+    },
+    {
+      "id": "B21h",
+      "detail": "build_status is IPC client (no engine); record_speculative_cycle Prometheus counters dormant (no caller); executor feeds in-process SpeculativeTelemetry only. Fix = executor->Prometheus + metrics-derived stats (partial).",
+      "status": "verified"
+    }
+  ],
+  "sources": [
+    ".github/workflows/rust.yml:64,85,87",
+    "core-runtime/src/engine/quantize.rs",
+    "docs/security/THREAT_MODEL.md",
+    "core-runtime/src/cli/status.rs:182,272",
+    "core-runtime/src/telemetry/metrics.rs:171",
+    "core-runtime/src/engine/adaptive_speculative/executor.rs:105"
+  ],
+  "brief_path": "docs/research-brief-b21-loose-ends-b40-ci-2026-08-01.md",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "unknown",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-08-01T14:36:19Z"
+  }
+}

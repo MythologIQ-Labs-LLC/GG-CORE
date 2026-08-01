@@ -5,10 +5,11 @@
 use serde::{Deserialize, Serialize};
 
 /// Speculative decoding aggressiveness.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AdaptiveMode {
     /// Speculation disabled; always single-model decode.
+    #[default]
     Disabled,
     /// Small windows, high acceptance floor — prioritizes correctness.
     Conservative,
@@ -16,12 +17,6 @@ pub enum AdaptiveMode {
     Balanced,
     /// Large windows, lower acceptance floor — prioritizes throughput.
     Aggressive,
-}
-
-impl Default for AdaptiveMode {
-    fn default() -> Self {
-        Self::Disabled
-    }
 }
 
 /// Adaptive speculative decoding configuration.

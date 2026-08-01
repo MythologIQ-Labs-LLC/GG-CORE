@@ -1,6 +1,8 @@
 //! Security tests for speculative decoding — ADR-007 / Issue #67.
 //!
-//! Threat model binding (docs/security/THREAT_MODEL.md §12):
+//! ADR-007-specific speculative threats (the base docs/security/THREAT_MODEL.md
+//! covers §1–8; speculation-specific threats T2–T5 are enumerated here and in
+//! ADR-007, and relate to THREAT_MODEL §5 STRIDE / §4.3 Model Loading):
 //!   T2 – target verification bypass (rejected suffix committed)
 //!   T3 – telemetry / config PII leakage
 //!   T4 – incompatible tokenizer pairing falls back to single-model

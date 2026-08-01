@@ -61,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        feature: [gguf, onnx, ffi, python]
+        feature: [gguf, onnx, ffi, python, advanced]
     defaults:
       run:
         working-directory: core-runtime

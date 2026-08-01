@@ -320,7 +320,7 @@ impl SimdTokenizer {
             for i in 0..tokens.len().saturating_sub(1) {
                 let pair = (tokens[i], tokens[i + 1]);
                 if let Some(&score) = self.merge_scores.get(&pair) {
-                    if best_merge.map_or(true, |(_, _, s)| score > s) {
+                    if best_merge.is_none_or(|(_, _, s)| score > s) {
                         best_merge = Some((i, pair.0, score)); // Use first token as merged ID
                     }
                 }

@@ -1,0 +1,20 @@
+{
+  "phase": "audit",
+  "session_id": "2026-08-01T-b21-loose-ends-b40-ci",
+  "ts": "2026-08-01T14:39:39Z",
+  "target": "docs/plan-b21-loose-ends-b40-ci-2026-08-01.md",
+  "verdict": "PASS",
+  "violations": [],
+  "risk_grade": "L2",
+  "report_path": ".agent/staging/AUDIT_REPORT.md",
+  "target_content_hash": "4ded6e3f0172a9bb0fc5e77239d0ebb43ab24f21ec8ff513eee8933a3d007f82",
+  "findings_categories": [],
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "unknown",
+    "model_family": "opus",
+    "human_oversight": "pass",
+    "ts": "2026-08-01T14:39:39Z"
+  }
+}

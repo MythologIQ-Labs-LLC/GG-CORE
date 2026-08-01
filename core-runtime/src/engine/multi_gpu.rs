@@ -32,19 +32,14 @@ pub enum MultiGpuError {
     SynchronizationFailed(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MultiGpuStrategy {
     LayerParallelism,
     TensorParallelism,
     PipelineParallelism,
     ExpertParallelism,
+    #[default]
     Auto,
-}
-
-impl Default for MultiGpuStrategy {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 /// GPU partition configuration

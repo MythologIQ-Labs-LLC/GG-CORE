@@ -1,0 +1,49 @@
+{
+  "phase": "plan",
+  "session_id": "2026-08-01T-b21-loose-ends-b40-ci",
+  "ts": "2026-08-01T14:37:23Z",
+  "plan_path": "docs/plan-b21-loose-ends-b40-ci-2026-08-01.md",
+  "phases": [
+    "Phase 1: B-40 fix 14 lints + CI leg",
+    "Phase 2: B-21d loose ends + security test + citation fix",
+    "Phase 3: B-21h live speculative telemetry in status"
+  ],
+  "ci_commands": [
+    "cargo clippy --features advanced --all-targets -- -D warnings",
+    "cargo test -p gg-core --features \"gguf advanced\"",
+    "cargo build -p gg-core --features gguf",
+    "cargo fmt --check"
+  ],
+  "open_questions": [],
+  "doc_tier": "standard",
+  "change_class": "feature",
+  "terms": [],
+  "boundaries": {
+    "limitations": [
+      "B-40: fix 14 advanced lints + add advanced CI leg. B-21d: verify F2/F3 resolved, add grounded speculative-security test, correct phantom \u00a712.2 citation. B-21h: wire executor->Prometheus counters + surface metrics-derived speculative_stats in status."
+    ],
+    "non_goals": [
+      "No speculative-decode behavior change; no new IPC status field (only 3-counter-derived fields surfaced); no gguf,advanced CI leg."
+    ],
+    "exclusions": [
+      "No change to default/gguf/onnx/ffi/python CI beyond the new leg."
+    ]
+  },
+  "feature_inventory_touches": [
+    {
+      "entry_id": "F-64",
+      "operation": "NEW",
+      "test_path": "core-runtime/src/cli/status_tests.rs",
+      "test_descriptor": "Speculative telemetry in status: build_status_populates_speculative_stats_from_metrics + executor->Prometheus counters live."
+    }
+  ],
+  "summary": "B-21d+B-21h+B-40 loose ends: lint advanced in CI (14 fixes + leg), grounded speculative-security test + phantom \u00a712.2 citation fix, live speculative telemetry in status (executor->Prometheus + metrics-derived).",
+  "ai_provenance": {
+    "system": "Qor-logic",
+    "version": "0.15.1",
+    "host": "unknown",
+    "model_family": "opus",
+    "human_oversight": "absent",
+    "ts": "2026-08-01T14:37:23Z"
+  }
+}
