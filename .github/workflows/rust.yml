@@ -13,9 +13,23 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Review C3: machine-enforced supply-chain gate. Advisories (RUSTSEC), the
+  # C.O.R.E. forbidden-dependency bans, license allowlist, and registry pinning
+  # all live in core-runtime/deny.toml.
+  supply-chain:
+    name: cargo-deny (advisories, bans, licenses, sources)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: core-runtime/Cargo.toml
+
   lint:
     name: fmt + clippy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -39,6 +53,7 @@ jobs:
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -58,6 +73,7 @@ jobs:
   features:
     name: features / ${{ matrix.feature }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -93,6 +109,7 @@ jobs:
   bench:
     name: bench (default-feature, CI-safe set)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: core-runtime

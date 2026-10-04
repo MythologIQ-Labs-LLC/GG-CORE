@@ -159,7 +159,11 @@ fn ciphertext_includes_tag() {
     let encryption = ModelEncryption::new(create_test_key());
     let plaintext = b"Test message";
     let (_, ciphertext) = encryption.encrypt(plaintext.as_slice()).unwrap();
-    assert_eq!(ciphertext.len(), plaintext.len() + 16, "Ciphertext should include 16-byte tag");
+    assert_eq!(
+        ciphertext.len(),
+        plaintext.len() + 16,
+        "Ciphertext should include 16-byte tag"
+    );
 }
 
 /// Verify invalid nonce size is rejected.
@@ -185,8 +189,16 @@ fn crypto_performance() {
     let decrypted = encryption.decrypt(&nonce, &ciphertext).unwrap();
     let decrypt_time = start.elapsed();
     assert_eq!(plaintext, decrypted);
-    assert!(encrypt_time.as_millis() < 1000, "Encryption too slow: {:?}", encrypt_time);
-    assert!(decrypt_time.as_millis() < 1000, "Decryption too slow: {:?}", decrypt_time);
+    assert!(
+        encrypt_time.as_millis() < 1000,
+        "Encryption too slow: {:?}",
+        encrypt_time
+    );
+    assert!(
+        decrypt_time.as_millis() < 1000,
+        "Decryption too slow: {:?}",
+        decrypt_time
+    );
 }
 
 /// Verify encryption is not deterministic (IND-CPA security).
@@ -209,7 +221,10 @@ fn key_size_256_bits() {
 /// Verify nonce size is 96 bits (12 bytes) for GCM.
 #[test]
 fn nonce_size_96_bits() {
-    assert_eq!(NONCE_SIZE, 12, "Nonce size must be 12 bytes (96 bits) for GCM");
+    assert_eq!(
+        NONCE_SIZE, 12,
+        "Nonce size must be 12 bytes (96 bits) for GCM"
+    );
 }
 
 /// Verify decryption fails with truncated ciphertext.

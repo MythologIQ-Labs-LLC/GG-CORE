@@ -4,7 +4,7 @@
 //! and cannot be escaped through various attack vectors.
 
 use gg_core::memory::{ResourceLimits, ResourceLimitsConfig};
-use gg_core::sandbox::{create_sandbox, Sandbox, SandboxConfig};
+use gg_core::sandbox::{create_sandbox, SandboxConfig};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -19,7 +19,10 @@ fn memory_boundary_reject_over_limit() {
     };
     let limits = ResourceLimits::new(config);
     let result = limits.try_acquire(2 * 1024 * 1024);
-    assert!(result.is_err(), "Should reject allocation over per-call limit");
+    assert!(
+        result.is_err(),
+        "Should reject allocation over per-call limit"
+    );
 }
 
 /// Attempt to exhaust total memory through multiple allocations.
@@ -142,7 +145,9 @@ fn resource_exhaustion_rapid_fire() {
     let start = Instant::now();
     let mut success_count = 0;
     for _ in 0..10000 {
-        if limits.try_acquire(512).is_ok() { success_count += 1; }
+        if limits.try_acquire(512).is_ok() {
+            success_count += 1;
+        }
     }
     let elapsed = start.elapsed();
     assert!(success_count > 9900);
@@ -261,7 +266,9 @@ fn resource_limits_thread_safe() {
             }
         }));
     }
-    for handle in handles { handle.join().unwrap(); }
+    for handle in handles {
+        handle.join().unwrap();
+    }
     assert_eq!(limits.current_memory(), 0);
     assert_eq!(limits.current_concurrent(), 0);
 }
@@ -278,9 +285,7 @@ fn memory_boundary_concurrent_exhaustion() {
     let mut handles = vec![];
     for _ in 0..5 {
         let limits = Arc::clone(&limits);
-        handles.push(thread::spawn(move || {
-            limits.try_acquire(2 * 1024 * 1024)
-        }));
+        handles.push(thread::spawn(move || limits.try_acquire(2 * 1024 * 1024)));
     }
     let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
     let successes = results.iter().filter(|r| r.is_ok()).count();

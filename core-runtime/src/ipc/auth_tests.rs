@@ -1,6 +1,5 @@
 //! Tests for IPC authentication module.
 
-use super::super::auth_session::*;
 use super::*;
 use std::time::Duration;
 

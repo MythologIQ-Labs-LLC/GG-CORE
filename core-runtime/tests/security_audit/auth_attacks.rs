@@ -2,9 +2,9 @@
 //!
 //! Tests for authentication bypass attempts, token manipulation, and session attacks.
 
-use gg_core::ipc::auth::{SessionAuth, AuthError};
-use std::time::Duration;
+use gg_core::ipc::{AuthError, SessionAuth};
 use std::collections::HashSet;
+use std::time::Duration;
 
 /// Wrong token is rejected.
 #[tokio::test]
@@ -50,7 +50,6 @@ async fn session_token_format() {
     assert_eq!(session.as_str().len(), 64);
     assert!(session.as_str().chars().all(|c| c.is_ascii_hexdigit()));
 }
-
 
 /// Valid session is accepted.
 #[tokio::test]
@@ -153,7 +152,7 @@ async fn token_with_special_chars() {
 /// Token with unicode characters.
 #[tokio::test]
 async fn token_with_unicode() {
-    let unicode_token = "\xe4\xb8\xad\xe6\x96\x87\xe5\xaf\x86\xe7\xa0\x81";
+    let unicode_token = "中文密码";
     let auth = SessionAuth::new(unicode_token, Duration::from_secs(3600));
     let result = auth.authenticate(unicode_token).await;
     assert!(result.is_ok());

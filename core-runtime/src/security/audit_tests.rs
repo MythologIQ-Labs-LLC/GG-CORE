@@ -1,6 +1,5 @@
 //! Tests for the enterprise security audit module.
 
-use super::super::audit_types::*;
 use super::*;
 
 #[test]

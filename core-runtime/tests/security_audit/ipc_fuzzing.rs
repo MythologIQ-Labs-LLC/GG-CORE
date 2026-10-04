@@ -2,11 +2,11 @@
 //!
 //! Tests for malformed messages, boundary conditions, and protocol violations.
 
-use gg_core::ipc::protocol::{
-    decode_message, decode_message_binary, encode_message, encode_message_binary,
-    IpcMessage, InferenceRequest, RequestId, HealthCheckType, ProtocolError,
-};
 use gg_core::engine::InferenceParams;
+use gg_core::ipc::protocol::{
+    decode_message, decode_message_binary, encode_message, encode_message_binary, HealthCheckType,
+    InferenceRequest, IpcMessage, ProtocolError, RequestId,
+};
 
 /// Reject message exceeding size limit.
 #[test]
@@ -130,19 +130,33 @@ fn valid_inference_request_passes() {
 /// Message roundtrip JSON encoding.
 #[test]
 fn message_roundtrip_json() {
-    let msg = IpcMessage::HealthCheck { check_type: HealthCheckType::Liveness };
+    let msg = IpcMessage::HealthCheck {
+        check_type: HealthCheckType::Liveness,
+    };
     let encoded = encode_message(&msg).unwrap();
     let decoded = decode_message(&encoded).unwrap();
-    assert!(matches!(decoded, IpcMessage::HealthCheck { check_type: HealthCheckType::Liveness }));
+    assert!(matches!(
+        decoded,
+        IpcMessage::HealthCheck {
+            check_type: HealthCheckType::Liveness
+        }
+    ));
 }
 
 /// Message roundtrip binary encoding.
 #[test]
 fn message_roundtrip_binary() {
-    let msg = IpcMessage::HealthCheck { check_type: HealthCheckType::Readiness };
+    let msg = IpcMessage::HealthCheck {
+        check_type: HealthCheckType::Readiness,
+    };
     let encoded = encode_message_binary(&msg).unwrap();
     let decoded = decode_message_binary(&encoded).unwrap();
-    assert!(matches!(decoded, IpcMessage::HealthCheck { check_type: HealthCheckType::Readiness }));
+    assert!(matches!(
+        decoded,
+        IpcMessage::HealthCheck {
+            check_type: HealthCheckType::Readiness
+        }
+    ));
 }
 
 /// Handshake message encodes correctly.

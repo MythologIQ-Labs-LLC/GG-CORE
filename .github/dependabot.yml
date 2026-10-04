@@ -1,0 +1,28 @@
+# Automated dependency update PRs. Advisory *blocking* is the cargo-deny job in
+# rust.yml; this keeps the update stream flowing so drift like candle 0.8→0.11
+# accumulates as reviewable PRs instead of a migration cliff.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /core-runtime
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # The RustCrypto generation moves together; review it together.
+      rustcrypto:
+        patterns:
+          - "sha2"
+          - "aes"
+          - "aes-gcm"
+          - "pbkdf2"
+          - "zeroize"
+      candle:
+        patterns:
+          - "candle-*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
