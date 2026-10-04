@@ -115,10 +115,9 @@ impl SimdTokenizer {
         let tab = _mm256_set1_epi8(b'\t' as i8);
         let carriage = _mm256_set1_epi8(b'\r' as i8);
 
-        let chunks = text.chunks_exact(32);
-        let remainder = chunks.remainder();
+        let (chunks, remainder) = text.as_chunks::<32>();
 
-        for (chunk_idx, chunk) in chunks.enumerate() {
+        for (chunk_idx, chunk) in chunks.iter().enumerate() {
             let data = _mm256_loadu_si256(chunk.as_ptr() as *const __m256i);
             let is_space = _mm256_cmpeq_epi8(data, space);
             let is_newline = _mm256_cmpeq_epi8(data, newline);
@@ -239,10 +238,9 @@ impl SimdTokenizer {
         let punct_start = _mm256_set1_epi8(0x21); // '!'
         let punct_end = _mm256_set1_epi8(0x40); // '@'
 
-        let chunks = text.chunks_exact(32);
-        let remainder = chunks.remainder();
+        let (chunks, remainder) = text.as_chunks::<32>();
 
-        for (chunk_idx, chunk) in chunks.enumerate() {
+        for (chunk_idx, chunk) in chunks.iter().enumerate() {
             let data = _mm256_loadu_si256(chunk.as_ptr() as *const __m256i);
 
             // Check for whitespace

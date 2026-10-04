@@ -407,4 +407,4 @@ CoreErrorCode core_infer_streaming(CoreRuntime *runtime,
 /// and must not be used again (double-free is undefined behavior).
 void core_free_string(char *s);
 
-} // extern "C"
+}  // extern "C"
