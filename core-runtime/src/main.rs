@@ -5,6 +5,7 @@
 
 mod cli_parser;
 mod runtime_init;
+mod startup_model;
 
 use std::process::ExitCode;
 
@@ -18,7 +19,7 @@ async fn main() -> ExitCode {
     let command = args.get(1).map(|s| s.as_str()).unwrap_or("serve");
 
     match command {
-        "serve" | "" => run_serve().await,
+        "serve" | "" => run_serve(&args).await,
         "health" => run_probe(|p| Box::pin(run_health(p))).await,
         "live" | "liveness" => run_probe(|p| Box::pin(run_liveness(p))).await,
         "ready" | "readiness" => run_probe(|p| Box::pin(run_readiness(p))).await,
@@ -54,7 +55,15 @@ async fn main() -> ExitCode {
     }
 }
 
-async fn run_serve() -> ExitCode {
+async fn run_serve(args: &[String]) -> ExitCode {
+    let startup_spec = match startup_model::parse(args) {
+        Ok(spec) => spec,
+        Err(e) => {
+            eprintln!("Invalid serve configuration: {}", e);
+            return ExitCode::from(2u8);
+        }
+    };
+
     if let Err(e) = fips_tests::run_power_on_self_tests() {
         eprintln!("FIPS self-test FAILED: {}", e);
         eprintln!("Cryptographic operations disabled. Aborting startup.");
@@ -64,6 +73,17 @@ async fn run_serve() -> ExitCode {
 
     let config = runtime_init::load_config();
     let runtime = Runtime::new(config);
+
+    if let Some(spec) = startup_spec.as_ref() {
+        match startup_model::preload(&runtime, spec).await {
+            Ok(model_id) => eprintln!("Startup model loaded: {}", model_id),
+            Err(e) => {
+                eprintln!("Startup model preload failed: {}", e);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
     match runtime_init::run_ipc_server(runtime).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {

@@ -31,6 +31,7 @@ OPTIONS:
 EXAMPLES:
     GG-CORE                          # Run IPC server (default)
     GG-CORE serve                    # Explicitly run IPC server
+    GG-CORE serve --model models/qwen.gguf --model-id local-qwen
     GG-CORE infer --model phi-3 --prompt \"Hello\"  # Run inference
     GG-CORE infer --model phi-3 --prompt \"Hi\" --stream  # Streaming
     GG-CORE health                   # Full health check
@@ -88,14 +89,19 @@ OPTIONS:
     --socket PATH     Override IPC socket path
     --config FILE     Load configuration from file
     --auth-token TKN  Set authentication token
+    --model PATH      Preload one local model before accepting requests
+    --model-id ID     Runtime model ID (defaults to the model file stem)
 
 DESCRIPTION:
     Starts the GG-CORE IPC server. Default command when none is specified.
     Performs FIPS 140-3 power-on self-tests before starting.
+    A startup model must resolve through the configured base path under an
+    allowed model directory. Invalid, missing, or unsupported models fail startup.
 
 EXAMPLES:
     GG-CORE serve
     GG-CORE serve --socket /custom/gg-core.sock
+    GG-CORE serve --model models/qwen.gguf --model-id local-qwen
 "
     );
 }
