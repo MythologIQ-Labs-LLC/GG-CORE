@@ -82,20 +82,23 @@ fn print_serve_help() {
         "GG-CORE serve - Run the IPC server
 
 USAGE:
-    GG-CORE serve [OPTIONS]
+    GG-CORE serve [--model <path>]... [--model-id <id>]...
 
 OPTIONS:
-    --socket PATH     Override IPC socket path
-    --config FILE     Load configuration from file
-    --auth-token TKN  Set authentication token
+    --model PATH      Preload a model at startup (repeatable; path is
+                      relative to the configured base path)
+    --model-id ID     Id for the matching --model (positional pairing)
 
 DESCRIPTION:
     Starts the GG-CORE IPC server. Default command when none is specified.
-    Performs FIPS 140-3 power-on self-tests before starting.
+    Performs FIPS 140-3 power-on self-tests before starting. A preload
+    failure aborts startup. GG_CORE_PRELOAD_MODELS (comma-separated paths)
+    is used when no --model flags are given. Readiness reports not-ready
+    until at least one model is loaded.
 
 EXAMPLES:
     GG-CORE serve
-    GG-CORE serve --socket /custom/gg-core.sock
+    GG-CORE serve --model models/qwen.gguf --model-id local-model
 "
     );
 }
@@ -219,11 +222,15 @@ USAGE:
     GG-CORE models <SUBCOMMAND> [OPTIONS]
 
 SUBCOMMANDS:
-    list           List loaded models
+    list [--json]         List loaded models
+    load <path> [--id ID] Load a model (authenticated; base-path relative)
+    unload <model-id>     Unload a loaded model (authenticated)
 
 OPTIONS:
-    --socket PATH  Override IPC socket path
-    --json         Output in JSON format
+    --json         Output in JSON format (list)
+
+ENVIRONMENT:
+    CORE_AUTH_TOKEN  Shared token for authenticated load/unload
 "
     );
 }

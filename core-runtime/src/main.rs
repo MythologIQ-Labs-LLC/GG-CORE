@@ -18,7 +18,7 @@ async fn main() -> ExitCode {
     let command = args.get(1).map(|s| s.as_str()).unwrap_or("serve");
 
     match command {
-        "serve" | "" => run_serve().await,
+        "serve" | "" => run_serve(&args).await,
         "health" => run_probe(|p| Box::pin(run_health(p))).await,
         "live" | "liveness" => run_probe(|p| Box::pin(run_liveness(p))).await,
         "ready" | "readiness" => run_probe(|p| Box::pin(run_readiness(p))).await,
@@ -54,7 +54,16 @@ async fn main() -> ExitCode {
     }
 }
 
-async fn run_serve() -> ExitCode {
+async fn run_serve(args: &[String]) -> ExitCode {
+    let preload = match runtime_init::parse_serve_models(args) {
+        Ok(models) => models,
+        Err(e) => {
+            eprintln!("serve: {}", e);
+            eprintln!("Usage: GG-CORE serve [--model <path>]... [--model-id <id>]...");
+            return ExitCode::FAILURE;
+        }
+    };
+
     if let Err(e) = fips_tests::run_power_on_self_tests() {
         eprintln!("FIPS self-test FAILED: {}", e);
         eprintln!("Cryptographic operations disabled. Aborting startup.");
@@ -64,6 +73,13 @@ async fn run_serve() -> ExitCode {
 
     let config = runtime_init::load_config();
     let runtime = Runtime::new(config);
+
+    // B-41 (#106): fail-loud startup preload through the canonical load path.
+    if let Err(e) = runtime_init::preload_models(&runtime, &preload).await {
+        eprintln!("Startup preload FAILED: {}", e);
+        return ExitCode::FAILURE;
+    }
+
     match runtime_init::run_ipc_server(runtime).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
@@ -83,10 +99,33 @@ where
 
 async fn run_models_cmd(args: &[String]) -> ExitCode {
     let sub = args.get(2).map(|s| s.as_str()).unwrap_or("list");
+    let sp = get_socket_path();
     match sub {
         "list" => {
-            let sp = get_socket_path();
-            ExitCode::from(gg_core::cli::models_cmd::run_list(&sp).await as u8)
+            let json = args.iter().skip(3).any(|a| a == "--json");
+            ExitCode::from(gg_core::cli::models_cmd::run_list(&sp, json).await as u8)
+        }
+        "load" => {
+            let Some(path) = args.get(3).filter(|a| !a.starts_with("--")) else {
+                eprintln!("Usage: GG-CORE models load <path> [--id ID]");
+                return ExitCode::FAILURE;
+            };
+            let model_id = args
+                .iter()
+                .skip(4)
+                .position(|a| a == "--id")
+                .and_then(|i| args.get(4 + i + 1))
+                .cloned();
+            ExitCode::from(
+                gg_core::cli::models_lifecycle_cmd::run_load(&sp, path, model_id).await as u8,
+            )
+        }
+        "unload" => {
+            let Some(id) = args.get(3) else {
+                eprintln!("Usage: GG-CORE models unload <model-id>");
+                return ExitCode::FAILURE;
+            };
+            ExitCode::from(gg_core::cli::models_lifecycle_cmd::run_unload(&sp, id).await as u8)
         }
         _ => {
             eprintln!("Unknown models subcommand: {}", sub);

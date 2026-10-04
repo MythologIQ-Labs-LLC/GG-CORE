@@ -8,9 +8,11 @@ mod auth_session;
 mod connections;
 pub mod encoding;
 mod handler;
+mod handler_models;
 mod health_handler;
 pub mod protocol;
 pub mod protocol_codec;
+pub mod protocol_model_types;
 pub mod protocol_types;
 pub mod server;
 mod stream_bridge;
@@ -24,8 +26,9 @@ pub use handler::{HandlerError, IpcHandler, IpcHandlerConfig, StreamSender};
 pub use protocol::{
     decode_message, decode_message_binary, encode_message, encode_message_binary,
     HealthCheckResponse, HealthCheckType, InferenceRequest, InferenceResponse, IpcMessage,
-    ModelInfo, ModelsListResponse, ProtocolError, ProtocolVersion, RequestId, StreamChunk,
-    WarmupRequest, WarmupResponse,
+    ModelInfo, ModelLoadRequest, ModelLoadResponse, ModelUnloadRequest, ModelUnloadResponse,
+    ModelsListResponse, ProtocolError, ProtocolVersion, RequestId, StreamChunk, WarmupRequest,
+    WarmupResponse,
 };
 pub use stream_bridge::IpcStreamBridge;
 // Re-export MetricsSnapshot for IPC consumers

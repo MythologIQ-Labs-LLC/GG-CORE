@@ -151,6 +151,8 @@ impl Runtime {
         registry: &Arc<ModelRegistry>,
         metrics: &Arc<MetricsStore>,
         engine: &Arc<crate::engine::InferenceEngine>,
+        lifecycle: &Arc<crate::models::ModelLifecycle>,
+        loader: &Arc<crate::models::ModelLoader>,
     ) -> IpcHandler {
         let session_auth = Arc::new(SessionAuth::new(&config.auth_token, config.session_timeout));
         IpcHandler::new(
@@ -162,6 +164,8 @@ impl Runtime {
             registry.clone(),
             metrics.clone(),
             Arc::clone(engine),
+            Arc::clone(lifecycle),
+            Arc::clone(loader),
         )
     }
 }

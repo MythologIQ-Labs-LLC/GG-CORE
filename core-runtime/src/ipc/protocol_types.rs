@@ -330,6 +330,14 @@ pub enum IpcMessage {
     ModelsRequest,
     #[serde(rename = "models_response")]
     ModelsResponse(ModelsListResponse),
+    #[serde(rename = "model_load_request")]
+    ModelLoadRequest(super::protocol_model_types::ModelLoadRequest),
+    #[serde(rename = "model_load_response")]
+    ModelLoadResponse(super::protocol_model_types::ModelLoadResponse),
+    #[serde(rename = "model_unload_request")]
+    ModelUnloadRequest(super::protocol_model_types::ModelUnloadRequest),
+    #[serde(rename = "model_unload_response")]
+    ModelUnloadResponse(super::protocol_model_types::ModelUnloadResponse),
     #[serde(rename = "error")]
     Error { code: u32, message: String },
 }

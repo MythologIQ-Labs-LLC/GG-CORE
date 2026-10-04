@@ -10,6 +10,10 @@ use gg_core::{Runtime, RuntimeConfig};
 use gg_core::cli::CliIpcClient;
 
 /// Load runtime configuration from environment.
+///
+/// The standalone daemon requires a loaded model to report ready (B-41,
+/// issue #106): liveness stays unconditional, but readiness is withheld
+/// until at least one servable model is registered.
 pub fn load_config() -> RuntimeConfig {
     let env = gg_config::load();
     RuntimeConfig {
@@ -17,6 +21,10 @@ pub fn load_config() -> RuntimeConfig {
         auth_token: env.auth_token,
         session_timeout: env.session_timeout,
         max_context_length: env.max_context_length,
+        health: gg_core::health::HealthConfig {
+            require_model_loaded: true,
+            ..Default::default()
+        },
         request_queue: env.request_queue,
         resource_limits: env.resource_limits,
         batch: env.batch,
@@ -25,6 +33,75 @@ pub fn load_config() -> RuntimeConfig {
         ipc_server: env.ipc_server,
         ..Default::default()
     }
+}
+
+/// Environment variable naming comma-separated model paths to preload.
+pub const PRELOAD_MODELS_ENV: &str = "GG_CORE_PRELOAD_MODELS";
+
+/// Parse `serve` arguments: repeatable `--model <path>` with optional
+/// positionally-paired `--model-id <id>`; falls back to the
+/// `GG_CORE_PRELOAD_MODELS` env var (comma-separated paths) when no
+/// `--model` flags are given.
+pub fn parse_serve_models(args: &[String]) -> Result<Vec<(String, Option<String>)>, String> {
+    let mut paths: Vec<String> = Vec::new();
+    let mut ids: Vec<String> = Vec::new();
+    let mut i = 2;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--model" => {
+                let v = args.get(i + 1).ok_or("Missing value for --model")?;
+                paths.push(v.clone());
+                i += 2;
+            }
+            "--model-id" => {
+                let v = args.get(i + 1).ok_or("Missing value for --model-id")?;
+                ids.push(v.clone());
+                i += 2;
+            }
+            other => return Err(format!("Unknown serve argument: {}", other)),
+        }
+    }
+    if ids.len() > paths.len() {
+        return Err("More --model-id values than --model paths".to_string());
+    }
+    if paths.is_empty() {
+        if let Ok(env_paths) = std::env::var(PRELOAD_MODELS_ENV) {
+            paths = env_paths
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+                .collect();
+        }
+    }
+    let mut ids = ids.into_iter().map(Some).collect::<Vec<_>>();
+    ids.resize(paths.len(), None);
+    Ok(paths.into_iter().zip(ids).collect())
+}
+
+/// Preload models at startup via the canonical load path. Fail-loud: the
+/// first failure aborts startup (no degraded-start mode).
+pub async fn preload_models(
+    runtime: &Runtime,
+    models: &[(String, Option<String>)],
+) -> Result<(), String> {
+    for (path, id) in models {
+        match gg_core::models::load_model_from_path(
+            &runtime.model_loader,
+            &runtime.model_lifecycle,
+            path,
+            id.clone(),
+        )
+        .await
+        {
+            Ok(loaded) => eprintln!(
+                "Preloaded model '{}' (handle {})",
+                loaded.model_id, loaded.handle_id
+            ),
+            Err(e) => return Err(format!("preload of '{}' failed: {}", path, e)),
+        }
+    }
+    Ok(())
 }
 
 /// Run the inference CLI command.
@@ -163,3 +240,7 @@ pub async fn run_ipc_server(runtime: Runtime) -> Result<(), Box<dyn std::error::
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "runtime_init_tests.rs"]
+mod tests;

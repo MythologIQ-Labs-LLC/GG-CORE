@@ -84,6 +84,10 @@ pub struct IpcHandler {
     health_handler: HealthHandler,
     metrics_store: Arc<MetricsStore>,
     model_registry: Arc<ModelRegistry>,
+    /// Model lifecycle coordinator for authenticated load/unload (B-41, #106).
+    pub(super) model_lifecycle: Arc<crate::models::ModelLifecycle>,
+    /// Path-validating loader bound to the runtime's base path (B-41, #106).
+    pub(super) model_loader: Arc<crate::models::ModelLoader>,
     /// Used by streaming path (gguf feature).
     #[allow(dead_code)]
     inference_engine: Arc<InferenceEngine>,
@@ -100,6 +104,8 @@ impl IpcHandler {
         model_registry: Arc<ModelRegistry>,
         metrics_store: Arc<MetricsStore>,
         inference_engine: Arc<InferenceEngine>,
+        model_lifecycle: Arc<crate::models::ModelLifecycle>,
+        model_loader: Arc<crate::models::ModelLoader>,
     ) -> Self {
         let health_handler = HealthHandler::new(
             health,
@@ -115,6 +121,8 @@ impl IpcHandler {
             health_handler,
             metrics_store,
             model_registry,
+            model_lifecycle,
+            model_loader,
             inference_engine,
         }
     }
@@ -194,6 +202,20 @@ impl IpcHandler {
                 Ok((IpcMessage::WarmupResponse(response), None))
             }
 
+            IpcMessage::ModelLoadRequest(request) => {
+                // AUTH REQUIRED: load mutates runtime state (B-41, #106)
+                self.require_auth(session).await?;
+                let response = self.handle_model_load(request).await;
+                Ok((IpcMessage::ModelLoadResponse(response), None))
+            }
+
+            IpcMessage::ModelUnloadRequest(request) => {
+                // AUTH REQUIRED: unload mutates runtime state (B-41, #106)
+                self.require_auth(session).await?;
+                let response = self.handle_model_unload(request).await;
+                Ok((IpcMessage::ModelUnloadResponse(response), None))
+            }
+
             _ => {
                 let error = IpcMessage::Error {
                     code: 400,
@@ -204,7 +226,10 @@ impl IpcHandler {
         }
     }
 
-    async fn require_auth(&self, session: Option<&SessionToken>) -> Result<(), HandlerError> {
+    pub(super) async fn require_auth(
+        &self,
+        session: Option<&SessionToken>,
+    ) -> Result<(), HandlerError> {
         if !self.config.require_auth {
             return Ok(());
         }
