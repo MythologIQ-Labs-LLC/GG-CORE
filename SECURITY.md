@@ -1,306 +1,141 @@
 # Security Policy
 
-**GG-CORE** (Secure Performance-Accelerated Runtime Kernel) takes security seriously. This document outlines our security policy and procedures for reporting vulnerabilities.
+**GG-CORE** (Greatest Good - Contained Offline Restricted Execution) is a
+security-first, offline inference runtime. This document states the security
+posture honestly: what is implemented and enforced, what exists as a library
+but is not yet wired into every surface, and what is planned. Every claim
+here is checkable against the source; file references are given where a claim
+is load-bearing.
 
 ---
 
 ## Security Posture
 
-| Metric           | Value         |
-| ---------------- | ------------- |
-| Security Score   | 98/100 (A+)   |
-| Security Tests   | 60+ passing   |
-| OWASP LLM Top 10 | Full coverage |
-| License          | Apache 2.0    |
-| Last Audit       | 2026-02-20    |
+| Metric | Value |
+| --- | --- |
+| Assessment basis | Internal review only — **no independent audit has been performed** |
+| Security tests | ~285 across `src/security/` (113), `tests/security_*` (79), `tests/security_audit/` penetration suite (85), auth + façade suites (8) |
+| OWASP LLM Top 10 (2023 v1.1) | Partial — 6 of 10 risks addressed (see table) |
+| Supply-chain gate | `cargo-deny` in CI: RUSTSEC advisories, dependency bans, license allowlist |
+| License | Apache 2.0 |
 
----
+Prior versions of this document carried a self-assigned numeric score; it has
+been removed. A score is meaningful only from an independent assessment,
+which remains planned (see Roadmap).
 
 ## Supported Versions
 
-| Version | Supported | Security Updates |
-| ------- | --------- | ---------------- |
-| 1.0.x   | Yes       | Active           |
-| 0.x.x   | No        | End of life      |
+| Version | Supported | Notes |
+| --- | --- | --- |
+| 0.9.x | Yes | Current release line (first line published through the release pipeline) |
+| ≤ 0.8.x | No | Pre-release-pipeline development tags (v0.6.5, v0.7.0, v0.8.2) |
 
----
-
-## Security Features
-
-### Implemented Protections
-
-| Feature                   | Description                                                     | Status      |
-| ------------------------- | --------------------------------------------------------------- | ----------- |
-| Sandbox Isolation         | Windows Job Objects, Linux cgroups v2 + seccomp-bpf             | Implemented |
-| Prompt Injection Filter   | 55+ attack patterns, zero-width stripping                       | Implemented |
-| PII Detection             | 13 types, NFKC normalization                                    | Implemented |
-| Output Sanitization       | Automatic redaction, safe buffer trimming                       | Implemented |
-| Model Encryption          | AES-256-GCM, installation-specific salt, key zeroing            | Implemented |
-| Nonce Reuse Detection     | Global nonce tracking, abort on CSPRNG failure                  | Implemented |
-| Rate Limiting             | Per-session (1000 req/min), brute-force protection              | Implemented |
-| Audit Logging             | 13 security event types                                         | Implemented |
-| Session Security          | CSPRNG session IDs, constant-time comparison, timing protection | Implemented |
-| Input Validation          | Comprehensive input sanitization, bounds checking               | Implemented |
-| Path Traversal Protection | Filesystem access controls                                      | Implemented |
-| FFI Security              | Bounds checking on all unsafe conversions                       | Implemented |
-| Unicode Security          | NFKC normalization, homograph attack prevention                 | Implemented |
-| Key Zeroing               | Secure memory clearing with `zeroize` crate                     | Implemented |
-| Seccomp-bpf Filtering     | Syscall whitelist on Linux (40+ allowed syscalls)               | Implemented |
-
-### OWASP LLM Top 10 Coverage
-
-| Risk                           | Coverage                                                        |
-| ------------------------------ | --------------------------------------------------------------- |
-| LLM01: Prompt Injection        | Detection + Filtering + Zero-width stripping                    |
-| LLM02: Insecure Output         | PII Sanitization + Safe buffer trimming                         |
-| LLM04: Model Denial of Service | Per-session rate limits + Resource limits                       |
-| LLM05: Supply Chain            | Hash verification                                               |
-| LLM06: Sensitive Information   | PII Detection + Redaction + NFKC normalization                  |
-| LLM10: Model Theft             | Sandbox + Encryption + Installation-specific salt + Key zeroing |
-
----
+There has never been a 1.x release.
 
 ## Reporting a Vulnerability
 
-### How to Report
+Use **GitHub private vulnerability reporting** on this repository
+(Security → Report a vulnerability). Do not open a public issue for
+security reports.
 
-If you discover a security vulnerability, please report it responsibly:
+- Acknowledgement target: 7 days.
+- Coordinated disclosure: we ask for a reasonable embargo while a fix ships.
 
-1. **Email**: security@GG-CORE.dev (example - replace with actual)
-2. **GitHub Security Advisory**: Use GitHub's private vulnerability reporting feature
-3. **Do NOT** create a public issue for security vulnerabilities
+## Security Features — Honest Maturity
 
-### What to Include
+**Enforced by default on the serving path** (ingress scan → inference →
+egress sanitize; `Runtime::infer`/`infer_stream` is the sole external
+inference path since v0.8.x):
 
-Please include the following information:
+| Feature | Detail | Evidence |
+| --- | --- | --- |
+| Prompt-injection detection | 55 base patterns + 5 high-risk + 5 context pairs; zero-width stripping; blocking on by default | `security/prompt_injection.rs` |
+| PII detection/redaction | 13 PII types from 23 regexes; NFKC normalization; Luhn/SSN structural checks (other types are pattern-only) | `security/pii_detector.rs`, `pii_patterns.rs` |
+| Streaming egress sanitization | In-runtime detokenization; windowed sanitizer with holdback — raw tokens never leave the runtime | `security/stream_sanitizer.rs` |
+| IPC authentication | SHA-256 token (constant-time compare), per-session caps (1000 req/min), brute-force lockout (5 failures → 30 s); model load/unload require an authenticated session | `ipc/auth.rs`, `ipc/auth_session.rs` |
+| Path confinement | Model loads restricted to `models/`/`tokenizers/` under the configured base path; NUL bytes and traversal rejected lexically | `models/loader.rs::validate_path` |
+| Input validation | Text ≤ 65,536 bytes, ≤ 4096 input tokens, batch ≤ 32 | `engine/input.rs` |
+| Resource limits | Per-call / total-memory / concurrency gates | `memory/limits.rs`, env-configurable |
+| Security event log | 13 `SecurityEvent` variants via structured tracing | `telemetry/security_log.rs` |
 
-- **Description**: Clear description of the vulnerability
-- **Impact**: Potential impact if exploited
-- **Reproduction**: Steps to reproduce the issue
-- **Proof of Concept**: Code or commands demonstrating the issue (if applicable)
-- **Suggested Fix**: If you have ideas for remediation
+**Implemented as libraries, NOT yet applied by the standalone daemon** —
+these are real, tested code paths that embedding hosts can invoke, but
+`gg-core-cli serve` does not currently activate them:
 
-### Response Timeline
+| Feature | State | Gap |
+| --- | --- | --- |
+| Sandbox (Windows Job Objects; Linux cgroups v2 + seccomp-bpf, 49-syscall allowlist, kill-on-unknown) | Library + tests pass | `create_sandbox` is never called from the daemon startup path |
+| Model encryption (AES-256-GCM, PBKDF2 keys, installation salt, key zeroing, nonce-reuse detection with 10,000-nonce history) | Library + 39 tests | The model load path never decrypts; `enable_model_encryption` is not read by the loader |
+| Model hash verification | Manifest carries a `sha256` field | Only its length is validated; no digest is computed on load — **do not rely on manifest hashes for integrity today** |
 
-| Stage              | Target Timeframe       |
-| ------------------ | ---------------------- |
-| Acknowledgment     | 24-48 hours            |
-| Initial Assessment | 3-5 business days      |
-| Fix Development    | Depends on severity    |
-| Security Advisory  | Within 24 hours of fix |
+**FIPS 140-3**: the runtime executes power-on cryptographic self-tests at
+daemon startup and refuses to start if they fail. This is *FIPS-informed
+self-testing*. **GG-CORE holds no FIPS 140-3 validation or certification.**
 
-### Severity Levels
+### OWASP LLM Top 10 (2023 v1.1) — actual coverage
 
-| Severity | Description                          | Response Time   |
-| -------- | ------------------------------------ | --------------- |
-| Critical | Remote code execution, data breach   | 24 hours        |
-| High     | Sandbox escape, privilege escalation | 48 hours        |
-| Medium   | Bypass of security controls          | 5 business days |
-| Low      | Minor security improvements          | Next release    |
+| Risk | Coverage |
+| --- | --- |
+| LLM01 Prompt Injection | Detection + blocking + zero-width stripping |
+| LLM02 Insecure Output Handling | PII sanitization, streaming holdback |
+| LLM03 Training Data Poisoning | Out of scope (inference-only runtime) |
+| LLM04 Model DoS | Rate limits, resource gates, degraded-mode policy |
+| LLM05 Supply Chain | Partial: `cargo-deny` advisory/ban gate for *code* dependencies; model hash verification not yet enforced |
+| LLM06 Sensitive Info Disclosure | PII detection/redaction, NFKC |
+| LLM07 Insecure Plugin Design | Out of scope (no plugin system by design) |
+| LLM08 Excessive Agency | Out of scope by architecture (pure compute, no tool/data authority) |
+| LLM09 Overreliance | Not addressed (consumer concern) |
+| LLM10 Model Theft | Partial: path confinement + encryption library; sandbox not daemon-applied |
 
----
+## Configuration
 
-## Security Best Practices
+Security behavior is environment-driven (`src/security/mod.rs`, `src/config.rs`):
 
-### Deployment
+| Variable | Values | Default |
+| --- | --- | --- |
+| `GG_CORE_SECURITY_INGRESS` | `block` / `detect` / `off` | `block` |
+| `GG_CORE_SECURITY_EGRESS` | `redact` / `off` | `redact` |
+| `CORE_AUTH_TOKEN` | shared IPC auth token (daemon + CLI) | empty (only an empty-token handshake succeeds) |
+| `GG_CORE_MAX_MEMORY_PER_CALL` / `GG_CORE_MAX_TOTAL_MEMORY` / `GG_CORE_MAX_CONCURRENT` | resource gates | see `config.rs` |
 
-1. **Enable all security features** by default
-2. **Configure audit logging** to track security events
-3. **Use model encryption** for sensitive models
-4. **Set appropriate rate limits** for your workload
-5. **Run with minimal privileges** (sandbox user)
-6. **On Linux, ensure cgroups v2 is available** for sandbox enforcement
+Programmatic embedding uses `security::SecurityConfig`
+(`enable_prompt_injection_detection`, `block_prompt_injection`,
+`enable_pii_detection`, `redact_pii`, `enable_model_encryption`,
+`encryption_key`). Variable and field names in earlier versions of this
+document (`AUTH_TOKEN`, `SANDBOX_USER`, `RESOURCE_LIMITS`,
+`enable_prompt_injection_filter`, …) never existed.
 
-### Configuration
-
-```rust
-// Recommended security configuration
-let security = SecurityConfig {
-    enable_prompt_injection_filter: true,
-    enable_pii_detection: true,
-    enable_output_sanitization: true,
-    block_high_risk_prompts: true,
-    audit_log_path: Some(PathBuf::from("./logs/audit.json")),
-    ..Default::default()
-};
-```
-
-### Environment
-
-- **AUTH_TOKEN**: Set a strong authentication token
-- **SANDBOX_USER**: Run as a restricted user account
-- **RESOURCE_LIMITS**: Configure appropriate memory/CPU limits
-
-### Linux Sandbox Requirements
-
-The Linux sandbox requires cgroups v2 for resource enforcement. If cgroups v2 is not available, the sandbox will return an error rather than silently failing. To verify cgroups v2 is available:
+## Verification
 
 ```bash
-# Check if cgroups v2 is mounted
-mount | grep cgroup2
-# Should show: cgroup2 on /sys/fs/cgroup type cgroup2
+# Full security surface
+cargo test --test security_audit            # 85 penetration tests
+cargo test --lib security                   # unit suites
+cargo test --test security_path_traversal_test
+cargo test --test security_sandbox_escape_test   # library-level sandbox tests
+
+# Supply chain
+cargo deny check                            # advisories, bans, licenses, sources
 ```
 
----
+CI runs all of the above on every push/PR (`rust.yml`), including the
+penetration suite on Linux, macOS, and Windows.
 
-## Security Audit
+## Known Gaps (tracked, not hidden)
 
-### Test Coverage
-
-| Category            | Tests   |
-| ------------------- | ------- |
-| Prompt Injection    | 11      |
-| PII Detection       | 13      |
-| Output Sanitization | 13      |
-| Model Encryption    | 11      |
-| Input Validation    | 8       |
-| Path Traversal      | 5       |
-| Sandbox Escape      | 6       |
-| Adversarial Input   | 8       |
-| Hash Verification   | 5       |
-| Auth/Session        | 4       |
-| Security Regression | 9       |
-| **Total**           | **52+** |
-
-### Running Security Tests
-
-```powershell
-# Run all security tests
-cargo test --lib security::
-
-# Run specific security module tests
-cargo test --lib security::prompt_injection
-cargo test --lib security::pii_detector
-cargo test --lib security::output_sanitizer
-cargo test --lib security::encryption
-
-# Run security regression tests
-cargo test security_regression
-```
-
----
+1. **Daemon sandbox activation** — the standalone daemon should apply the
+   sandbox it ships. Until then, deploy `gg-core-cli serve` under an external
+   sandbox (systemd hardening, containers, Job Objects).
+2. **Model hash enforcement** — compute and verify the manifest `sha256` at
+   load; fail loud on mismatch.
+3. **Model encryption wiring** — connect `ModelEncryption` to the load path
+   behind its config flag.
+4. **Independent audit** — planned post-1.0 (see ROADMAP).
 
 ## Security Changelog
 
-### Version 1.0.2 (2026-02-20)
-
-**A+ Security Rating Achieved**
-
-This release addresses all remaining high-priority security issues identified in the adversarial audit:
-
-**Critical Security Fixes:**
-
-- **ADV-ENC-03**: Implemented key zeroing with `zeroize` crate - all encryption keys are securely erased on drop
-- **ADV-ENC-02**: Added nonce reuse detection with global tracking - aborts on CSPRNG failure
-- **ADV-AUTH-03**: Fixed timing attacks on session validation with constant-time delay (100µs minimum)
-- **ADV-SAND-02**: Fixed Windows sandbox to assign current process to job object
-- **ADV-SAND-03**: Added seccomp-bpf syscall filtering on Linux (40+ whitelisted syscalls)
-
-**Security Enhancements:**
-
-- Added `zeroize` dependency with `derive` feature for secure memory clearing
-- Added `libc` dependency for Unix syscall access
-- Updated encryption module with `Zeroizing<[u8; KEY_SIZE]>` wrapper
-- Added `NonceReuseDetected` error type for CSPRNG failure detection
-- Added constant-time session validation to prevent session enumeration attacks
-
-### Version 1.0.1 (2026-02-20)
-
-**Critical Security Fixes:**
-
-- Fixed Unix sandbox stub - now properly enforces cgroups v2 or returns error
-- Fixed static encryption salt vulnerability - now uses installation-specific CSPRNG salt
-- Added bounds checking to FFI conversions (MAX_TOKEN_COUNT=1M)
-- Added per-session request rate limiting (1000 req/min)
-- Added NFKC normalization for PII detection to prevent homograph attacks
-- Added zero-width character stripping in prompt injection filter
-
-**Improvements:**
-
-- Fixed streaming PII buffer boundary issue with safe trim points
-- Added security regression test suite
-- Updated TierSynergy compatibility for GG-CORE API changes
-
-### Version 1.0.0
-
-- Implemented prompt injection filter (55+ patterns)
-- Added PII detection (13 types)
-- Added output sanitization
-- Implemented model encryption (AES-256)
-- Added rate limiting
-- Implemented audit logging (13 event types)
-- Added CSPRNG session ID generation
-- Implemented Windows Job Objects sandbox
-
----
-
-## Known Security Considerations
-
-### Linux Sandbox
-
-The Linux sandbox requires cgroups v2. On systems without cgroups v2:
-
-- The sandbox will return an error on initialization
-- Resource limits will not be enforced
-- Consider using container-based isolation as an alternative
-
-The Linux sandbox also includes seccomp-bpf syscall filtering:
-
-- Only 40+ whitelisted syscalls are allowed
-- Unknown syscalls will cause the process to be killed
-- This provides defense-in-depth against code execution vulnerabilities
-- GPU drivers may require additional syscalls - test thoroughly
-
-### Encryption Key Storage
-
-The installation-specific salt is stored in:
-
-- Windows: `%LOCALAPPDATA%\gg-core\.gg-core-salt`
-- Linux: `~/.config/gg-core/.gg-core-salt`
-
-Ensure these directories have appropriate permissions.
-
-### Key Zeroing
-
-All encryption keys are securely zeroed on drop using the `zeroize` crate:
-
-- Keys wrapped in `Zeroizing<[u8; 32]>` are automatically zeroed
-- Local key copies in `from_password()` are explicitly zeroed
-- This prevents key recovery from memory dumps
-
-### Nonce Reuse Detection
-
-The encryption module tracks all used nonces:
-
-- Up to 10,000 nonces are tracked in memory
-- If a nonce is reused, encryption fails with `NonceReuseDetected`
-- This indicates a critical CSPRNG failure and should be investigated
-
-### Session Validation Timing
-
-Session validation includes constant-time protection:
-
-- All validations take a minimum of 100 microseconds
-- This prevents timing attacks that could enumerate valid sessions
-- The delay is applied after successful validation
-
-### FFI Boundary
-
-When using the C FFI interface:
-
-- Always validate token counts before passing pointers
-- Maximum token count is 1,000,000 per request
-- Invalid parameters return `CoreErrorCode::InvalidParams`
-
----
-
-## Contact
-
-- **Security Team**: security@GG-CORE.dev
-- **General Issues**: GitHub Issues
-- **Documentation**: [docs/USAGE_GUIDE.md](docs/USAGE_GUIDE.md)
-
----
-
-Copyright 2024-2026 GG-CORE Contributors  
-Licensed under the Apache License, Version 2.0
+| Release | Security-relevant changes |
+| --- | --- |
+| 0.9.0 | security_audit penetration suite activated in CI (85 tests); cargo-deny supply-chain gate; RUSTSEC-2026-0204/0186/0097 cleared; authenticated IPC model load/unload; model-gated readiness |
+| 0.8.2 | pyo3 0.29 (3 RUSTSEC advisories), rand 0.9 migration; KV-cache cross-sequence isolation redesign; NUL-byte path rejection; streaming egress sanitization; secure façade as sole inference path |
+| ≤ 0.8.1 | see CHANGELOG.md |

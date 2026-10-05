@@ -1,375 +1,164 @@
-# GG-CORE (Secure Performance-Accelerated Runtime Kernel) Feature Roadmap
+# GG-CORE Roadmap
 
-**Last Updated:** 2026-02-20
-**Version:** 0.8.1
+**Last updated:** 2026-10-05 · **Current version:** 0.9.0
+**Product:** GG-CORE (Greatest Good - Contained Offline Restricted Execution) —
+a sandboxed, offline, IPC-only inference runtime. Pure compute; no network,
+no business logic, no decision authority.
 
----
+This roadmap is rebuilt from code, green CI, `docs/FEATURE_INDEX.md`,
+`docs/BACKLOG.md`, CHANGELOG, and open issues (per issue #107). Each item
+carries its real maturity. Four maturity levels are used:
 
-## Current Status: Pre-Production
-
-GG-CORE is in pre-production status. Core functionality is complete and tested, but production deployment requires additional work.
-
----
-
-## Completed Features (v0.1.0)
-
-### Core Runtime
-
-- [x] IPC-based communication (no HTTP overhead)
-- [x] Dual backend support (GGUF + ONNX)
-- [x] Memory management with arena allocation
-- [x] Work-stealing scheduler
-- [x] Streaming output support
-
-### Security
-
-- [x] Prompt injection detection (55+ patterns)
-- [x] PII detection (13 types)
-- [x] Output sanitization
-- [x] Model encryption (AES-256)
-- [x] Sandbox isolation (Windows Job Objects)
-- [x] Rate limiting
-- [x] Audit logging
-
-### Performance
-
-- [x] KV Cache with paged attention
-- [x] Speculative decoding v2
-- [x] SIMD tokenizer v2
-- [x] Thread pool tuning
-
-### Testing
-
-- [x] Tier 1: Unit tests (passing)
-- [x] Tier 2: Integration tests (37/37 passing)
-- [x] Tier 3: Optimization tests (30/30 passing)
-- [x] Security tests (43/43 passing)
-
-### Documentation
-
-- [x] README with transparent claims
-- [x] Usage guide
-- [x] Comparative analysis
-- [x] Honest assessment document
-- [x] Rust enterprise analysis
-- [x] Dependency analysis
+- **Shipped** — on `main`, exercised by CI.
+- **Shipped (conditional)** — real, but gated on a feature flag, platform,
+  or local model availability.
+- **Library-only** — implemented and tested as code, not yet wired into the
+  serving daemon.
+- **Planned** — tracked work, not yet built.
 
 ---
 
-## Completed Features (v0.2.0)
-
-### GPU Support
-
-- [x] CUDA backend implementation (cudarc bindings)
-- [x] Metal backend (macOS with metal crate)
-- [x] GPU memory management with actual allocations
-- [x] Multi-GPU support (layer/tensor/pipeline parallelism)
-- [x] Flash attention GPU kernels
-
-**Status:** Framework implemented with CUDA/Metal bindings
-
-### GPU Architecture
-
-- [`GpuManager`](core-runtime/src/engine/gpu.rs) - Device detection and memory management
-- [`CudaBackend`](core-runtime/src/engine/cuda.rs) - NVIDIA CUDA support via cudarc
-- [`MetalBackend`](core-runtime/src/engine/metal.rs) - Apple Metal support (macOS)
-- [`MultiGpuManager`](core-runtime/src/engine/multi_gpu.rs) - Multi-GPU coordination
-- [`FlashAttnGpu`](core-runtime/src/engine/flash_attn_gpu.rs) - Memory-efficient attention
-
-### GPU Features
-
-- Device detection and capability querying
-- Memory pool allocation
-- Compute capability checks (CUDA 8.0+ for flash attention)
-- Unified memory support (Apple Silicon)
-- P2P communication detection
-- Automatic strategy selection for multi-GPU
-
----
-
-## Completed Features (v0.2.1)
-
-### Benchmarking
-
-- [x] llama.cpp direct comparison
-- [x] Security overhead measurement
-- [x] GPU vs CPU comparison
-- [x] Memory profiling
-
-**Status:** Complete
-
----
-
-## Completed Features (v0.3.0)
-
-### C FFI API
-
-- [x] Opaque runtime and session handles
-- [x] Error codes with thread-local messages
-- [x] Blocking inference
-- [x] Callback-based streaming
-- [x] Model management
-- [x] Health check API
-- [x] cbindgen header generation
-
-### Python Bindings
-
-- [x] PyO3-based native module
-- [x] Sync and async session support
-- [x] Context manager protocol
-- [x] Iterator-based streaming
-- [x] Exception hierarchy
-- [x] Type stubs (PEP 561)
-
-### API Files
-
-- [`ffi/`](core-runtime/src/ffi/) - C API implementation (8 files)
-- [`python/`](core-runtime/src/python/) - Python bindings (6 files)
-- [`include/gg_core.h`](core-runtime/include/gg_core.h) - Generated C header
-- [`python/`](core-runtime/python/) - Python package structure
-
-**Status:** Complete
-
----
-
-## Completed Features (v0.4.0)
-
-### Observability
-
-- [x] Prometheus-compatible metrics export (text format)
-- [x] Bucketed histograms with configurable boundaries
-- [x] OpenTelemetry span export via IPC
-- [x] Span collector with buffer management
-
-### Observability Architecture
-
-- [`BucketedHistogram`](core-runtime/src/telemetry/buckets.rs) - Prometheus-style bucketed histograms
-- [`PrometheusEncoder`](core-runtime/src/telemetry/prometheus.rs) - Text format export
-- [`SpanCollector`](core-runtime/src/telemetry/span_export.rs) - OpenTelemetry span collection
-- [`MetricsStore`](core-runtime/src/telemetry/store.rs) - Enhanced with bucketed histogram support
-
-### Mixture of Experts (MoE)
-
-- [x] MoE configuration (Mixtral/DeepSeek presets)
-- [x] Linear router with top-k selection
-- [x] Expert output combination with weighted sum
-- [x] Load balancing statistics and auxiliary loss
-- [x] Sequential and parallel execution support
-
-### MoE Architecture
-
-- [`MoeConfig`](core-runtime/src/engine/moe/config.rs) - Configuration for MoE layers
-- [`LinearRouter`](core-runtime/src/engine/moe/router.rs) - Gating network for expert selection
-- [`ExpertCombiner`](core-runtime/src/engine/moe/combiner.rs) - Output combination
-- [`MoeExecutor`](core-runtime/src/engine/moe/executor.rs) - Expert execution orchestration
-
-**Status:** Complete
-
----
-
-## Completed Features (v0.5.0)
-
-### CLI Health Probes (Alcatraz-compliant)
-
-- [x] Exec-based health probes for K8s (NO HTTP)
-- [x] `GG-CORE health|live|ready` subcommands
-- [x] IPC client for CLI-to-runtime communication
-
-### CLI Architecture
-
-- [`cli/mod.rs`](core-runtime/src/cli/mod.rs) - CLI module with socket path config
-- [`cli/ipc_client.rs`](core-runtime/src/cli/ipc_client.rs) - IPC client for CLI
-- [`cli/health.rs`](core-runtime/src/cli/health.rs) - Health check commands
-
-### Model Registry Enhancements
-
-- [x] Semantic versioning with range matching
-- [x] Model query builder pattern
-- [x] JSON-based registry persistence
-- [x] Version history tracking for rollback
-
-### Registry Architecture
-
-- [`models/version.rs`](core-runtime/src/models/version.rs) - ModelVersion, VersionRange
-- [`models/search.rs`](core-runtime/src/models/search.rs) - ModelQuery, ModelSearchResult
-- [`models/persistence.rs`](core-runtime/src/models/persistence.rs) - RegistryPersistence
-- [`models/history.rs`](core-runtime/src/models/history.rs) - VersionHistory
-
-### A/B Testing Foundation
-
-- [x] Variant labels and definitions
-- [x] Traffic splitting with sticky sessions
-- [x] Per-variant metrics collection
-
-### A/B Testing Architecture
-
-- [`ab_testing/variant.rs`](core-runtime/src/ab_testing/variant.rs) - VariantLabel, Variant
-- [`ab_testing/traffic/`](core-runtime/src/ab_testing/traffic/) - TrafficConfig, TrafficSplitter, bucket allocation
-- [`ab_testing/metrics/`](core-runtime/src/ab_testing/metrics/) - VariantStats, VariantMetrics, snapshots
-
-### Kubernetes Operator Foundation
-
-- [x] GgRuntime CRD
-- [x] GgModel CRD (with A/B variant support)
-- [x] Helm chart with exec probes (NO HTTP)
-
-### K8s Architecture
-
-- [`k8s/types.rs`](core-runtime/src/k8s/types.rs) - CRD Rust types
-- [`k8s/crds/`](k8s/crds/) - CRD YAML definitions
-- [`k8s/helm/GG-CORE/`](k8s/helm/GG-CORE/) - Helm chart
-
-**Status:** Complete
-
----
-
-## Completed Features (v0.6.0)
-
-### Functional GGUF Backend
-
-- [x] Real model loading via llama-cpp-2 (v0.1.133)
-- [x] Tokenization and detokenization support
-- [x] Token streaming via async channels
-- [x] Context management and batch processing
-- [x] UTF-8 decoding for token pieces (encoding_rs)
-
-### GGUF Architecture
-
-- [`engine/gguf/backend.rs`](core-runtime/src/engine/gguf/backend.rs) - LlamaBackendInner implementation
-- [`engine/tokenizer.rs`](core-runtime/src/engine/tokenizer.rs) - Unified tokenizer with backend delegation
-- [`engine/gguf/generator.rs`](core-runtime/src/engine/gguf/generator.rs) - Model loading and generation
-
-### Functional IPC Server
-
-- [x] Platform-specific server loop (Unix sockets / Windows named pipes)
-- [x] 4-byte length-prefixed framing protocol
-- [x] Connection pooling with configurable limits
-- [x] Graceful shutdown with request draining
-- [x] Owned connection guards for async tasks
-
-### IPC Architecture
-
-- [`ipc/server.rs`](core-runtime/src/ipc/server.rs) - Server loop implementation
-- [`ipc/connections.rs`](core-runtime/src/ipc/connections.rs) - Connection pooling and guards
-- [`main.rs`](core-runtime/src/main.rs) - Signal handling and server integration
-
-### Chaos Testing Suite
-
-- [x] Protocol fault injection tests (malformed JSON, truncated messages)
-- [x] Type confusion and extreme payload testing
-- [x] Scheduler shutdown resilience tests
-- [x] Health check chaos testing
-- [x] Stream and model chaos testing
-- [x] IPC server integration tests (framing, connections, routing)
-
-### Test Architecture
-
-- [`tests/chaos_resilience_test.rs`](core-runtime/tests/chaos_resilience_test.rs) - Protocol fault injection
-- [`tests/ipc_server_test.rs`](core-runtime/tests/ipc_server_test.rs) - Server integration tests
-- Plus 3 additional chaos test files for scheduler, health, and streaming
-
-### Build System Improvements
-
-- [x] Binary renamed to `GG-CORE-cli` (fixes PDB collision)
-- [x] Removed bincode (incompatible with internally-tagged enums)
-- [x] Version-pinned llama-cpp-2 to 0.1.133
-- [x] Added encoding_rs for UTF-8 token decoding
-- [x] Text-based IPC protocol (models handle tokenization internally)
-- [x] **No mock fallbacks** - all paths require real loaded models
-
-**Status:** Complete
-
-**Test Coverage:** 416 unit tests (100% pass rate)
-
----
-
-## v0.7.0 - Streaming & Rebrand (Complete)
-
-### Delivered
-
-- [x] Token-by-token streaming inference via IPC
-- [x] Mid-stream cancellation support
-- [x] CLI `infer` command with `--stream` flag
-- [x] SPARK rebrand (Secure Performance-Accelerated Runtime Kernel)
-- [x] Canary deployment automation
-- [x] Blue-green deployment support
-
-**Status:** Complete
-
-**Test Coverage:** 438 unit tests (100% pass rate)
-
----
-
-## Post-Traction (v1.0+)
-
-*Deferred until market validation*
-
-### Security (When Funded)
-
-- [ ] Independent security audit
-- [ ] SOC 2 Type II certification
-- [ ] FIPS 140-3 certification
-
-### Enterprise
-
-- [ ] Multi-tenant isolation
-- [ ] Audit logging compliance
-
----
-
-## Future Considerations
-
-### Research
-
-- [ ] Custom quantization methods
-- [ ] Novel attention mechanisms
-- [ ] Hardware-specific optimizations
-
-### Ecosystem
-
-- [ ] Plugin system
-- [ ] Community model zoo
-- [ ] Integration with ML frameworks
-
----
-
-## Release Timeline
-
-| Version   | Status    | Focus                                    |
-| --------- | --------- | ---------------------------------------- |
-| **0.1.0** | Complete  | Core functionality, security             |
-| **0.2.0** | Complete  | GPU support (CUDA/Metal)                 |
-| **0.2.1** | Complete  | Benchmarking, comparison                 |
-| **0.3.0** | Complete  | C FFI & Python bindings                  |
-| **0.4.0** | Complete  | Observability, MoE                       |
-| **0.5.0** | Complete  | Enterprise features                      |
-| **0.6.0** | Complete  | Functional GGUF backend, IPC server      |
-| **0.6.5** | Complete  | Mock elimination, text-based IPC         |
-| **0.7.0** | Complete  | Streaming inference, SPARK rebrand       |
-| **1.0.0** | Planned   | Production stable release                |
-
----
+## Shipped (v0.9.0 line)
+
+### Core runtime
+- Secure inference façade: `Runtime::infer` / `infer_stream` is the sole
+  external inference path (ingress injection scan → inference → egress PII
+  sanitization); the raw engine is `pub(crate)`.
+- IPC server (Unix sockets / Windows named pipes), length-prefixed framing,
+  authenticated sessions, connection pooling, graceful drain.
+- Standalone model bootstrap (issue #106): `serve --model <path>
+  [--model-id <id>]` preload (fail-loud), `GG_CORE_PRELOAD_MODELS` env,
+  authenticated IPC `model_load/unload`, CLI `models load/unload/list
+  [--json]`, readiness gated on a loaded model.
+- Scheduler: priority queue + batching + cancellation; degraded-mode policy
+  (context reduction under resource pressure instead of hard failure).
+- Memory governance: pool, per-call/total/concurrency limits, prompt cache
+  (O(n) prefix hashing).
+- Model lifecycle: atomic load/unload via `ModelLifecycle`, registry with
+  versioning/search/persistence, manifest-driven backend dispatch.
+
+### Backends
+- **GGUF (feature `gguf`)**: llama-cpp-2-backed generation + streaming, CPU;
+  evidence model: Qwen2.5-0.5B-Instruct Q4_K_M (fixture-gated e2e).
+- **ONNX (feature `onnx`)**: real embedding inference (masked mean pooling,
+  L2-norm, batch) + classifier via candle-onnx; WordPiece tokenizer offline;
+  served end-to-end through manifest dispatch.
+
+### Security (serving path)
+- Prompt-injection detection/blocking (55+5+5 patterns, zero-width strip).
+- PII detection/redaction (13 types, NFKC); streaming egress sanitizer with
+  holdback (raw tokens never leave the runtime).
+- Path confinement for model loads; NUL/traversal rejection.
+- 85-test penetration suite (auth, boundaries, crypto, IPC fuzzing) in CI.
+- See `SECURITY.md` for the full honest maturity table, including what is
+  library-only.
+
+### Consumable surfaces
+- Embedded Rust (`gg-core` crate), C FFI (cdylib + generated `gg_core.h`),
+  Python (PyO3 0.29, abi3), raw IPC protocol, standalone daemon + CLI.
+
+### Engineering infrastructure
+- CI: fmt + clippy `-D warnings` on 3 OSes; feature matrix (gguf/onnx/ffi/
+  python/advanced); full test suite on 3 OSes; CI-safe bench set with a
+  run-over-run perf regression gate; CodeQL; `cargo-deny` supply-chain gate;
+  Dependabot (grouped RustCrypto/candle updates).
+- Release pipeline: tag-triggered verify → 3-platform artifact build
+  (binary + cdylib + header, SHA-256 checksums) → GitHub Release with
+  CHANGELOG notes. v0.9.0 is the first release published through it.
+- Governance: QoreLogic Merkle-chained ledger, FEATURE_INDEX (63+ verified
+  rows), reconciled BACKLOG.
+
+### Advanced (feature `advanced`, off by default)
+- Adaptive speculative decoding (sole executor — the earlier v1/v2
+  implementations are retired), KV-cache reuse across draft/verify steps,
+  prompt-lookup drafting, speculative telemetry in `status`. Correctness is
+  proven token-identical to single-model greedy. **Wall-clock speedup is a
+  GPU/batch phenomenon and is not demonstrable on CPU** — the >1× demo is
+  deferred to a GPU host (B-21e).
+
+## Shipped (conditional) — read the caveats
+
+- **Platform support**: Linux/macOS/Windows are CI-verified for build, lint,
+  and tests. No Docker image or Kubernetes deployment is CI-verified.
+- **Model compatibility**: claims are limited to the models actually
+  exercised (Qwen2.5-0.5B GGUF; all-MiniLM-L6-v2 ONNX embeddings). Other
+  models are *expected* to work via llama.cpp/candle but are untested here.
+
+## Library-only (exists, tested, NOT wired into the daemon)
+
+These were previously listed as "complete"; that overstated them:
+
+- **Sandbox** (Job Objects / cgroups+seccomp, 49-syscall allowlist): the
+  daemon never calls `create_sandbox`. Wiring it into `serve` startup is a
+  tracked known gap (SECURITY.md).
+- **Model encryption** (AES-256-GCM stack): the load path never decrypts.
+- **Paged KV attention** (`memory/paged.rs`): no live caller on the serving
+  path.
+- **MoE** (router/combiner/executor), **A/B testing** (traffic splitting,
+  variant metrics), **deployment automation** (canary; blue-green exists
+  only in tests): libraries without production call sites.
+- **SIMD tokenizer v2**: compiled under `advanced`, unused by the pipeline.
+
+## Explicitly not real yet (previously claimed complete — corrected)
+
+- **GPU execution**: CUDA/Metal modules do device *detection* only. GPU
+  memory allocators are bookkeeping mocks (TODOs in `gpu_allocator.rs`);
+  flash-attention kernels return fail-loud "not implemented"; multi-GPU
+  paths are simulated; the GGUF backend runs CPU-only (`n_gpu_layers: 0`).
+- **llama.cpp comparative benchmarks / GPU-vs-CPU benchmarks**: do not
+  exist (the GPU bench exercises the mock allocator).
+
+## Planned
+
+### Near-term (owned, sequenced)
+1. **Daemon sandbox activation** — apply the shipped sandbox in `serve`.
+2. **Model hash enforcement** — verify manifest `sha256` at load, fail loud.
+3. **MSRV / toolchain pin** — CI currently floats `stable` (new rustc 1.99
+   lints landed mid-PR and broke green).
+4. **Dependency currency wave** (each its own PR): RustCrypto generation
+   (sha2/aes/aes-gcm/pbkdf2), candle 0.8 → 0.11 + tokenizers 0.23,
+   llama-cpp-2 → latest 0.1.x (FP4 quants, upstream speculative rework),
+   thiserror 2 / toml 1 / rand 0.10 / metrics 0.24; abi3 floor → py310.
+5. **CLI `infer` authentication** — the authenticated exchange shipped for
+   `models load/unload`; route `infer` through it.
+6. **Fixture-gated standalone e2e smoke in CI** (needs a small committed or
+   cached GGUF fixture) — closes the last #106 acceptance box.
+
+### Backend capability epic (issues #48–#52)
+ADR-first: backend capability contract, `RuntimeBackendCapabilities` schema,
+hardware profile + selection policy, experimental BitNet adapter. The 2026
+Rust inference ecosystem (candle 0.11, mistral.rs paged attention + FP8 KV
+cache, Burn-LM) validates this abstraction; design against it.
+
+### Competitive features (post-currency)
+- Structured output via **llguidance** (pure Rust, offline — fits the
+  sandbox constraint).
+- MTP-aware / prompt-lookup drafting improvements; B-21e GPU speculative
+  benchmark.
+- imatrix-aware GGUF metadata handling in the registry.
+
+### Post-traction
+- Independent security audit; SOC 2; FIPS validation (today: power-on
+  self-tests only, no certification). Multi-tenant isolation (GG-CORE
+  Nexus shim).
+
+## Release history (real)
+
+| Version | Date | Notes |
+| --- | --- | --- |
+| **0.9.0** | 2026-10-05 | Standalone bootstrap; security suite activation; supply-chain gate; first pipeline-published release |
+| 0.8.2 | 2026-07-27 | Security & dependency hardening (tagged; predates the release pipeline) |
+| 0.8.0/0.8.1 | 2026-02 | GG-CORE rebrand (from Veritas SPARK), hardening |
+| 0.7.0 | 2026-02-19 | Streaming inference (tagged) |
+| ≤ 0.6.x | 2026-02 | Early development line (0.6.5 tagged) |
+| 1.0.0 | Planned | Production stable: sandbox-wired daemon, hash enforcement, GPU story decided, independent audit scheduled |
 
 ## Contributing
 
-We welcome contributions! See [CLA.md](CLA.md) for contributor license agreement.
-
-### Priority Areas
-
-1. **GPU Support** - CUDA/Metal implementation
-2. **Benchmarking** - Fair performance comparisons
-3. **Documentation** - Examples, tutorials
-4. **Testing** - Edge cases, stress tests
+See `CLA.md`. Priority areas: the Near-term list above, GPU execution
+(behind the capability contract), examples/tutorials, and edge-case tests.
 
 ---
 
-## Feedback
-
-- **Issues:** GitHub Issues
-- **Security:** See [SECURITY.md](SECURITY.md)
-- **Discussions:** GitHub Discussions
-
----
-
-Copyright 2024-2026 GG-CORE Contributors  
+Copyright 2024-2026 GG-CORE Contributors
 Licensed under the Apache License, Version 2.0

@@ -4,6 +4,12 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 
 ## [Unreleased]
 
+### Documentation
+- Documentation reconciliation (issue #107): `SECURITY.md` rewritten against verified code reality — canonical product name, real supported-version line (0.9.x; no 1.x ever existed), self-assigned score removed, internal-assessment vs independent-audit distinction, FIPS self-tests vs certification clarified, real env vars (`CORE_AUTH_TOKEN`, `GG_CORE_SECURITY_INGRESS/EGRESS`; the documented `AUTH_TOKEN`/`SANDBOX_USER`/`RESOURCE_LIMITS` never existed), OWASP LLM coverage stated per-risk (6/10, not "full"), and an explicit **library-only vs daemon-enforced** maturity table disclosing that the sandbox is not yet applied by the standalone daemon and manifest `sha256` is not yet verified at load. `ROADMAP.md` rebuilt from code/CI/FEATURE_INDEX/BACKLOG with four maturity levels; GPU/MoE/A-B/deployment claims corrected from "complete" to library-only or not-real-yet; real release history. `docs/USAGE_GUIDE.md` rewritten: every Rust example now mirrors compile-tested `tests/doc_examples.rs` (CI-enforced, incl. the real `scan -> (is_safe, ...)` semantics), full real feature-flag and env-var tables, the v0.9.0 standalone surface documented, unevidenced performance multipliers and compatibility claims replaced with measured/evidence-based statements. `docs/IPC_PROTOCOL_SCHEMA.md` bumped to v0.9.0 (model lifecycle messages, sanitized-text streaming example, observability messages). Stale `docs/SYSTEM_STATE.md` retired in favor of live sources. CLI help banner now uses the canonical product name.
+
+### CI / Tooling
+- New `tests/doc_examples.rs` target keeps USAGE_GUIDE Rust snippets compiling and behaviorally accurate in CI.
+
 ## [0.9.0] - 2026-10-05
 
 ### Security / CI
