@@ -177,7 +177,13 @@ fn invalid_nonce_size_rejected() {
     assert!(result.is_err(), "Invalid nonce size should be rejected");
 }
 
-/// Encryption/decryption performance test.
+/// Crypto throughput sanity check (hang detector, not a perf gate).
+///
+/// 1 MB AES-256-GCM must complete in bounded time even on a loaded,
+/// debug-profile CI runner (the parallel PBKDF2 tests monopolize cores and
+/// made a 1 s bound flake at 2.39 s on PR #126). A pathological regression
+/// (accidental O(n^2), busy-wait) still trips the generous bound; real
+/// performance measurement belongs to the criterion benches + perf gate.
 #[test]
 fn crypto_performance() {
     let encryption = ModelEncryption::new(create_test_key());
@@ -190,13 +196,13 @@ fn crypto_performance() {
     let decrypt_time = start.elapsed();
     assert_eq!(plaintext, decrypted);
     assert!(
-        encrypt_time.as_millis() < 1000,
-        "Encryption too slow: {:?}",
+        encrypt_time.as_secs() < 30,
+        "Encryption pathologically slow: {:?}",
         encrypt_time
     );
     assert!(
-        decrypt_time.as_millis() < 1000,
-        "Decryption too slow: {:?}",
+        decrypt_time.as_secs() < 30,
+        "Decryption pathologically slow: {:?}",
         decrypt_time
     );
 }
