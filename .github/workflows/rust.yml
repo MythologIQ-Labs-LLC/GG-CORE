@@ -91,7 +91,7 @@ jobs:
           workspaces: core-runtime
       - name: Set up Python (python bindings link libpython)
         if: matrix.feature == 'python'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install protoc (candle-onnx builds protobuf via prost-build)
