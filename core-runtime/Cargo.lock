@@ -1313,7 +1313,7 @@ dependencies = [
 
 [[package]]
 name = "gg-core"
-version = "0.8.2"
+version = "0.9.0"
 dependencies = [
  "aes",
  "aes-gcm",
