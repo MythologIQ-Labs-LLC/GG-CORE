@@ -11,12 +11,23 @@ use crate::ipc::protocol::ModelsListResponse;
 
 /// Run `models list`, connecting via IPC at `socket_path`.
 ///
+/// `json` prints the raw `ModelsListResponse` as pretty JSON (B-41, #106).
 /// Returns exit code: 0 on success, 3 on connection failure.
-pub async fn run_list(socket_path: &str) -> i32 {
+pub async fn run_list(socket_path: &str, json: bool) -> i32 {
     let client = CliIpcClient::new(socket_path.to_string());
     match client.get_models().await {
         Ok(response) => {
-            print_models(&response);
+            if json {
+                match serde_json::to_string_pretty(&response) {
+                    Ok(s) => println!("{}", s),
+                    Err(e) => {
+                        eprintln!("JSON encode error: {}", e);
+                        return 1;
+                    }
+                }
+            } else {
+                print_models(&response);
+            }
             0
         }
         Err(e) => {
@@ -139,7 +150,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_list_connection_failure_returns_3() {
-        let code = run_list("/nonexistent/gg-core-test.sock").await;
+        let code = run_list("/nonexistent/gg-core-test.sock", false).await;
         assert_eq!(code, 3, "should return exit code 3 on connection failure");
     }
 }

@@ -91,6 +91,7 @@ pub struct RuntimeConfig {
     pub auth_token: String,
     pub session_timeout: Duration,
     pub max_context_length: usize,
+    pub health: HealthConfig,
     pub memory_pool: MemoryPoolConfig,
     pub gpu_memory: GpuMemoryConfig,
     pub context_cache: ContextCacheConfig,
@@ -111,6 +112,7 @@ impl Default for RuntimeConfig {
             auth_token: String::new(),
             session_timeout: Duration::from_secs(3600),
             max_context_length: 4096,
+            health: HealthConfig::default(),
             memory_pool: MemoryPoolConfig::default(),
             gpu_memory: GpuMemoryConfig::default(),
             context_cache: ContextCacheConfig::default(),
@@ -132,7 +134,7 @@ pub struct Runtime {
     pub memory_pool: MemoryPool,
     pub gpu_memory: GpuMemory,
     pub context_cache: ContextCache,
-    pub model_loader: ModelLoader,
+    pub model_loader: Arc<ModelLoader>,
     pub model_registry: Arc<ModelRegistry>,
     pub inference_engine: Arc<InferenceEngine>,
     pub model_lifecycle: Arc<ModelLifecycle>,
@@ -156,7 +158,7 @@ impl Runtime {
     /// Create a new runtime instance with the given configuration.
     pub fn new(config: RuntimeConfig) -> Self {
         let (memory_pool, gpu_memory, context_cache) = Self::init_memory(&config);
-        let model_loader = ModelLoader::new(config.base_path.clone());
+        let model_loader = Arc::new(ModelLoader::new(config.base_path.clone()));
         let model_registry = Arc::new(ModelRegistry::new());
         let inference_engine = Arc::new(InferenceEngine::new(config.max_context_length));
         let model_lifecycle = Arc::new(ModelLifecycle::new(
@@ -170,7 +172,7 @@ impl Runtime {
         let (request_queue, batch_processor, resource_limits, output_cache) =
             Self::init_scheduler(&config);
         let shutdown = Arc::new(ShutdownCoordinator::new());
-        let health = Arc::new(HealthChecker::new(HealthConfig::default()));
+        let health = Arc::new(HealthChecker::new(config.health.clone()));
         let metrics_store = Arc::new(MetricsStore::new());
         let connections = Arc::new(ConnectionPool::new(config.connections.clone()));
         let gpu_manager = GpuManager::new(config.gpu.clone()).ok();
@@ -183,6 +185,8 @@ impl Runtime {
             &model_registry,
             &metrics_store,
             &inference_engine,
+            &model_lifecycle,
+            &model_loader,
         );
 
         Self {

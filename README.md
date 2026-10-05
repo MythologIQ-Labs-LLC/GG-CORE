@@ -261,11 +261,28 @@ gg-core-cli infer \
   --stream
 ```
 
-### Current standalone limitation
+### Standalone model bootstrap (issue #106)
 
-The daemon currently starts with an empty model registry, and the IPC/CLI model lifecycle exposes `models list` but not `models load` or `models unload`. Therefore the process, probes, protocol, and inference command are real, but a completely independent first-run inference journey still needs startup preload and authenticated model lifecycle commands.
+The daemon preloads models at startup and manages them over authenticated IPC:
 
-That expectation is preserved and fully specified in [issue #106](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/106). Until it lands, use the embedded Rust, C FFI, or Python surface to load models, or use a host that registers a model before IPC inference.
+```bash
+# Preload at startup (path is relative to the configured base path; a
+# preload failure aborts startup). GG_CORE_PRELOAD_MODELS=models/a.gguf
+# is the env equivalent for service managers.
+gg-core-cli serve --model models/qwen2.5-0.5b-instruct-q4_k_m.gguf --model-id local-model
+
+# Or manage the lifecycle on a running daemon (requires CORE_AUTH_TOKEN
+# to match the server's token):
+gg-core-cli models load models/qwen2.5-0.5b-instruct-q4_k_m.gguf --id local-model
+gg-core-cli models list --json
+gg-core-cli models unload local-model
+```
+
+Load paths are validated server-side against the base-path allowlist
+(`models/`, `tokenizers/`); traversal and NUL bytes are rejected, and the CLI
+never gains filesystem authority. In standalone mode `ready` reports
+not-ready until at least one model is loaded, so orchestrators gate traffic
+on a servable runtime rather than a merely live process.
 
 ---
 

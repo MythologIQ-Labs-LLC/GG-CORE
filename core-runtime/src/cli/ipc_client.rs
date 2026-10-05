@@ -40,8 +40,8 @@ pub enum CliError {
 
 /// IPC client for CLI health probe commands.
 pub struct CliIpcClient {
-    socket_path: String,
-    timeout_duration: Duration,
+    pub(super) socket_path: String,
+    pub(super) timeout_duration: Duration,
 }
 
 impl CliIpcClient {
@@ -280,7 +280,11 @@ impl CliIpcClient {
         self.exchange_data(&mut pipe, request).await
     }
 
-    async fn exchange_data<S>(&self, stream: &mut S, request: &[u8]) -> Result<Vec<u8>, CliError>
+    pub(super) async fn exchange_data<S>(
+        &self,
+        stream: &mut S,
+        request: &[u8],
+    ) -> Result<Vec<u8>, CliError>
     where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
