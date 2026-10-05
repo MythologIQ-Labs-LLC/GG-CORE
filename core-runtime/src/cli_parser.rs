@@ -4,7 +4,7 @@
 pub fn print_usage() {
     let version = env!("CARGO_PKG_VERSION");
     eprintln!(
-        "GG-CORE - Secure Performance-Accelerated Runtime Kernel v{}
+        "GG-CORE - Greatest Good: Contained Offline Restricted Execution v{}
 
 USAGE:
     GG-CORE [COMMAND] [OPTIONS]

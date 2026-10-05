@@ -64,7 +64,7 @@ Choose the integration surface that matches the deployment and ownership boundar
 
 | You need | Use | Current state |
 | --- | --- | --- |
-| A separate local process with health, status, streaming, cancellation, and authenticated IPC | `gg-core-cli` daemon | **Operational with an already registered model.** First-class CLI preload/load/unload is tracked in [#106](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/106). |
+| A separate local process with health, status, streaming, cancellation, and authenticated IPC | `gg-core-cli` daemon | **Operational standalone**: startup preload (`serve --model`), authenticated `models load/unload`, model-gated readiness (shipped v0.9.0, [#106](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/106)). |
 | A Rust application that owns model lifecycle directly | `gg_core` library | **Verified primary embedding path.** Use the secure `Runtime` façade. |
 | A stable native boundary for C, C++, .NET, or other FFI consumers | `cdylib` + `include/gg_core.h` | **Implemented and covered by the `ffi` CI feature leg.** |
 | Python-native local inference | PyO3 module `gg_core` | **Implemented and covered by the `python` CI feature leg.** Packaging automation is not yet a polished release surface. |

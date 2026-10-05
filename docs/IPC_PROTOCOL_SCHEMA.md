@@ -1,14 +1,14 @@
-# GG-CORE IPC Protocol Schema v0.7.0
+# GG-CORE IPC Protocol Schema v0.9.0
 
-**Contract Freeze Date**: 2026-02-19
+**Updated**: 2026-10-05 (v0.7.0 contract frozen 2026-02-19; v0.9.0 adds model lifecycle messages)
 **Protocol Version**: V1 (JSON encoding)
-**Status**: Streaming enabled
+**Status**: Streaming enabled; authenticated model lifecycle
 
 ---
 
 ## Overview
 
-GG-CORE (Secure Performance-Accelerated Runtime Kernel) uses a named pipe IPC protocol for all communication. This document specifies the wire format and message schemas that integrators must implement.
+GG-CORE (Greatest Good - Contained Offline Restricted Execution) uses a named pipe IPC protocol for all communication. This document specifies the wire format and message schemas that integrators must implement.
 
 ## Transport Layer
 
@@ -222,20 +222,53 @@ To enable streaming, set `stream: true` in the inference request parameters:
   }
 }
 
-// Server sends multiple stream chunks
-{ "type": "stream_chunk", "request_id": 1234, "token": 15496, "is_final": false }
-{ "type": "stream_chunk", "request_id": 1234, "token": 2983, "is_final": false }
-{ "type": "stream_chunk", "request_id": 1234, "token": 198, "is_final": true }
+// Server sends sanitized text chunks. On the secure serving path the
+// runtime detokenizes in-process and emits SANITIZED TEXT — raw token IDs
+// never leave the runtime (`token` is 0 on text chunks). Completion is a
+// distinct final frame.
+{ "type": "stream_chunk", "request_id": 1234, "token": 0, "text": "Hello", "is_final": false, "error": null }
+{ "type": "stream_chunk", "request_id": 1234, "token": 0, "text": " world", "is_final": false, "error": null }
+{ "type": "stream_chunk", "request_id": 1234, "token": 0, "is_final": true, "error": null }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | request_id | u64 | Matches original request |
-| token | u32 | Generated token ID |
+| token | u32 | Token ID (0 on sanitized-text chunks) |
+| text | string? | Sanitized text segment (absent on the final frame) |
 | is_final | bool | True on last chunk |
 | error | string? | Error message if failed |
 
 **Cancellation**: Send `CancelRequest` during streaming to abort generation.
+
+### Model Lifecycle (v0.9.0; AUTHENTICATION REQUIRED)
+
+Load and unload mutate runtime state and are accepted only on a connection
+with a completed handshake. Failures (rejected path, duplicate id, missing
+backend) come back as `success: false` responses — the connection stays
+open; only authentication failures terminate it.
+
+```json
+// Client → Server (path is relative to the daemon's base path; validated
+// server-side against the models/ + tokenizers/ allowlist)
+{ "type": "model_load_request", "path": "models/qwen.gguf", "model_id": "local-model" }
+
+// Server → Client
+{ "type": "model_load_response", "success": true, "model_id": "local-model", "handle_id": 1 }
+{ "type": "model_load_response", "success": false, "error": "path rejected: ..." }
+
+// Client → Server
+{ "type": "model_unload_request", "model_id": "local-model" }
+
+// Server → Client
+{ "type": "model_unload_response", "success": true, "model_id": "local-model" }
+{ "type": "model_unload_response", "success": false, "model_id": "ghost", "error": "lifecycle: model not loaded: ghost" }
+```
+
+### Observability (unauthenticated, orchestrator pattern)
+
+- `{ "type": "prometheus_request" }` → `{ "type": "prometheus_response", "text": "<prometheus text format>" }`
+- `{ "type": "spans_request", "max_count": 100 }` → `{ "type": "spans_response", "spans": [...] }`
 
 ### Error Response
 
@@ -309,6 +342,22 @@ To enable streaming, set `stream: true` in the inference request parameters:
 | Auth required | Handshake with token before inference |
 | Size limits | 16 MB max message size |
 | Constant-time auth | Token comparison uses constant-time |
+
+---
+
+## v0.9.0 Changes
+
+### New Features
+
+| Feature | Description |
+|---------|-------------|
+| **Model lifecycle** | `model_load_request` / `model_unload_request` (+ responses); authenticated sessions required |
+| **Sanitized streaming** | Stream chunks carry sanitized `text` (token id 0); raw token IDs no longer cross the boundary on the secure path |
+
+### Breaking Changes from v0.7.0
+
+None for existing message types; clients consuming `stream_chunk.token` as
+real token IDs on the secure path must read `text` instead.
 
 ---
 
