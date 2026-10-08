@@ -29,8 +29,8 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 interprocess = { version = "2.0", features = ["tokio"] }
 
 # ONNX inference backend (Candle - pure Rust)
-candle-core = { version = "0.8", optional = true }
-candle-onnx = { version = "0.8", optional = true }
+candle-core = { version = "0.11", optional = true }
+candle-onnx = { version = "0.11", optional = true }
 # Real WordPiece/subword tokenizer for the ONNX path. `default-features = false`
 # drops the `onig`/`esaxx` C deps; the pure-Rust `fancy-regex` backend replaces
 # `onig`. `http`/`hf-hub` stays off (offline: `from_file` only, no Hub download
