@@ -61,7 +61,7 @@ thiserror = "1.0"
 async-trait = "0.1"
 
 # Cryptographic hashing for session tokens and model verification
-sha2 = "0.10"
+sha2 = "0.11"
 hex = "0.4"
 
 # Cryptographically secure random number generation
@@ -98,8 +98,8 @@ num_cpus = "1.16"
 aho-corasick = "1.1"
 
 # AES encryption for model files
-aes = "0.8"
-aes-gcm = "0.10"
+aes = "0.9"
+aes-gcm = "0.11"
 pbkdf2 = { version = "0.12", features = ["simple"] }
 
 # Secure memory zeroing for cryptographic keys
