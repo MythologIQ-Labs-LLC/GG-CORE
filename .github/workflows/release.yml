@@ -22,9 +22,9 @@ env:
 
 jobs:
   verify:
-    name: verify tag (fmt + clippy + tests + version match)
+    name: verify source, GGUF tests and tag contract
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: core-runtime
@@ -40,23 +40,41 @@ jobs:
         run: cargo fmt --check
       - name: Lint gate
         run: cargo clippy --all-targets -- -D warnings
-      - name: Test suite
-        run: cargo test --workspace
+      - name: Default test suite
+        run: cargo test --locked --workspace
+      - name: GGUF backend test suite
+        run: cargo test --locked --features gguf
+      - name: Supply-chain policy (exceptions are recorded in deny.toml)
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: core-runtime/Cargo.toml
       - name: Tag must match the crate version
         run: |
           CRATE_VERSION=$(cargo metadata --no-deps --format-version 1 \
             | python3 -c "import json,sys; print(next(p['version'] for p in json.load(sys.stdin)['packages'] if p['name']=='gg-core'))")
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$CRATE_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version $CRATE_VERSION"
-            exit 1
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            if [ "$CRATE_VERSION" != "$TAG_VERSION" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version $CRATE_VERSION"
+              exit 1
+            fi
+            awk -v ver="$CRATE_VERSION" '
+              $0 == "## [" ver "]" { active=1; found=1; next }
+              /^## \[/ && active { exit }
+              active { print }
+              END { if (!found) exit 2 }
+            ' ../CHANGELOG.md > "$RUNNER_TEMP/gg-core-notes.txt"
+            if [ ! -s "$RUNNER_TEMP/gg-core-notes.txt" ]; then
+              echo "::error::Release requires actual CHANGELOG notes for $CRATE_VERSION"
+              exit 1
+            fi
           fi
 
   build:
     name: build (${{ matrix.os }})
     needs: verify
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -134,6 +152,15 @@ jobs:
           archives=(dist/*.tar.gz)
           if [ "${#archives[@]}" -ne 3 ]; then
             echo "::error::Expected 3 platform archives, got ${#archives[@]}"
+            exit 1
+          fi
+          # A mere count of three cannot conceal a missing platform or a
+          # duplicate output. Each published archive must have a unique role.
+          linux=(dist/gg-core-v*-linux-x86_64.tar.gz)
+          mac=(dist/gg-core-v*-macos-*.tar.gz)
+          windows=(dist/gg-core-v*-windows-x86_64.tar.gz)
+          if [ "${#linux[@]}" -ne 1 ] || [ "${#mac[@]}" -ne 1 ] || [ "${#windows[@]}" -ne 1 ]; then
+            echo "::error::Release bundle missing a distinct Linux, macOS, or Windows archive"
             exit 1
           fi
           cd dist
