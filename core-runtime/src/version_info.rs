@@ -43,6 +43,10 @@ pub fn version_json() -> String {
         .into_iter()
         .map(|f| format!("\"{f}\""))
         .collect();
+    let protocol = format!(
+        "{:?}",
+        gg_core::ipc::protocol_types::CURRENT_PROTOCOL_VERSION
+    );
     format!(
         concat!(
             "{{\"name\":\"GG-CORE\",\"version\":\"{}\",\"commit\":\"{}\",",
@@ -54,10 +58,7 @@ pub fn version_json() -> String {
         BUILD_DATE,
         RUSTC,
         features.join(","),
-        format!(
-            "{:?}",
-            gg_core::ipc::protocol_types::CURRENT_PROTOCOL_VERSION
-        ),
+        protocol,
         std::env::consts::OS,
         std::env::consts::ARCH,
     )
