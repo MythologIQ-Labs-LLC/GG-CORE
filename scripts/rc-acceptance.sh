@@ -94,8 +94,12 @@ CORE_AUTH_TOKEN=wrong "$BIN" infer --model qwen --prompt hi --max-tokens 2 >/dev
 
 echo "== shutdown =="
 if [ "$OS" = windows ]; then
-  taskkill //F //PID "$SERVE_PID" >/dev/null 2>&1; wait "$SERVE_PID" 2>/dev/null
-  skip "graceful console-signal shutdown is not drivable from git-bash on Windows (process terminated)"
+  # $! is the MSYS pid, not the Windows PID: use MSYS kill (TerminateProcess
+  # for a native child) and bound the wait so a failure cannot stall the job.
+  kill -9 "$SERVE_PID" 2>/dev/null
+  for i in $(seq 1 40); do kill -0 "$SERVE_PID" 2>/dev/null || break; sleep 0.5; done
+  wait "$SERVE_PID" 2>/dev/null
+  kill -0 "$SERVE_PID" 2>/dev/null && bad "daemon still alive after terminate" || skip "graceful console-signal shutdown is not drivable from git-bash on Windows (process terminated)"
 else
   kill -INT "$SERVE_PID"; wait "$SERVE_PID"; SRC=$?
   [ $SRC -eq 0 ] && ok "graceful SIGINT shutdown, exit 0" || bad "daemon exit code $SRC (159 = SIGSYS)"
