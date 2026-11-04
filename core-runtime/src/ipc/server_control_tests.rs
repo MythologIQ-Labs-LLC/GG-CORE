@@ -153,7 +153,10 @@ async fn zero_timeout_is_a_terminal_failure_not_a_hang() {
     match receive(&mut client).await {
         IpcMessage::StreamChunk(chunk) => {
             assert!(chunk.is_final);
-            assert!(chunk.error.as_deref().is_some_and(|e| e.contains("timeout")));
+            assert!(chunk
+                .error
+                .as_deref()
+                .is_some_and(|e| e.contains("timeout")));
         }
         other => panic!("expected invalid-timeout terminal: {other:?}"),
     }
