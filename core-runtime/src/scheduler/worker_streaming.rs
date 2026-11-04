@@ -115,8 +115,7 @@ async fn run_stream(
             let engine = unsafe { &*(engine_addr as *const InferenceEngine) };
             let security = sec_addr.map(|a| unsafe { &*(a as *const SecurityPipeline) });
             let should_stop = || {
-                cancel.is_cancelled()
-                    || deadline.is_some_and(|d| std::time::Instant::now() >= d)
+                cancel.is_cancelled() || deadline.is_some_and(|d| std::time::Instant::now() >= d)
             };
             engine.run_stream_sync(&mid, &prompt, &config, sender, security, Some(&should_stop))
         })
