@@ -13,6 +13,15 @@ struct StreamControl {
     deadline: Option<std::time::Instant>,
 }
 
+impl StreamControl {
+    fn should_stop(&self) -> bool {
+        self.cancel.is_cancelled()
+            || self
+                .deadline
+                .is_some_and(|d| std::time::Instant::now() >= d)
+    }
+}
+
 /// Execute a streaming inference request with resource control.
 pub(crate) async fn execute(
     engine: &InferenceEngine,
@@ -122,17 +131,14 @@ async fn run_stream(
         tokio::task::spawn_blocking(move || {
             let engine = unsafe { &*(engine_addr as *const InferenceEngine) };
             let security = sec_addr.map(|a| unsafe { &*(a as *const SecurityPipeline) });
-            let should_stop = || {
-                control.cancel.is_cancelled()
-                    || control.deadline.is_some_and(|d| std::time::Instant::now() >= d)
-            };
+            let should_stop = || control.should_stop();
             engine.run_stream_sync(&mid, &prompt, &config, sender, security, Some(&should_stop))
         })
         .await
     }
     #[cfg(not(feature = "gguf"))]
     {
-        let _ = (engine, model_id, prompt, config, security, control);
+        let _ = (engine, model_id, prompt, config, security, control.should_stop());
         let err = crate::engine::inference::InferenceError::ExecutionFailed(
             "streaming requires gguf feature".into(),
         );
