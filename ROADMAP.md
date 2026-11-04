@@ -1,6 +1,6 @@
 # GG-CORE Roadmap
 
-**Last updated:** 2026-10-05 · **Current version:** 0.9.0
+**Last updated:** 2026-11-04 · **Current version:** 0.10.0-rc.1 (release candidate; functional/security qualification per issue #130 — performance qualification and adaptive model switching remain tracked, not RC blockers)
 **Product:** GG-CORE (Greatest Good - Contained Offline Restricted Execution) —
 a sandboxed, offline, IPC-only inference runtime. Pure compute; no network,
 no business logic, no decision authority.

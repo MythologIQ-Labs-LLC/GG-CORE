@@ -89,7 +89,10 @@ pub fn apply_daemon_sandbox(
     let result = create_sandbox(daemon_sandbox_config(mode, runtime_config)).apply();
     if result.success {
         Ok(match mode {
-            SandboxMode::Enforce => "Sandbox: ENFORCE (resource limits + syscall allowlist)",
+            SandboxMode::Enforce if cfg!(windows) => {
+                "Sandbox: ENFORCE (Windows Job Object: memory cap, single process; no syscall or network filter)"
+            }
+            SandboxMode::Enforce => "Sandbox: ENFORCE (cgroup resource limits + seccomp syscall allowlist)",
             SandboxMode::Seccomp => "Sandbox: SECCOMP (syscall allowlist)",
             SandboxMode::Off => unreachable!(),
         }

@@ -1,6 +1,6 @@
 # GG-CORE: First Release Candidate Acceptance
 
-**Status: OPEN, not release-qualified.** Owner release gate: [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130).
+**Status: functional/security evidence complete on all three advertised platforms; awaiting owner GO (tag is an owner action).** Owner release gate: [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Performance qualification remains OPEN by design (not an RC blocker).
 
 **Target:** `v0.10.0-rc.1` (recommended; version not yet changed or tagged). The Rust package is currently `0.9.0`. A pre-release is not a claim that the public 1.0 API is stable.
 
@@ -55,16 +55,16 @@ All advertised standalone inference packages must actually compile the `gguf` fe
 
 | Gate | Receipt | Result |
 | --- | --- | --- |
-| Exact candidate source SHA and version | Not yet recorded | OPEN |
-| PR Rust / CodeQL evidence | PR #128 + #129 passed; release workflow PR pending | PARTIAL |
-| Manual Release workflow run URL, all platforms | Not run | OPEN |
-| Linux packaged GGUF and default-seccomp real inference | Not run | OPEN |
-| Windows packaged GGUF, inference, Job Object limits | Not run | OPEN |
-| macOS packaged GGUF and documented sandbox limits | Not run | OPEN |
-| Authentication, path confinement and manifest integrity | Source evidence exists; final adversarial acceptance pending | OPEN |
+| Exact candidate source SHA and version | `0.10.0-rc.1` (PR #135); the candidate commit is the merge of #135 on `main`, recorded with the final preflight run in #130. Three-platform qualification receipts below were produced on the #134 head (`4e5f28b`, code identical to the candidate minus the version/docs/provenance commit) | RECORDED IN #130 |
+| PR Rust / CodeQL evidence | #128, #129, #131, #132 (`44944fb`), #133 (`c5fddee`) merged with every Rust leg + CodeQL green; #134/#135 green at merge time | PASS |
+| Manual Release workflow run URL, all platforms | [run 41908593547](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/41908593547): verify (fmt/clippy/default + GGUF tests/cargo-deny), build ×3 (`--locked --release --features gguf,ffi`; packaged `version`/`--help`/archive contents checked), assemble (`sha256sum -c`), qualify ×3, publish skipped. Earlier dress rehearsals: 41885727341 (main@8b977a3), 41901283318, 41903987680 | PASS |
+| Linux packaged GGUF and default-seccomp real inference | ubuntu-24.04 runner, archive `gg-core-v0.9.0-linux-x86_64.tar.gz` from the same run: `Sandbox: SECCOMP`, kernel `Seccomp: 2`, non-streaming ("Paris") + streaming, unload/reload/invalid loads, auth, SIGINT exit 0 — **26/26**. Also in-container (Linux 6.18 x86_64): 31/31 incl. mid-stream client interrupt | PASS |
+| Windows packaged GGUF, inference, Job Object limits | windows-2025 runner, `gg-core-cli.exe` + `gg_core.dll` from the same run: `Sandbox: ENFORCE` (Job Object: memory cap, single active process, kill-on-close), real non-streaming + streaming inference over authenticated named-pipe IPC, lifecycle/invalid loads/auth — **24/24, 1 SKIP** (graceful console-signal shutdown not drivable from git-bash; process terminated). Job Object is a resource/containment limit, not a syscall/network/principal boundary (SECURITY.md) | PASS (scoped) |
+| macOS packaged GGUF and documented sandbox limits | macos-26-arm64 runner, `libgg_core.dylib` archive: `Sandbox: OFF (no implementation for this platform)` notice, real inference + lifecycle + auth, SIGINT exit 0 — **25/25** | PASS (no daemon sandbox — documented) |
+| Authentication, path confinement and manifest integrity | #132: mandatory token (dev opt-in logged), socket 0600, pipe-name claim, CLI handshake; `tests/ipc_unix_socket_test.rs`. #133: symlink-aware containment (file/dir/absolute/dangling/inside/root/post-validation swap), `O_NOFOLLOW` opens, present-but-malformed manifest fails closed, post-load file identity (dev+inode / NTFS file index). Acceptance runs: wrong/empty token, traversal, corrupt and missing loads refused on all three OSes | PASS |
 | ZIP advisory ignores and dependency exception review | Documented in `core-runtime/deny.toml` | REVIEWED, revisit upstream |
 | GitHub private vulnerability reporting | Owner setting unverified | OPEN |
-| Release artifact checksums and extracted executable tests | Not run | OPEN |
+| Release artifact checksums and extracted executable tests | `assemble` job: 3 archives, `sha256sum -c SHA256SUMS`; `qualify` jobs install each archive and execute the shipped binary. Artifact download from the agent session is blocked by its egress policy — owner re-verification on a host: `gh run download 41908593547 -n gg-core-release-bundle && sha256sum -c SHA256SUMS` | PASS (CI) / OWNER RE-CHECK |
 | Real-model end-to-end performance and same-host baseline | Historical ~40 tok/s record only; current measured RC baseline absent | OPEN |
 | Security overhead including PII/injection and streaming | Synthetic Criterion coverage exists; end-to-end differential pending | OPEN |
 | Comparable mistral.rs / llama.cpp benchmarks | No current pinned same-hardware comparison | OPEN |

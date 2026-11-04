@@ -1,0 +1,84 @@
+# GG-CORE → CoreForge producer contract (v0.10.0-rc.1)
+
+**Status:** verified for the release-candidate scope below; owner of this document is the GG-CORE repository. CoreForge consumes it (COREFORGE #542, #588, #538, #548); CoreForge owns its application, installer and lifecycle code.
+
+**Pinned revision:** the `v0.10.0-rc.1` tag commit, recorded with its SHA and acceptance receipts in GG-CORE issue #130. Until the tag exists, pin the commit named there; never float on `main`.
+
+## 1. Scope of this contract
+
+| Supported now (qualified) | Not in this contract (tracked) |
+| --- | --- |
+| Windows 11 x64, Linux x86_64 (macOS arm64 builds and serves a model; it has **no daemon sandbox**) | GPU offload; ONNX as a release surface; multiple resident models; automatic model escalation/downshift; performance guarantees (Milestone 3); embedded public-API stability (#112), pinned distribution (#113), conformance harness (#114) |
+| CPU inference, GGUF backend (llama.cpp via `llama-cpp-2`), one actively resident model per daemon | |
+| Authenticated local IPC, non-streaming and streaming generation, cancellation, model load/unload, readiness/health, structured errors | |
+
+## 2. Topologies and what each actually enforces
+
+### 2a. Managed daemon (recommended for CoreForge)
+
+CoreForge launches the packaged `gg-core-cli` as a **child process it owns** and talks to it over the local IPC transport. GG-CORE keeps its own process, sandbox and release boundary; the user never launches GG-CORE as a separate application.
+
+| Control | Linux x86_64 | Windows x64 | macOS |
+| --- | --- | --- | --- |
+| Syscall filter | seccomp allowlist (default); unknown syscall kills the process; `execve`/`fork`/`connect` denied | — | — |
+| Process/resource containment | memory gate (`GG_CORE_MAX_TOTAL_MEMORY`); `enforce` adds cgroup v2 | Job Object: job memory cap, **one active process** (no child process creation), kill-on-handle-close, die-on-unhandled-exception | none (`Sandbox: OFF` notice) |
+| Not provided by the sandbox | — | filesystem, network or security-principal isolation — a Job Object is not a syscall filter; the daemon runs with the launching user's token. Launch under a restricted token/AppContainer if that boundary is required (owner decision, not yet qualified) | — |
+| Transport boundary | socket file `0600` | pipe created with `FILE_FLAG_FIRST_PIPE_INSTANCE`, remote clients rejected; default DACL: creator/Administrators/SYSTEM only | socket `0600` |
+| Security pipeline (ingress injection block, egress PII redaction incl. streaming) | enforced on every inference | enforced | enforced |
+| Model integrity | manifest `sha256` verified before load, identity re-checked after; path confinement physical (symlink-aware) | same | same |
+
+### 2b. In-process crate (`gg-core` path/Cargo dependency, `gg-core-native`)
+
+What CoreForge compiles today. It gives the security pipeline **only** when inference goes through `Runtime::infer` / `Runtime::infer_stream` (COREFORGE #538), and model confinement/integrity **only** when loads go through `models::load_model_from_path` / `prepare_model` (not `engine::gguf::load_gguf_model` directly). It provides **no OS sandbox**: the model runs inside the CoreForge process with CoreForge's authority. Use it for development or where the daemon cannot be deployed; do not describe it as sandboxed.
+
+## 3. Runtime version and build provenance
+
+- `gg-core-cli version` → `GG-CORE 0.10.0-rc.1` (exact; the release workflow checks this line).
+- `gg-core-cli version --json` →
+  `{"name":"GG-CORE","version":"0.10.0-rc.1","commit":"<40-hex>","build_date":"YYYY-MM-DD","rust_version":"1.97.0","features":["gguf","ffi"],"protocol_version":"V1","target":"windows-x86_64"}`
+  `commit` is `GITHUB_SHA` for CI builds (the release workflow) or `git rev-parse HEAD` for local builds; `unknown` only when neither exists. `features` **must** contain `"gguf"` for an inference-capable binary — treat its absence as "no native inference" (COREFORGE #542 capability manifest).
+- The same `version`/`commit`/`build_date`/`rust_version` appear in `status --json`'s `version` block from a running daemon.
+
+## 4. Installable artifacts
+
+From the Release workflow (`.github/workflows/release.yml`), per platform: `gg-core-<vX.Y.Z[-rc.N]>-<platform>.tar.gz` containing `gg-core-cli[.exe]`, the native library (`gg_core.dll` / `libgg_core.so` / `libgg_core.dylib`), `gg_core.h`, `LICENSE`, `README.md`; plus `SHA256SUMS` over the archives. Platforms: `linux-x86_64`, `windows-x86_64`, `macos-<arch>`. Every archive was built `--locked --release --features gguf,ffi` and, in the `qualify` job, installed on its OS and run through `scripts/rc-acceptance.sh` with a real model before the tag may publish. Verify `SHA256SUMS` after download; bind the archive hash into CoreForge's artifact capability manifest.
+
+Host prerequisites of the packaged binary: none beyond the OS (the llama.cpp backend is statically linked). Windows needs no LLVM at runtime (only at build time).
+
+## 5. Process management
+
+- Start: `gg-core-cli serve --model <relative path under models/> --model-id <id>` (repeatable), or `GG_CORE_PRELOAD_MODELS=<comma-separated paths>`. Working directory = GG-CORE **base path**; model paths are relative to it and confined to `models/` and `tokenizers/`.
+- Required environment: `CORE_AUTH_TOKEN` (≥16 bytes, generated per install or per launch, stored by CoreForge in its credential store; the daemon refuses to start without it), `GG_CORE_SOCKET_PATH` (Windows: `\\.\pipe\<unique name>`; Unix: a path in a directory only CoreForge can write).
+- Startup sequence printed on stderr: FIPS self-tests → `Auth: shared token required on every session` → `Preloaded model '<id>' (handle N)` → `Sandbox: SECCOMP|ENFORCE|OFF ...` → `IPC server listening on <path>`. A preload failure, missing token, or a sandbox that cannot apply exits non-zero **before** listening.
+- Readiness: `ready` (CLI exit 0/1) or IPC `health_check` `Readiness` — `ok:true` only when ≥1 model is loaded. Liveness is unconditional.
+- Stop: SIGINT/SIGTERM on Unix drains in-flight requests (`GG_CORE_SHUTDOWN_TIMEOUT`, default 30 s) and exits 0, removing the socket. Windows: CoreForge terminates the process (Job Object kill-on-close also ends it with CoreForge if CoreForge holds the job handle — CoreForge may create its own Job Object around the child for lifecycle binding); in-flight requests are lost — plan a drain by refusing new requests first.
+- Restart/recovery: the daemon is stateless across restarts (no registry persistence on the IPC path); CoreForge re-issues `model_load_request` (or uses preload flags) after each start and re-checks readiness. A crash is detected by the process handle and by connection failure on the next request.
+- Resource limits: `GG_CORE_MAX_TOTAL_MEMORY` (job/cgroup cap; size it ≥ model file + context, e.g. 4 GiB for a 0.5B Q4 model with 4096 context), `GG_CORE_MAX_CONCURRENT` (default 2), `GG_CORE_MAX_QUEUE_DEPTH` (256), `GG_CORE_MAX_CONTEXT` (4096), `GG_CORE_N_THREADS`, `GG_CORE_N_CTX`.
+
+## 6. IPC protocol (normative: `docs/IPC_PROTOCOL_SCHEMA.md`)
+
+- Transport: Windows named pipe / Unix socket; frames = 4-byte little-endian length + UTF-8 JSON; max 16 MiB.
+- Handshake first on every connection that will do authenticated work: `{"type":"handshake","token":"…","protocol_version":"V1"}` → `{"type":"handshake_ack","session_id":"…","protocol_version":"V1"}`; a wrong token returns `{"type":"error","code":401,…}` and the connection is closed. The session is bound to that connection. 5 failed handshakes → 30 s lockout.
+- Authenticated: `inference_request`, `cancel_request`, `model_load_request`, `model_unload_request`. Unauthenticated probes: `health_check`, `metrics_request`, `models_request`, `warmup_request`, `prometheus_request`, `spans_request`.
+- `inference_request` fields: `request_id`, `model_id`, `prompt`, `parameters{max_tokens, temperature, top_p, top_k, stream, timeout_ms}`. Non-streaming reply `inference_response{output, tokens_generated, finished, error?, error_code?}`; `error_code ∈ {admission_rejected, execution_failed, model_not_loaded, input_invalid, shutting_down}`. A security block returns a failed response with the fixed rejection message (never raw model output).
+- Streaming: `stream: true` → `stream_chunk{text?, is_final, error?}` frames of **sanitized text** (raw token ids never cross the boundary); the final frame has `is_final:true`; a failure arrives as a chunk with `error` set and `is_final:true`. `cancel_request{request_id}` on the same connection stops generation; dropping the connection also stops it.
+- Timeouts: `timeout_ms` is request-scoped; CoreForge should also apply its own client-side deadline (connect ≤5 s; first frame ≤ model-load-dependent budget; inter-frame ≤30 s) and treat a deadline as failure + reconnect.
+- Version negotiation: `protocol_version` in the handshake; the daemon answers with the negotiated version (`V1` today). Breaking protocol changes bump the version; additive fields are allowed within a version (unknown fields must be ignored).
+
+## 7. Model lifecycle
+
+`discover` (CoreForge-owned; files under `<base>/models/`) → `validate` (GG-CORE: path confinement incl. symlinks; optional sibling `manifest.json` must parse/validate and its `sha256` must match; GGUF magic checked by the backend) → `model_load_request{path, model_id}` → `model_load_response{success, handle_id | error}` (no partial registry state on failure) → `models_request` lists `{name, handle_id, size_bytes, memory_bytes, state, loaded_at, …}` → inference → `model_unload_request{model_id}` → readiness drops to not-ready when no model remains. One resident model is the qualified configuration; loading a second is allowed by the runtime but not RC-qualified for memory behavior.
+
+## 8. Security configuration CoreForge must honor
+
+- Never set `GG_CORE_ALLOW_INSECURE_NO_AUTH`, `GG_CORE_SANDBOX=off`, `GG_CORE_SECURITY_INGRESS=off` or `GG_CORE_SECURITY_EGRESS=off` in a shipped configuration; a daemon started that way prints a banner and logs `insecure_configuration` — CoreForge should surface it as a degraded/untrusted state.
+- Treat `path_traversal_attempt`, `model_hash_mismatch`, `auth_failure`, `rate_limited`, `sandbox_violation` security events (daemon stderr / structured tracing) as diagnostics to retain.
+- The daemon has no network authority and must not be given any (no proxies, no URLs); model downloads are CoreForge's responsibility and must land under `models/` with a `manifest.json` carrying the expected `sha256` when provenance is known.
+
+## 9. Minimal real-model consumer acceptance test
+
+`scripts/rc-acceptance.sh <archive> <base-dir>` is the reference (26 checks on Linux; the `qualify` job runs it on each OS). A CoreForge-side equivalent must, against the **installed** artifact: `version --json` has `gguf` and the pinned `commit`; start with a token; not-ready → load Qwen2.5-0.5B-Instruct Q4_K_M (sha256 `74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db`) → ready; one non-streaming and one streaming generation with real text; a prompt-injection sample is rejected; a wrong token is rejected; unload → not-ready; corrupt/traversal loads refused; kill and restart → not-ready until reload; clean stop.
+
+## 10. Compatibility note for the in-process pin (COREFORGE #588)
+
+CoreForge's gitlink `b661403c` is GG-CORE 0.8.1. Between that pin and this candidate the embedded surface changed as follows (consumer-relevant): `Runtime::infer`/`infer_stream` secure façade added (CoreForge's branch already targets it); backend traits unified into `engine::Model`; `Runtime.model_loader` is now `Arc<ModelLoader>`; `models::{prepare_model, register_prepared, load_model_from_path, unload_model}` added as the validated load path; `load_model_dispatch` verifies manifest hashes and (this candidate) fails closed on malformed manifests and re-checks file identity; `RuntimeConfig` gained `health`, `connections`, `ipc_server`, `gpu`. The daemon/IPC contract above does not depend on any of these.
