@@ -208,6 +208,9 @@ impl CliIpcClient {
                     }
                     if let Some(text) = &chunk.text {
                         print!("{}", text);
+                        // stdout is line-buffered even when piped; flush so
+                        // a consumer (file, orchestrator) sees tokens live.
+                        let _ = std::io::Write::flush(&mut std::io::stdout());
                         full_output.push_str(text);
                     }
                     if chunk.is_final {
