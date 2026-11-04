@@ -5,6 +5,8 @@ use std::fs::File;
 use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 
+use super::containment;
+
 /// Normalize a path lexically without resolving symlinks or hitting the filesystem.
 /// This prevents TOCTOU vulnerabilities and bypasses from `canonicalize()`.
 fn normalize_path(path: &Path) -> Option<PathBuf> {
@@ -103,7 +105,19 @@ impl ModelLoader {
             return Err(LoadError::PathNotAllowed(normalized));
         }
 
-        Ok(ModelPath { path: normalized })
+        // Physical containment: an existing entry must *resolve* under an
+        // allowed root (symlinks and other indirection cannot escape). The
+        // error carries the requested path only, never the resolved target.
+        let roots: Vec<PathBuf> = ALLOWED_DIRS
+            .iter()
+            .map(|d| self.base_path.join(d))
+            .collect();
+        match containment::check(&normalized, &roots) {
+            containment::Physical::Contained | containment::Physical::Absent => {
+                Ok(ModelPath { path: normalized })
+            }
+            containment::Physical::Escapes => Err(LoadError::PathNotAllowed(normalized)),
+        }
     }
 
     /// Load model metadata from validated path.
@@ -153,9 +167,18 @@ unsafe impl Send for MappedModel {}
 unsafe impl Sync for MappedModel {}
 
 impl MappedModel {
-    /// Memory-map a model file for zero-copy access.
+    /// Memory-map a model file for zero-copy access. The final path
+    /// component is opened without following a symlink (Unix), so a link
+    /// swapped in after validation is refused rather than mapped.
     pub fn open(path: &ModelPath) -> Result<Self, LoadError> {
-        let file = File::open(path.as_path())?;
+        let mut opts = std::fs::OpenOptions::new();
+        opts.read(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.custom_flags(libc::O_NOFOLLOW);
+        }
+        let file: File = opts.open(path.as_path())?;
         // SAFETY: File is opened read-only, model files are not modified during runtime
         let mmap = unsafe { Mmap::map(&file)? };
         Ok(Self { mmap })
@@ -178,53 +201,5 @@ impl MappedModel {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_normalize_path() {
-        assert_eq!(
-            normalize_path(Path::new("/var/models/ok.bin")).unwrap(),
-            PathBuf::from("/var/models/ok.bin")
-        );
-        assert_eq!(
-            normalize_path(Path::new("/var/models/../tokenizers/ok.json")).unwrap(),
-            PathBuf::from("/var/tokenizers/ok.json")
-        );
-        assert_eq!(
-            normalize_path(Path::new("relative/../path")).unwrap(),
-            PathBuf::from("path")
-        );
-        // Traversal above root should fail
-        assert_eq!(normalize_path(Path::new("/../etc/passwd")), None);
-        // Traversal above relative should fail
-        assert_eq!(normalize_path(Path::new("../../etc/passwd")), None);
-    }
-
-    #[test]
-    fn test_validate_path() {
-        let loader = ModelLoader::new(PathBuf::from("/base"));
-
-        // Valid paths within allowed directories
-        assert!(loader.validate_path("models/model1.bin").is_ok());
-        assert!(loader.validate_path("tokenizers/tok1.json").is_ok());
-
-        // Allowed paths using safe traversals
-        assert!(loader
-            .validate_path("models/../tokenizers/tok1.json")
-            .is_ok());
-
-        // Invalid paths (outside allowed directories)
-        assert!(loader.validate_path("other/file.bin").is_err());
-        assert!(loader.validate_path("../models.bin").is_err());
-
-        // Dangerous traversal attempts
-        assert!(loader.validate_path("models/../../etc/passwd").is_err());
-        assert!(loader.validate_path("../../../etc/shadow").is_err());
-
-        // NUL-byte injection is rejected at the seam (FFI truncation class).
-        assert!(loader
-            .validate_path("models/test\0../../etc/passwd")
-            .is_err());
-    }
-}
+#[path = "loader_tests.rs"]
+mod tests;
