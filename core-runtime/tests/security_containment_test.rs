@@ -22,11 +22,13 @@ impl Base {
     fn loader(&self) -> ModelLoader {
         ModelLoader::new(self.dir.path().to_path_buf())
     }
+    #[cfg(unix)]
     fn path(&self, rel: &str) -> std::path::PathBuf {
         self.dir.path().join(rel)
     }
 }
 
+#[cfg(unix)]
 fn assert_not_allowed(result: Result<gg_core::models::ModelPath, LoadError>, what: &str) {
     match result {
         Err(LoadError::PathNotAllowed(shown)) => {

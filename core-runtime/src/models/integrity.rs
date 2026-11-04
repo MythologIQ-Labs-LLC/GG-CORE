@@ -18,8 +18,9 @@ use crate::engine::error::InferenceError;
 use crate::models::manifest::ModelManifest;
 use crate::telemetry::{log_security_event, SecurityEvent};
 
-/// Identity of the file that was hashed (device + inode on Unix; size and
-/// modification time elsewhere).
+/// Identity of the file that was hashed: device + inode on Unix; volume
+/// serial + NTFS file index on Windows (the handle-level identity that
+/// survives renames and differs between distinct files). Size on both.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileIdentity {
     len: u64,
@@ -27,29 +28,84 @@ pub struct FileIdentity {
     dev: u64,
     #[cfg(unix)]
     ino: u64,
-    #[cfg(not(unix))]
-    modified: Option<std::time::SystemTime>,
+    #[cfg(windows)]
+    volume: u32,
+    #[cfg(windows)]
+    index: u64,
 }
 
 impl FileIdentity {
-    fn of(md: &std::fs::Metadata) -> Self {
+    /// Identity of an open handle.
+    fn of_open(file: &File) -> Result<Self, InferenceError> {
+        let md = file
+            .metadata()
+            .map_err(|e| InferenceError::ModelError(format!("cannot stat model: {}", e)))?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::MetadataExt;
-            Self {
+            Ok(Self {
                 len: md.len(),
                 dev: md.dev(),
                 ino: md.ino(),
-            }
+            })
+        }
+        #[cfg(windows)]
+        {
+            let (volume, index) = windows_file_id(file)?;
+            Ok(Self {
+                len: md.len(),
+                volume,
+                index,
+            })
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            Ok(Self { len: md.len() })
+        }
+    }
+
+    /// Identity of whatever `path` names now. Unix: `lstat` semantics, so a
+    /// symlink swapped in never matches a regular file. Windows: the opened
+    /// object's identity, so a link to a *different* file never matches.
+    fn at_path(path: &Path) -> Result<Self, InferenceError> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let md = std::fs::symlink_metadata(path)
+                .map_err(|e| InferenceError::ModelError(format!("cannot re-stat model: {}", e)))?;
+            Ok(Self {
+                len: md.len(),
+                dev: md.dev(),
+                ino: md.ino(),
+            })
         }
         #[cfg(not(unix))]
         {
-            Self {
-                len: md.len(),
-                modified: md.modified().ok(),
-            }
+            let file = File::open(path)
+                .map_err(|e| InferenceError::ModelError(format!("cannot re-open model: {}", e)))?;
+            Self::of_open(&file)
         }
     }
+}
+
+/// Volume serial number + 64-bit file index of an open handle.
+#[cfg(windows)]
+fn windows_file_id(file: &File) -> Result<(u32, u64), InferenceError> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{
+        GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+    };
+    // SAFETY: `file` is an open, valid handle for the duration of the call and
+    // a zeroed BY_HANDLE_FILE_INFORMATION is a valid out-parameter.
+    let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    let ok = unsafe { GetFileInformationByHandle(file.as_raw_handle() as _, &mut info) };
+    if ok == 0 {
+        return Err(InferenceError::ModelError(
+            "cannot query model file identity".into(),
+        ));
+    }
+    let index = (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow);
+    Ok((info.dwVolumeSerialNumber, index))
 }
 
 /// Open a model file for reading without following a symlink at the final
@@ -77,10 +133,7 @@ pub fn open_nofollow(path: &Path) -> Result<File, InferenceError> {
 /// Streaming SHA-256 of the file plus the identity of the handle hashed.
 pub fn hash_file(path: &Path) -> Result<(String, FileIdentity), InferenceError> {
     let mut file = open_nofollow(path)?;
-    let identity = file
-        .metadata()
-        .map(|md| FileIdentity::of(&md))
-        .map_err(|e| InferenceError::ModelError(format!("cannot stat model: {}", e)))?;
+    let identity = FileIdentity::of_open(&file)?;
     let mut hasher = Sha256::new();
     let mut buf = [0u8; 65536];
     loop {
@@ -130,9 +183,7 @@ pub fn verify_manifest_hash(
 /// hash time (no rename/symlink substitution since). `lstat` semantics: a
 /// symlink swapped in never matches a regular file's identity.
 pub fn check_identity_unchanged(path: &Path, hashed: &FileIdentity) -> Result<(), InferenceError> {
-    let now = std::fs::symlink_metadata(path)
-        .map(|md| FileIdentity::of(&md))
-        .map_err(|e| InferenceError::ModelError(format!("cannot re-stat model: {}", e)))?;
+    let now = FileIdentity::at_path(path)?;
     if &now != hashed {
         log_security_event(
             SecurityEvent::ModelHashMismatch,
