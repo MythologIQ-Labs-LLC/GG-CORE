@@ -1,5 +1,8 @@
 # Rust Inference Runtime Comparison
 
+> **Historical comparison, not current RC certification (2026-11-04):** This analysis includes estimated or prior-version performance, sandbox/security comparisons and compliance assumptions. The quoted token/sec values, "security tax" percentages and runtime rankings were not established using a single reproducible, same-model, same-host benchmark methodology and must not be promoted as verified GG-CORE 0.10.0 performance or compliance outcomes. GG-CORE GGUF decoding uses llama.cpp through `llama-cpp-2`; its design distinction is the secured runtime boundary, not a different GGUF compute kernel. Current functionality and performance must be requalified with **all shipped security protections enabled** through [release gate #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). The historical hypotheses and goals are deliberately retained for further testing.
+
+
 **GG-CORE vs Pure Rust ML Inference Engines**
 
 This document compares GG-CORE against other Rust-based inference runtimes, analyzing performance characteristics, security properties, and use case fit.
