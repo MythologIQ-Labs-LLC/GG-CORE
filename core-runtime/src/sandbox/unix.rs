@@ -51,8 +51,13 @@ impl Sandbox for UnixSandbox {
             };
         }
 
-        // SECURITY: Apply cgroup limits first
-        let cgroup_result = self.apply_cgroup_limits();
+        // SECURITY: Apply cgroup limits first (skipped in seccomp-only mode,
+        // which needs no privileges — the daemon's default).
+        let cgroup_result = if self.config.cgroup_enabled {
+            self.apply_cgroup_limits()
+        } else {
+            Ok("cgroup disabled (seccomp-only mode)".to_string())
+        };
 
         // SECURITY: Apply seccomp filter for syscall restriction
         let seccomp_result = self.apply_seccomp_filter();

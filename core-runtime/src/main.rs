@@ -5,6 +5,7 @@
 
 mod cli_parser;
 mod runtime_init;
+mod sandbox_boot;
 
 use std::process::ExitCode;
 
@@ -63,6 +64,13 @@ async fn run_serve(args: &[String]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let sandbox_mode = match sandbox_boot::sandbox_mode_from_env() {
+        Ok(mode) => mode,
+        Err(e) => {
+            eprintln!("serve: {}", e);
+            return ExitCode::FAILURE;
+        }
+    };
 
     if let Err(e) = fips_tests::run_power_on_self_tests() {
         eprintln!("FIPS self-test FAILED: {}", e);
@@ -78,6 +86,17 @@ async fn run_serve(args: &[String]) -> ExitCode {
     if let Err(e) = runtime_init::preload_models(&runtime, &preload).await {
         eprintln!("Startup preload FAILED: {}", e);
         return ExitCode::FAILURE;
+    }
+
+    // RC hardening (SECURITY.md Known Gap 1): apply the process sandbox after
+    // preload (model files are mmapped already) and before the IPC server
+    // starts. A requested sandbox that cannot apply aborts startup.
+    match sandbox_boot::apply_daemon_sandbox(sandbox_mode, &runtime.config) {
+        Ok(status) => eprintln!("{}", status),
+        Err(e) => {
+            eprintln!("Sandbox FAILED: {}", e);
+            return ExitCode::FAILURE;
+        }
     }
 
     match runtime_init::run_ipc_server(runtime).await {

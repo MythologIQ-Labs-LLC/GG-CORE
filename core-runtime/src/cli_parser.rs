@@ -29,10 +29,8 @@ OPTIONS:
     --socket PATH  Override IPC socket path
 
 EXAMPLES:
-    GG-CORE                          # Run IPC server (default)
-    GG-CORE serve                    # Explicitly run IPC server
-    GG-CORE infer --model phi-3 --prompt \"Hello\"  # Run inference
-    GG-CORE infer --model phi-3 --prompt \"Hi\" --stream  # Streaming
+    GG-CORE serve                    # Run IPC server (also the default)
+    GG-CORE infer --model phi-3 --prompt \"Hello\" [--stream]
     GG-CORE health                   # Full health check
     GG-CORE live                     # Liveness probe
     GG-CORE ready                    # Readiness probe
@@ -43,8 +41,8 @@ EXAMPLES:
 ENVIRONMENT:
     GG_CORE_SOCKET_PATH  IPC socket path
     CORE_AUTH_TOKEN      Authentication token for server mode
+    GG_CORE_SANDBOX      Process sandbox: enforce|seccomp|off
     RUST_LOG             Log level (debug, info, warn, error)
-    GG_CORE_ENV          Environment (development, staging, production)
 
 EXIT CODES:
     0  Success / Healthy
@@ -94,10 +92,11 @@ DESCRIPTION:
     Performs FIPS 140-3 power-on self-tests before starting. A preload
     failure aborts startup. GG_CORE_PRELOAD_MODELS (comma-separated paths)
     is used when no --model flags are given. Readiness reports not-ready
-    until at least one model is loaded.
+    until at least one model is loaded. A process sandbox is applied per
+    GG_CORE_SANDBOX (enforce|seccomp|off; seccomp syscall allowlist is the
+    Linux x86_64 default) — a sandbox that cannot apply aborts startup.
 
 EXAMPLES:
-    GG-CORE serve
     GG-CORE serve --model models/qwen.gguf --model-id local-model
 "
     );

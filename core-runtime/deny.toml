@@ -19,6 +19,17 @@ ignore = [
     # candle-core and tokenizers with no safe upgrade available. Revisit when
     # migrating candle 0.8 -> 0.11 / tokenizers 0.21 -> 0.23.
     { id = "RUSTSEC-2024-0436", reason = "unmaintained transitive dep of candle/tokenizers; no upgrade exists; revisit on the candle 0.11 migration" },
+    # zip <9 extraction vulnerabilities (SUID/SGID preservation, symlink
+    # target escape, symlink permission application, abort on oversized
+    # symlink entry). zip enters only via candle-core (onnx feature), which
+    # uses it to READ .npz archive entries in-process; GG-CORE never calls
+    # ZipArchive::extract / ZipStreamReader::extract, so the vulnerable
+    # extract-to-disk paths are unreachable. candle 0.11 caps zip below 9;
+    # drop these on the next candle bump that allows zip >=9.
+    { id = "RUSTSEC-2026-0367", reason = "zip extract-to-disk API unreachable: candle reads npz entries in-process only" },
+    { id = "RUSTSEC-2026-0368", reason = "zip extract-to-disk API unreachable: candle reads npz entries in-process only" },
+    { id = "RUSTSEC-2026-0369", reason = "zip extract-to-disk API unreachable: candle reads npz entries in-process only" },
+    { id = "RUSTSEC-2026-0429", reason = "zip extract-to-disk API unreachable: candle reads npz entries in-process only" },
 ]
 
 [bans]
@@ -71,7 +82,6 @@ allow = [
     "Unicode-3.0",
     "MPL-2.0",
     "CDLA-Permissive-2.0",
-    "OpenSSL",
 ]
 confidence-threshold = 0.8
 

@@ -129,18 +129,18 @@ fn aes_gcm_encrypt_decrypt_kat(
     nonce: &[u8; 12],
     plaintext: &[u8],
 ) -> Result<(), SelfTestError> {
-    let cipher_key = aes_gcm::Key::<Aes256Gcm>::from_slice(key);
-    let cipher = Aes256Gcm::new(cipher_key);
-    let nonce_obj = Nonce::from_slice(nonce);
+    let cipher_key = aes_gcm::Key::<Aes256Gcm>::from(*key);
+    let cipher = Aes256Gcm::new(&cipher_key);
+    let nonce_obj = Nonce::from(*nonce);
 
     // Encrypt
     let ciphertext = cipher
-        .encrypt(nonce_obj, plaintext)
+        .encrypt(&nonce_obj, plaintext)
         .map_err(|_| SelfTestError::AesGcmEncryptFailed)?;
 
     // Decrypt and verify round-trip
     let decrypted = cipher
-        .decrypt(nonce_obj, ciphertext.as_slice())
+        .decrypt(&nonce_obj, ciphertext.as_slice())
         .map_err(|_| SelfTestError::AesGcmDecryptFailed)?;
 
     if decrypted != plaintext {

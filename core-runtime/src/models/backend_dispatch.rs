@@ -37,11 +37,17 @@ pub fn choose_backend(manifest: Option<ModelManifest>) -> BackendChoice {
 /// Load the backend a model file selects, resolving an optional sibling
 /// `manifest.json`. Absent/unparseable/non-ONNX manifest → GGUF (unchanged
 /// behavior); `architecture: onnx` → the ONNX manifest dispatcher (B-29a).
+///
+/// A parsed manifest's declared `sha256` is verified against the file BEFORE
+/// any backend reads it (fail-loud on mismatch; SECURITY.md integrity gap).
 pub fn load_model_dispatch(
     model_path: &Path,
     model_id: &str,
 ) -> Result<Arc<dyn Model>, InferenceError> {
     let manifest = ModelManifest::from_file(&model_path.with_file_name("manifest.json")).ok();
+    if let Some(ref m) = manifest {
+        crate::models::integrity::verify_manifest_hash(model_path, m)?;
+    }
     match choose_backend(manifest) {
         BackendChoice::Onnx(m) => load_onnx_from_manifest(&m, model_path, &OnnxConfig::default()),
         BackendChoice::GgufDefault => load_gguf_model(model_path, model_id, &GgufConfig::default()),

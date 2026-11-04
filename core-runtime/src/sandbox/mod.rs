@@ -23,6 +23,10 @@ pub struct SandboxConfig {
     pub enabled: bool,
     /// Whether GPU device access is permitted (adds ioctl to seccomp whitelist).
     pub gpu_enabled: bool,
+    /// Whether to apply cgroup v2 resource limits (Linux; requires root or
+    /// cgroup delegation). `false` = seccomp-only mode, which needs no
+    /// privileges and suits the standalone daemon's default.
+    pub cgroup_enabled: bool,
 }
 
 impl Default for SandboxConfig {
@@ -32,6 +36,7 @@ impl Default for SandboxConfig {
             max_cpu_time_ms: 30_000,                  // 30s
             enabled: true,
             gpu_enabled: false,
+            cgroup_enabled: true,
         }
     }
 }

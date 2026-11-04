@@ -176,6 +176,39 @@ async fn unload_of_absent_model_fails_loud() {
 }
 
 #[tokio::test]
+async fn load_with_mismatched_manifest_hash_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("models")).unwrap();
+    std::fs::write(dir.path().join("models/m.gguf"), b"model bytes").unwrap();
+    let manifest = format!(
+        r#"{{"model_id":"m","name":"m","version":"1.0.0","capabilities":["text_generation"],
+            "sha256":"{}","size_bytes":11,"architecture":"gguf","license":"Apache-2.0"}}"#,
+        "a".repeat(64)
+    );
+    std::fs::write(dir.path().join("models/manifest.json"), manifest).unwrap();
+
+    let runtime = Runtime::new(RuntimeConfig {
+        auth_token: "test-token".into(),
+        base_path: dir.path().to_path_buf(),
+        ..Default::default()
+    });
+    let session = authenticate(&runtime).await;
+    let request = IpcMessage::ModelLoadRequest(ModelLoadRequest {
+        path: "models/m.gguf".into(),
+        model_id: None,
+    });
+    let (reply, _) = send(&runtime, &request, Some(&session)).await;
+    match reply {
+        IpcMessage::ModelLoadResponse(r) => {
+            assert!(!r.success, "tampered model must not load");
+            assert!(r.error.unwrap().contains("hash mismatch"));
+        }
+        other => panic!("unexpected reply: {other:?}"),
+    }
+    assert_eq!(runtime.model_registry.count().await, 0, "no partial state");
+}
+
+#[tokio::test]
 async fn readiness_requires_a_loaded_model_when_configured() {
     let runtime = Runtime::new(RuntimeConfig {
         auth_token: "test-token".into(),
