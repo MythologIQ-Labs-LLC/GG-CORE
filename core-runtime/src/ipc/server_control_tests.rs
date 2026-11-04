@@ -51,7 +51,10 @@ async fn authenticate(client: &mut DuplexStream) {
         },
     )
     .await;
-    assert!(matches!(receive(client).await, IpcMessage::HandshakeAck { .. }));
+    assert!(matches!(
+        receive(client).await,
+        IpcMessage::HandshakeAck { .. }
+    ));
 }
 
 fn streaming_request(timeout_ms: u64) -> IpcMessage {
@@ -96,13 +99,19 @@ async fn authenticated_cancel_is_processed_while_stream_is_waiting() {
     let mut terminal = false;
     for _ in 0..3 {
         match receive(&mut client).await {
-            IpcMessage::CancelResponse { request_id, cancelled } => {
+            IpcMessage::CancelResponse {
+                request_id,
+                cancelled,
+            } => {
                 assert_eq!(request_id.0, 73);
                 assert!(cancelled, "active stream must be cancellable");
                 acknowledged = true;
             }
             IpcMessage::StreamChunk(chunk) if chunk.is_final => {
-                assert!(chunk.error.as_deref().is_some_and(|e| e.contains("cancelled")));
+                assert!(chunk
+                    .error
+                    .as_deref()
+                    .is_some_and(|e| e.contains("cancelled")));
                 terminal = true;
             }
             other => panic!("unexpected IPC response: {other:?}"),
@@ -111,7 +120,10 @@ async fn authenticated_cancel_is_processed_while_stream_is_waiting() {
             break;
         }
     }
-    assert!(acknowledged && terminal, "must receive cancel ACK and terminal");
+    assert!(
+        acknowledged && terminal,
+        "must receive cancel ACK and terminal"
+    );
     close(client, task).await;
 }
 
@@ -123,7 +135,10 @@ async fn idle_stream_has_real_wall_clock_deadline() {
     match receive(&mut client).await {
         IpcMessage::StreamChunk(chunk) => {
             assert!(chunk.is_final);
-            assert!(chunk.error.as_deref().is_some_and(|e| e.contains("deadline")));
+            assert!(chunk
+                .error
+                .as_deref()
+                .is_some_and(|e| e.contains("deadline")));
         }
         other => panic!("expected timeout terminal: {other:?}"),
     }
@@ -140,7 +155,10 @@ async fn unauthenticated_liveness_probe_remains_available() {
         },
     )
     .await;
-    assert!(matches!(receive(&mut client).await, IpcMessage::HealthResponse(_)));
+    assert!(matches!(
+        receive(&mut client).await,
+        IpcMessage::HealthResponse(_)
+    ));
     close(client, task).await;
 }
 
@@ -155,7 +173,10 @@ async fn unauthenticated_warmup_cannot_invoke_inference() {
         }),
     )
     .await;
-    assert!(matches!(receive(&mut client).await, IpcMessage::Error { code: 401, .. }));
+    assert!(matches!(
+        receive(&mut client).await,
+        IpcMessage::Error { code: 401, .. }
+    ));
     close(client, task).await;
 }
 
@@ -169,6 +190,9 @@ async fn unauthenticated_cancel_is_rejected() {
         },
     )
     .await;
-    assert!(matches!(receive(&mut client).await, IpcMessage::Error { code: 401, .. }));
+    assert!(matches!(
+        receive(&mut client).await,
+        IpcMessage::Error { code: 401, .. }
+    ));
     close(client, task).await;
 }
