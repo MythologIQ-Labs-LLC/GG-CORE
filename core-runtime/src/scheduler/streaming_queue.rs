@@ -4,8 +4,8 @@
 //! requests, but deliver tokens via an mpsc channel instead of a
 //! oneshot response.
 
-use tokio_util::sync::CancellationToken;
 use std::time::Instant;
+use tokio_util::sync::CancellationToken;
 
 use crate::engine::{InferenceConfig, TokenStreamSender};
 
