@@ -128,7 +128,11 @@ mod tests {
         let writer = Arc::new(Mutex::new(BufWriter::new(Cursor::new(Vec::new()))));
         let held = writer.lock().await;
         let cancel = CancellationToken::new();
-        let bridge = Arc::new(IpcStreamBridge::new(writer, RequestId(123), cancel.clone()));
+        let bridge = Arc::new(IpcStreamBridge::new(
+            Arc::clone(&writer),
+            RequestId(123),
+            cancel.clone(),
+        ));
         let (started_tx, started_rx) = tokio::sync::oneshot::channel();
         let pending = tokio::spawn(async move {
             let _ = started_tx.send(());
