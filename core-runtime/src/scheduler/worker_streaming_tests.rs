@@ -53,3 +53,67 @@ async fn streaming_request_is_serviced_by_an_idle_worker() {
     shutdown.cancel();
     let _ = tokio::time::timeout(Duration::from_secs(1), worker).await;
 }
+
+
+#[tokio::test]
+async fn cancelled_queued_stream_reports_error_terminal() {
+    let queue = Arc::new(RequestQueue::new(RequestQueueConfig::default()));
+    let (tx, rx) = TokenStream::new(8);
+    let cancel = tokio_util::sync::CancellationToken::new();
+    cancel.cancel();
+    queue
+        .enqueue_streaming_controlled(
+            "absent-model".into(),
+            "hi".into(),
+            InferenceConfig::default(),
+            tx,
+            cancel,
+        )
+        .await
+        .unwrap();
+    let shutdown = tokio_util::sync::CancellationToken::new();
+    let worker = spawn_worker(
+        queue,
+        Arc::new(InferenceEngine::new(4096)),
+        shutdown.clone(),
+    );
+    let (_tokens, terminal) = tokio::time::timeout(Duration::from_secs(2), rx.collect())
+        .await
+        .expect("cancelled request must receive terminal");
+    assert!(
+        matches!(terminal, StreamTerminal::Error(ref msg) if msg.contains("cancelled")),
+        "cancelled stream must not report successful completion"
+    );
+    shutdown.cancel();
+    let _ = tokio::time::timeout(Duration::from_secs(1), worker).await;
+}
+
+#[tokio::test]
+async fn expired_queued_stream_reports_error_terminal() {
+    let queue = Arc::new(RequestQueue::new(RequestQueueConfig::default()));
+    let (tx, rx) = TokenStream::new(8);
+    let config = InferenceConfig {
+        timeout_ms: 1,
+        ..Default::default()
+    };
+    queue
+        .enqueue_streaming("absent-model".into(), "hi".into(), config, tx)
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let shutdown = tokio_util::sync::CancellationToken::new();
+    let worker = spawn_worker(
+        queue,
+        Arc::new(InferenceEngine::new(4096)),
+        shutdown.clone(),
+    );
+    let (_tokens, terminal) = tokio::time::timeout(Duration::from_secs(2), rx.collect())
+        .await
+        .expect("expired request must receive terminal");
+    assert!(
+        matches!(terminal, StreamTerminal::Error(ref msg) if msg.contains("deadline")),
+        "expired stream must not report successful completion"
+    );
+    shutdown.cancel();
+    let _ = tokio::time::timeout(Duration::from_secs(1), worker).await;
+}
