@@ -22,7 +22,7 @@ use super::server::{spawn_connection, ServerError};
 
 /// Permission bits applied to the Unix socket file after bind.
 #[cfg(unix)]
-pub const SOCKET_MODE: u32 = 0o600;
+pub(crate) const SOCKET_MODE: u32 = 0o600;
 
 /// Run the IPC server on Unix (Unix domain socket).
 #[cfg(unix)]

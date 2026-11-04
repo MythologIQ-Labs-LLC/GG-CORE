@@ -14,6 +14,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn controlled_stream_carries_cancel_and_deadline() {
+        let q = small_queue();
+        let (tx, _rx) = TokenStream::new(4);
+        let cancel = tokio_util::sync::CancellationToken::new();
+        q.enqueue_streaming_controlled(
+            "m".into(),
+            "prompt".into(),
+            InferenceConfig::default(),
+            tx,
+            cancel.clone(),
+        )
+        .await
+        .unwrap();
+        let request = q.dequeue_streaming().await.unwrap();
+        assert!(request.deadline.is_some());
+        assert!(!request.is_cancelled());
+        cancel.cancel();
+        assert!(request.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn expired_stream_is_skipped() {
+        let q = small_queue();
+        let (tx, _rx) = TokenStream::new(4);
+        let config = InferenceConfig {
+            timeout_ms: 1,
+            ..Default::default()
+        };
+        q.enqueue_streaming("m".into(), "p".into(), config, tx)
+            .await
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        let expired = q
+            .dequeue_streaming()
+            .await
+            .expect("worker must see expired work");
+        assert!(expired.is_expired());
+    }
+
+    #[tokio::test]
     async fn enqueue_with_response_returns_receiver() {
         let q = small_queue();
         let result = q

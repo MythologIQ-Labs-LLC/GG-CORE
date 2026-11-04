@@ -197,7 +197,9 @@ impl IpcHandler {
             }
 
             IpcMessage::WarmupRequest(request) => {
-                // NO AUTH REQUIRED (orchestrator pattern, same as health/metrics)
+                // Warmup runs real inference and consumes compute; it must be
+                // authorized like every other inference request.
+                self.require_auth(session).await?;
                 let response = self.handle_warmup(request.model_id, request.tokens).await;
                 Ok((IpcMessage::WarmupResponse(response), None))
             }
@@ -399,6 +401,12 @@ impl IpcHandler {
             return Ok(());
         }
 
+        if let Err(e) = request.parameters.validate() {
+            let chunk = StreamChunk::error(request.request_id, e.to_string());
+            sender.send(IpcMessage::StreamChunk(chunk)).await?;
+            return Ok(());
+        }
+
         // Streaming requires gguf feature
         #[cfg(not(feature = "gguf"))]
         {
@@ -432,19 +440,21 @@ impl IpcHandler {
         let config = request.parameters.to_config();
 
         let (token_sender, mut stream) = TokenStream::new(32);
+        let timeout = std::time::Duration::from_millis(config.timeout_ms);
 
         // Enqueue into the streaming queue — worker picks it up.
         self.queue
-            .enqueue_streaming(
+            .enqueue_streaming_controlled(
                 request.model_id.clone(),
                 request.prompt.clone(),
                 config,
                 token_sender,
+                cancel.clone(),
             )
             .await
             .map_err(|e| HandlerError::QueueFull(e.to_string()))?;
 
-        self.relay_stream(request_id, &mut stream, sender, cancel)
+        self.relay_stream(request_id, &mut stream, sender, cancel, timeout)
             .await
     }
 
@@ -456,12 +466,22 @@ impl IpcHandler {
         stream: &mut TokenStream,
         sender: &dyn StreamSender,
         cancel: CancellationToken,
+        timeout: std::time::Duration,
     ) -> Result<(), HandlerError> {
+        // One deadline for the whole request, never a reset after each chunk.
+        let deadline = tokio::time::sleep(timeout);
+        tokio::pin!(deadline);
         loop {
             tokio::select! {
                 biased;
                 _ = cancel.cancelled() => {
                     let chunk = StreamChunk::error(request_id, "cancelled".into());
+                    let _ = sender.send(IpcMessage::StreamChunk(chunk)).await;
+                    break;
+                }
+                _ = &mut deadline => {
+                    cancel.cancel();
+                    let chunk = StreamChunk::error(request_id, "stream deadline exceeded".into());
                     let _ = sender.send(IpcMessage::StreamChunk(chunk)).await;
                     break;
                 }

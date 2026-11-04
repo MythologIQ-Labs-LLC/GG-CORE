@@ -28,7 +28,12 @@ pub enum InferenceError {
 }
 
 /// Parameters controlling inference behavior (IPC protocol).
+///
+/// Every field is optional on the wire; a missing field takes the documented
+/// default (`docs/IPC_PROTOCOL_SCHEMA.md`: 256 / 0.7 / 0.9 / 40, no streaming,
+/// no deadline). Serialization still writes every field.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct InferenceParams {
     pub max_tokens: usize,
     pub temperature: f32,

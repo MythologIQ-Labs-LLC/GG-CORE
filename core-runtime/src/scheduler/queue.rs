@@ -1,7 +1,7 @@
 //! Request queue management.
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{Mutex, Notify};
@@ -168,7 +168,7 @@ impl RequestQueue {
         self.queue.lock().await.is_empty()
     }
 
-    /// Enqueue a streaming request. Returns the request ID.
+    /// Convenience path for callers without an external cancellation owner.
     pub async fn enqueue_streaming(
         &self,
         model_id: String,
@@ -176,7 +176,33 @@ impl RequestQueue {
         config: crate::engine::InferenceConfig,
         token_sender: super::streaming_queue::TokenStreamTx,
     ) -> Result<u64, QueueError> {
+        self.enqueue_streaming_controlled(
+            model_id,
+            prompt,
+            config,
+            token_sender,
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+    }
+
+    /// Enqueue a stream whose lifetime is controlled by its authenticated IPC
+    /// connection. The same token reaches the GGUF generation loop.
+    pub async fn enqueue_streaming_controlled(
+        &self,
+        model_id: String,
+        prompt: String,
+        config: crate::engine::InferenceConfig,
+        token_sender: super::streaming_queue::TokenStreamTx,
+        cancelled: tokio_util::sync::CancellationToken,
+    ) -> Result<u64, QueueError> {
         check_context(&prompt, self.config.max_context_tokens)?;
+        if config.timeout_ms == 0 {
+            return Err(QueueError::InvalidTimeout);
+        }
+        let deadline = Instant::now()
+            .checked_add(std::time::Duration::from_millis(config.timeout_ms))
+            .ok_or(QueueError::InvalidTimeout)?;
 
         let queue = self.queue.lock().await;
         let mut streaming = self.streaming.lock().await;
@@ -191,8 +217,8 @@ impl RequestQueue {
             prompt,
             config,
             enqueued_at: Instant::now(),
-            deadline: None,
-            cancelled: Arc::new(AtomicBool::new(false)),
+            deadline: Some(deadline),
+            cancelled,
             token_sender,
         });
         drop(streaming);
@@ -202,16 +228,11 @@ impl RequestQueue {
         Ok(id)
     }
 
-    /// Dequeue a streaming request, skipping cancelled/expired.
+    /// Dequeue streaming work, including cancelled or expired requests.
+    /// The worker must send a terminal error before discarding such a
+    /// request; silently skipping it leaves IPC clients waiting forever.
     pub async fn dequeue_streaming(&self) -> Option<StreamingQueuedRequest> {
-        let mut streaming = self.streaming.lock().await;
-        loop {
-            let request = streaming.pop_front()?;
-            if request.is_cancelled() || request.is_expired() {
-                continue;
-            }
-            return Some(request);
-        }
+        self.streaming.lock().await.pop_front()
     }
 
     /// Current number of queued streaming requests.
@@ -234,6 +255,7 @@ fn check_context(prompt: &str, max: usize) -> Result<(), QueueError> {
 #[derive(Debug)]
 pub enum QueueError {
     QueueFull,
+    InvalidTimeout,
     ContextTooLarge { estimated_tokens: usize, max: usize },
 }
 
@@ -241,6 +263,7 @@ impl std::fmt::Display for QueueError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::QueueFull => write!(f, "request queue is full"),
+            Self::InvalidTimeout => write!(f, "invalid streaming timeout"),
             Self::ContextTooLarge {
                 estimated_tokens,
                 max,

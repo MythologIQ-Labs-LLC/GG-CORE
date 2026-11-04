@@ -4,7 +4,13 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 
 ## [Unreleased]
 
-_Nothing yet._
+### Correctness and security hardening (pending requalification)
+
+- Process stream cancellation concurrently with IPC reads so an authenticated caller can cancel an active response on the same connection; cancellation and disconnect now propagate to the native generation loop.
+- Bound streaming requests by a wall-clock deadline and ensure cancellation/timeouts return a failed terminal rather than false successful completion.
+- Authenticate compute-producing warmup operations, retaining unauthenticated read-only health and monitoring probes.
+- Keep one process-wide llama.cpp backend so `model_unload_request` → `model_load_request` succeeds while a cancelled or expired stream's native loop is still winding down to its next checkpoint (previously the reload failed with `BackendAlreadyInitialized`). The packaged acceptance now exercises cancel → immediate unload/reload → inference.
+- `inference_request.parameters` fields are optional on the wire, as the IPC schema has always documented; a request omitting `temperature`/`top_p`/`top_k`/`max_tokens` now takes the documented defaults instead of failing with a serialization error.
 
 ## [0.10.0-rc.1] - 2026-11-04
 
