@@ -1,8 +1,6 @@
 //! Security wiring tests for the worker: egress sanitization via
 //! `apply_egress` and ingress rejection on the streaming path.
 
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use std::time::Instant;
 
 use super::apply_egress;
