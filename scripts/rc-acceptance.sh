@@ -113,7 +113,10 @@ kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived Alden-class context" || 
 # reach the native llama assertion or kill the daemon. Repeat the same simple
 # text to avoid relying on external fixtures, prompt templates or user data.
 OVERFLOW_PROMPT="$LONG_PROMPT"
-for ((n=0; n<400; n++)); do
+# Keep the CLI argument under Windows CreateProcess's command-line bound.
+# The 100 + 240 repeated phrases are deliberately much larger than 4096
+# Qwen tokens; the separate Rust fixture checks tokenizer-based limits.
+for ((n=0; n<240; n++)); do
   OVERFLOW_PROMPT="$OVERFLOW_PROMPT""The brown fox walks beside a clear river under a quiet blue sky. "
 done
 OOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$OVERFLOW_PROMPT" --max-tokens 8 2>&1)"; RC=$?
