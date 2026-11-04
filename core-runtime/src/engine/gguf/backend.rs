@@ -553,12 +553,19 @@ mod real_model_regression_tests {
             .tokenize(&overlong)
             .expect("tokenize overflow fixture");
         assert!(
-            overlong_tokens.len() >= gguf.n_ctx as usize,
-            "overflow fixture must exceed the real model context"
+            overlong_tokens.len() >= long_context.n_ctx as usize,
+            "overflow fixture must exceed even the configured 4096-token context"
         );
         assert!(matches!(
             backend.generate(&overlong, &InferenceConfig::default()),
             Err(InferenceError::InputValidation(_))
         ));
+        assert!(matches!(
+            long_backend.generate(&overlong, &InferenceConfig::default()),
+            Err(InferenceError::InputValidation(_))
+        ));
+        long_backend
+            .generate("Answer in one word: hello.", &InferenceConfig::default())
+            .expect("model remains usable after rejecting a long prompt");
     }
 }
