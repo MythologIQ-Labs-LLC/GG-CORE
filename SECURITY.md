@@ -27,7 +27,8 @@ which remains planned (see Roadmap).
 
 | Version | Supported | Notes |
 | --- | --- | --- |
-| 0.9.x | Yes | Current release line (first line published through the release pipeline) |
+| 0.10.0-rc.x | Yes (release candidate) | Current line: daemon trust boundary (mandatory token, owner-only socket, pipe-name claim), physical path confinement + fail-closed manifests, real-model sandbox qualification; see the acceptance record in issue #130 |
+| 0.9.x | Security fixes only until 0.10.0 ships | First line published through the release pipeline |
 | ≤ 0.8.x | No | Pre-release-pipeline development tags (v0.6.5, v0.7.0, v0.8.2) |
 
 There has never been a 1.x release.
@@ -137,6 +138,7 @@ penetration suite on Linux, macOS, and Windows.
 
 | Release | Security-relevant changes |
 | --- | --- |
+| 0.10.0-rc.1 | `serve` requires `CORE_AUTH_TOKEN` (dev opt-in logged); Unix socket 0600; Windows pipe-name claim + remote clients rejected; CLI `infer` handshakes; Windows Job Object: cumulative-CPU self-kill removed, single-process/kill-on-close/die-on-exception; physical (symlink-aware) path confinement, `O_NOFOLLOW` opens, present-but-malformed manifests fail closed, post-load file-identity check; streaming scheduler fix; real-model acceptance under default seccomp; build provenance in `version --json` |
 | 0.9.0 | security_audit penetration suite activated in CI (85 tests); cargo-deny supply-chain gate; RUSTSEC-2026-0204/0186/0097 cleared; authenticated IPC model load/unload; model-gated readiness |
 | 0.8.2 | pyo3 0.29 (3 RUSTSEC advisories), rand 0.9 migration; KV-cache cross-sequence isolation redesign; NUL-byte path rejection; streaming egress sanitization; secure façade as sole inference path |
 | ≤ 0.8.1 | see CHANGELOG.md |

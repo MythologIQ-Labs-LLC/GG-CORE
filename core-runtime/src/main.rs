@@ -7,6 +7,7 @@ mod auth_boot;
 mod cli_parser;
 mod runtime_init;
 mod sandbox_boot;
+mod version_info;
 
 use std::process::ExitCode;
 
@@ -33,7 +34,8 @@ async fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         "version" | "--version" | "-V" => {
-            println!("GG-CORE {}", env!("CARGO_PKG_VERSION"));
+            let json = args.get(2).map(|s| s.as_str()) == Some("--json");
+            version_info::print_version(json);
             ExitCode::SUCCESS
         }
         "status" => {

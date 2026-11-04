@@ -1,8 +1,16 @@
-# GG-CORE IPC Protocol Schema v0.9.0
+# GG-CORE IPC Protocol Schema v0.10.0-rc.1
 
-**Updated**: 2026-10-05 (v0.7.0 contract frozen 2026-02-19; v0.9.0 adds model lifecycle messages)
+**Updated**: 2026-11-04 (v0.7.0 contract frozen 2026-02-19; v0.9.0 adds model lifecycle messages; v0.10.0-rc.1 tightens the trust boundary — wire format unchanged)
 **Protocol Version**: V1 (JSON encoding)
-**Status**: Streaming enabled; authenticated model lifecycle
+**Status**: Streaming enabled; authenticated model lifecycle; token required
+
+## v0.10.0-rc.1 Changes (no wire-format change)
+
+- The daemon **refuses to start with an empty token**; a client must send the configured `CORE_AUTH_TOKEN` in `handshake`. (`GG_CORE_ALLOW_INSECURE_NO_AUTH=1` is a logged development-only exception.)
+- A session is bound to the connection that completed the handshake: `inference_request`, `cancel_request`, `model_load_request` and `model_unload_request` must travel on that connection. `health_check`, `metrics_request`, `models_request`, `warmup_request` and the observability messages remain unauthenticated orchestrator probes.
+- `stream_chunk.error` is set (with `is_final: true`) for unknown model, validation and engine failures, and `inference_response.error`/`error_code` carries structured non-streaming failures (`admission_rejected`, `execution_failed`, `model_not_loaded`, `input_invalid`, `shutting_down`). A client must treat either as a failed request.
+- Transport: the Unix socket is created `0600`; the Windows named pipe is created with `FILE_FLAG_FIRST_PIPE_INSTANCE` and rejects remote clients.
+- Build provenance: `gg-core-cli version --json` and `status --json` carry `version`, `commit`, `build_date`, `rust_version`; `version --json` adds compiled `features`, `protocol_version` and `target`.
 
 ---
 
