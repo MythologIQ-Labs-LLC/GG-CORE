@@ -144,7 +144,7 @@ fn load_batch_config() -> BatchConfig {
 }
 
 /// Load GGUF engine configuration from environment.
-fn load_gguf_config() -> GgufEnvConfig {
+pub(crate) fn load_gguf_config() -> GgufEnvConfig {
     let n_ctx = parse_u32("GG_CORE_N_CTX", 2048);
     let n_threads = parse_u32("GG_CORE_N_THREADS", 0);
     let n_ctx = n_ctx.max(128); // floor: 128 tokens minimum
