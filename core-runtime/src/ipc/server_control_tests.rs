@@ -6,7 +6,8 @@ use super::{handle_connection, read_frame, write_frame};
 use crate::engine::InferenceParams;
 use crate::ipc::connections::{ConnectionConfig, ConnectionPool};
 use crate::ipc::protocol::{
-    decode_message, encode_message, InferenceRequest, IpcMessage, RequestId, WarmupRequest,
+    decode_message, encode_message, HealthCheckType, InferenceRequest, IpcMessage, RequestId,
+    WarmupRequest,
 };
 use crate::{Runtime, RuntimeConfig};
 use std::sync::Arc;
@@ -126,6 +127,20 @@ async fn idle_stream_has_real_wall_clock_deadline() {
         }
         other => panic!("expected timeout terminal: {other:?}"),
     }
+    close(client, task).await;
+}
+
+#[tokio::test]
+async fn unauthenticated_liveness_probe_remains_available() {
+    let (mut client, task) = start().await;
+    send(
+        &mut client,
+        IpcMessage::HealthCheck {
+            check_type: HealthCheckType::Liveness,
+        },
+    )
+    .await;
+    assert!(matches!(receive(&mut client).await, IpcMessage::HealthResponse(_)));
     close(client, task).await;
 }
 
