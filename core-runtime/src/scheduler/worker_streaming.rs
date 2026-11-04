@@ -138,7 +138,14 @@ async fn run_stream(
     }
     #[cfg(not(feature = "gguf"))]
     {
-        let _ = (engine, model_id, prompt, config, security, control.should_stop());
+        let _ = (
+            engine,
+            model_id,
+            prompt,
+            config,
+            security,
+            control.should_stop(),
+        );
         let err = crate::engine::inference::InferenceError::ExecutionFailed(
             "streaming requires gguf feature".into(),
         );
