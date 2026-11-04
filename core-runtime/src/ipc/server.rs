@@ -135,7 +135,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                     let streams = Arc::clone(&active_streams);
                     let writer = Arc::clone(&write_half);
                     let stream_handler = Arc::clone(&handler);
-                    let stream_session = sess.clone();
+                    let stream_session = (*sess).clone();
                     let stream_request = req.clone();
                     tokio::spawn(async move {
                         let bridge = IpcStreamBridge::new(
