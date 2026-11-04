@@ -44,6 +44,11 @@ with_timeout() {
 }
 
 export CORE_AUTH_TOKEN="rc-accept-$RANDOM$RANDOM"
+# Exercise an actual >2048-token Alden-class prompt in the supported
+# 4096-token context. This was previously parsed but ignored on model load.
+export GG_CORE_N_CTX=4096
+export GG_CORE_MAX_CONTEXT=4096
+export GG_CORE_MAX_CONTEXT_TOKENS=4096
 unset GG_CORE_SANDBOX
 if [ "$OS" = windows ]; then export GG_CORE_SOCKET_PATH="\\\\.\\pipe\\gg-core-rc-$RANDOM"; else export GG_CORE_SOCKET_PATH="$WORK/gg.sock"; fi
 LOG="$WORK/daemon.log"
@@ -91,6 +96,18 @@ kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived long non-streaming promp
 LSOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$LONG_PROMPT" --max-tokens 8 --stream 2>&1)"; RC=$?
 [ $RC -eq 0 ] && [ -n "$LSOUT" ] && ok "long prompt streaming (bounded prefill)" || bad "long prompt streaming rc=$RC"
 kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived long streaming prompt" || { bad "daemon died on long streaming prompt"; cat "$LOG"; exit 1; }
+
+# Deliberately longer than the old 2048-token context (roughly 3k tokens
+# for the pinned Qwen fixture). Assert this with the model tokenizer in
+# the Rust fixture test. A successful response here also tests that
+# GG_CORE_N_CTX actually reached the GGUF backend, not just the config log.
+ALDEN_CLASS_PROMPT="Reply with the word READY after reading this note: "
+for ((n=0; n<220; n++)); do
+  ALDEN_CLASS_PROMPT="$ALDEN_CLASS_PROMPT""The brown fox walks beside a clear river under a quiet blue sky. "
+done
+AOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$ALDEN_CLASS_PROMPT" --max-tokens 8 2>&1)"; RC=$?
+[ $RC -eq 0 ] && [ -n "$AOUT" ] && ok "Alden-class long-context prompt (configured 4096)" || bad "Alden-class prompt rc=$RC"
+kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived Alden-class context" || { bad "daemon died on long context"; cat "$LOG"; exit 1; }
 
 # A prompt exceeding the context limit must fail as a normal request, never
 # reach the native llama assertion or kill the daemon. Repeat the same simple
