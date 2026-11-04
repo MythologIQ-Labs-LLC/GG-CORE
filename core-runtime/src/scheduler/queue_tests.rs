@@ -44,7 +44,10 @@ mod tests {
             .await
             .unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        let expired = q.dequeue_streaming().await.expect("worker must see expired work");
+        let expired = q
+            .dequeue_streaming()
+            .await
+            .expect("worker must see expired work");
         assert!(expired.is_expired());
     }
 
