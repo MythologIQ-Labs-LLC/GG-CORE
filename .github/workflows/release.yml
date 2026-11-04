@@ -1,20 +1,21 @@
 name: Release
 
 # Tag-triggered release pipeline (review M6 / Phase 1).
-# Pushing a tag `vX.Y.Z` verifies the tree at the tag, builds the consumable
+# Pushing a version tag verifies the tree at the tag, builds the consumable
 # artifacts on all three platforms, and publishes a GitHub Release:
 #   - gg-core-cli binary (standalone daemon + CLI)
 #   - cdylib + generated include/gg_core.h (C FFI surface)
 #   - per-file SHA-256 checksums
-# The linux artifact set additionally includes a GGUF-enabled build (the only
-# backend+platform combination continuously proven by CI's features matrix).
+# Manual workflow_dispatch builds the same release packages without publishing.
+# All packages must contain the real GGUF backend, or packaging fails.
 
 on:
+  workflow_dispatch:
   push:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -46,7 +47,7 @@ jobs:
           CRATE_VERSION=$(cargo metadata --no-deps --format-version 1 \
             | python3 -c "import json,sys; print(next(p['version'] for p in json.load(sys.stdin)['packages'] if p['name']=='gg-core'))")
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          if [ "$CRATE_VERSION" != "$TAG_VERSION" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$CRATE_VERSION" != "$TAG_VERSION" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version $CRATE_VERSION"
             exit 1
           fi
@@ -69,15 +70,22 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core-runtime
-      - name: Build release artifacts (default engine + C FFI)
-        run: cargo build --release --features ffi
-      - name: Build GGUF-enabled binary (linux only)
-        if: runner.os == 'Linux'
-        run: cargo build --release --features "gguf,ffi"
+      # Backend-less ffi-only binaries are not standalone inference releases.
+      - name: Require libclang (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $llvm = "C:\Program Files\LLVM\bin"
+          if (!(Test-Path "$llvm\libclang.dll")) {
+            throw "libclang.dll missing; a validated Windows GGUF toolchain is required"
+          }
+          "LIBCLANG_PATH=$llvm" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Build GGUF-enabled CLI and C FFI on each platform
+        run: cargo build --locked --release --features "gguf,ffi"
       - name: Package
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME}"
+          VERSION="v$(cargo metadata --locked --no-deps --format-version 1 | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"]=="gg-core") )')"
           case "${{ runner.os }}" in
             Linux)   PLATFORM="linux-x86_64";  BIN="gg-core-cli";     LIB="libgg_core.so" ;;
             macOS)   PLATFORM="macos-$(uname -m)"; BIN="gg-core-cli"; LIB="libgg_core.dylib" ;;
@@ -89,7 +97,16 @@ jobs:
           cp "target/release/${LIB}" "dist/${STAGE}/"
           cp include/gg_core.h "dist/${STAGE}/"
           cp ../LICENSE ../README.md "dist/${STAGE}/"
+          OUTPUT=$("dist/${STAGE}/${BIN}" version)
+          if [[ "$OUTPUT" != "GG-CORE ${VERSION#v}" ]]; then
+            echo "::error::Packaged CLI reports wrong version: $OUTPUT"
+            exit 1
+          fi
+          "dist/${STAGE}/${BIN}" --help > /dev/null
           tar -C dist -czf "dist/${STAGE}.tar.gz" "${STAGE}"
+          tar -tzf "dist/${STAGE}.tar.gz" | grep -Fx "${STAGE}/${BIN}"
+          tar -tzf "dist/${STAGE}.tar.gz" | grep -Fx "${STAGE}/${LIB}"
+          tar -tzf "dist/${STAGE}.tar.gz" | grep -Fx "${STAGE}/gg_core.h"
           rm -r "dist/${STAGE:?}"
       - name: Upload platform artifact
         uses: actions/upload-artifact@v4
