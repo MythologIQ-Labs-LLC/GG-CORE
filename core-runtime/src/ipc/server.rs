@@ -133,19 +133,19 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                     let stream_session = (*sess).clone();
                     let stream_request = req.clone();
                     tokio::spawn(async move {
-                        let bridge = IpcStreamBridge::new(
-                            writer,
-                            stream_request.request_id,
-                            cancel.clone(),
-                        );
+                        let bridge =
+                            IpcStreamBridge::new(writer, stream_request.request_id, cancel.clone());
                         if let Err(e) = stream_handler
-                            .process_streaming(stream_request.clone(), &stream_session, &bridge, cancel)
+                            .process_streaming(
+                                stream_request.clone(),
+                                &stream_session,
+                                &bridge,
+                                cancel,
+                            )
                             .await
                         {
-                            let terminal = StreamChunk::error(
-                                stream_request.request_id,
-                                e.to_string(),
-                            );
+                            let terminal =
+                                StreamChunk::error(stream_request.request_id, e.to_string());
                             let _ = bridge.send(IpcMessage::StreamChunk(terminal)).await;
                         }
                         streams.lock().await.remove(&id);
@@ -198,11 +198,12 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                     }
                 }
                 Err(e) => {
-                    let code = if matches!(&e, HandlerError::Auth(_) | HandlerError::NotAuthenticated) {
-                        401
-                    } else {
-                        500
-                    };
+                    let code =
+                        if matches!(&e, HandlerError::Auth(_) | HandlerError::NotAuthenticated) {
+                            401
+                        } else {
+                            500
+                        };
                     let err = format!(r#"{{"type":"error","code":{},"message":"{}"}}"#, code, e);
                     let _ = write_frame_locked(&write_half, err.as_bytes()).await;
                     break;
