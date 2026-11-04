@@ -13,6 +13,8 @@ import sys
 import time
 
 MODEL_ID = "qwen"
+# Relative to the daemon's base path (its working directory), inside models/.
+MODEL_REL = os.environ.get("GG_CORE_MODEL_REL", "models/qwen2.5-0.5b-instruct-q4_k_m.gguf")
 TIMEOUT_S = 90
 MAX_FRAME = 16 * 1024 * 1024
 
@@ -131,44 +133,75 @@ def check_auth_warmup():
     print("PASS: authenticated warmup executes against loaded model", flush=True)
 
 
+def cancel_active_stream(c, rid):
+    """Start a stream, wait for real generated text, cancel it on the same
+    connection, and require ACK + failed terminal with no data after the ACK."""
+    c.send(stream_request(rid, 90000))
+    # Do not accept cancelling an idle queue as proof of cancelling a
+    # generating model. Require actual sanitized generated text first.
+    for _ in range(1000):
+        frame = c.recv()
+        assert frame.get("type") == "stream_chunk" and frame.get("request_id") == rid, frame
+        assert not frame.get("error") and not frame.get("is_final"), frame
+        if frame.get("text"):
+            break
+    else:
+        raise AssertionError("model generated no text before cancellation")
+    c.send({"type": "cancel_request", "request_id": rid})
+    acknowledged = terminal = False
+    for _ in range(100):
+        frame = c.recv()
+        if frame.get("type") == "cancel_response":
+            assert frame.get("request_id") == rid and frame.get("cancelled") is True, frame
+            acknowledged = True
+        elif frame.get("type") == "stream_chunk":
+            assert frame.get("request_id") == rid, frame
+            if frame.get("is_final"):
+                assert frame.get("error") and "cancel" in frame["error"].lower(), frame
+                terminal = True
+            elif acknowledged:
+                raise AssertionError("data emitted after cancel acknowledgement")
+        else:
+            raise AssertionError("unexpected IPC frame: " + repr(frame))
+        if acknowledged and terminal:
+            break
+    assert acknowledged and terminal, "missing cancel acknowledgement or error terminal"
+
+
 def check_active_cancel():
     c = Client()
     try:
         c.auth()
-        rid = 4242
-        c.send(stream_request(rid, 90000))
-        # Do not accept cancelling an idle queue as proof of cancelling a
-        # generating model. Require actual sanitized generated text first.
-        for _ in range(1000):
-            frame = c.recv()
-            assert frame.get("type") == "stream_chunk" and frame.get("request_id") == rid, frame
-            assert not frame.get("error") and not frame.get("is_final"), frame
-            if frame.get("text"):
-                break
-        else:
-            raise AssertionError("model generated no text before cancellation")
-        c.send({"type": "cancel_request", "request_id": rid})
-        acknowledged = terminal = False
-        for _ in range(100):
-            frame = c.recv()
-            if frame.get("type") == "cancel_response":
-                assert frame.get("request_id") == rid and frame.get("cancelled") is True, frame
-                acknowledged = True
-            elif frame.get("type") == "stream_chunk":
-                assert frame.get("request_id") == rid, frame
-                if frame.get("is_final"):
-                    assert frame.get("error") and "cancel" in frame["error"].lower(), frame
-                    terminal = True
-                elif acknowledged:
-                    raise AssertionError("data emitted after cancel acknowledgement")
-            else:
-                raise AssertionError("unexpected IPC frame: " + repr(frame))
-            if acknowledged and terminal:
-                break
-        assert acknowledged and terminal, "missing cancel acknowledgement or error terminal"
+        cancel_active_stream(c, 4242)
     finally:
         c.close()
     print("PASS: active real-model generation cancelled with failed terminal", flush=True)
+
+
+def check_switch_after_cancel():
+    """Cancel, then switch models immediately: the native generation loop may
+    still be winding down to its next checkpoint, and that must not break the
+    unload → load path a consumer uses to change models."""
+    c = Client()
+    try:
+        c.auth()
+        cancel_active_stream(c, 4244)
+        c.send({"type": "model_unload_request", "model_id": MODEL_ID})
+        frame = c.recv()
+        assert frame.get("type") == "model_unload_response" and frame.get("success") is True, frame
+        c.send({"type": "model_load_request", "path": MODEL_REL, "model_id": MODEL_ID})
+        frame = c.recv()
+        assert frame.get("type") == "model_load_response" and frame.get("success") is True, frame
+        c.send({
+            "type": "inference_request", "request_id": 4245, "model_id": MODEL_ID,
+            "prompt": "Reply with the single word OK.",
+            "parameters": {"stream": False, "timeout_ms": 60000, "max_tokens": 4}
+        })
+        frame = c.recv()
+        assert frame.get("type") == "inference_response" and not frame.get("error"), frame
+    finally:
+        c.close()
+    print("PASS: model unload and reload immediately after cancellation", flush=True)
 
 
 def check_deadline():
@@ -202,6 +235,7 @@ def main():
     check_auth_warmup()
     check_active_cancel()
     check_deadline()
+    check_switch_after_cancel()
 
 
 if __name__ == "__main__":

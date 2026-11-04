@@ -249,7 +249,7 @@ To enable streaming, set `stream: true` in the inference request parameters:
 | is_final | bool | True on last chunk |
 | error | string? | Error message if failed |
 
-**Cancellation**: Send `CancelRequest` during streaming to abort generation.
+**Cancellation**: send `cancel_request` on the **same authenticated connection** while the stream is active. The daemon answers `cancel_response{cancelled:true}` and the stream ends with exactly one `stream_chunk{is_final:true, error:"…cancelled…"}`; no data frame follows the acknowledgment. `cancelled:false` means the ID was unknown or already finished. A streaming `request_id` that is still active on the connection cannot be reused (`error{code:409}`). A stream whose `timeout_ms` elapses — while queued or during generation — ends the same way with `error:"stream deadline exceeded…"`; `timeout_ms:0` is rejected. Non-streaming requests enforce `timeout_ms` only while queued and cannot be cancelled mid-generation (the connection is busy); they are bounded by `max_tokens`.
 
 ### Model Lifecycle (v0.9.0; AUTHENTICATION REQUIRED)
 

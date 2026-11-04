@@ -5,6 +5,7 @@
 
 use std::num::NonZeroU32;
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
@@ -18,9 +19,9 @@ use llama_cpp_2::token::LlamaToken;
 use crate::engine::{FinishReason, GenerationResult, InferenceConfig, InferenceError};
 use crate::security::stream_sanitizer::StreamSanitizer;
 
-/// Holds the loaded llama-cpp-2 model and backend.
+/// Holds the loaded llama-cpp-2 model and a handle to the process backend.
 pub struct LlamaBackendInner {
-    backend: LlamaBackend,
+    backend: &'static LlamaBackend,
     model: LlamaModel,
     n_ctx: u32,
     n_threads: i32,
@@ -30,13 +31,36 @@ pub struct LlamaBackendInner {
 unsafe impl Send for LlamaBackendInner {}
 unsafe impl Sync for LlamaBackendInner {}
 
+/// The process-wide llama.cpp backend.
+///
+/// llama-cpp-2 permits exactly one live `LlamaBackend` and frees it on drop.
+/// Tying it to a model's lifetime made `unload` + `load` fail with
+/// `BackendAlreadyInitialized` whenever any generation thread still held the
+/// old model (for example right after a cancelled or expired stream, while the
+/// native loop winds down to its next checkpoint). Initialize once and keep it
+/// for the life of the process; model lifetimes then never depend on each
+/// other's in-flight work.
+fn process_backend() -> Result<&'static LlamaBackend, InferenceError> {
+    static BACKEND: OnceLock<LlamaBackend> = OnceLock::new();
+    static INIT: Mutex<()> = Mutex::new(());
+    if let Some(backend) = BACKEND.get() {
+        return Ok(backend);
+    }
+    let _serialize = INIT.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(backend) = BACKEND.get() {
+        return Ok(backend);
+    }
+    let backend = LlamaBackend::init()
+        .map_err(|e| InferenceError::ModelError(format!("backend init: {e}")))?;
+    Ok(BACKEND.get_or_init(|| backend))
+}
+
 impl LlamaBackendInner {
     /// Load a GGUF model from disk.
     pub fn load(path: &Path, config: &super::GgufConfig) -> Result<Self, InferenceError> {
-        let backend = LlamaBackend::init()
-            .map_err(|e| InferenceError::ModelError(format!("backend init: {e}")))?;
+        let backend = process_backend()?;
         let model_params = LlamaModelParams::default().with_n_gpu_layers(config.n_gpu_layers);
-        let model = LlamaModel::load_from_file(&backend, path, &model_params)
+        let model = LlamaModel::load_from_file(backend, path, &model_params)
             .map_err(|e| InferenceError::ModelError(format!("load: {e}")))?;
         let n_threads = resolve_threads(config.n_threads);
         Ok(Self {
@@ -271,7 +295,7 @@ impl LlamaBackendInner {
             .with_n_threads(self.n_threads)
             .with_n_threads_batch(self.n_threads);
         self.model
-            .new_context(&self.backend, p)
+            .new_context(self.backend, p)
             .map_err(|e| InferenceError::ModelError(format!("ctx: {e}")))
     }
 
@@ -393,3 +417,7 @@ fn resolve_threads(n: u32) -> i32 {
         i32::try_from(n).unwrap_or(4)
     }
 }
+
+#[cfg(test)]
+#[path = "backend_lifetime_tests.rs"]
+mod lifetime_tests;
