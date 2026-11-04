@@ -25,7 +25,7 @@ pub use continuous::{
 pub use dedup::{CachedOutput, DedupResult, OutputCache, OutputCacheConfig};
 pub use pool::ThreadPoolConfig;
 pub use priority::{Priority, PriorityQueue};
-pub use queue::{QueuedRequest, RequestQueue, RequestQueueConfig, ResponseRx};
+pub use queue::{QueueError, QueuedRequest, RequestQueue, RequestQueueConfig, ResponseRx};
 pub use streaming_queue::StreamingQueuedRequest;
 pub use thread_pool::{
     TaskPriority, ThreadPool, ThreadPoolConfig as TunableThreadPoolConfig, ThreadPoolStats,

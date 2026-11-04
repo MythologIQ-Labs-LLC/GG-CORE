@@ -17,7 +17,7 @@ use crate::engine::TokenStream;
 use crate::health::HealthChecker;
 use crate::models::ModelRegistry;
 use crate::scheduler::Priority;
-use crate::scheduler::RequestQueue;
+use crate::scheduler::{QueueError, RequestQueue};
 use crate::shutdown::ShutdownCoordinator;
 use crate::telemetry::MetricsStore;
 
@@ -273,11 +273,13 @@ impl IpcHandler {
         let (_id, rx) = match enqueue_result {
             Ok(r) => r,
             Err(e) => {
-                return InferenceResponse::error_coded(
-                    request.request_id,
-                    e.to_string(),
-                    InferenceErrorCode::AdmissionRejected,
-                )
+                // An over-long prompt is a permanent input error, not a
+                // retriable admission rejection like a full queue.
+                let code = match &e {
+                    QueueError::ContextTooLarge { .. } => InferenceErrorCode::InputInvalid,
+                    _ => InferenceErrorCode::AdmissionRejected,
+                };
+                return InferenceResponse::error_coded(request.request_id, e.to_string(), code);
             }
         };
 
@@ -520,7 +522,43 @@ fn classify_worker_error(msg: &str) -> InferenceErrorCode {
         InferenceErrorCode::AdmissionRejected
     } else if msg.contains("Model not loaded") {
         InferenceErrorCode::ModelNotLoaded
+    } else if msg.contains("Context length exceeded") || msg.contains("Input validation failed") {
+        // Engine estimate or the GGUF backend's exact tokenized check: the
+        // prompt cannot fit the configured context. Retrying cannot succeed.
+        InferenceErrorCode::InputInvalid
     } else {
         InferenceErrorCode::ExecutionFailed
+    }
+}
+
+#[cfg(test)]
+mod classify_tests {
+    use super::*;
+
+    #[test]
+    fn context_overflow_is_input_invalid() {
+        for msg in [
+            "Context length exceeded: max 4096, got 5000",
+            "Inference failed: Input validation failed: prompt contains 5000 tokens, \
+             leaving no room in the 4096-token context",
+        ] {
+            assert_eq!(classify_worker_error(msg), InferenceErrorCode::InputInvalid);
+        }
+    }
+
+    #[test]
+    fn other_worker_errors_keep_their_codes() {
+        assert_eq!(
+            classify_worker_error("Queue full: 3/3 pending requests"),
+            InferenceErrorCode::AdmissionRejected
+        );
+        assert_eq!(
+            classify_worker_error("Model not loaded: qwen"),
+            InferenceErrorCode::ModelNotLoaded
+        );
+        assert_eq!(
+            classify_worker_error("Inference failed: Model error: decode: -1"),
+            InferenceErrorCode::ExecutionFailed
+        );
     }
 }
