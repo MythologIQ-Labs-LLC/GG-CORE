@@ -511,6 +511,39 @@ mod real_model_regression_tests {
             .expect("long prompt must not terminate native inference");
         assert!(result.tokens_generated <= 4);
 
+        // An actual Alden-style prompt also exceeds the old 2048-token
+        // context, so bounded batching alone would not be enough. The
+        // producer daemon must apply GG_CORE_N_CTX=4096 to model loading.
+        let long_context = GgufConfig {
+            n_ctx: 4096,
+            ..gguf.clone()
+        };
+        let long_backend = LlamaBackendInner::load(path, &long_context)
+            .expect("GGUF fixture with 4096-token context must load");
+        let persona = "The brown fox walks beside a clear river under a quiet blue sky. "
+            .repeat(220);
+        let persona_tokens = long_backend
+            .tokenize(&persona)
+            .expect("tokenize Alden-class fixture");
+        assert!(
+            persona_tokens.len() > 2048,
+            "Alden-class fixture must exceed the old default context"
+        );
+        assert!(
+            persona_tokens.len() < long_context.n_ctx as usize,
+            "fixture must fit in configured 4096-token context"
+        );
+        let persona_result = long_backend
+            .generate(
+                &persona,
+                &InferenceConfig {
+                    max_tokens: Some(4),
+                    ..InferenceConfig::default()
+                },
+            )
+            .expect("generation must work with the configured extended context");
+        assert!(persona_result.tokens_generated <= 4);
+
         // The other side of the batch/context distinction: a prompt that does
         // not fit in the configured context must return an ordinary Rust error.
         // Native llama.cpp must never receive an oversized decode request.
