@@ -73,7 +73,18 @@ pub fn load_model_dispatch(
     };
     let model = match choose_backend(manifest) {
         BackendChoice::Onnx(m) => load_onnx_from_manifest(&m, model_path, &OnnxConfig::default()),
-        BackendChoice::GgufDefault => load_gguf_model(model_path, model_id, &GgufConfig::default()),
+        BackendChoice::GgufDefault => {
+            // The IPC daemon's model-load path must use its configured context.
+            // Previously the env settings were parsed and advertised, but every
+            // model silently loaded with the 2048-token default.
+            let env = crate::config::load_gguf_config();
+            let gguf = GgufConfig {
+                n_ctx: env.n_ctx,
+                n_threads: env.n_threads,
+                ..GgufConfig::default()
+            };
+            load_gguf_model(model_path, model_id, &gguf)
+        }
     }?;
     if let Some(identity) = hashed {
         check_identity_unchanged(model_path, &identity)?;
