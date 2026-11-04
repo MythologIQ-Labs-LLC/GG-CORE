@@ -4,8 +4,7 @@
 //! requests, but deliver tokens via an mpsc channel instead of a
 //! oneshot response.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 use std::time::Instant;
 
 use crate::engine::{InferenceConfig, TokenStreamSender};
@@ -21,14 +20,14 @@ pub struct StreamingQueuedRequest {
     pub config: InferenceConfig,
     pub enqueued_at: Instant,
     pub deadline: Option<Instant>,
-    pub cancelled: Arc<AtomicBool>,
+    pub cancelled: CancellationToken,
     pub token_sender: TokenStreamTx,
 }
 
 impl StreamingQueuedRequest {
     /// Check if request has been cancelled.
     pub fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::Acquire)
+        self.cancelled.is_cancelled()
     }
 
     /// Check if request has exceeded its deadline.
