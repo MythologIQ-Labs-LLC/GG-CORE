@@ -11,8 +11,15 @@ use crate::engine::gguf::GgufConfig;
 
 fn fixture() -> Option<(std::path::PathBuf, GgufConfig)> {
     let path = std::path::PathBuf::from("../models/qwen2.5-0.5b-instruct-q4_k_m.gguf");
-    if !path.exists() {
-        eprintln!("skip: model not found at {path:?}");
+    // CI checks the repository out without git-lfs, so the path exists but
+    // holds a pointer file: require the GGUF magic, not mere existence.
+    let mut magic = [0u8; 4];
+    let is_gguf = std::fs::File::open(&path)
+        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))
+        .is_ok()
+        && &magic == b"GGUF";
+    if !is_gguf {
+        eprintln!("skip: real model fixture not present at {path:?}");
         return None;
     }
     let cfg = GgufConfig {
