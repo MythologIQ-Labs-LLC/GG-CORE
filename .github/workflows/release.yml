@@ -11,6 +11,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      qualify:
+        description: "Run real-model acceptance against each packaged archive"
+        type: boolean
+        default: true
   push:
     tags: ['v*']
 
@@ -142,6 +147,47 @@ jobs:
           path: core-runtime/dist/*.tar.gz
           if-no-files-found: error
 
+  qualify:
+    name: qualify (${{ matrix.os }}) — real GGUF inference from the packaged archive
+    needs: [verify, build]
+    if: github.event_name == 'push' || inputs.qualify
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      # Qwen2.5-0.5B-Instruct Q4_K_M (Apache-2.0), the same fixture the
+      # repository tracks under models/ via git-lfs.
+      MODEL_URL: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf
+      MODEL_SHA256: 74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          path: dist
+      - name: Fetch the model fixture (pinned sha256)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p models
+          curl -sSL --retry 3 -o models/qwen2.5-0.5b-instruct-q4_k_m.gguf "$MODEL_URL"
+          if command -v sha256sum >/dev/null; then ACTUAL=$(sha256sum models/qwen2.5-0.5b-instruct-q4_k_m.gguf | cut -d' ' -f1)
+          else ACTUAL=$(shasum -a 256 models/qwen2.5-0.5b-instruct-q4_k_m.gguf | cut -d' ' -f1); fi
+          [ "$ACTUAL" = "$MODEL_SHA256" ] || { echo "::error::model fixture sha256 mismatch: $ACTUAL"; exit 1; }
+      - name: Install the archive and run the acceptance script
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=(dist/*.tar.gz)
+          [ "${#archives[@]}" -eq 1 ] || { echo "::error::expected one platform archive, got ${#archives[@]}"; exit 1; }
+          bash scripts/rc-acceptance.sh "${archives[0]}" "$PWD"
+
   assemble:
     name: inspect candidate bundle (no publication)
     needs: [verify, build]
@@ -191,7 +237,7 @@ jobs:
   release:
     name: publish GitHub Release (version tags only)
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: assemble
+    needs: [assemble, qualify]
     permissions:
       contents: write
     runs-on: ubuntu-latest
