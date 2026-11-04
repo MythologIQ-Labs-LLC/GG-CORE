@@ -74,6 +74,23 @@ echo "  output: $(echo "$OUT" | tr '\n' ' ' | head -c 200)"
 [ $RC -eq 0 ] && echo "$OUT" | grep -qi paris && ok "non-streaming inference (correct answer)" || bad "non-streaming inference rc=$RC"
 SOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "Count from one to five in words." --max-tokens 32 --stream 2>&1)"; RC=$?
 [ $RC -eq 0 ] && [ -n "$SOUT" ] && ok "streaming inference" || bad "streaming inference rc=$RC"
+
+# A real-persona system prompt is commonly longer than llama.cpp's default
+# decode batch (512 tokens). Earlier release checks used only short questions,
+# allowing an oversized single decode to abort the entire daemon. Keep this
+# as a real-model, packaged-binary regression on every qualified platform.
+LONG_PROMPT="Read the following harmless note and reply with the word READY: "
+n=0
+while [ "$n" -lt 100 ]; do
+  LONG_PROMPT="$LONG_PROMPT""The brown fox walks beside a clear river under a quiet blue sky. "
+  n=$((n+1))
+done
+LOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$LONG_PROMPT" --max-tokens 8 2>&1)"; RC=$?
+[ $RC -eq 0 ] && [ -n "$LOUT" ] && ok "long prompt non-streaming (bounded prefill)" || bad "long prompt non-streaming rc=$RC"
+kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived long non-streaming prompt" || { bad "daemon died on long prompt"; cat "$LOG"; exit 1; }
+LSOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$LONG_PROMPT" --max-tokens 8 --stream 2>&1)"; RC=$?
+[ $RC -eq 0 ] && [ -n "$LSOUT" ] && ok "long prompt streaming (bounded prefill)" || bad "long prompt streaming rc=$RC"
+kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived long streaming prompt" || { bad "daemon died on long streaming prompt"; cat "$LOG"; exit 1; }
 kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon alive after inference" || { bad "daemon died during inference"; cat "$LOG"; exit 1; }
 
 echo "== lifecycle + invalid loads =="
