@@ -1,0 +1,77 @@
+# GG-CORE: First Release Candidate Acceptance
+
+**Status: OPEN, not release-qualified.** Owner release gate: [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130).
+
+**Target:** `v0.10.0-rc.1` (recommended; version not yet changed or tagged). The Rust package is currently `0.9.0`. A pre-release is not a claim that the public 1.0 API is stable.
+
+## What changed in the release workflow
+
+`.github/workflows/release.yml` now supports two paths:
+
+- **Manual `workflow_dispatch`:** runs verification, builds GGUF-enabled CLI + C FFI for Linux, Windows, and macOS, validates packaged files and CLI version, and uploads a checksum-verified `gg-core-release-bundle` artifact. **It does not create a GitHub Release.** This is the release-package dress rehearsal.
+- **Version tag `vX.Y.Z[-rc.N]`:** runs the same checks and packages, requires `Cargo.toml` to match the tag and a real matching `CHANGELOG.md` section, then publishes the assembled release with SHA256SUMS. The job refuses empty stub release notes.
+
+All advertised standalone inference packages must actually compile the `gguf` feature. A successful `ffi`-only build is not sufficient. If any supported OS cannot build or execute a backend-enabled package, repair the platform build or explicitly narrow the supported RC matrix **before tagging**.
+
+## Execution and evidence
+
+1. Merge the workflow PR only after review and successful existing Rust/CodeQL CI. On `main`, open GitHub Actions → Release → Run workflow. Choose the exact release source branch/commit. Manual dispatch must leave **no** GitHub Release or tag.
+2. Confirm the `verify`, all three `build` jobs, and `assemble` succeeded. Download `gg-core-release-bundle`. Inspect the three archives and run `sha256sum -c SHA256SUMS` in the extracted bundle folder.
+3. On clean Linux x86_64, Windows x86_64, and the built macOS architecture, unpack the respective archive. Run the binary's `version` and `--help`. Inspect the shared library and `gg_core.h`. Verify native loader dependencies and document toolchain/runtime prerequisites.
+4. Use an approved real GGUF fixture with a known SHA256 and manifest. Run `serve --model` with a nonempty `CORE_AUTH_TOKEN` and the **platform default sandbox**. Verify readiness, listing, non-streaming and streaming inference, authenticated model load/unload, failed-load cleanup, cancellation where supported, bounded resource use, and graceful shutdown. Capture exact commands, logs, model provenance/license, hashes and results without publishing model bytes or secrets.
+5. **Linux sandbox gate:** prove actual token generation while default seccomp is applied, not merely successful IPC probes. Reject a `GG_CORE_SANDBOX=off` workaround as a passing sandbox test. Check for unexpected SIGSYS termination.
+6. **Security gate:** privately assess filesystem-indirection/path confinement and malformed-present manifest handling; verify no unauthorized model read or silent integrity downgrade. Check default authentication boundary and file/socket permissions. Confirm Windows Job Object restrictions on a normal user account. Document that macOS currently has no enforced daemon sandbox by default.
+7. **Owner gate:** enable and verify GitHub private vulnerability reporting, the channel documented in `SECURITY.md`. Maintain a dated, exact-SHA acceptance record including all platform results, residual risks, security exceptions, rollback, and explicit owner approval.
+8. Only after the above is accepted, bump the source to the selected prerelease version (recommend `0.10.0-rc.1`) in `core-runtime/Cargo.toml` and `Cargo.lock`, create actual `CHANGELOG.md` notes, and correct README/SECURITY support labels. Re-run the manual dress rehearsal on **that exact source commit** before pushing the tag. Pushing the tag is an owner action.
+
+**No substitute evidence:** A green default-feature Rust build, YAML inspection, a backend-less CLI `version` response, green CodeQL, or checksum validity alone does not prove a working inference release. A successful release workflow also does not prove every security claim.
+
+## Performance and trust preservation (required RC evidence)
+
+**Original design principle:** GG-CORE should deliver competitive **real inference** while providing a stronger, singular local trust boundary with blocking prompt-injection ingress checks, PII-redacting egress, authenticated lifecycle/IPC, sandboxing, resource limits and audit/health telemetry. Performance tuning must **not** weaken, bypass or quietly move any of those controls outside the trusted runtime.
+
+### Current evidence and its limits
+
+- `docs/BENCHMARKS.md` retains a **historical, single-host** Qwen2.5 0.5B Q4_K_M Windows/i7-7700K baseline of ~40 generated tokens/sec. This is not a current cross-platform RC result and not a fair direct comparison with other hardware/model combinations.
+- `core-runtime/benches/security_overhead.rs` measures ingress/egress scan costs with synthetic data, including a PII-heavy case; `ipc_throughput.rs` measures serialization, and `inference_latency.rs` measures validation, **not model decode**.
+- CI's `scripts/perf_gate.py` allows a missing baseline to skip and pass, normalizes for runner shift, and presently flags only >2.0x relative slowdowns above its noise floor. This is a **gross internal-regression smoke**, not proof of performance parity or P95 response-time quality.
+- Existing `core_security_scan_latency_us` and `core_sanitize_latency_us` metrics can attribute protection cost. The local IPC metrics/status/health surfaces should stay **authenticated or explicitly minimal**, and must not become a new public HTTP management plane to satisfy Kubernetes monitoring.
+
+### Mandatory benchmark design
+
+1. **Same workload, provenance and hardware.** Record GG-CORE source SHA, comparator releases/commits, OS, CPU/GPU/driver, thread affinity, memory, thermal profile, runtime build flags, context/KV size, batch size, quantization, exact model artifact hash/license, tokenizer, prompt fixture hash and generator settings. Compare identical GGUF bytes where supported. If a competitor uses a different format or quantization, clearly mark it *not directly comparable*.
+2. **Two operating paths, not one misleading number:** (a) GG-CORE *embedded or raw backend* versus direct `llama.cpp`/mistral.rs local engine paths, and (b) GG-CORE authenticated local IPC daemon versus the other runtimes' **equivalent local serving paths**. If comparing against HTTP, measure and disclose transport/serialization overhead separately. GG-CORE's GGUF backend uses llama.cpp through `llama-cpp-2`; do not claim a different kernel or superior decode on that basis alone.
+3. **End-to-end measures:** cold model load, warm requests, prefill tokens/sec, time-to-first-token (TTFT), decode tokens/sec, inter-token latency (ITL), completed-request p50/p95/p99, memory peak, CPU/GPU utilization, cancellation, error rates, queue wait and throughput at concurrency 1 / 4 / 8 (or documented feasible levels). Include short/medium/long prompt lengths, short/long output lengths and both streaming and non-streaming.
+4. **Security cost attribution:** measure default-enabled secured GG-CORE on clean, injection-attempt and PII-heavy cases; report ingress scan, output redaction and streaming holdback separately as absolute microseconds and percent of total. Compare to a **separate, isolated diagnostic** raw-compute baseline, never a production setting or unprotected public release. Require parity of security decisions and zero raw PII leakage under chunk-boundary and split-token tests.
+5. **Repeatability:** predeclare warmups, repetitions (>=10 measured runs per case where feasible), randomize runtime order, pin host/caches where possible, report median plus distributions, and preserve command scripts and machine-readable results. No invented multipliers or unreplicated advantage claims.
+6. **Performance regression gate:** require a same-host, same-model **pre-hardening/main candidate baseline** for real inference, or record NO-GO for *performance-qualified RC*. Existing synthetic Criterion tests remain valuable CI smoke. Do not treat a missing CI cache baseline as evidence. Proposed investigation thresholds (not yet approved promises): >10% drop in warm decode tokens/sec, >15% increase in p95 TTFT/ITL, or >10% increase in secured-path overhead relative to the pinned baseline triggers investigation and explicit disposition, not automatic security-control removal. Establish final tolerance from measured variance and owner sign-off before publishing external claims.
+7. **Sandbox default:** the accepted result must be recorded with the **actual shipping sandbox and default security protections active**. A run with `GG_CORE_SANDBOX=off`, `GG_CORE_SECURITY_INGRESS=off` or `GG_CORE_SECURITY_EGRESS=off` cannot count as secured release acceptance. Nonproduction differential runs must be labeled and isolated.
+
+**Comparators to consider:** [mistral.rs](https://github.com/EricLBuehler/mistral.rs) and [llama.cpp](https://github.com/ggml-org/llama.cpp) are priorities; others only when they share a genuinely comparable workload and release use case. Benchmark competitor code from pinned tags, not selective marketing screenshots.
+
+**Decision:** We can issue a narrowly scoped *functional/security RC* after its separate P0 gates, with performance qualification explicitly OPEN and no unverified speed advantage. We cannot claim a **performance-qualified RC** or promote speed comparisons until the above measured evidence is accepted.
+
+## Sign-off record (fill from actual runs)
+
+| Gate | Receipt | Result |
+| --- | --- | --- |
+| Exact candidate source SHA and version | Not yet recorded | OPEN |
+| PR Rust / CodeQL evidence | PR #128 + #129 passed; release workflow PR pending | PARTIAL |
+| Manual Release workflow run URL, all platforms | Not run | OPEN |
+| Linux packaged GGUF and default-seccomp real inference | Not run | OPEN |
+| Windows packaged GGUF, inference, Job Object limits | Not run | OPEN |
+| macOS packaged GGUF and documented sandbox limits | Not run | OPEN |
+| Authentication, path confinement and manifest integrity | Source evidence exists; final adversarial acceptance pending | OPEN |
+| ZIP advisory ignores and dependency exception review | Documented in `core-runtime/deny.toml` | REVIEWED, revisit upstream |
+| GitHub private vulnerability reporting | Owner setting unverified | OPEN |
+| Release artifact checksums and extracted executable tests | Not run | OPEN |
+| Real-model end-to-end performance and same-host baseline | Historical ~40 tok/s record only; current measured RC baseline absent | OPEN |
+| Security overhead including PII/injection and streaming | Synthetic Criterion coverage exists; end-to-end differential pending | OPEN |
+| Comparable mistral.rs / llama.cpp benchmarks | No current pinned same-hardware comparison | OPEN |
+| Owner GO / tag / GitHub prerelease verification | Not approved | HOLD |
+
+## Deliberate RC limitations
+
+The following are legitimate later work, not grounds for deleting long-term product expectations: independent security audit, stable embedded public API contract [#112](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/112), pinned downstream distribution [#113](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/113), integration conformance [#114](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/114), GPU and speculative performance qualification, and model encryption integrated into the loader. They must be described accurately and never implied to be RC-verified.
+
+**Decision rule:** unresolved P0 or missing evidence = HOLD. If a P0 requires a code change, repair it on a focused PR and repeat the applicable acceptance tests. No premature `v1.0.0`, and no release merely because the PR queue is empty.
