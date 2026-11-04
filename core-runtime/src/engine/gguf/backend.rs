@@ -237,7 +237,7 @@ impl LlamaBackendInner {
         // All draft logits must remain available after one decode. Decode the
         // preceding context in bounded chunks, then decode its last token
         // together with the draft. A huge draft fails without a native assert.
-        if draft.len() >= ctx.n_batch() as usize {
+        if draft.len() >= ctx.n_batch().min(ctx.n_ubatch()) as usize {
             return Err(InferenceError::InputValidation(
                 "speculative draft exceeds the supported decode batch".into(),
             ));
@@ -396,7 +396,9 @@ pub(super) fn decode_range(
             ctx.n_ctx()
         )));
     }
-    let batch_cap = ctx.n_batch() as usize;
+    // Bound to both logical and physical decode capacity. The default llama
+    // context can report a larger logical n_batch than physical n_ubatch.
+    let batch_cap = ctx.n_batch().min(ctx.n_ubatch()) as usize;
     if batch_cap == 0 {
         return Err(InferenceError::ModelError(
             "llama.cpp returned a zero-sized decode batch".into(),
