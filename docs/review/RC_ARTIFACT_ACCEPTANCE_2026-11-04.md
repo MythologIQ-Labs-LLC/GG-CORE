@@ -26,6 +26,31 @@ All advertised standalone inference packages must actually compile the `gguf` fe
 
 **No substitute evidence:** A green default-feature Rust build, YAML inspection, a backend-less CLI `version` response, green CodeQL, or checksum validity alone does not prove a working inference release. A successful release workflow also does not prove every security claim.
 
+## Performance and trust preservation (required RC evidence)
+
+**Original design principle:** GG-CORE should deliver competitive **real inference** while providing a stronger, singular local trust boundary with blocking prompt-injection ingress checks, PII-redacting egress, authenticated lifecycle/IPC, sandboxing, resource limits and audit/health telemetry. Performance tuning must **not** weaken, bypass or quietly move any of those controls outside the trusted runtime.
+
+### Current evidence and its limits
+
+- `docs/BENCHMARKS.md` retains a **historical, single-host** Qwen2.5 0.5B Q4_K_M Windows/i7-7700K baseline of ~40 generated tokens/sec. This is not a current cross-platform RC result and not a fair direct comparison with other hardware/model combinations.
+- `core-runtime/benches/security_overhead.rs` measures ingress/egress scan costs with synthetic data, including a PII-heavy case; `ipc_throughput.rs` measures serialization, and `inference_latency.rs` measures validation, **not model decode**.
+- CI's `scripts/perf_gate.py` allows a missing baseline to skip and pass, normalizes for runner shift, and presently flags only >2.0x relative slowdowns above its noise floor. This is a **gross internal-regression smoke**, not proof of performance parity or P95 response-time quality.
+- Existing `core_security_scan_latency_us` and `core_sanitize_latency_us` metrics can attribute protection cost. The local IPC metrics/status/health surfaces should stay **authenticated or explicitly minimal**, and must not become a new public HTTP management plane to satisfy Kubernetes monitoring.
+
+### Mandatory benchmark design
+
+1. **Same workload, provenance and hardware.** Record GG-CORE source SHA, comparator releases/commits, OS, CPU/GPU/driver, thread affinity, memory, thermal profile, runtime build flags, context/KV size, batch size, quantization, exact model artifact hash/license, tokenizer, prompt fixture hash and generator settings. Compare identical GGUF bytes where supported. If a competitor uses a different format or quantization, clearly mark it *not directly comparable*.
+2. **Two operating paths, not one misleading number:** (a) GG-CORE *embedded or raw backend* versus direct `llama.cpp`/mistral.rs local engine paths, and (b) GG-CORE authenticated local IPC daemon versus the other runtimes' **equivalent local serving paths**. If comparing against HTTP, measure and disclose transport/serialization overhead separately. GG-CORE's GGUF backend uses llama.cpp through `llama-cpp-2`; do not claim a different kernel or superior decode on that basis alone.
+3. **End-to-end measures:** cold model load, warm requests, prefill tokens/sec, time-to-first-token (TTFT), decode tokens/sec, inter-token latency (ITL), completed-request p50/p95/p99, memory peak, CPU/GPU utilization, cancellation, error rates, queue wait and throughput at concurrency 1 / 4 / 8 (or documented feasible levels). Include short/medium/long prompt lengths, short/long output lengths and both streaming and non-streaming.
+4. **Security cost attribution:** measure default-enabled secured GG-CORE on clean, injection-attempt and PII-heavy cases; report ingress scan, output redaction and streaming holdback separately as absolute microseconds and percent of total. Compare to a **separate, isolated diagnostic** raw-compute baseline, never a production setting or unprotected public release. Require parity of security decisions and zero raw PII leakage under chunk-boundary and split-token tests.
+5. **Repeatability:** predeclare warmups, repetitions (>=10 measured runs per case where feasible), randomize runtime order, pin host/caches where possible, report median plus distributions, and preserve command scripts and machine-readable results. No invented multipliers or unreplicated advantage claims.
+6. **Performance regression gate:** require a same-host, same-model **pre-hardening/main candidate baseline** for real inference, or record NO-GO for *performance-qualified RC*. Existing synthetic Criterion tests remain valuable CI smoke. Do not treat a missing CI cache baseline as evidence. Proposed investigation thresholds (not yet approved promises): >10% drop in warm decode tokens/sec, >15% increase in p95 TTFT/ITL, or >10% increase in secured-path overhead relative to the pinned baseline triggers investigation and explicit disposition, not automatic security-control removal. Establish final tolerance from measured variance and owner sign-off before publishing external claims.
+7. **Sandbox default:** the accepted result must be recorded with the **actual shipping sandbox and default security protections active**. A run with `GG_CORE_SANDBOX=off`, `GG_CORE_SECURITY_INGRESS=off` or `GG_CORE_SECURITY_EGRESS=off` cannot count as secured release acceptance. Nonproduction differential runs must be labeled and isolated.
+
+**Comparators to consider:** [mistral.rs](https://github.com/EricLBuehler/mistral.rs) and [llama.cpp](https://github.com/ggml-org/llama.cpp) are priorities; others only when they share a genuinely comparable workload and release use case. Benchmark competitor code from pinned tags, not selective marketing screenshots.
+
+**Decision:** We can issue a narrowly scoped *functional/security RC* after its separate P0 gates, with performance qualification explicitly OPEN and no unverified speed advantage. We cannot claim a **performance-qualified RC** or promote speed comparisons until the above measured evidence is accepted.
+
 ## Sign-off record (fill from actual runs)
 
 | Gate | Receipt | Result |
@@ -40,6 +65,9 @@ All advertised standalone inference packages must actually compile the `gguf` fe
 | ZIP advisory ignores and dependency exception review | Documented in `core-runtime/deny.toml` | REVIEWED, revisit upstream |
 | GitHub private vulnerability reporting | Owner setting unverified | OPEN |
 | Release artifact checksums and extracted executable tests | Not run | OPEN |
+| Real-model end-to-end performance and same-host baseline | Historical ~40 tok/s record only; current measured RC baseline absent | OPEN |
+| Security overhead including PII/injection and streaming | Synthetic Criterion coverage exists; end-to-end differential pending | OPEN |
+| Comparable mistral.rs / llama.cpp benchmarks | No current pinned same-hardware comparison | OPEN |
 | Owner GO / tag / GitHub prerelease verification | Not approved | HOLD |
 
 ## Deliberate RC limitations
