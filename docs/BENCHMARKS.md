@@ -1,5 +1,8 @@
 # GG-CORE Performance Benchmarks
 
+> **Benchmark evidence status (2026-11-04):** The ~40 tokens/sec Qwen2.5 0.5B Q4_K_M result is retained as a historical, single-host measurement on an i7-7700K/Windows system, **not** a verified result for the forthcoming 0.10.0 RC. The cross-runtime "Infrastructure Overhead" multipliers below do not compare identical workload, model, transport, security policy, host hardware and build; treat them as historical directional hypotheses **not validated speed advantages**. The hardware scaling matrix is explicitly estimated. Real-model RC, security-overhead and fair mistral.rs/llama.cpp acceptance live in [release gate #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). No claim is being removed solely for lack of evidence; it is retained for re-verification.
+
+
 This document contains verified benchmark results for GG-CORE inference performance.
 
 ## Test Configuration
