@@ -137,10 +137,17 @@ impl RequestQueue {
     }
 
     /// Wait for a notification then dequeue.
+    /// Wait until there is work: a main-queue request, or `None` when a
+    /// *streaming* request is pending (the worker services that queue first
+    /// on its next iteration). Both queues share one `Notify`, so the
+    /// streaming check is what turns a streaming wake-up into a return.
     pub async fn wait_and_dequeue(&self) -> Option<QueuedRequest> {
         loop {
             if let Some(req) = self.dequeue().await {
                 return Some(req);
+            }
+            if self.streaming_len().await > 0 {
+                return None;
             }
             self.notify.notified().await;
         }

@@ -143,4 +143,34 @@ mod tests {
             .await;
         assert!(err.is_err());
     }
+
+    /// Regression (RC acceptance): a streaming enqueue must wake a worker
+    /// parked in `wait_and_dequeue` — it returns `None` so the worker loop
+    /// can service the streaming queue, instead of re-awaiting forever.
+    #[tokio::test]
+    async fn streaming_enqueue_unparks_wait_and_dequeue() {
+        let q = std::sync::Arc::new(RequestQueue::new(RequestQueueConfig {
+            max_pending: 10,
+            max_context_tokens: 4096,
+        }));
+        let waiter = {
+            let q = q.clone();
+            tokio::spawn(async move { q.wait_and_dequeue().await })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await; // park it
+        let (tx, _rx) = TokenStream::new(4);
+        q.enqueue_streaming("m".into(), "a".into(), InferenceConfig::default(), tx)
+            .await
+            .unwrap();
+        let woke = tokio::time::timeout(std::time::Duration::from_secs(2), waiter)
+            .await
+            .expect("wait_and_dequeue must return once streaming work exists")
+            .unwrap();
+        assert!(woke.is_none(), "no main-queue request was enqueued");
+        assert_eq!(
+            q.streaming_len().await,
+            1,
+            "streaming request still pending for the worker"
+        );
+    }
 }

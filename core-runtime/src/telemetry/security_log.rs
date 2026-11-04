@@ -34,6 +34,10 @@ pub enum SecurityEvent {
     ModelHashMismatch,
     /// Sandbox violation attempt.
     SandboxViolation,
+    /// Process sandbox applied successfully (startup receipt).
+    SandboxApplied,
+    /// Operator explicitly disabled a security control (e.g. no-auth mode).
+    InsecureConfiguration,
 }
 
 impl SecurityEvent {
@@ -53,6 +57,8 @@ impl SecurityEvent {
             Self::ResourceLimitExceeded => SecuritySeverity::Warning,
             Self::ModelHashMismatch => SecuritySeverity::Critical,
             Self::SandboxViolation => SecuritySeverity::Critical,
+            Self::SandboxApplied => SecuritySeverity::Info,
+            Self::InsecureConfiguration => SecuritySeverity::Critical,
         }
     }
 
@@ -72,6 +78,8 @@ impl SecurityEvent {
             Self::ResourceLimitExceeded => "resource_limit_exceeded",
             Self::ModelHashMismatch => "model_hash_mismatch",
             Self::SandboxViolation => "sandbox_violation",
+            Self::SandboxApplied => "sandbox_applied",
+            Self::InsecureConfiguration => "insecure_configuration",
         }
     }
 }

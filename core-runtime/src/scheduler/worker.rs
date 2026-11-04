@@ -248,3 +248,7 @@ mod tests;
 #[cfg(test)]
 #[path = "worker_security_tests.rs"]
 mod security_tests;
+
+#[cfg(test)]
+#[path = "worker_streaming_tests.rs"]
+mod streaming_tests;

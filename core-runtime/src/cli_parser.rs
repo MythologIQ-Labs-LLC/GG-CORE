@@ -40,7 +40,8 @@ EXAMPLES:
 
 ENVIRONMENT:
     GG_CORE_SOCKET_PATH  IPC socket path
-    CORE_AUTH_TOKEN      Authentication token for server mode
+    CORE_AUTH_TOKEN      Shared auth token (required by serve; CLI uses it too)
+    GG_CORE_ALLOW_INSECURE_NO_AUTH=1  Dev-only: serve without a token
     GG_CORE_SANDBOX      Process sandbox: enforce|seccomp|off
     RUST_LOG             Log level (debug, info, warn, error)
 
@@ -189,7 +190,6 @@ EXIT CODES:
     1  Inference failed or connection error
 
 EXAMPLES:
-    GG-CORE infer --model phi-3 --prompt \"Hello, world!\"
     GG-CORE infer --model phi-3 --prompt \"Count to 5\" --stream
 "
     );

@@ -40,7 +40,7 @@ impl Sandbox for WindowsSandbox {
                     let max_memory_mb = self.config.max_memory_bytes / 1024 / 1024;
                     let max_cpu_ms = self.config.max_cpu_time_ms;
                     log_security_event(
-                        SecurityEvent::SandboxViolation,
+                        SecurityEvent::SandboxApplied,
                         "Windows Job Object sandbox applied successfully",
                         &[
                             ("max_memory_mb", &format!("{}", max_memory_mb)),
@@ -104,8 +104,9 @@ fn apply_job_object_limits(config: &SandboxConfig) -> Result<isize, String> {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_JOB_MEMORY,
-        JOB_OBJECT_LIMIT_JOB_TIME,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_ACTIVE_PROCESS, JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION,
+        JOB_OBJECT_LIMIT_JOB_MEMORY, JOB_OBJECT_LIMIT_JOB_TIME, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     };
     use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
@@ -121,13 +122,25 @@ fn apply_job_object_limits(config: &SandboxConfig) -> Result<isize, String> {
         // Configure limits
         let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
 
+        // Containment: the daemon is the job's only process (no child
+        // process creation — the Job Object analogue of the seccomp
+        // execve/fork denial), the job dies with its last handle, and an
+        // unhandled exception terminates instead of showing a dialog.
+        info.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+            | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            | JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION;
+        info.BasicLimitInformation.ActiveProcessLimit = 1;
+
         // Set memory limit (if configured)
         if config.max_memory_bytes > 0 {
             info.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_JOB_MEMORY;
             info.JobMemoryLimit = config.max_memory_bytes;
         }
 
-        // Set CPU time limit (if configured)
+        // Set CPU time limit (if configured). NOTE: this is a cumulative
+        // user-mode CPU budget for the whole job; when it is exhausted Windows
+        // terminates every process in the job. A long-lived daemon must leave
+        // it at 0 (see `sandbox_boot::daemon_sandbox_config`).
         if config.max_cpu_time_ms > 0 {
             info.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_JOB_TIME;
             // CPU time is in 100ns units

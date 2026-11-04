@@ -104,11 +104,15 @@ async fn run_stream(
     }
     #[cfg(not(feature = "gguf"))]
     {
-        let _ = (engine, model_id, prompt, config, sender, security);
-        Ok(Err(
-            crate::engine::inference::InferenceError::ExecutionFailed(
-                "streaming requires gguf feature".into(),
-            ),
-        ))
+        let _ = (engine, model_id, prompt, config, security);
+        let err = crate::engine::inference::InferenceError::ExecutionFailed(
+            "streaming requires gguf feature".into(),
+        );
+        // Always terminate the stream: a dropped sender leaves the IPC
+        // relay (and the client) without a final chunk.
+        let _ = sender
+            .end(crate::engine::StreamTerminal::Error(err.to_string()))
+            .await;
+        Ok(Err(err))
     }
 }
