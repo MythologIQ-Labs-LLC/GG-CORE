@@ -488,7 +488,17 @@ impl IpcHandler {
                             sender.send(IpcMessage::StreamChunk(chunk)).await?;
                             break;
                         }
-                        None => break,
+                        None => {
+                            // Producer dropped without a terminal (worker
+                            // panic/abort): the client must still get a
+                            // final frame or it waits forever.
+                            let chunk = StreamChunk::error(
+                                request_id,
+                                "stream ended without a terminal".into(),
+                            );
+                            let _ = sender.send(IpcMessage::StreamChunk(chunk)).await;
+                            break;
+                        }
                     }
                 }
             }

@@ -12,10 +12,10 @@ use std::sync::Arc;
 
 use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::{watch, Mutex};
+use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use super::connections::{ConnectionPool, IpcServerConfig, OwnedConnectionGuard};
+use super::connections::{ConnectionPool, OwnedConnectionGuard};
 use super::handler::IpcHandler;
 use super::protocol::{decode_message, encode_message, IpcMessage};
 use super::stream_bridge::IpcStreamBridge;
@@ -166,7 +166,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
 }
 
 /// Accept one connection, acquire a guard, and spawn a handler task.
-fn spawn_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'static>(
+pub(super) fn spawn_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'static>(
     stream: S,
     handler: &Arc<IpcHandler>,
     connections: &Arc<ConnectionPool>,
@@ -185,76 +185,6 @@ fn spawn_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'static>(
     });
 }
 
-/// Run the IPC server on Unix (Unix domain socket).
-#[cfg(unix)]
-pub async fn run_server(
-    socket_path: String,
-    handler: Arc<IpcHandler>,
-    connections: Arc<ConnectionPool>,
-    mut shutdown_rx: watch::Receiver<bool>,
-    ipc_config: IpcServerConfig,
-) -> Result<(), ServerError> {
-    use tokio::net::UnixListener;
-
-    let _ = std::fs::remove_file(&socket_path);
-
-    let listener = UnixListener::bind(&socket_path)?;
-    eprintln!("IPC server listening on {}", socket_path);
-
-    loop {
-        tokio::select! {
-            result = listener.accept() => {
-                match result {
-                    Ok((stream, _)) => spawn_connection(
-                        stream, &handler, &connections, ipc_config.max_frame_size,
-                    ),
-                    Err(e) => eprintln!("Accept error: {}", e),
-                }
-            }
-            _ = shutdown_rx.changed() => {
-                eprintln!("IPC server shutting down");
-                break;
-            }
-        }
-    }
-
-    let _ = std::fs::remove_file(&socket_path);
-    Ok(())
-}
-
-/// Run the IPC server on Windows (named pipes).
-#[cfg(windows)]
-pub async fn run_server(
-    pipe_name: String,
-    handler: Arc<IpcHandler>,
-    connections: Arc<ConnectionPool>,
-    mut shutdown_rx: watch::Receiver<bool>,
-    ipc_config: IpcServerConfig,
-) -> Result<(), ServerError> {
-    use tokio::net::windows::named_pipe::ServerOptions;
-
-    eprintln!("IPC server listening on {}", pipe_name);
-
-    loop {
-        let server = ServerOptions::new()
-            .first_pipe_instance(false)
-            .create(&pipe_name)?;
-
-        tokio::select! {
-            result = server.connect() => {
-                match result {
-                    Ok(()) => spawn_connection(
-                        server, &handler, &connections, ipc_config.max_frame_size,
-                    ),
-                    Err(e) => eprintln!("Pipe connect error: {}", e),
-                }
-            }
-            _ = shutdown_rx.changed() => {
-                eprintln!("IPC server shutting down");
-                break;
-            }
-        }
-    }
-
-    Ok(())
-}
+// Platform listeners (Unix socket / Windows named pipe) live in `listener.rs`;
+// re-exported here so `ipc::server::run_server` stays the public entry point.
+pub use super::listener::run_server;

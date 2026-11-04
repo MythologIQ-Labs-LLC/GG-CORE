@@ -45,6 +45,21 @@ fn invalid_mode_is_rejected_loudly() {
 }
 
 #[test]
+fn daemon_config_never_sets_a_cumulative_cpu_budget() {
+    // A non-zero budget becomes JOB_OBJECT_LIMIT_JOB_TIME on Windows and
+    // terminates the daemon mid-inference; memory is the daemon's gate.
+    let rc = RuntimeConfig::default();
+    for mode in [SandboxMode::Enforce, SandboxMode::Seccomp] {
+        let cfg = daemon_sandbox_config(mode, &rc);
+        assert_eq!(cfg.max_cpu_time_ms, 0, "{mode:?}");
+        assert_eq!(cfg.max_memory_bytes, rc.resource_limits.max_total_memory);
+        assert_eq!(cfg.cgroup_enabled, mode == SandboxMode::Enforce);
+        assert!(!cfg.gpu_enabled);
+        assert!(cfg.enabled);
+    }
+}
+
+#[test]
 fn off_mode_reports_without_applying() {
     let msg = apply_daemon_sandbox(SandboxMode::Off, &RuntimeConfig::default()).unwrap();
     assert!(msg.contains("OFF"));

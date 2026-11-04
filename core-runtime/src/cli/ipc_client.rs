@@ -123,12 +123,18 @@ impl CliIpcClient {
         let request_bytes =
             encode_message(&message).map_err(|e| CliError::Protocol(e.to_string()))?;
 
-        let response_bytes = self.send_receive(&request_bytes).await?;
+        // Inference requires a session: handshake on this same connection.
+        let response_bytes = self.send_receive_authenticated(&request_bytes).await?;
         let response =
             decode_message(&response_bytes).map_err(|e| CliError::Protocol(e.to_string()))?;
 
         match response {
-            IpcMessage::InferenceResponse(resp) => Ok(resp.output),
+            // A structured failure (unknown model, admission, validation)
+            // travels in `error`, not as a protocol-level Error message.
+            IpcMessage::InferenceResponse(resp) => match resp.error {
+                Some(err) => Err(CliError::Protocol(err)),
+                None => Ok(resp.output),
+            },
             IpcMessage::Error { message, .. } => Err(CliError::Protocol(message)),
             _ => Err(CliError::Protocol("Unexpected response type".to_string())),
         }
@@ -157,30 +163,12 @@ impl CliIpcClient {
         self.receive_streaming_response(&request_bytes).await
     }
 
-    #[cfg(unix)]
+    /// Streaming inference also requires a session: connect, handshake on
+    /// the same connection, then stream the request.
     async fn receive_streaming_response(&self, request: &[u8]) -> Result<String, CliError> {
-        use tokio::net::UnixStream;
-
-        let connect_future = UnixStream::connect(&self.socket_path);
-        let mut stream = timeout(self.timeout_duration, connect_future)
-            .await
-            .map_err(|_| CliError::Timeout)?
-            .map_err(|e| CliError::ConnectionFailed(e.to_string()))?;
-
+        let mut stream = self.connect_authenticated().await?;
+        self.handshake_on(&mut stream).await?;
         self.stream_exchange(&mut stream, request).await
-    }
-
-    #[cfg(windows)]
-    async fn receive_streaming_response(&self, request: &[u8]) -> Result<String, CliError> {
-        use tokio::net::windows::named_pipe::ClientOptions;
-
-        let connect_future = ClientOptions::new().open(&self.socket_path);
-        let mut pipe = timeout(self.timeout_duration, async { connect_future })
-            .await
-            .map_err(|_| CliError::Timeout)?
-            .map_err(|e| CliError::ConnectionFailed(e.to_string()))?;
-
-        self.stream_exchange(&mut pipe, request).await
     }
 
     async fn stream_exchange<S>(&self, stream: &mut S, request: &[u8]) -> Result<String, CliError>
@@ -213,8 +201,16 @@ impl CliIpcClient {
 
             match message {
                 IpcMessage::StreamChunk(chunk) => {
+                    // The daemon reports stream failures (unknown model,
+                    // validation, engine errors) as a chunk carrying `error`.
+                    if let Some(err) = chunk.error {
+                        return Err(CliError::Protocol(err));
+                    }
                     if let Some(text) = &chunk.text {
                         print!("{}", text);
+                        // stdout is line-buffered even when piped; flush so
+                        // a consumer (file, orchestrator) sees tokens live.
+                        let _ = std::io::Write::flush(&mut std::io::stdout());
                         full_output.push_str(text);
                     }
                     if chunk.is_final {

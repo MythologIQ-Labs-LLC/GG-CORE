@@ -3,6 +3,7 @@
 //! Bootstraps the sandboxed inference engine with FIPS 140-3 self-tests,
 //! configuration loading, IPC listener setup, and signal handling.
 
+mod auth_boot;
 mod cli_parser;
 mod runtime_init;
 mod sandbox_boot;
@@ -80,6 +81,14 @@ async fn run_serve(args: &[String]) -> ExitCode {
     eprintln!("FIPS 140-3 self-tests: PASSED");
 
     let config = runtime_init::load_config();
+    // RC acceptance: fail secure on a missing credential (see auth_boot).
+    match auth_boot::auth_policy(&config.auth_token) {
+        Ok(policy) => eprintln!("{}", auth_boot::describe(policy, &config.auth_token)),
+        Err(e) => {
+            eprintln!("serve: {}", e);
+            return ExitCode::FAILURE;
+        }
+    }
     let runtime = Runtime::new(config);
 
     // B-41 (#106): fail-loud startup preload through the canonical load path.

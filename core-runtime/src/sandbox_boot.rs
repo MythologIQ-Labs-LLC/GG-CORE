@@ -52,6 +52,23 @@ pub fn sandbox_mode_from_env() -> Result<SandboxMode, String> {
     }
 }
 
+/// Sandbox configuration for the long-lived serving daemon.
+///
+/// `max_cpu_time_ms` is deliberately 0: the library default (30 s) is a
+/// per-job cumulative CPU budget meant for short-lived embedded workloads.
+/// Windows enforces it with `JOB_OBJECT_LIMIT_JOB_TIME`, which terminates
+/// the whole job once exhausted — a serving daemon would be killed a few
+/// seconds into real inference. Memory is the daemon's resource gate.
+pub fn daemon_sandbox_config(mode: SandboxMode, runtime_config: &RuntimeConfig) -> SandboxConfig {
+    SandboxConfig {
+        max_memory_bytes: runtime_config.resource_limits.max_total_memory,
+        max_cpu_time_ms: 0,
+        cgroup_enabled: mode == SandboxMode::Enforce,
+        gpu_enabled: false,
+        ..Default::default()
+    }
+}
+
 /// Apply the daemon sandbox per mode. Returns a human-readable status line
 /// on success; an `Err` must abort startup.
 pub fn apply_daemon_sandbox(
@@ -69,13 +86,7 @@ pub fn apply_daemon_sandbox(
         ));
     }
 
-    let config = SandboxConfig {
-        max_memory_bytes: runtime_config.resource_limits.max_total_memory,
-        cgroup_enabled: mode == SandboxMode::Enforce,
-        gpu_enabled: false,
-        ..Default::default()
-    };
-    let result = create_sandbox(config).apply();
+    let result = create_sandbox(daemon_sandbox_config(mode, runtime_config)).apply();
     if result.success {
         Ok(match mode {
             SandboxMode::Enforce => "Sandbox: ENFORCE (resource limits + syscall allowlist)",

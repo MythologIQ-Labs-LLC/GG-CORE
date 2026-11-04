@@ -52,13 +52,14 @@ inference path since v0.8.x):
 | Prompt-injection detection | 55 base patterns + 5 high-risk + 5 context pairs; zero-width stripping; blocking on by default | `security/prompt_injection.rs` |
 | PII detection/redaction | 13 PII types from 23 regexes; NFKC normalization; Luhn/SSN structural checks (other types are pattern-only) | `security/pii_detector.rs`, `pii_patterns.rs` |
 | Streaming egress sanitization | In-runtime detokenization; windowed sanitizer with holdback — raw tokens never leave the runtime | `security/stream_sanitizer.rs` |
-| IPC authentication | SHA-256 token (constant-time compare), per-session caps (1000 req/min), brute-force lockout (5 failures → 30 s); model load/unload require an authenticated session | `ipc/auth.rs`, `ipc/auth_session.rs` |
+| IPC authentication | SHA-256 token (constant-time compare), per-session caps (1000 req/min), brute-force lockout (5 failures → 30 s); inference, cancel and model load/unload require an authenticated session bound to the connection that performed the handshake. The daemon **refuses to start with an empty token** unless `GG_CORE_ALLOW_INSECURE_NO_AUTH=1` (dev-only, loudly logged). Health, metrics and model *listing* are deliberately unauthenticated orchestrator probes. The shipped CLI performs the handshake for `infer`, `models load/unload` | `ipc/auth.rs`, `ipc/auth_session.rs`, `src/auth_boot.rs`, `cli/ipc_client_auth.rs` |
+| IPC transport boundary | Unix: socket file created `0600` (owner-only) immediately after bind. Windows: the first pipe instance is claimed with `first_pipe_instance(true)` so a pre-existing pipe of the same name (squatting/impersonation) fails startup; remote clients rejected; default pipe DACL grants duplex access only to the creator, Administrators and SYSTEM | `ipc/listener.rs` |
 | Path confinement | Model loads restricted to `models/`/`tokenizers/` under the configured base path; NUL bytes and traversal rejected lexically | `models/loader.rs::validate_path` |
 | Model hash verification | When a sibling `manifest.json` declares a `sha256`, the file's digest is computed and verified before any backend reads it; mismatch fails loud and emits a critical `ModelHashMismatch` event. Models without a manifest have nothing declared to verify | `models/integrity.rs` |
-| Daemon process sandbox | `serve` applies the sandbox at startup, after preload, before the listener. Linux x86_64 default: seccomp syscall allowlist (empirically derived from the serving daemon under strace; denies `execve`, `fork`, `connect` — no outbound sockets — and base `ioctl`; unknown syscall kills the process). `GG_CORE_SANDBOX=enforce` adds cgroup v2 memory/CPU limits (needs privileges); Windows default: Job Objects; other platforms default `off` with a loud notice. A requested sandbox that cannot apply **aborts startup**. Validated live: all IPC surfaces + concurrent probes + graceful shutdown under the filter. GGUF inference under the filter is pending a model smoke test — if a field workload hits an unlisted syscall (SIGSYS kill, visible in `dmesg`), `GG_CORE_SANDBOX=off` is the documented escape hatch; file an issue | `sandbox/`, `src/sandbox_boot.rs` |
+| Daemon process sandbox | `serve` applies the sandbox at startup, after preload, before the listener. Linux x86_64 default: seccomp syscall allowlist (empirically derived from the serving daemon under strace; denies `execve`, `fork`, `connect` — no outbound sockets — and base `ioctl`; unknown syscall kills the process). `GG_CORE_SANDBOX=enforce` adds cgroup v2 memory limits (needs privileges). **Windows default: a Job Object** that caps job memory (`GG_CORE_MAX_TOTAL_MEMORY`), limits the job to a single active process (no child process creation), kills the job on handle close and dies on unhandled exceptions — it is a resource/containment limit, **not** a syscall filter and it does not block network or filesystem access. **macOS and other platforms: `off` by default with a loud notice — no daemon sandbox is enforced there.** A requested sandbox that cannot apply **aborts startup**. Linux x86_64 validated live with a real GGUF model under the default filter: preload, ready/status/list, non-streaming and streaming inference, mid-stream client cancellation, unload/reload/invalid loads, and graceful SIGINT exit 0 (kernel receipt `Seccomp: 2` in `/proc/<pid>/status`; no SIGSYS). If a field workload hits an unlisted syscall (SIGSYS kill, visible in `dmesg`), `GG_CORE_SANDBOX=off` is the documented escape hatch; file an issue | `sandbox/`, `src/sandbox_boot.rs` |
 | Input validation | Text ≤ 65,536 bytes, ≤ 4096 input tokens, batch ≤ 32 | `engine/input.rs` |
 | Resource limits | Per-call / total-memory / concurrency gates | `memory/limits.rs`, env-configurable |
-| Security event log | 13 `SecurityEvent` variants via structured tracing | `telemetry/security_log.rs` |
+| Security event log | 15 `SecurityEvent` variants via structured tracing (incl. `sandbox_applied` startup receipt and critical `insecure_configuration`) | `telemetry/security_log.rs` |
 
 **Implemented as libraries, NOT yet applied by the standalone daemon** —
 these are real, tested code paths that embedding hosts can invoke, but
@@ -96,7 +97,8 @@ Security behavior is environment-driven (`src/security/mod.rs`, `src/config.rs`)
 | `GG_CORE_SECURITY_INGRESS` | `block` / `detect` / `off` | `block` |
 | `GG_CORE_SECURITY_EGRESS` | `redact` / `off` | `redact` |
 | `GG_CORE_SANDBOX` | `enforce` / `seccomp` / `off` | `seccomp` (Linux x86_64), `enforce` (Windows), `off` elsewhere |
-| `CORE_AUTH_TOKEN` | shared IPC auth token (daemon + CLI) | empty (only an empty-token handshake succeeds) |
+| `CORE_AUTH_TOKEN` | shared IPC auth token (daemon + CLI) | **required by `serve`** — an empty token aborts startup (16+ bytes recommended; shorter warns) |
+| `GG_CORE_ALLOW_INSECURE_NO_AUTH` | `1` = allow `serve` with an empty token (development only; logs a critical `insecure_configuration` event and prints a banner on every start) | unset |
 | `GG_CORE_MAX_MEMORY_PER_CALL` / `GG_CORE_MAX_TOTAL_MEMORY` / `GG_CORE_MAX_CONCURRENT` | resource gates | see `config.rs` |
 
 Programmatic embedding uses `security::SecurityConfig`
@@ -126,9 +128,9 @@ penetration suite on Linux, macOS, and Windows.
 
 1. **Model encryption wiring** — connect `ModelEncryption` to the load path
    behind its config flag.
-2. **Sandboxed-inference smoke test** — the daemon sandbox is live-validated
-   for the serving/IPC surface; a GGUF inference run under the seccomp filter
-   belongs in the release validation checklist (needs a model fixture).
+2. **No daemon sandbox on macOS** — `serve` runs with `GG_CORE_SANDBOX=off`
+   semantics there (loud notice). Windows Job Objects limit resources and
+   process creation but do not filter syscalls or network access.
 3. **Independent audit** — planned post-1.0 (see ROADMAP).
 
 ## Security Changelog

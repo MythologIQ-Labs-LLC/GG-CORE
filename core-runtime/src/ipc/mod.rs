@@ -10,6 +10,7 @@ pub mod encoding;
 mod handler;
 mod handler_models;
 mod health_handler;
+mod listener;
 pub mod protocol;
 pub mod protocol_codec;
 pub mod protocol_model_types;

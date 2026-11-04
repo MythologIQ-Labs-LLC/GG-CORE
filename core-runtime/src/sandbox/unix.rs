@@ -67,7 +67,7 @@ impl Sandbox for UnixSandbox {
                 let max_memory_mb = self.config.max_memory_bytes / 1024 / 1024;
                 let max_cpu_ms = self.config.max_cpu_time_ms;
                 log_security_event(
-                    SecurityEvent::SandboxViolation,
+                    SecurityEvent::SandboxApplied,
                     "Unix sandbox applied successfully (cgroups + seccomp)",
                     &[
                         ("max_memory_mb", &format!("{}", max_memory_mb)),

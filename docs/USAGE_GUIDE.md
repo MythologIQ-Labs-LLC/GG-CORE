@@ -48,7 +48,8 @@ default build and is on by default.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `CORE_AUTH_TOKEN` | *(empty)* | Shared IPC auth token for daemon and CLI |
+| `CORE_AUTH_TOKEN` | *(none — required)* | Shared IPC auth token for daemon and CLI. `serve` refuses to start when it is empty (16+ bytes recommended) |
+| `GG_CORE_ALLOW_INSECURE_NO_AUTH` | unset | `1` lets `serve` run with an empty token for local development only; every start prints a banner and logs a critical security event |
 | `GG_CORE_SOCKET_PATH` | platform default | Unix socket / Windows named-pipe path |
 | `GG_CORE_PRELOAD_MODELS` | *(unset)* | Comma-separated model paths preloaded by `serve` |
 | `GG_CORE_SECURITY_INGRESS` | `block` | `block` / `detect` / `off` — prompt-injection handling |
@@ -102,7 +103,8 @@ gg-core-cli infer --model local-model \
 ```
 
 Notes:
-- `models load`/`unload` handshake with `CORE_AUTH_TOKEN`; load paths are
+- `infer` and `models load`/`unload` handshake with `CORE_AUTH_TOKEN` on their
+  own connection (the daemon binds the session to that connection); load paths are
   validated server-side against the `models/`+`tokenizers/` allowlist —
   traversal and NUL bytes are rejected.
 - Readiness semantics: a live daemon with zero models reports **not ready**
@@ -264,7 +266,8 @@ end-to-end latency; infrastructure overhead is micro-scale by comparison.
 | Symptom | Likely cause |
 | --- | --- |
 | `ready` exits 1, `live` exits 0 | No model loaded — preload with `serve --model` or `models load` |
-| `models load` → "Not authenticated" | `CORE_AUTH_TOKEN` mismatch between CLI and daemon |
+| `infer` / `models load` → "authentication failed" | `CORE_AUTH_TOKEN` mismatch between CLI and daemon |
+| `serve` exits with "CORE_AUTH_TOKEN is empty" | Set a token (16+ bytes). `GG_CORE_ALLOW_INSECURE_NO_AUTH=1` is the development-only override |
 | `models load` → "path rejected" | Path escapes `models/`/`tokenizers/` under the base path |
 | Load fails "GGUF support not compiled in" | Rebuild with `--features gguf` |
 | `infer` → `SecurityRejected` | Ingress pipeline blocked the prompt (`GG_CORE_SECURITY_INGRESS=detect` to observe without blocking) |
