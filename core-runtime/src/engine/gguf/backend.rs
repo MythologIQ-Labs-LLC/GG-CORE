@@ -518,6 +518,28 @@ mod real_model_regression_tests {
             .expect("long prompt must not terminate native inference");
         assert!(result.tokens_generated <= 4);
 
+        // The other side of the batch/context distinction: a prompt that does
+        // not fit in the configured context must return an ordinary Rust error.
+        // Native llama.cpp must never receive an oversized decode request.
+        let overlong =
+            "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(500);
+        let overlong_tokens = backend
+            .tokenize(&overlong)
+            .expect("tokenize overflow fixture");
+        assert!(
+            overlong_tokens.len() >= 4096,
+            "overflow fixture must exceed even the configured 4096-token context"
+        );
+        assert!(matches!(
+            backend.generate(&overlong, &InferenceConfig::default()),
+            Err(InferenceError::InputValidation(_))
+        ));
+
+        // llama-cpp-2 allows one initialized LlamaBackend per process; a second
+        // load while the first is alive fails with BackendAlreadyInitialized.
+        // Release the 2048-token model before loading the 4096-token one.
+        drop(backend);
+
         // An actual Alden-style prompt also exceeds the old 2048-token
         // context, so bounded batching alone would not be enough. The
         // producer daemon must apply GG_CORE_N_CTX=4096 to model loading.
@@ -551,22 +573,6 @@ mod real_model_regression_tests {
             .expect("generation must work with the configured extended context");
         assert!(persona_result.tokens_generated <= 4);
 
-        // The other side of the batch/context distinction: a prompt that does
-        // not fit in the configured context must return an ordinary Rust error.
-        // Native llama.cpp must never receive an oversized decode request.
-        let overlong =
-            "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(500);
-        let overlong_tokens = backend
-            .tokenize(&overlong)
-            .expect("tokenize overflow fixture");
-        assert!(
-            overlong_tokens.len() >= long_context.n_ctx as usize,
-            "overflow fixture must exceed even the configured 4096-token context"
-        );
-        assert!(matches!(
-            backend.generate(&overlong, &InferenceConfig::default()),
-            Err(InferenceError::InputValidation(_))
-        ));
         assert!(matches!(
             long_backend.generate(&overlong, &InferenceConfig::default()),
             Err(InferenceError::InputValidation(_))
