@@ -74,7 +74,10 @@ impl<W: AsyncWriteExt + Unpin + Send + 'static> StreamSender for IpcStreamBridge
     async fn send(&self, message: IpcMessage) -> Result<(), HandlerError> {
         // Cancellation blocks further data, but must not suppress the final
         // error frame that tells the client its stream actually stopped.
-        let terminal = matches!(&message, IpcMessage::StreamChunk(chunk) if chunk.is_final);
+        let terminal = matches!(
+            &message,
+            IpcMessage::StreamChunk(chunk) if chunk.is_final && chunk.error.is_some()
+        );
         if self.cancel.is_cancelled() && !terminal {
             return Err(HandlerError::StreamSend("cancelled".into()));
         }
