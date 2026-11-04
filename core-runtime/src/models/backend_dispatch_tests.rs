@@ -5,7 +5,7 @@
 //! the *selected* loader via its feature-gated error ("ONNX/GGUF support not
 //! compiled in") — proving which backend a manifest routed to.
 
-use super::{choose_backend, load_model_dispatch, BackendChoice};
+use super::{choose_backend, load_model_dispatch, read_sibling_manifest, BackendChoice};
 use crate::engine::InferenceError;
 use crate::models::manifest::{ModelArchitecture, ModelCapability, ModelManifest};
 
@@ -94,6 +94,49 @@ fn dispatch_routes_onnx_manifest_to_onnx_loader() {
     let err = load_model_dispatch(&model_path, "m");
     // Default features: the ONNX loader stub proves it routed to ONNX.
     assert!(err_message(err).contains("ONNX support not compiled in"));
+}
+
+fn fresh_dir(label: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("gg_core_manifest_{label}_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// A present but malformed manifest must fail the load, never degrade to
+/// a manifest-free (unverified) load.
+#[test]
+fn present_but_malformed_manifest_fails_closed() {
+    let dir = fresh_dir("malformed");
+    let model_path = dir.join("model.gguf");
+    std::fs::write(&model_path, b"gguf bytes").unwrap();
+    std::fs::write(dir.join("manifest.json"), b"{ this is not json").unwrap();
+    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    assert!(msg.contains("invalid manifest JSON"), "got: {msg}");
+}
+
+/// A manifest whose integrity field is not a usable digest is invalid.
+#[test]
+fn manifest_with_unusable_sha256_fails_closed() {
+    let dir = fresh_dir("badsha");
+    let model_path = dir.join("model.gguf");
+    std::fs::write(&model_path, b"gguf bytes").unwrap();
+    std::fs::write(
+        dir.join("manifest.json"),
+        br#"{"model_id":"m","name":"m","version":"1.0.0","capabilities":["text_generation"],
+            "sha256":"abc","size_bytes":10,"architecture":"gguf","license":"MIT"}"#,
+    )
+    .unwrap();
+    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    assert!(msg.contains("sha256 must be 64 hex"), "got: {msg}");
+}
+
+/// Absent manifest is the legitimate manifest-free GGUF case.
+#[test]
+fn absent_manifest_reads_as_none() {
+    let dir = fresh_dir("absent");
+    let model_path = dir.join("model.gguf");
+    assert!(read_sibling_manifest(&model_path).unwrap().is_none());
 }
 
 #[cfg(not(feature = "gguf"))]

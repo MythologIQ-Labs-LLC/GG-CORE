@@ -16,6 +16,7 @@ pub mod tier_synergy;
 #[cfg(feature = "advanced")]
 pub mod tier_synergy_speculative;
 
+mod containment;
 mod drain;
 pub mod integrity;
 pub mod lifecycle;
