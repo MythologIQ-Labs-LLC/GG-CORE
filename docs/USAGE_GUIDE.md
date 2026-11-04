@@ -53,6 +53,7 @@ default build and is on by default.
 | `GG_CORE_PRELOAD_MODELS` | *(unset)* | Comma-separated model paths preloaded by `serve` |
 | `GG_CORE_SECURITY_INGRESS` | `block` | `block` / `detect` / `off` — prompt-injection handling |
 | `GG_CORE_SECURITY_EGRESS` | `redact` | `redact` / `off` — PII sanitization |
+| `GG_CORE_SANDBOX` | platform-dependent | `enforce` / `seccomp` / `off` — daemon process sandbox (seccomp default on Linux x86_64; failure to apply aborts startup) |
 | `GG_CORE_MAX_CONTEXT` | 4096 | Max context length (tokens) |
 | `GG_CORE_MAX_QUEUE_DEPTH` | 256 | Max pending requests |
 | `GG_CORE_MAX_CONTEXT_TOKENS` | 4096 | Max context tokens per request |

@@ -35,6 +35,7 @@ fn sandbox_disabled_is_noop() {
         max_cpu_time_ms: 1000,
         enabled: false,
         gpu_enabled: false,
+        cgroup_enabled: true,
     };
     let sandbox = create_sandbox(config);
 

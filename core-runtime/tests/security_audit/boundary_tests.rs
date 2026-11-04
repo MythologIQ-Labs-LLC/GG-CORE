@@ -112,6 +112,7 @@ fn sandbox_custom_limits() {
         max_cpu_time_ms: 5_000,
         enabled: true,
         gpu_enabled: false,
+        cgroup_enabled: true,
     };
     let sandbox = create_sandbox(config);
     assert!(!sandbox.is_active());
@@ -125,6 +126,7 @@ fn sandbox_disabled_no_restrictions() {
         max_cpu_time_ms: 100,
         enabled: false,
         gpu_enabled: false,
+        cgroup_enabled: true,
     };
     let sandbox = create_sandbox(config);
     let result = sandbox.apply();
@@ -236,6 +238,7 @@ fn sandbox_usage_tracking() {
         max_cpu_time_ms: 60_000,
         enabled: true,
         gpu_enabled: false,
+        cgroup_enabled: true,
     };
     let sandbox = create_sandbox(config);
     if !sandbox.is_active() {

@@ -76,15 +76,22 @@ fn choose_absent_manifest_selects_gguf_default() {
 fn dispatch_routes_onnx_manifest_to_onnx_loader() {
     let dir = std::env::temp_dir().join("gg_core_b29b2_onnx_route");
     std::fs::create_dir_all(&dir).unwrap();
-    let manifest_json = r#"{
+    let model_path = dir.join("model.onnx");
+    std::fs::write(&model_path, b"onnx bytes").unwrap();
+    // Integrity enforcement verifies a parsed manifest's sha256 before
+    // dispatch, so declare the file's real hash.
+    let sha = crate::models::integrity::file_sha256_hex(&model_path).unwrap();
+    let manifest_json = format!(
+        r#"{{
         "model_id": "m", "name": "m", "version": "1.0.0",
         "capabilities": ["embedding"],
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-        "size_bytes": 0, "architecture": "onnx", "license": "MIT"
-    }"#;
+        "sha256": "{sha}",
+        "size_bytes": 10, "architecture": "onnx", "license": "MIT"
+    }}"#
+    );
     std::fs::write(dir.join("manifest.json"), manifest_json).unwrap();
 
-    let err = load_model_dispatch(&dir.join("model.onnx"), "m");
+    let err = load_model_dispatch(&model_path, "m");
     // Default features: the ONNX loader stub proves it routed to ONNX.
     assert!(err_message(err).contains("ONNX support not compiled in"));
 }
