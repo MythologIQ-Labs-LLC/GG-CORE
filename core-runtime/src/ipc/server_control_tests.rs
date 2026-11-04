@@ -146,6 +146,21 @@ async fn idle_stream_has_real_wall_clock_deadline() {
 }
 
 #[tokio::test]
+async fn zero_timeout_is_a_terminal_failure_not_a_hang() {
+    let (mut client, task) = start().await;
+    authenticate(&mut client).await;
+    send(&mut client, streaming_request(0)).await;
+    match receive(&mut client).await {
+        IpcMessage::StreamChunk(chunk) => {
+            assert!(chunk.is_final);
+            assert!(chunk.error.as_deref().is_some_and(|e| e.contains("timeout")));
+        }
+        other => panic!("expected invalid-timeout terminal: {other:?}"),
+    }
+    close(client, task).await;
+}
+
+#[tokio::test]
 async fn unauthenticated_liveness_probe_remains_available() {
     let (mut client, task) = start().await;
     send(
