@@ -16,7 +16,7 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use super::connections::{ConnectionPool, OwnedConnectionGuard};
-use super::handler::{IpcHandler, StreamSender};
+use super::handler::{HandlerError, IpcHandler, StreamSender};
 use super::protocol::{decode_message, encode_message, IpcMessage, StreamChunk};
 use super::stream_bridge::IpcStreamBridge;
 
@@ -203,7 +203,12 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                     }
                 }
                 Err(e) => {
-                    let err = format!(r#"{{"type":"error","code":500,"message":"{}"}}"#, e);
+                    let code = if matches!(e, HandlerError::Auth(_) | HandlerError::NotAuthenticated) {
+                        401
+                    } else {
+                        500
+                    };
+                    let err = format!(r#"{{"type":"error","code":{},"message":"{}"}}"#, code, e);
                     let _ = write_frame_locked(&write_half, err.as_bytes()).await;
                     break;
                 }
@@ -240,3 +245,7 @@ pub(super) fn spawn_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 
 // Platform listeners (Unix socket / Windows named pipe) live in `listener.rs`;
 // re-exported here so `ipc::server::run_server` stays the public entry point.
 pub use super::listener::run_server;
+
+#[cfg(all(test, feature = "gguf"))]
+#[path = "server_control_tests.rs"]
+mod control_tests;
