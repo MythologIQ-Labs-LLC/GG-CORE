@@ -115,22 +115,55 @@ jobs:
           path: core-runtime/dist/*.tar.gz
           if-no-files-found: error
 
-  release:
-    name: publish GitHub Release
+  assemble:
+    name: inspect candidate bundle (no publication)
     needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Require platform coverage and generate verifiable checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=(dist/*.tar.gz)
+          if [ "${#archives[@]}" -ne 3 ]; then
+            echo "::error::Expected 3 platform archives, got ${#archives[@]}"
+            exit 1
+          fi
+          cd dist
+          sha256sum -- *.tar.gz > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - name: Retain exact bundles for manual installation acceptance
+        uses: actions/upload-artifact@v4
+        with:
+          name: gg-core-release-bundle
+          path: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+  release:
+    name: publish GitHub Release (version tags only)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: assemble
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          name: gg-core-release-bundle
           path: dist
-          merge-multiple: true
-      - name: Generate SHA256SUMS
-        run: |
-          cd dist
-          sha256sum *.tar.gz > SHA256SUMS
-          cat SHA256SUMS
+      - name: Verify bundled SHA256SUMS
+        run: cd dist && sha256sum -c SHA256SUMS
       - name: Extract release notes from CHANGELOG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -139,8 +172,8 @@ jobs:
             /^## \[/ { flag=0 }
             flag' CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then
-            echo "No CHANGELOG section found for ${VERSION}; using a stub." >&2
-            echo "See CHANGELOG.md for details." > release-notes.md
+            echo "::error::Missing nonempty CHANGELOG notes for ${VERSION}; publication refused" >&2
+            exit 1
           fi
       - name: Create release
         uses: softprops/action-gh-release@v2
