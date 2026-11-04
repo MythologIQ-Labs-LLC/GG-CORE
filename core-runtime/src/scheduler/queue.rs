@@ -228,16 +228,11 @@ impl RequestQueue {
         Ok(id)
     }
 
-    /// Dequeue a streaming request, skipping cancelled/expired.
+    /// Dequeue streaming work, including cancelled or expired requests.
+    /// The worker must send a terminal error before discarding such a
+    /// request; silently skipping it leaves IPC clients waiting forever.
     pub async fn dequeue_streaming(&self) -> Option<StreamingQueuedRequest> {
-        let mut streaming = self.streaming.lock().await;
-        loop {
-            let request = streaming.pop_front()?;
-            if request.is_cancelled() || request.is_expired() {
-                continue;
-            }
-            return Some(request);
-        }
+        self.streaming.lock().await.pop_front()
     }
 
     /// Current number of queued streaming requests.
