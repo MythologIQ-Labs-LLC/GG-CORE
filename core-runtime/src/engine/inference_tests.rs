@@ -306,7 +306,7 @@ async fn non_gguf_model_stream_reports_unsupported() {
     let (sender, stream) = TokenStream::new(32);
     let eng = engine.clone();
     let gen = tokio::task::spawn_blocking(move || {
-        eng.run_stream_sync("budget-model", "hi", &cfg, sender, None)
+        eng.run_stream_sync("budget-model", "hi", &cfg, sender, None, None)
     });
 
     let (_tokens, terminal) = stream.collect().await;
