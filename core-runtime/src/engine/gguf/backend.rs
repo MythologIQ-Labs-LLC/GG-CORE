@@ -488,11 +488,18 @@ mod real_model_regression_tests {
             .expect("real Qwen fixture must load");
         let prompt = "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(100);
         let tokens = backend.tokenize(&prompt).expect("tokenize fixture prompt");
+        let context = backend.create_context().expect("create fixture context");
+        let batch_cap = context.n_batch().min(context.n_ubatch()) as usize;
         assert!(tokens.len() > 512, "fixture must exceed the old single-batch ceiling");
         assert!(
-            tokens.len() < gguf.n_ctx as usize,
+            tokens.len() > batch_cap,
+            "fixture must exercise multiple actual decode batches (cap: {batch_cap})"
+        );
+        assert!(
+            tokens.len() < context.n_ctx() as usize,
             "fixture must remain inside the context window"
         );
+        drop(context);
         let result = backend
             .generate(
                 &prompt,
