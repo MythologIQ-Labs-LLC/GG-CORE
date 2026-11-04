@@ -50,8 +50,14 @@ impl<W> IpcStreamBridge<W> {
 
 impl<W: AsyncWriteExt + Unpin + Send + 'static> IpcStreamBridge<W> {
     /// Write a length-prefixed frame to the underlying writer.
-    async fn write_frame(&self, data: &[u8]) -> Result<(), HandlerError> {
+    async fn write_frame(&self, data: &[u8], error_terminal: bool) -> Result<(), HandlerError> {
         let mut writer = self.writer.lock().await;
+        // Re-check under the same writer lock used by cancellation ACKs:
+        // a chunk that was waiting for the lock must not be emitted after
+        // cancellation was acknowledged on that connection.
+        if self.cancel.is_cancelled() && !error_terminal {
+            return Err(HandlerError::StreamSend("cancelled".into()));
+        }
         let len = data.len() as u32;
         writer
             .write_all(&len.to_le_bytes())
@@ -82,7 +88,7 @@ impl<W: AsyncWriteExt + Unpin + Send + 'static> StreamSender for IpcStreamBridge
             return Err(HandlerError::StreamSend("cancelled".into()));
         }
         let bytes = encode_message(&message)?;
-        self.write_frame(&bytes).await
+        self.write_frame(&bytes, terminal).await
     }
 }
 
