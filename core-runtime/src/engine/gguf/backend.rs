@@ -101,8 +101,8 @@ impl LlamaBackendInner {
         ensure_prompt_room(&ctx, tokens.len())?;
         // llama.cpp rejects any single decode larger than ctx.n_batch().
         decode_range(&mut ctx, &tokens, 0, false)?;
-        let limit = (config.max_tokens.unwrap_or(256) as usize)
-            .min(ctx.n_ctx() as usize - tokens.len());
+        let limit =
+            (config.max_tokens.unwrap_or(256) as usize).min(ctx.n_ctx() as usize - tokens.len());
         let mut batch = LlamaBatch::new(1, 1);
         let mut sampler = build_sampler(config, self.model.n_vocab());
         sampler.accept_many(tokens.iter().copied());
@@ -244,19 +244,24 @@ impl LlamaBackendInner {
         }
         let context_tokens: Vec<LlamaToken> =
             context.iter().map(|&t| LlamaToken(t as i32)).collect();
-        decode_range(
-            &mut ctx,
-            &context_tokens[..context.len() - 1],
-            0,
-            false,
-        )?;
+        decode_range(&mut ctx, &context_tokens[..context.len() - 1], 0, false)?;
         let mut batch = LlamaBatch::new(draft.len() + 1, 1);
         batch
-            .add(context_tokens[context.len() - 1], (context.len() - 1) as i32, &[0], true)
+            .add(
+                context_tokens[context.len() - 1],
+                (context.len() - 1) as i32,
+                &[0],
+                true,
+            )
             .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
         for (i, &tok) in draft.iter().enumerate() {
             batch
-                .add(LlamaToken(tok as i32), (context.len() + i) as i32, &[0], true)
+                .add(
+                    LlamaToken(tok as i32),
+                    (context.len() + i) as i32,
+                    &[0],
+                    true,
+                )
                 .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
         }
         decode(&mut ctx, &mut batch)?;
@@ -384,12 +389,11 @@ pub(super) fn decode_range(
     if tokens.is_empty() {
         return Ok(());
     }
-    let begin = usize::try_from(start_pos).map_err(|_| {
-        InferenceError::InputValidation("negative decode position".into())
-    })?;
-    let end = begin.checked_add(tokens.len()).ok_or_else(|| {
-        InferenceError::InputValidation("decode position overflow".into())
-    })?;
+    let begin = usize::try_from(start_pos)
+        .map_err(|_| InferenceError::InputValidation("negative decode position".into()))?;
+    let end = begin
+        .checked_add(tokens.len())
+        .ok_or_else(|| InferenceError::InputValidation("decode position overflow".into()))?;
     if end > ctx.n_ctx() as usize {
         return Err(InferenceError::InputValidation(format!(
             "decode would exceed the {}-token context window",
@@ -462,8 +466,8 @@ fn resolve_threads(n: u32) -> i32 {
 
 #[cfg(test)]
 mod real_model_regression_tests {
-    use super::*;
     use super::super::GgufConfig;
+    use super::*;
 
     #[test]
     fn real_model_long_prompt_beyond_batch() {
@@ -484,13 +488,16 @@ mod real_model_regression_tests {
             n_threads: 4,
             n_gpu_layers: 0,
         };
-        let backend = LlamaBackendInner::load(path, &gguf)
-            .expect("real Qwen fixture must load");
-        let prompt = "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(100);
+        let backend = LlamaBackendInner::load(path, &gguf).expect("real Qwen fixture must load");
+        let prompt =
+            "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(100);
         let tokens = backend.tokenize(&prompt).expect("tokenize fixture prompt");
         let context = backend.create_context().expect("create fixture context");
         let batch_cap = context.n_batch().min(context.n_ubatch()) as usize;
-        assert!(tokens.len() > 512, "fixture must exceed the old single-batch ceiling");
+        assert!(
+            tokens.len() > 512,
+            "fixture must exceed the old single-batch ceiling"
+        );
         assert!(
             tokens.len() > batch_cap,
             "fixture must exercise multiple actual decode batches (cap: {batch_cap})"
@@ -520,8 +527,8 @@ mod real_model_regression_tests {
         };
         let long_backend = LlamaBackendInner::load(path, &long_context)
             .expect("GGUF fixture with 4096-token context must load");
-        let persona = "The brown fox walks beside a clear river under a quiet blue sky. "
-            .repeat(220);
+        let persona =
+            "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(220);
         let persona_tokens = long_backend
             .tokenize(&persona)
             .expect("tokenize Alden-class fixture");
@@ -547,8 +554,8 @@ mod real_model_regression_tests {
         // The other side of the batch/context distinction: a prompt that does
         // not fit in the configured context must return an ordinary Rust error.
         // Native llama.cpp must never receive an oversized decode request.
-        let overlong = "The brown fox walks beside a clear river under a quiet blue sky. "
-            .repeat(500);
+        let overlong =
+            "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(500);
         let overlong_tokens = backend
             .tokenize(&overlong)
             .expect("tokenize overflow fixture");
