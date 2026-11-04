@@ -457,3 +457,49 @@ fn resolve_threads(n: u32) -> i32 {
         i32::try_from(n).unwrap_or(4)
     }
 }
+
+#[cfg(test)]
+mod real_model_regression_tests {
+    use super::*;
+    use super::super::GgufConfig;
+
+    #[test]
+    fn real_model_long_prompt_beyond_batch() {
+        // The fixture may be an LFS pointer in source-only CI. The release
+        // acceptance script separately requires a real downloaded model.
+        let path = Path::new("../models/qwen2.5-0.5b-instruct-q4_k_m.gguf");
+        let Ok(metadata) = std::fs::metadata(path) else {
+            eprintln!("SKIP: real GGUF fixture not installed");
+            return;
+        };
+        if metadata.len() < 1_000_000 {
+            eprintln!("SKIP: GGUF fixture is an LFS pointer");
+            return;
+        }
+
+        let gguf = GgufConfig {
+            n_ctx: 2048,
+            n_threads: 4,
+            n_gpu_layers: 0,
+        };
+        let backend = LlamaBackendInner::load(path, &gguf)
+            .expect("real Qwen fixture must load");
+        let prompt = "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(100);
+        let tokens = backend.tokenize(&prompt).expect("tokenize fixture prompt");
+        assert!(tokens.len() > 512, "fixture must exceed the old single-batch ceiling");
+        assert!(
+            tokens.len() < gguf.n_ctx as usize,
+            "fixture must remain inside the context window"
+        );
+        let result = backend
+            .generate(
+                &prompt,
+                &InferenceConfig {
+                    max_tokens: Some(4),
+                    ..InferenceConfig::default()
+                },
+            )
+            .expect("long prompt must not terminate native inference");
+        assert!(result.tokens_generated <= 4);
+    }
+}
