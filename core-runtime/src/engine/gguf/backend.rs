@@ -501,5 +501,22 @@ mod real_model_regression_tests {
             )
             .expect("long prompt must not terminate native inference");
         assert!(result.tokens_generated <= 4);
+
+        // The other side of the batch/context distinction: a prompt that does
+        // not fit in the configured context must return an ordinary Rust error.
+        // Native llama.cpp must never receive an oversized decode request.
+        let overlong = "The brown fox walks beside a clear river under a quiet blue sky. "
+            .repeat(500);
+        let overlong_tokens = backend
+            .tokenize(&overlong)
+            .expect("tokenize overflow fixture");
+        assert!(
+            overlong_tokens.len() >= gguf.n_ctx as usize,
+            "overflow fixture must exceed the real model context"
+        );
+        assert!(matches!(
+            backend.generate(&overlong, &InferenceConfig::default()),
+            Err(InferenceError::InputValidation(_))
+        ));
     }
 }
