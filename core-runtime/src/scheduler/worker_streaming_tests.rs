@@ -54,7 +54,6 @@ async fn streaming_request_is_serviced_by_an_idle_worker() {
     let _ = tokio::time::timeout(Duration::from_secs(1), worker).await;
 }
 
-
 #[tokio::test]
 async fn cancelled_queued_stream_reports_error_terminal() {
     let queue = Arc::new(RequestQueue::new(RequestQueueConfig::default()));
