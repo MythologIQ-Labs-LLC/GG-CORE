@@ -112,9 +112,8 @@ mod tests {
         let cancel = CancellationToken::new();
         cancel.cancel();
         let bridge = IpcStreamBridge::new(writer, RequestId(123), cancel);
-        let terminal = super::super::protocol::StreamChunk::error(
-            RequestId(123), "cancelled".into(),
-        );
+        let terminal =
+            super::super::protocol::StreamChunk::error(RequestId(123), "cancelled".into());
         assert!(bridge.send(IpcMessage::StreamChunk(terminal)).await.is_ok());
     }
 
