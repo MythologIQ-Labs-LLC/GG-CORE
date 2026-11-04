@@ -10,7 +10,7 @@
 
 use aes_gcm::{
     aead::{Aead, KeyInit},
-    Aes256Gcm, Nonce,
+    Aes256Gcm,
 };
 use std::collections::HashSet;
 use std::path::Path;
@@ -129,11 +129,15 @@ impl ModelEncryption {
 
     /// Encrypt data using AES-256-GCM. Returns (nonce, ciphertext_with_tag).
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<(Vec<u8>, Vec<u8>), EncryptionError> {
-        let key = aes_gcm::Key::<Aes256Gcm>::from_slice(self.key.as_slice());
+        let key = <&aes_gcm::Key<Aes256Gcm>>::try_from(self.key.as_slice())
+            .map_err(|_| EncryptionError::EncryptionFailed("invalid key length".to_string()))?;
         let cipher = Aes256Gcm::new(key);
 
         let nonce_bytes = Self::generate_nonce()?;
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        let nonce = nonce_bytes
+            .as_slice()
+            .try_into()
+            .map_err(|_| EncryptionError::EncryptionFailed("invalid nonce length".to_string()))?;
 
         let ciphertext = cipher
             .encrypt(nonce, plaintext)
@@ -150,9 +154,12 @@ impl ModelEncryption {
             ));
         }
 
-        let key = aes_gcm::Key::<Aes256Gcm>::from_slice(self.key.as_slice());
+        let key = <&aes_gcm::Key<Aes256Gcm>>::try_from(self.key.as_slice())
+            .map_err(|_| EncryptionError::DecryptionFailed("invalid key length".to_string()))?;
         let cipher = Aes256Gcm::new(key);
-        let nonce = Nonce::from_slice(nonce);
+        let nonce = nonce
+            .try_into()
+            .map_err(|_| EncryptionError::DecryptionFailed("invalid nonce size".to_string()))?;
         cipher
             .decrypt(nonce, ciphertext)
             .map_err(|_| EncryptionError::AuthenticationFailed)

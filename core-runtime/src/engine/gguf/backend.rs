@@ -11,7 +11,7 @@ use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_2::model::{AddBos, LlamaModel};
+use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 
@@ -102,7 +102,7 @@ impl LlamaBackendInner {
         let mut batch = LlamaBatch::new(tokens.len(), 1);
         add_seq(&mut batch, &tokens)?;
         decode(&mut ctx, &mut batch)?;
-        let mut sampler = build_sampler(config);
+        let mut sampler = build_sampler(config, self.model.n_vocab());
         sampler.accept_many(tokens.iter().copied());
         let start_pos = tokens.len() as i32;
         let rt = tokio::runtime::Handle::current();
@@ -115,7 +115,7 @@ impl LlamaBackendInner {
             // Use -1 to sample from the last token that had logits computed
             let tok = sampler.sample(&ctx, -1);
             sampler.accept(tok);
-            let eog = self.model.is_eog_token(tok);
+            let eog = self.model.vocab().is_eog(tok);
             if !self.emit_token(&rt, sender, sanitizer.as_deref_mut(), tok, &mut acc)? {
                 break;
             }
@@ -183,7 +183,7 @@ impl LlamaBackendInner {
         let mut batch = LlamaBatch::new(tokens.len().max(1), 1);
         add_seq(&mut batch, &tokens)?;
         decode(&mut ctx, &mut batch)?;
-        let mut sampler = build_sampler(&config);
+        let mut sampler = build_sampler(&config, self.model.n_vocab());
         sampler.accept_many(tokens.iter().copied());
         let mut out = Vec::with_capacity(count);
         let start_pos = tokens.len() as i32;
@@ -191,7 +191,7 @@ impl LlamaBackendInner {
             let pos = start_pos + offset as i32;
             let tok = sampler.sample(&ctx, -1);
             sampler.accept(tok);
-            if self.model.is_eog_token(tok) {
+            if self.model.vocab().is_eog(tok) {
                 break;
             }
             out.push(tok.0 as u32);
@@ -228,7 +228,7 @@ impl LlamaBackendInner {
                 .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
         }
         decode(&mut ctx, &mut batch)?;
-        let mut sampler = build_sampler(&config);
+        let mut sampler = build_sampler(&config, self.model.n_vocab());
         // Verify each draft token
         for (i, &draft_tok) in draft.iter().enumerate() {
             let logit_idx = (ctx_len - 1 + i) as i32;
@@ -243,28 +243,24 @@ impl LlamaBackendInner {
 
     /// Get EOS token ID.
     pub fn eos_token(&self) -> Option<u32> {
-        Some(self.model.token_eos().0 as u32)
+        Some(self.model.vocab().eos().0 as u32)
     }
 
-    /// Tokenize a prompt string.
+    /// Tokenize a prompt string (adds BOS; parses special tokens, matching
+    /// the pre-0.1.158 `str_to_token(_, AddBos::Always)` behavior).
     pub fn tokenize(&self, text: &str) -> Result<Vec<LlamaToken>, InferenceError> {
-        self.model
-            .str_to_token(text, AddBos::Always)
-            .map_err(|e| InferenceError::InputValidation(format!("tokenize: {e}")))
+        Ok(self.model.vocab().tokenize(text.as_bytes(), true, true))
     }
 
-    /// Convert token IDs back to a string.
+    /// Convert token IDs back to a string (lossy UTF-8, so multi-byte
+    /// characters split across token boundaries decode correctly).
     pub fn detokenize(&self, tokens: &[LlamaToken]) -> Result<String, InferenceError> {
-        let mut dec = encoding_rs::UTF_8.new_decoder();
-        let mut out = String::new();
+        let vocab = self.model.vocab();
+        let mut bytes = Vec::new();
         for &t in tokens {
-            let piece = self
-                .model
-                .token_to_piece(t, &mut dec, false, None)
-                .map_err(|e| InferenceError::ModelError(format!("detok: {e}")))?;
-            out.push_str(&piece);
+            bytes.extend_from_slice(&vocab.token_to_piece(t, false, None));
         }
-        Ok(out)
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
 
     pub(super) fn create_context(&self) -> Result<LlamaContext<'_>, InferenceError> {
@@ -290,7 +286,7 @@ impl LlamaBackendInner {
         let mut batch = LlamaBatch::new(tokens.len(), 1);
         add_seq(&mut batch, tokens)?;
         decode(ctx, &mut batch)?;
-        let mut sampler = build_sampler(config);
+        let mut sampler = build_sampler(config, self.model.n_vocab());
         sampler.accept_many(tokens.iter().copied());
         let mut out = Vec::new();
         let start_pos = tokens.len() as i32;
@@ -302,7 +298,7 @@ impl LlamaBackendInner {
             // Use -1 to sample from the last token that had logits computed
             let tok = sampler.sample(ctx, -1);
             sampler.accept(tok);
-            if self.model.is_eog_token(tok) {
+            if self.model.vocab().is_eog(tok) {
                 return Ok((out, FinishReason::Stop));
             }
             out.push(tok);
@@ -365,10 +361,11 @@ pub(super) fn decode_range(
     decode(ctx, &mut batch)
 }
 
-fn build_sampler(config: &InferenceConfig) -> LlamaSampler {
+fn build_sampler(config: &InferenceConfig, n_vocab: i32) -> LlamaSampler {
     let mut s = Vec::new();
     if config.repetition_penalty > 1.0 {
         s.push(LlamaSampler::penalties(
+            n_vocab,
             64,
             config.repetition_penalty,
             0.0,

@@ -41,8 +41,7 @@ tokenizers = { version = "0.21", default-features = false, features = [
 ], optional = true }
 
 # GGUF inference backend (llama-cpp-rs)
-llama-cpp-2 = { version = "0.1.133", optional = true }
-encoding_rs = { version = "0.8", optional = true }
+llama-cpp-2 = { version = "0.1.158", optional = true }
 # Self-referential persistent KV session (B-21f): owns Arc<LlamaBackendInner> + its borrowed LlamaContext
 self_cell = { version = "1", optional = true }
 
@@ -62,7 +61,7 @@ thiserror = "1.0"
 async-trait = "0.1"
 
 # Cryptographic hashing for session tokens and model verification
-sha2 = "0.10"
+sha2 = "0.11"
 hex = "0.4"
 
 # Cryptographically secure random number generation
@@ -99,9 +98,9 @@ num_cpus = "1.16"
 aho-corasick = "1.1"
 
 # AES encryption for model files
-aes = "0.8"
-aes-gcm = "0.10"
-pbkdf2 = { version = "0.12", features = ["simple"] }
+aes = "0.9"
+aes-gcm = "0.11"
+pbkdf2 = { version = "0.13", features = ["hmac"] }
 
 # Secure memory zeroing for cryptographic keys
 zeroize = { version = "1.8", features = ["derive"] }
@@ -134,7 +133,7 @@ windows-sys = { version = "0.52", features = [
 [features]
 default = []
 onnx = ["candle-core", "candle-onnx", "tokenizers"]
-gguf = ["llama-cpp-2", "encoding_rs"]
+gguf = ["llama-cpp-2"]
 llama-cpp-backend = ["gguf"]  # Alias for GGUF backend via llama-cpp-2
 cuda = ["cudarc"]  # GPU support via CUDA (requires CUDA toolkit)
 metal = ["dep:metal"]  # GPU support via Metal (macOS only)
