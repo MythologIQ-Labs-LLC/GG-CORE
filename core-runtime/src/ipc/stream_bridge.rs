@@ -50,8 +50,14 @@ impl<W> IpcStreamBridge<W> {
 
 impl<W: AsyncWriteExt + Unpin + Send + 'static> IpcStreamBridge<W> {
     /// Write a length-prefixed frame to the underlying writer.
-    async fn write_frame(&self, data: &[u8]) -> Result<(), HandlerError> {
+    async fn write_frame(&self, data: &[u8], error_terminal: bool) -> Result<(), HandlerError> {
         let mut writer = self.writer.lock().await;
+        // Re-check under the same writer lock used by cancellation ACKs:
+        // a chunk that was waiting for the lock must not be emitted after
+        // cancellation was acknowledged on that connection.
+        if self.cancel.is_cancelled() && !error_terminal {
+            return Err(HandlerError::StreamSend("cancelled".into()));
+        }
         let len = data.len() as u32;
         writer
             .write_all(&len.to_le_bytes())
@@ -72,11 +78,17 @@ impl<W: AsyncWriteExt + Unpin + Send + 'static> IpcStreamBridge<W> {
 #[async_trait::async_trait]
 impl<W: AsyncWriteExt + Unpin + Send + 'static> StreamSender for IpcStreamBridge<W> {
     async fn send(&self, message: IpcMessage) -> Result<(), HandlerError> {
-        if self.cancel.is_cancelled() {
+        // Cancellation blocks further data, but must not suppress the final
+        // error frame that tells the client its stream actually stopped.
+        let terminal = matches!(
+            &message,
+            IpcMessage::StreamChunk(chunk) if chunk.is_final && chunk.error.is_some()
+        );
+        if self.cancel.is_cancelled() && !terminal {
             return Err(HandlerError::StreamSend("cancelled".into()));
         }
         let bytes = encode_message(&message)?;
-        self.write_frame(&bytes).await
+        self.write_frame(&bytes, terminal).await
     }
 }
 
@@ -98,6 +110,39 @@ mod tests {
         let chunk = super::super::protocol::StreamChunk::token(RequestId(123), 42);
         let result = bridge.send(IpcMessage::StreamChunk(chunk)).await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn cancelled_stream_can_send_terminal_frame() {
+        let writer = Arc::new(Mutex::new(BufWriter::new(Cursor::new(Vec::new()))));
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+        let bridge = IpcStreamBridge::new(writer, RequestId(123), cancel);
+        let terminal =
+            super::super::protocol::StreamChunk::error(RequestId(123), "cancelled".into());
+        assert!(bridge.send(IpcMessage::StreamChunk(terminal)).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn cancellation_fences_data_that_was_waiting_on_writer_lock() {
+        let writer = Arc::new(Mutex::new(BufWriter::new(Cursor::new(Vec::new()))));
+        let held = writer.lock().await;
+        let cancel = CancellationToken::new();
+        let bridge = Arc::new(IpcStreamBridge::new(
+            Arc::clone(&writer),
+            RequestId(123),
+            cancel.clone(),
+        ));
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let pending = tokio::spawn(async move {
+            let _ = started_tx.send(());
+            bridge.write_frame(b"late data", false).await
+        });
+        started_rx.await.expect("writer task started");
+        tokio::task::yield_now().await;
+        cancel.cancel();
+        drop(held);
+        assert!(pending.await.expect("writer task joined").is_err());
     }
 
     #[tokio::test]

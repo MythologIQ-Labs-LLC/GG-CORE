@@ -19,11 +19,21 @@ impl InferenceEngine {
         config: &InferenceConfig,
         sender: crate::engine::TokenStreamSender,
         security: Option<&crate::security::SecurityPipeline>,
+        should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<(), InferenceError> {
         // Emit exactly one terminal frame for every outcome — including the
         // lookup/downcast failures below — so a client can always distinguish a
         // completed stream from an errored one (B-24a).
-        let result = self.stream_tokens(model_id, prompt, config, &sender, security);
+        let result = self.stream_tokens(model_id, prompt, config, &sender, security, should_stop);
+        // A cooperative cancellation/timeout must never be reported as a
+        // successful complete generation, even if the backend returned Ok.
+        let result = if result.is_ok() && should_stop.is_some_and(|check| check()) {
+            Err(InferenceError::ExecutionFailed(
+                "stream cancelled or deadline exceeded".into(),
+            ))
+        } else {
+            result
+        };
         let terminal = match &result {
             Ok(()) => crate::engine::StreamTerminal::Complete,
             Err(e) => crate::engine::StreamTerminal::Error(e.to_string()),
@@ -43,6 +53,7 @@ impl InferenceEngine {
         config: &InferenceConfig,
         sender: &crate::engine::TokenStreamSender,
         security: Option<&crate::security::SecurityPipeline>,
+        should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<(), InferenceError> {
         use crate::engine::gguf::GgufGenerator;
         use crate::security::stream_sanitizer::StreamSanitizer;
@@ -66,7 +77,7 @@ impl InferenceEngine {
 
         let mut sanitizer = security.map(StreamSanitizer::new);
         generator
-            .generate_stream(prompt, config, sender, None, sanitizer.as_mut())
+            .generate_stream(prompt, config, sender, should_stop, sanitizer.as_mut())
             .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))
     }
 }

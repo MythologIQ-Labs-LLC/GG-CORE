@@ -16,8 +16,8 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use super::connections::{ConnectionPool, OwnedConnectionGuard};
-use super::handler::IpcHandler;
-use super::protocol::{decode_message, encode_message, IpcMessage};
+use super::handler::{HandlerError, IpcHandler, StreamSender};
+use super::protocol::{decode_message, encode_message, IpcMessage, StreamChunk};
 use super::stream_bridge::IpcStreamBridge;
 
 #[derive(Error, Debug)]
@@ -81,8 +81,9 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
 ) {
     let (mut read_half, write_half) = tokio::io::split(stream);
     let write_half = Arc::new(Mutex::new(write_half));
-    let mut session = None;
-    let mut active_streams: HashMap<u64, CancellationToken> = HashMap::new();
+    let mut session: Option<super::auth::SessionToken> = None;
+    let active_streams: Arc<Mutex<HashMap<u64, CancellationToken>>> =
+        Arc::new(Mutex::new(HashMap::new()));
 
     loop {
         let request_bytes = match read_frame(&mut read_half, max_frame_size).await {
@@ -110,37 +111,78 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
             // Streaming inference request
             IpcMessage::InferenceRequest(ref req) if req.parameters.stream => {
                 if let Some(ref sess) = session {
+                    // process_streaming validates this connection's session
+                    // before enqueueing work; don't double-count the request.
+                    let id = req.request_id.0;
                     let cancel = CancellationToken::new();
-                    active_streams.insert(req.request_id.0, cancel.clone());
-                    let bridge = IpcStreamBridge::new(
-                        Arc::clone(&write_half),
-                        req.request_id,
-                        cancel.clone(),
-                    );
-                    let _ = handler
-                        .process_streaming(req.clone(), sess, &bridge, cancel)
-                        .await;
-                    active_streams.remove(&req.request_id.0);
+                    {
+                        let mut streams = active_streams.lock().await;
+                        if streams.contains_key(&id) {
+                            drop(streams);
+                            let err = r#"{"type":"error","code":409,"message":"Duplicate active request ID"}"#;
+                            let _ = write_frame_locked(&write_half, err.as_bytes()).await;
+                            continue;
+                        }
+                        streams.insert(id, cancel.clone());
+                    }
+                    // Stream relay runs independently of the connection reader,
+                    // allowing cancellation and other control frames to arrive.
+                    let streams = Arc::clone(&active_streams);
+                    let writer = Arc::clone(&write_half);
+                    let stream_handler = Arc::clone(&handler);
+                    let stream_session = (*sess).clone();
+                    let stream_request = req.clone();
+                    tokio::spawn(async move {
+                        let bridge =
+                            IpcStreamBridge::new(writer, stream_request.request_id, cancel.clone());
+                        if let Err(e) = stream_handler
+                            .process_streaming(
+                                stream_request.clone(),
+                                &stream_session,
+                                &bridge,
+                                cancel,
+                            )
+                            .await
+                        {
+                            let terminal =
+                                StreamChunk::error(stream_request.request_id, e.to_string());
+                            let _ = bridge.send(IpcMessage::StreamChunk(terminal)).await;
+                        }
+                        streams.lock().await.remove(&id);
+                    });
                 } else {
                     let err = r#"{"type":"error","code":401,"message":"Not authenticated"}"#;
                     let _ = write_frame_locked(&write_half, err.as_bytes()).await;
                 }
             }
 
-            // Cancel request - trigger cancellation for active streams
+            // Cancellation is an authenticated operation on the originating
+            // connection, including while its stream is still running.
             IpcMessage::CancelRequest { request_id } => {
-                let cancelled = if let Some(cancel) = active_streams.get(&request_id.0) {
-                    cancel.cancel();
-                    true
+                if let Some(ref sess) = session {
+                    if handler.auth.validate(sess).await.is_err() {
+                        let err = r#"{"type":"error","code":401,"message":"Not authenticated"}"#;
+                        let _ = write_frame_locked(&write_half, err.as_bytes()).await;
+                        continue;
+                    }
+                    let streams = active_streams.lock().await;
+                    let cancelled = if let Some(cancel) = streams.get(&request_id.0) {
+                        cancel.cancel();
+                        true
+                    } else {
+                        false
+                    };
+                    drop(streams);
+                    let response = IpcMessage::CancelResponse {
+                        request_id,
+                        cancelled,
+                    };
+                    if let Ok(bytes) = encode_message(&response) {
+                        let _ = write_frame_locked(&write_half, &bytes).await;
+                    }
                 } else {
-                    false
-                };
-                let response = IpcMessage::CancelResponse {
-                    request_id,
-                    cancelled,
-                };
-                if let Ok(bytes) = encode_message(&response) {
-                    let _ = write_frame_locked(&write_half, &bytes).await;
+                    let err = r#"{"type":"error","code":401,"message":"Not authenticated"}"#;
+                    let _ = write_frame_locked(&write_half, err.as_bytes()).await;
                 }
             }
 
@@ -156,12 +198,23 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                     }
                 }
                 Err(e) => {
-                    let err = format!(r#"{{"type":"error","code":500,"message":"{}"}}"#, e);
+                    let code =
+                        if matches!(&e, HandlerError::Auth(_) | HandlerError::NotAuthenticated) {
+                            401
+                        } else {
+                            500
+                        };
+                    let err = format!(r#"{{"type":"error","code":{},"message":"{}"}}"#, code, e);
                     let _ = write_frame_locked(&write_half, err.as_bytes()).await;
                     break;
                 }
             },
         }
+    }
+    // The last client reference disappeared. Stop inference rather than
+    // leaving the worker generating into an abandoned streaming channel.
+    for cancel in active_streams.lock().await.values() {
+        cancel.cancel();
     }
 }
 
@@ -188,3 +241,7 @@ pub(super) fn spawn_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 
 // Platform listeners (Unix socket / Windows named pipe) live in `listener.rs`;
 // re-exported here so `ipc::server::run_server` stays the public entry point.
 pub use super::listener::run_server;
+
+#[cfg(all(test, feature = "gguf"))]
+#[path = "server_control_tests.rs"]
+mod control_tests;

@@ -1,8 +1,6 @@
 //! Security wiring tests for the worker: egress sanitization via
 //! `apply_egress` and ingress rejection on the streaming path.
 
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use std::time::Instant;
 
 use super::apply_egress;
@@ -72,7 +70,7 @@ async fn test_streaming_execute_rejects_injection() {
         config: InferenceConfig::default(),
         enqueued_at: Instant::now(),
         deadline: None,
-        cancelled: Arc::new(AtomicBool::new(false)),
+        cancelled: tokio_util::sync::CancellationToken::new(),
         token_sender: tx,
     };
 

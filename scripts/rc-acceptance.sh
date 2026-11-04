@@ -126,6 +126,21 @@ else
   bad "over-context prompt did not fail explicitly (rc=$RC)"
 fi
 kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived over-context refusal" || { bad "daemon died on over-context prompt"; cat "$LOG"; exit 1; }
+echo "== authenticated real-model IPC controls =="
+# The normal CLI smoke test establishes successful generation but does not
+# exercise cancellation while native generation is active. The standard-library
+# probe talks to the SAME packaged daemon through its actual socket/pipe.
+if command -v python3 >/dev/null 2>&1; then PYTHON=python3
+elif command -v python >/dev/null 2>&1; then PYTHON=python
+else PYTHON=""
+fi
+if [ -z "$PYTHON" ]; then
+  bad "Python 3 required for cross-platform IPC control acceptance"
+elif with_timeout 210 "$PYTHON" "$BASE/scripts/rc-ipc-control-acceptance.py"; then
+  ok "packaged IPC authentication, active cancel, deadline"
+else
+  bad "packaged IPC control acceptance"
+fi
 kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon alive after inference" || { bad "daemon died during inference"; cat "$LOG"; exit 1; }
 
 echo "== lifecycle + invalid loads =="

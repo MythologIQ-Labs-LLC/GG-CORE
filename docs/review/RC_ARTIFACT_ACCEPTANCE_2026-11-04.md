@@ -1,8 +1,8 @@
 # GG-CORE: First Release Candidate Acceptance
 
-**Status: functional/security evidence complete on all three advertised platforms; awaiting owner GO (tag is an owner action).** Owner release gate: [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Performance qualification remains OPEN by design (not an RC blocker).
+**Status: previously qualified functional/security candidate at `9a6716d` (workflow 41914034275); HOLD for owner tag while focused Qortara Harden follow-up [#138](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/138) is independently qualified.** Owner release gate: [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Performance qualification remains OPEN by design (not an RC blocker).
 
-**Target:** `v0.10.0-rc.1` (recommended; version not yet changed or tagged). The Rust package is currently `0.9.0`. A pre-release is not a claim that the public 1.0 API is stable.
+**Target:** `v0.10.0-rc.1` (the Rust package version is now `0.10.0-rc.1`; the owner has not issued a tag). A pre-release is not a claim that the public 1.0 API is stable.
 
 ## What changed in the release workflow
 
@@ -75,3 +75,15 @@ All advertised standalone inference packages must actually compile the `gguf` fe
 The following are legitimate later work, not grounds for deleting long-term product expectations: independent security audit, stable embedded public API contract [#112](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/112), pinned downstream distribution [#113](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/113), integration conformance [#114](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/114), GPU and speculative performance qualification, and model encryption integrated into the loader. They must be described accurately and never implied to be RC-verified.
 
 **Decision rule:** unresolved P0 or missing evidence = HOLD. If a P0 requires a code change, repair it on a focused PR and repeat the applicable acceptance tests. No premature `v1.0.0`, and no release merely because the PR queue is empty.
+
+## Post-qualification Qortara Harden acceptance (#138)
+
+The original packaged real-inference receipts remain valid for `9a6716d` and for the behaviors actually exercised. A source-level independent `qortara-harden` review identified unqualified control-flow behavior not covered by those receipts. Before owner tagging, require the reviewed repair commit to prove:
+
+- Authenticated stream cancellation on the originating connection **while generation is still active**, with cancel acknowledgment, an error terminal, and no continued unbounded model work.
+- Request-scoped streaming timeout through queue wait and active GGUF generation, with cooperative cancellation and a final error; no success-shaped partial response.
+- Unauthenticated warmup refusal with 401; authenticated warmup still works, and harmless liveness/observability probes remain available.
+- Cancellation/disconnect cleanup of native generation and request/resource tracking; valid stream output and PII/injection controls still pass.
+- Rust fmt, all relevant feature Clippy/tests, CodeQL, and a new exact-candidate three-OS packaged real-GGUF qualification run. Update #130 with reviewed SHA and receipts.
+
+The fix is an RC correctness/security gate, not a mandate to add GPU or automatic model switching. The previously qualified `9a6716d` is the untouched recovery baseline; a PR being open or CI being green for source-only tests is **not** equivalent to a qualified release artifact.

@@ -4,7 +4,11 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 
 ## [Unreleased]
 
-_Nothing yet._
+### Correctness and security hardening (pending requalification)
+
+- Process stream cancellation concurrently with IPC reads so an authenticated caller can cancel an active response on the same connection; cancellation and disconnect now propagate to the native generation loop.
+- Bound streaming requests by a wall-clock deadline and ensure cancellation/timeouts return a failed terminal rather than false successful completion.
+- Authenticate compute-producing warmup operations, retaining unauthenticated read-only health and monitoring probes.
 
 ## [0.10.0-rc.1] - 2026-11-04
 

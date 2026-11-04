@@ -7,7 +7,7 @@
 ## v0.10.0-rc.1 Changes (no wire-format change)
 
 - The daemon **refuses to start with an empty token**; a client must send the configured `CORE_AUTH_TOKEN` in `handshake`. (`GG_CORE_ALLOW_INSECURE_NO_AUTH=1` is a logged development-only exception.)
-- A session is bound to the connection that completed the handshake: `inference_request`, `cancel_request`, `model_load_request` and `model_unload_request` must travel on that connection. `health_check`, `metrics_request`, `models_request`, `warmup_request` and the observability messages remain unauthenticated orchestrator probes.
+- A session is bound to the connection that completed the handshake: `inference_request`, `cancel_request`, `warmup_request`, `model_load_request` and `model_unload_request` must travel on that connection. `health_check`, `metrics_request`, `models_request` and the observability messages remain unauthenticated read-only probes. Warmup performs actual inference and therefore requires authentication.
 - `stream_chunk.error` is set (with `is_final: true`) for unknown model, validation and engine failures, and `inference_response.error`/`error_code` carries structured non-streaming failures (`admission_rejected`, `execution_failed`, `model_not_loaded`, `input_invalid`, `shutting_down`). A client must treat either as a failed request.
 - Transport: the Unix socket is created `0600`; the Windows named pipe is created with `FILE_FLAG_FIRST_PIPE_INSTANCE` and rejects remote clients.
 - Build provenance: `gg-core-cli version --json` and `status --json` carry `version`, `commit`, `build_date`, `rust_version`; `version --json` adds compiled `features`, `protocol_version` and `target`.
@@ -198,6 +198,8 @@ All sessions begin with a handshake exchange:
   "elapsed_ms": 150
 }
 ```
+
+Warmup initiates a real one-token inference and requires the authenticated session on the same connection.
 
 ### Cancel Request
 
