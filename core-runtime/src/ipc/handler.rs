@@ -197,7 +197,9 @@ impl IpcHandler {
             }
 
             IpcMessage::WarmupRequest(request) => {
-                // NO AUTH REQUIRED (orchestrator pattern, same as health/metrics)
+                // Warmup runs real inference and consumes compute; it must be
+                // authorized like every other inference request.
+                self.require_auth(session).await?;
                 let response = self.handle_warmup(request.model_id, request.tokens).await;
                 Ok((IpcMessage::WarmupResponse(response), None))
             }
