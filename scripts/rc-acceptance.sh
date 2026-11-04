@@ -91,6 +91,21 @@ kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived long non-streaming promp
 LSOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$LONG_PROMPT" --max-tokens 8 --stream 2>&1)"; RC=$?
 [ $RC -eq 0 ] && [ -n "$LSOUT" ] && ok "long prompt streaming (bounded prefill)" || bad "long prompt streaming rc=$RC"
 kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived long streaming prompt" || { bad "daemon died on long streaming prompt"; cat "$LOG"; exit 1; }
+
+# A prompt exceeding the context limit must fail as a normal request, never
+# reach the native llama assertion or kill the daemon. Repeat the same simple
+# text to avoid relying on external fixtures, prompt templates or user data.
+OVERFLOW_PROMPT="$LONG_PROMPT"
+for ((n=0; n<400; n++)); do
+  OVERFLOW_PROMPT="$OVERFLOW_PROMPT""The brown fox walks beside a clear river under a quiet blue sky. "
+done
+OOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$OVERFLOW_PROMPT" --max-tokens 8 2>&1)"; RC=$?
+if [ $RC -ne 0 ] && echo "$OOUT" | grep -Eqi "context|token|prompt"; then
+  ok "over-context prompt refused with an explicit error"
+else
+  bad "over-context prompt did not fail explicitly (rc=$RC)"
+fi
+kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived over-context refusal" || { bad "daemon died on over-context prompt"; cat "$LOG"; exit 1; }
 kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon alive after inference" || { bad "daemon died during inference"; cat "$LOG"; exit 1; }
 
 echo "== lifecycle + invalid loads =="
