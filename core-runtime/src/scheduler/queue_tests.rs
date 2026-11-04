@@ -38,8 +38,10 @@ mod tests {
     async fn expired_stream_is_skipped() {
         let q = small_queue();
         let (tx, _rx) = TokenStream::new(4);
-        let mut config = InferenceConfig::default();
-        config.timeout_ms = 1;
+        let config = InferenceConfig {
+            timeout_ms: 1,
+            ..Default::default()
+        };
         q.enqueue_streaming("m".into(), "p".into(), config, tx)
             .await
             .unwrap();
