@@ -111,13 +111,8 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
             // Streaming inference request
             IpcMessage::InferenceRequest(ref req) if req.parameters.stream => {
                 if let Some(ref sess) = session {
-                    // Authenticate before spawning so untrusted requests cannot
-                    // allocate stream slots or run model work.
-                    if handler.auth.validate(sess).await.is_err() {
-                        let err = r#"{"type":"error","code":401,"message":"Not authenticated"}"#;
-                        let _ = write_frame_locked(&write_half, err.as_bytes()).await;
-                        continue;
-                    }
+                    // process_streaming validates this connection's session
+                    // before enqueueing work; don't double-count the request.
                     let id = req.request_id.0;
                     let cancel = CancellationToken::new();
                     {
@@ -203,7 +198,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                     }
                 }
                 Err(e) => {
-                    let code = if matches!(e, HandlerError::Auth(_) | HandlerError::NotAuthenticated) {
+                    let code = if matches!(&e, HandlerError::Auth(_) | HandlerError::NotAuthenticated) {
                         401
                     } else {
                         500
