@@ -124,6 +124,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancellation_fences_data_that_was_waiting_on_writer_lock() {
+        let writer = Arc::new(Mutex::new(BufWriter::new(Cursor::new(Vec::new()))));
+        let held = writer.lock().await;
+        let cancel = CancellationToken::new();
+        let bridge = Arc::new(IpcStreamBridge::new(writer, RequestId(123), cancel.clone()));
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let pending = tokio::spawn(async move {
+            let _ = started_tx.send(());
+            bridge.write_frame(b"late data", false).await
+        });
+        started_rx.await.expect("writer task started");
+        tokio::task::yield_now().await;
+        cancel.cancel();
+        drop(held);
+        assert!(pending.await.expect("writer task joined").is_err());
+    }
+
+    #[tokio::test]
     async fn test_stream_bridge_cancelled() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
