@@ -33,7 +33,15 @@ VER="$("$BIN" version)"; echo "  version: $VER"
 [[ "$VER" == GG-CORE\ * ]] && ok "version command" || bad "version output: $VER"
 
 # Portable timeout (macOS has no coreutils `timeout`).
-with_timeout() { local secs="$1"; shift; "$@" & local p=$!; ( sleep "$secs"; kill "$p" 2>/dev/null ) & local w=$!; wait "$p" 2>/dev/null; local rc=$?; kill "$w" 2>/dev/null; wait "$w" 2>/dev/null; return $rc; }
+# The watcher is detached from stdout/stderr: inside a $(...) capture its
+# `sleep` would otherwise hold the pipe open until the deadline expires.
+with_timeout() {
+  local secs="$1"; shift
+  "$@" & local p=$!
+  ( sleep "$secs"; kill "$p" 2>/dev/null ) >/dev/null 2>&1 & local w=$!
+  wait "$p" 2>/dev/null; local rc=$?
+  kill "$w" 2>/dev/null; return $rc
+}
 
 export CORE_AUTH_TOKEN="rc-accept-$RANDOM$RANDOM"
 unset GG_CORE_SANDBOX
