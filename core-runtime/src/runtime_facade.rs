@@ -113,7 +113,8 @@ impl Runtime {
         let security = self.security.clone();
         let (mid, prompt, cfg) = (model_id.to_string(), prompt.to_string(), config.clone());
         tokio::task::spawn_blocking(move || {
-            let _ = engine.run_stream_sync(&mid, &prompt, &cfg, sender, Some(security.as_ref()), None);
+            let _ =
+                engine.run_stream_sync(&mid, &prompt, &cfg, sender, Some(security.as_ref()), None);
         });
         Ok(stream)
     }
