@@ -62,14 +62,17 @@ jobs:
               echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version $CRATE_VERSION"
               exit 1
             fi
+            # Headings are "## [X.Y.Z] - YYYY-MM-DD": match the literal
+            # "## [X.Y.Z]" prefix followed by end-of-line or a space.
             awk -v ver="$CRATE_VERSION" '
-              $0 == "## [" ver "]" { active=1; found=1; next }
+              BEGIN { pfx = "## [" ver "]" }
+              !active && substr($0, 1, length(pfx)) == pfx \
+                && (length($0) == length(pfx) || substr($0, length(pfx) + 1, 1) == " ") { active=1; next }
               /^## \[/ && active { exit }
               active { print }
-              END { if (!found) exit 2 }
             ' ../CHANGELOG.md > "$RUNNER_TEMP/gg-core-notes.txt"
-            if [ ! -s "$RUNNER_TEMP/gg-core-notes.txt" ]; then
-              echo "::error::Release requires actual CHANGELOG notes for $CRATE_VERSION"
+            if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/gg-core-notes.txt"; then
+              echo "::error::Release requires actual CHANGELOG notes under a '## [$CRATE_VERSION]' heading"
               exit 1
             fi
           fi
@@ -204,11 +207,15 @@ jobs:
       - name: Extract release notes from CHANGELOG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          # Same literal-prefix match as the verify job (headings carry a date suffix).
           awk -v ver="$VERSION" '
-            $0 ~ "^## \\[" ver "\\]" { flag=1; next }
-            /^## \[/ { flag=0 }
-            flag' CHANGELOG.md > release-notes.md
-          if [ ! -s release-notes.md ]; then
+            BEGIN { pfx = "## [" ver "]" }
+            !flag && substr($0, 1, length(pfx)) == pfx \
+              && (length($0) == length(pfx) || substr($0, length(pfx) + 1, 1) == " ") { flag=1; next }
+            /^## \[/ && flag { exit }
+            flag { print }
+          ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
             echo "::error::Missing nonempty CHANGELOG notes for ${VERSION}; publication refused" >&2
             exit 1
           fi
