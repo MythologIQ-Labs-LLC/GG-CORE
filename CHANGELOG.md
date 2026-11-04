@@ -4,6 +4,16 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 
 ## [Unreleased]
 
+### Security
+- Model integrity enforcement (SECURITY.md Known Gap 2 closed): when a sibling `manifest.json` declares a `sha256`, the model file's digest is now computed (streaming) and verified in `load_model_dispatch` **before any backend reads the file**; a mismatch fails the load loudly and emits a critical `ModelHashMismatch` security event (new `models/integrity.rs`; unit + authenticated-IPC tests incl. tamper-after-manifest and no-partial-state).
+- Cleared RUSTSEC-2026-0386 (tokio `AsyncFd` I/O-safety unsoundness): lockfile update tokio 1.49.0 → 1.54.1.
+- Documented `deny.toml` ignores for the zip <9 extraction advisories (RUSTSEC-2026-0367/0368/0369/0429): zip enters only via candle-core (`onnx` feature), which reads `.npz` entries in-process; GG-CORE never calls the vulnerable `extract`-to-disk APIs. candle 0.11 caps zip at 8.x — drop the ignores on the next candle bump allowing zip ≥9.
+- Fixed a probabilistic no-op in `security_audit::crypto_tests::swapped_ciphertext_fails` (~0.4%/run the swapped bytes were equal, leaving the ciphertext valid and false-failing CI — bit PR #123); the tamper is now deterministic.
+
+### Dependencies
+- candle 0.8 → 0.11 (Dependabot #121; green across all CI legs; brings zip 1.1 → 8.6 with the extraction-advisory exposure noted above), aho-corasick 1.1.5, tempfile 3.27, GitHub Actions checkout/upload-artifact/setup-python major bumps (#117–#119).
+- Declared `rust-version = "1.97"` (MSRV floor verified by a full local suite run on 1.97.0).
+
 ### Documentation
 - Documentation reconciliation (issue #107): `SECURITY.md` rewritten against verified code reality — canonical product name, real supported-version line (0.9.x; no 1.x ever existed), self-assigned score removed, internal-assessment vs independent-audit distinction, FIPS self-tests vs certification clarified, real env vars (`CORE_AUTH_TOKEN`, `GG_CORE_SECURITY_INGRESS/EGRESS`; the documented `AUTH_TOKEN`/`SANDBOX_USER`/`RESOURCE_LIMITS` never existed), OWASP LLM coverage stated per-risk (6/10, not "full"), and an explicit **library-only vs daemon-enforced** maturity table disclosing that the sandbox is not yet applied by the standalone daemon and manifest `sha256` is not yet verified at load. `ROADMAP.md` rebuilt from code/CI/FEATURE_INDEX/BACKLOG with four maturity levels; GPU/MoE/A-B/deployment claims corrected from "complete" to library-only or not-real-yet; real release history. `docs/USAGE_GUIDE.md` rewritten: every Rust example now mirrors compile-tested `tests/doc_examples.rs` (CI-enforced, incl. the real `scan -> (is_safe, ...)` semantics), full real feature-flag and env-var tables, the v0.9.0 standalone surface documented, unevidenced performance multipliers and compatibility claims replaced with measured/evidence-based statements. `docs/IPC_PROTOCOL_SCHEMA.md` bumped to v0.9.0 (model lifecycle messages, sanitized-text streaming example, observability messages). Stale `docs/SYSTEM_STATE.md` retired in favor of live sources. CLI help banner now uses the canonical product name.
 

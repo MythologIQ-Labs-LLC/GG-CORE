@@ -54,6 +54,7 @@ inference path since v0.8.x):
 | Streaming egress sanitization | In-runtime detokenization; windowed sanitizer with holdback — raw tokens never leave the runtime | `security/stream_sanitizer.rs` |
 | IPC authentication | SHA-256 token (constant-time compare), per-session caps (1000 req/min), brute-force lockout (5 failures → 30 s); model load/unload require an authenticated session | `ipc/auth.rs`, `ipc/auth_session.rs` |
 | Path confinement | Model loads restricted to `models/`/`tokenizers/` under the configured base path; NUL bytes and traversal rejected lexically | `models/loader.rs::validate_path` |
+| Model hash verification | When a sibling `manifest.json` declares a `sha256`, the file's digest is computed and verified before any backend reads it; mismatch fails loud and emits a critical `ModelHashMismatch` event. Models without a manifest have nothing declared to verify | `models/integrity.rs` |
 | Input validation | Text ≤ 65,536 bytes, ≤ 4096 input tokens, batch ≤ 32 | `engine/input.rs` |
 | Resource limits | Per-call / total-memory / concurrency gates | `memory/limits.rs`, env-configurable |
 | Security event log | 13 `SecurityEvent` variants via structured tracing | `telemetry/security_log.rs` |
@@ -64,9 +65,8 @@ these are real, tested code paths that embedding hosts can invoke, but
 
 | Feature | State | Gap |
 | --- | --- | --- |
-| Sandbox (Windows Job Objects; Linux cgroups v2 + seccomp-bpf, 49-syscall allowlist, kill-on-unknown) | Library + tests pass | `create_sandbox` is never called from the daemon startup path |
+| Sandbox (Windows Job Objects; Linux cgroups v2 + seccomp-bpf, kill-on-unknown) | Library + tests pass | `create_sandbox` is never called from the daemon startup path |
 | Model encryption (AES-256-GCM, PBKDF2 keys, installation salt, key zeroing, nonce-reuse detection with 10,000-nonce history) | Library + 39 tests | The model load path never decrypts; `enable_model_encryption` is not read by the loader |
-| Model hash verification | Manifest carries a `sha256` field | Only its length is validated; no digest is computed on load — **do not rely on manifest hashes for integrity today** |
 
 **FIPS 140-3**: the runtime executes power-on cryptographic self-tests at
 daemon startup and refuses to start if they fail. This is *FIPS-informed
@@ -80,7 +80,7 @@ self-testing*. **GG-CORE holds no FIPS 140-3 validation or certification.**
 | LLM02 Insecure Output Handling | PII sanitization, streaming holdback |
 | LLM03 Training Data Poisoning | Out of scope (inference-only runtime) |
 | LLM04 Model DoS | Rate limits, resource gates, degraded-mode policy |
-| LLM05 Supply Chain | Partial: `cargo-deny` advisory/ban gate for *code* dependencies; model hash verification not yet enforced |
+| LLM05 Supply Chain | Partial: `cargo-deny` advisory/ban gate for *code* dependencies; manifest-declared model hashes verified at load (no-manifest models remain unverified) |
 | LLM06 Sensitive Info Disclosure | PII detection/redaction, NFKC |
 | LLM07 Insecure Plugin Design | Out of scope (no plugin system by design) |
 | LLM08 Excessive Agency | Out of scope by architecture (pure compute, no tool/data authority) |
@@ -126,11 +126,9 @@ penetration suite on Linux, macOS, and Windows.
 1. **Daemon sandbox activation** — the standalone daemon should apply the
    sandbox it ships. Until then, deploy `gg-core-cli serve` under an external
    sandbox (systemd hardening, containers, Job Objects).
-2. **Model hash enforcement** — compute and verify the manifest `sha256` at
-   load; fail loud on mismatch.
-3. **Model encryption wiring** — connect `ModelEncryption` to the load path
+2. **Model encryption wiring** — connect `ModelEncryption` to the load path
    behind its config flag.
-4. **Independent audit** — planned post-1.0 (see ROADMAP).
+3. **Independent audit** — planned post-1.0 (see ROADMAP).
 
 ## Security Changelog
 

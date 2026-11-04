@@ -17,6 +17,7 @@ pub mod tier_synergy;
 pub mod tier_synergy_speculative;
 
 mod drain;
+pub mod integrity;
 pub mod lifecycle;
 mod loader;
 pub mod model_ops;

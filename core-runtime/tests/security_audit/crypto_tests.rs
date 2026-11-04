@@ -251,7 +251,14 @@ fn swapped_ciphertext_fails() {
     let plaintext = b"Test message for swapping test";
     let (nonce, mut ciphertext) = encryption.encrypt(plaintext.as_slice()).unwrap();
     let mid = ciphertext.len() / 2;
-    ciphertext.swap(0, mid);
+    if ciphertext[0] == ciphertext[mid] {
+        // A swap of equal bytes is a no-op and would leave the ciphertext
+        // valid (~0.4% of runs, since the nonce randomizes the bytes) — this
+        // false-failed PR #123. Force a real modification instead.
+        ciphertext[0] ^= 0x01;
+    } else {
+        ciphertext.swap(0, mid);
+    }
     let result = encryption.decrypt(&nonce, &ciphertext);
     assert!(result.is_err(), "Swapped ciphertext should fail");
 }
