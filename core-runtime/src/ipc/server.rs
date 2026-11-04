@@ -81,7 +81,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
 ) {
     let (mut read_half, write_half) = tokio::io::split(stream);
     let write_half = Arc::new(Mutex::new(write_half));
-    let mut session = None;
+    let mut session: Option<super::auth::SessionToken> = None;
     let active_streams: Arc<Mutex<HashMap<u64, CancellationToken>>> =
         Arc::new(Mutex::new(HashMap::new()));
 
