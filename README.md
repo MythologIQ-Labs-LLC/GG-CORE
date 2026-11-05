@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/workflows/rust.yml"><img src="https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/workflows/rust.yml/badge.svg" alt="Rust CI"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.10.0--rc.1-orange.svg" alt="Release 0.10.0-rc.1"></a>
+  <a href="https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases"><img src="https://img.shields.io/badge/candidate-0.10.0--rc.1-orange.svg" alt="GG-CORE 0.10.0-rc.1 release candidate; see Releases for publication status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache 2.0 license"></a>
   <a href="docs/FEATURE_INDEX.md"><img src="https://img.shields.io/badge/evidence-feature%20index-5b5bd6.svg" alt="Evidence-backed feature index"></a>
   <img src="https://img.shields.io/badge/status-pre--production-yellow.svg" alt="Pre-production status">
@@ -23,6 +23,7 @@
   <a href="#embed-gg-core-in-rust">Rust consumer</a> ·
   <a href="#other-consumer-surfaces">C, Python, and IPC</a> ·
   <a href="#security-and-trust-boundary">Security</a> ·
+  <a href="docs/RELEASE_SUPPORT_AND_MAINTENANCE.md">Support &amp; rollback</a> ·
   <a href="#claim-and-evidence-policy">Evidence policy</a>
 </p>
 
@@ -34,12 +35,12 @@ GG-CORE is a Rust inference kernel built around four constraints:
 
 | Principle | Runtime promise |
 | --- | --- |
-| **Contained** | Execute models inside a constrained process boundary with explicit resource limits and platform sandbox controls. |
+| **Contained** | Enforce a local execution boundary with explicit resource controls. Linux seccomp filters syscalls; Windows Job Objects limit process/resources but not network/filesystem access; macOS has no daemon sandbox. |
 | **Offline** | Use local model files and local IPC. GG-CORE exposes no HTTP, REST, or WebSocket inference server. |
 | **Restricted** | Accept authenticated requests through Unix sockets or Windows named pipes instead of granting ambient application authority. |
 | **Execution** | Perform model compute only. GG-CORE does not own business logic, tools, external data, agent policy, or system actions. |
 
-GG-CORE can run as a local IPC daemon or be consumed in-process through Rust, C FFI, or Python bindings. The secure public inference path is `Runtime::infer` / `Runtime::infer_stream`: prompt scanning happens before execution, and output sanitization happens before results leave the runtime.
+GG-CORE is the **local inference runtime**, not a plugin, a desktop interface, or an external-provider router. The consuming application owns its UI and provider choices. GG-CORE can run as a local IPC daemon or be consumed in-process through Rust, C FFI, or Python bindings. The secure public inference path is `Runtime::infer` / `Runtime::infer_stream`: prompt scanning happens before execution, and output sanitization happens before results leave the runtime.
 
 ```mermaid
 flowchart LR
@@ -64,9 +65,9 @@ Choose the integration surface that matches the deployment and ownership boundar
 
 | You need | Use | Current state |
 | --- | --- | --- |
-| A separate local process with health, status, streaming, cancellation, and authenticated IPC | `gg-core-cli` daemon | **Operational standalone**: startup preload (`serve --model`), authenticated `models load/unload`, model-gated readiness (shipped v0.9.0, [#106](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/106)). |
-| A Rust application that owns model lifecycle directly | `gg_core` library | **Verified primary embedding path.** Use the secure `Runtime` façade. |
-| A stable native boundary for C, C++, .NET, or other FFI consumers | `cdylib` + `include/gg_core.h` | **Implemented and covered by the `ffi` CI feature leg.** |
+| A separate local process with health, status, streaming, cancellation, and authenticated IPC | `gg-core-cli` daemon | **Operational standalone**: startup preload (`serve --model`), authenticated `models load/unload`, model-gated readiness (packaged GGUF inference qualified on three OSes in [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130)). |
+| A Rust application that owns model lifecycle directly | `gg_core` library | **Verified embedding path.** Use the secure `Runtime` façade, pin the exact revision, and do not assume stable embedded API compatibility before [#112](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/112). |
+| A native ABI integration path for C, C++, .NET, or other FFI consumers (pre-1.0 stability not promised) | `cdylib` + `include/gg_core.h` | **Implemented and covered by the `ffi` CI feature leg.** Bind a verified exact version; ABI compatibility across prereleases is not guaranteed. |
 | Python-native local inference | PyO3 module `gg_core` | **Implemented and covered by the `python` CI feature leg.** Packaging automation is not yet a polished release surface. |
 | A non-Rust process that can implement a local framed protocol | Raw IPC | **Implemented.** JSON over a 4-byte little-endian length prefix after an authenticated handshake. |
 
@@ -83,9 +84,9 @@ The labels below are part of the product contract:
 | --- | --- | --- |
 | Secure Rust inference façade | **Verified** | `Runtime::infer` and `infer_stream` are the sole external engine path; direct engine execution is crate-private. |
 | GGUF text generation | **Verified + Conditional** | Real-model E2E coverage exists for Qwen 2.5 0.5B Q4_K_M. Other llama.cpp-compatible GGUF families are expected, not blanket-certified. |
-| ONNX embedding and classification | **Verified + Conditional** | Enabled with `onnx`; CPU execution; selected by a sibling `manifest.json`; classification requires ordered labels. |
+| ONNX embedding and classification | **Verified + Conditional (not an RC package surface)** | Enabled with `onnx` in source; CPU execution; selected by a sibling `manifest.json`; classification requires ordered labels. The GGUF/FFI-only RC archives do not qualify this backend for installed use. |
 | Local IPC daemon | **Verified + Conditional** | Server, authentication, probes, status, inference, streaming, cancellation, metrics, and model listing exist. A model must already be registered. |
-| Standalone first-run model bootstrap | **Planned** | Startup preload and CLI load/unload are owned by [#106](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/106). |
+| Standalone first-run model bootstrap | **Verified + Conditional** | Startup `serve --model ... --model-id ...`, authenticated CLI load/unload and model-gated readiness pass packaged real-GGUF acceptance on all three supported build platforms; requires local model and token ([#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130)). |
 | Adaptive speculative decoding | **Experimental** | Wired behind `advanced`, off by default, with correctness and fallback tests. Current `main` does not claim a demonstrated wall-clock speedup. |
 | CUDA, Metal, and multi-GPU subsystems | **Experimental + Conditional** | Feature-gated code and test bindings exist; hardware-specific end-to-end acceptance is not equivalent to default CI coverage. |
 | FIPS posture | **Conditional** | Power-on cryptographic self-tests and FIPS-oriented controls exist. GG-CORE is not represented as FIPS 140-3 certified. |
@@ -196,9 +197,11 @@ The most important runtime settings are:
 
 | Variable | Default | Purpose |
 | --- | ---: | --- |
-| `CORE_AUTH_TOKEN` | empty | Shared token used for local IPC session authentication. Set it for real deployments. |
+| `CORE_AUTH_TOKEN` | unset (startup refused) | Required local IPC authentication secret. Empty token refuses daemon startup except with the explicit, loudly logged development-only insecure override. |
 | `GG_CORE_SOCKET_PATH` | platform default | Unix socket path or Windows named-pipe path. |
-| `GG_CORE_MAX_CONTEXT` | `4096` | Runtime context limit. |
+| `GG_CORE_MAX_CONTEXT` | `4096` | Admission limit, not the model's native GGUF window. |
+| `GG_CORE_MAX_CONTEXT_TOKENS` | `4096` | Queue context budget. |
+| `GG_CORE_N_CTX` | `2048` | Native GGUF model context. Set to `4096` for long prompts, with sufficient model/host memory. |
 | `GG_CORE_MAX_QUEUE_DEPTH` | `256` | Maximum pending requests. |
 | `GG_CORE_MAX_CONCURRENT` | `2` | Concurrent request resource gate. |
 | `GG_CORE_MAX_TOTAL_MEMORY` | `2147483648` | Total governed runtime memory in bytes. |
@@ -206,23 +209,23 @@ The most important runtime settings are:
 | `GG_CORE_MAX_CONNECTIONS` | `64` | Concurrent IPC connection limit. |
 | `GG_CORE_SHUTDOWN_TIMEOUT` | `30` | Graceful drain timeout in seconds. |
 
-Use `gg-core-cli config defaults`, `config show`, and `config validate` to inspect the effective configuration surface.
+Use `gg-core-cli config defaults`, `config show`, and `config validate` to inspect the effective configuration surface. **For long prompts, set `GG_CORE_N_CTX=4096` as well as matching admission limits before starting**; `GG_CORE_MAX_CONTEXT=4096` alone does not enlarge the native GGUF window.
 
 ### 3. Start the process
 
 Linux or macOS:
 
 ```bash
-./target/release/gg-core-cli serve
+./target/release/gg-core-cli serve --model models/qwen2.5-0.5b-instruct-q4_k_m.gguf --model-id local-model
 ```
 
 Windows PowerShell:
 
 ```powershell
-.\target\release\gg-core-cli.exe serve
+.\target\release\gg-core-cli.exe serve --model models/qwen2.5-0.5b-instruct-q4_k_m.gguf --model-id local-model
 ```
 
-Startup runs cryptographic power-on self-tests before opening the IPC server. `Ctrl+C` initiates graceful request draining.
+Put a permitted GGUF file in the configured base path's `models/` directory before using this command. The daemon does not download it, and preload failure aborts startup. Startup runs cryptographic power-on self-tests before opening the IPC server. On Unix, `Ctrl+C` initiates graceful request draining; on Windows, the consuming host owns process termination and must handle in-flight requests separately (see the [producer contract](docs/integration/COREFORGE_PRODUCER_CONTRACT.md)).
 
 ### 4. Verify the daemon from another terminal
 
@@ -246,7 +249,7 @@ Expected meanings:
 
 ```bash
 gg-core-cli infer \
-  --model qwen2.5-0.5b-instruct-q4_k_m \
+  --model local-model \
   --prompt "Explain why an offline inference boundary matters." \
   --max-tokens 128
 ```
@@ -255,13 +258,13 @@ Streaming:
 
 ```bash
 gg-core-cli infer \
-  --model qwen2.5-0.5b-instruct-q4_k_m \
+  --model local-model \
   --prompt "Give me three concise design principles." \
   --max-tokens 128 \
   --stream
 ```
 
-### Standalone model bootstrap (issue #106)
+### Standalone model lifecycle (implemented)
 
 The daemon preloads models at startup and manages them over authenticated IPC:
 
@@ -496,15 +499,15 @@ Read the current [threat model](docs/security/THREAT_MODEL.md), [unsafe-code aud
 
 GG-CORE uses llama.cpp through `llama-cpp-2` for GGUF execution, so model throughput is primarily determined by the model, quantization, context, backend, compiler flags, and hardware. GG-CORE's differentiated work is the contained runtime boundary, secure façade, lifecycle, scheduling, IPC, observability, and governed fallback behavior around that backend.
 
-### Reproduced baseline
+### Historical single-host result (not a current RC benchmark)
 
-The repository records one real-model release baseline:
+The repository preserves one older single-host measurement, not a reproducible throughput guarantee for `0.10.0-rc.1`:
 
 | Model | Build | Hardware | Result |
 | --- | --- | --- | ---: |
 | Qwen 2.5 0.5B Instruct, GGUF Q4_K_M | Release, thin LTO | Intel i7-7700K, Windows 10 | approximately **40 tokens/sec** |
 
-That result is useful evidence for that exact configuration. It is not a promise for other models or machines.
+This is historical evidence for the original model/build/host combination only. It does not establish current RC speed or comparative advantage.
 
 ### Benchmark discipline
 
@@ -514,7 +517,7 @@ That result is useful evidence for that exact configuration. It is not a promise
 - Control-path benchmarks are not presented as proof that model kernels outperform Ollama, llama.cpp, or vLLM.
 - Adaptive speculative decoding currently carries a correctness claim, not a general speedup claim.
 
-See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) for the recorded baseline and benchmark methodology. Some older comparative tables are under reconciliation in [#107](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/107).
+See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) for the recorded baseline and benchmark methodology. Older comparison tables are not suitable for product claims; current packaged performance qualification is tracked by [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136). See the [release support guide](docs/RELEASE_SUPPORT_AND_MAINTENANCE.md) for version pinning, startup and recovery.
 
 ---
 

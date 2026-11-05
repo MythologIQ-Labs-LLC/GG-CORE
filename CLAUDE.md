@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Identity
 
-**GG-CORE** (Greatest Good - Contained Offline Restricted Execution) - A sandboxed, offline inference engine that performs model execution only and has no authority over data, tools, or system actions.
+**GG-CORE** (Greatest Good - Contained Offline Restricted Execution) is a **local inference runtime**, not an optional plugin, a UI or an external-provider router. It performs inference computation only and has no *intended* business, tool or data authority. The daemon's OS confinement varies by platform; do not claim universal isolation. See `SECURITY.md` and the producer contract.
 
-Part of the COREFORGE stack: Control (governance) → Vault (data) → Construct (persona) → Synapse (external) → **GG-CORE** (compute only)
+In the CoreForge product, **GG-CORE is the default local inference runtime**, independently of Synapse. Synapse-configured external inference providers are separate, opt-in host choices; GG-CORE is **not** a Synapse plugin. The consuming application owns UI, policy and external routing.
 
 **Philosophy**: Built on triage principles ("Greatest Good for the Greatest Number"). Resource-aware, multi-tenant AI that prioritizes system stability over individual request ego.
 
@@ -28,17 +28,17 @@ This project uses the A.E.G.I.S. governance framework with Merkle-chained decisi
 ## Architecture Constraints
 
 ### Design Principles (C.O.R.E.)
-- **Contained**: Sandbox with no ambient privileges
-- **Offline**: Zero network access (inbound/outbound blocked)
+- **Contained**: Qualified Linux seccomp daemon, Windows Job Object memory/process containment **without** network/filesystem/principal isolation, and **no macOS daemon sandbox**. In-process embedding inherits the host's privileges.
+- **Offline**: No HTTP, REST, WebSocket, cloud-provider or download inference path in GG-CORE. The complete no-network rule requires host OS enforcement on Windows/macOS.
 - **Restricted**: IPC-only communication with authenticated callers
 - **Execution**: Pure compute, no business logic or decision authority
 
 ### Security Boundaries
 | Boundary | Rule |
 |----------|------|
-| Process | Separate OS process, restricted user, seccomp/AppContainer |
-| Filesystem | Read: `models/`, `tokenizers/`. Write: `temp/`, `cache/`. Deny all else. |
-| Network | Deny all |
+| Process | Managed daemon separated from host; Linux seccomp, Windows Job Object resource/process limits (not AppContainer), macOS no sandbox. In-process Rust/FFI has no separate process boundary. |
+| Filesystem | Model loader enforces physical `models/`/`tokenizers/` path confinement, no-follow opens and manifest integrity when present. This is **not** an OS-wide deny-all filesystem sandbox. |
+| Network | GG-CORE exposes only local IPC; a platform-wide network deny is **not** enforced by Windows Job Objects or default macOS deployment. |
 | IPC | Named pipes/Unix sockets only. No HTTP/REST/WebSocket/localhost ports. |
 
 ### Forbidden Modules
@@ -47,6 +47,8 @@ If these exist, scope creep has occurred—ABORT:
 
 ### Forbidden Dependencies
 - `reqwest`, `hyper`, any WebSocket library, filesystem traversal libraries
+
+**Release authority:** Do not modify, tag or publish the qualified functional/security RC without the owner gate in [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Source/head SHA and actual packaged tests outrank old architecture/roadmap prose. The RC scope is CPU GGUF and one resident model; performance superiority, model hot-swapping and GPU are not qualified. See `docs/RELEASE_SUPPORT_AND_MAINTENANCE.md`.
 
 ## Code Quality Rules (Section 4 Razor)
 

@@ -1,6 +1,6 @@
 # GG-CORE Runtime Architecture
 
-**Status**: Living overview (reconciled against the code 2026-07-31, B-13).
+**Status:** Architecture background last fully reconciled 2026-07-31; release boundary corrected for the 2026-11-05 functional/security RC. Code, [SECURITY.md](../../SECURITY.md), the [producer contract](../integration/COREFORGE_PRODUCER_CONTRACT.md), and [gate #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130) are authoritative over older module diagrams.
 **Companion docs**: `docs/CONCEPT.md` (the "why"), `docs/ARCHITECTURE_PLAN.md` (file-tree
 contract + interface specs), the ADRs in `docs/architecture/`. Where this doc and the code
 disagree, the code wins — fix this doc.
@@ -8,14 +8,14 @@ disagree, the code wins — fix this doc.
 GG-CORE (**Greatest Good — Contained Offline Restricted Execution**) is a sandboxed, offline
 inference engine that performs **model execution only**. It has no authority over data, tools, or
 system actions. In the COREFORGE stack it is the compute tier:
-Control (governance) → Vault (data) → Construct (persona) → Synapse (external) → **GG-CORE (compute)**.
+GG-CORE is the **default local inference runtime** and needs no Synapse plugin. The consuming application can optionally choose a Synapse-configured **external** provider instead; neither GG-CORE nor its process security is supplied through Synapse.
 
 ## 1. C.O.R.E. design principles
 
 | Principle | Meaning |
 |-----------|---------|
-| **Contained** | Sandbox with no ambient privileges (separate OS process, restricted user, seccomp/AppContainer). |
-| **Offline** | Zero network access, inbound or outbound. |
+| **Contained** | Managed daemon's process and resource controls depend on OS: Linux seccomp, Windows Job Object limited to process/resources, macOS no sandbox. In-process embedding has no daemon containment. |
+| **Offline** | GG-CORE has no network inference/download service. A complete network deny is not provided on Windows/macOS without host controls. |
 | **Restricted** | IPC-only communication with authenticated callers — named pipes / Unix sockets; no HTTP/REST/WebSocket/localhost ports. |
 | **Execution** | Pure compute — no business logic, no decision authority. |
 
@@ -26,9 +26,9 @@ prioritizes system stability over any individual request.
 
 | Boundary | Rule |
 |----------|------|
-| Process | Separate OS process, restricted user, seccomp/AppContainer. |
-| Filesystem | Read: `models/`, `tokenizers/`. Write: `temp/`, `cache/`. Deny all else. |
-| Network | Deny all. |
+| Process | Daemon: Linux seccomp filter; Windows Job Object resource/process limits, **not AppContainer**; macOS no sandbox. Embedded mode executes with the host application's authority. |
+| Filesystem | Model loading enforces physical path confinement and optional manifest hash, not OS-level deny-all filesystem access on every platform. |
+| Network | IPC only in GG-CORE; OS/network isolation requires separate deployment enforcement on Windows/macOS. |
 | IPC | Named pipes / Unix sockets only. No HTTP/REST/WebSocket/localhost ports. |
 
 **Forbidden modules** (their presence signals scope creep): `auth/`, `vault/`, `synapse/`,

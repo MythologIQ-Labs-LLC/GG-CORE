@@ -9,7 +9,10 @@ This document compares GG-CORE against other Rust-based inference runtimes, anal
 
 ---
 
-## Executive Summary
+## Executive Summary (historical research only)
+
+**This comparison is not a current release claim, independent security evaluation, compliance recommendation, or like-for-like benchmark.** Its vendor descriptions and speculative numbers are unverified for the 0.10.0 RC. GG-CORE's verified daemon security boundary is Linux seccomp, Windows Job Object process/resource limits (not syscall, filesystem, network or principal isolation) and no macOS sandbox. For supported features use [SECURITY.md](../../SECURITY.md); for performance use [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136).
+
 
 | Runtime | Primary Use Case | Security Model | GG-CORE Advantage |
 |---------|------------------|----------------|-------------------|
@@ -91,7 +94,7 @@ GG-CORE (Unsandboxed):   ██████████████████�
 | GG-CORE (sandboxed) | ~85 ms | 12 inf/s |
 | GG-CORE (unsandboxed) | ~5 ms | 200 inf/s |
 
-**Security Tax**: GG-CORE trades ~40-90% performance for complete isolation.
+**Historical, unverified security-overhead estimate:** The claimed 40–90% penalty is not supported by a matched secured-path experiment. GG-CORE does not provide complete isolation on every OS; do not cite this as an actual benchmark or assurance claim.
 
 **When to choose Tract**: On-device inference, minimal footprint.
 **When to choose GG-CORE**: Server deployment, compliance, security hardening.
