@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 import platform
 import socket
-import statistics
+import tempfile
 import struct
 import sys
 import threading
@@ -125,8 +125,11 @@ class IpcClient:
         start = time.perf_counter()
         self.send({"type": "handshake", "token": token, "protocol_version": "V1"})
         response = self.receive(time.monotonic() + self.timeout_s)
-        if response.get("type") != "handshake_ack" or response.get("protocol_version") != "V1":
-            raise ProtocolFailure("authenticated V1 handshake failed")
+        if (response.get("type") != "handshake_ack"
+                or response.get("protocol_version") != "V1"
+                or not isinstance(response.get("session_id"), str)
+                or not response["session_id"]):
+            raise ProtocolFailure("authenticated V1 handshake failed or missing session")
         return (time.perf_counter() - start) * 1000
 
 
@@ -199,12 +202,17 @@ def summary(samples: list[dict]):
     first = [x["first_sanitized_text_ms"] for x in samples
              if x["first_sanitized_text_ms"] is not None]
     def dist(xs):
+        if not xs:
+            return None
+        # Avoid printing a precise-looking tail percentile based on 1-10
+        # samples. These are descriptive sample percentiles, NOT SLA bounds.
+        n = len(xs)
         return {"p50": round(quantile(xs, .50), 3),
-                "p95": round(quantile(xs, .95), 3),
-                "p99": round(quantile(xs, .99), 3)} if xs else None
+                "p95": round(quantile(xs, .95), 3) if n >= 20 else None,
+                "p99": round(quantile(xs, .99), 3) if n >= 100 else None}
     return {"count": len(samples), "duration_ms": dist(durations),
             "first_sanitized_text_ms": dist(first),
-            "note": "First sanitized text is not native TTFT; character counts are not token counts."}
+            "note": "Sample p95 requires >=20 observations; p99 >=100. These are not SLA bounds. First sanitized text is not native TTFT; character counts are not token counts."}
 
 
 def run_wave(endpoint: str, token: str, model: str, prompt: str,
@@ -307,11 +315,32 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
     try:
+        # Refuse the expensive run up front for an already-used evidence path.
+        # os.link below is the final no-clobber guard against races.
+        if args.output.exists() or args.output.is_symlink():
+            raise FileExistsError("benchmark report already exists; use a new output path")
         report = run_benchmark(args)
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        temp = args.output.with_name(args.output.name + ".tmp")
-        temp.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        temp.replace(args.output)
+        # A prior qualified report must not be silently overwritten by new
+        # measurements, or by a failed/retried run. Publish an exclusive
+        # hard link from a fully written, private temporary file. This is
+        # atomic on the same filesystem, fails if the report path exists,
+        # and leaves no partial success report on an interrupted write.
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=args.output.parent,
+                prefix=".gg-core-bench-", suffix=".tmp", delete=False
+            ) as temp:
+                temp_path = Path(temp.name)
+                json.dump(report, temp, indent=2, sort_keys=True)
+                temp.write("\n")
+                temp.flush()
+                os.fsync(temp.fileno())
+            os.link(temp_path, args.output)
+        finally:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
         print(f"PASS: benchmark finished; report written to {args.output}")
         print("Metrics: request latency and first sanitized text; NOT native TTFT/tokens per second.")
         return 0

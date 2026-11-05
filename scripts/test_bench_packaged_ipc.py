@@ -68,7 +68,12 @@ class MockDaemon:
                         peer.sendall(frame({"type": "error", "code": 401, "message": "denied"}))
                     else:
                         authed = True
-                        peer.sendall(frame({"type": "handshake_ack", "session_id": "test", "protocol_version": "V1"}))
+                        ack = {"type": "handshake_ack", "session_id": "test", "protocol_version": "V1"}
+                        if self.behavior == "missing_session":
+                            ack.pop("session_id")
+                        elif self.behavior == "empty_session":
+                            ack["session_id"] = ""
+                        peer.sendall(frame(ack))
                 elif not authed:
                     peer.sendall(frame({"type": "error", "code": 401, "message": "not authenticated"}))
                 elif request["type"] == "warmup_request":
@@ -169,6 +174,29 @@ class BenchIpcTests(unittest.TestCase):
         with self.assertRaisesRegex(bench.ProtocolFailure, "handshake"):
             bench.run_benchmark(self.args())
 
+    def test_missing_handshake_session_is_rejected(self):
+        self.mock.close()
+        self.mock = MockDaemon("missing_session")
+        with self.assertRaisesRegex(bench.ProtocolFailure, "handshake"):
+            bench.run_benchmark(self.args())
+
+    def test_empty_handshake_session_is_rejected(self):
+        self.mock.close()
+        self.mock = MockDaemon("empty_session")
+        with self.assertRaisesRegex(bench.ProtocolFailure, "handshake"):
+            bench.run_benchmark(self.args())
+
+    def test_report_is_exclusive_and_remains_unchanged_on_retry(self):
+        from unittest.mock import patch
+        args = self.args(concurrent=[1], waves=1)
+        with patch.object(bench, "parse_args", return_value=args):
+            self.assertEqual(bench.main([]), 0)
+            original = args.output.read_bytes()
+            self.assertIn(b'"schema_version": 2', original)
+            self.assertEqual(bench.main([]), 1)
+            self.assertEqual(args.output.read_bytes(), original)
+        self.assertEqual(list(args.output.parent.glob(".gg-core-bench-*.tmp")), [])
+
     def test_raw_token_ids_are_not_benchmarked_as_sanitized_text(self):
         self.mock.close()
         self.mock = MockDaemon("raw_token")
@@ -230,6 +258,20 @@ class PureTests(unittest.TestCase):
     def test_summary_requires_nonempty_samples(self):
         with self.assertRaises(ValueError):
             bench.summary([])
+
+    def test_tail_percentiles_require_minimum_observations(self):
+        def samples(n):
+            return [{"duration_ms": float(i + 1), "first_sanitized_text_ms": float(i + 1)}
+                    for i in range(n)]
+        small = bench.summary(samples(10))
+        self.assertEqual(small["duration_ms"]["p50"], 5.5)
+        self.assertIsNone(small["duration_ms"]["p95"])
+        self.assertIsNone(small["duration_ms"]["p99"])
+        medium = bench.summary(samples(20))
+        self.assertIsNotNone(medium["duration_ms"]["p95"])
+        self.assertIsNone(medium["duration_ms"]["p99"])
+        large = bench.summary(samples(100))
+        self.assertIsNotNone(large["duration_ms"]["p99"])
 
 
 if __name__ == "__main__":
