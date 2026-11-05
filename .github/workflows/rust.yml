@@ -123,7 +123,7 @@ jobs:
       # gate below can compare. Cache paths are repo-root-relative (not working-directory).
       - name: Restore perf baseline (PR)
         if: github.event_name == 'pull_request'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: core-runtime/perf-baseline
           key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
@@ -149,7 +149,7 @@ jobs:
         run: cp -r target/criterion perf-baseline
       - name: Cache perf baseline (main)
         if: github.event_name == 'push'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: core-runtime/perf-baseline
           key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
