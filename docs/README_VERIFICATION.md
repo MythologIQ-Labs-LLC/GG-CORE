@@ -1,3 +1,24 @@
+# GG-CORE README Verification: Current RC Evidence
+
+**As of 2026-11-05:** Qualified `main@d55ba50a262469d4cee828e9c6431670635c3cc5`. Functional/security release candidate **only**, not a published tag, independent security audit, stable embedded API, or performance-qualified release. [Issue #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130) is canonical; any subsequent documentation merge changes the SHA and needs fresh qualification.
+
+| Claim | Verified interpretation |
+| --- | --- |
+| Release line | `Cargo.toml` and `CHANGELOG.md` declare `0.10.0-rc.1`. The [Releases page](https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases) is the source for whether the tag actually exists. |
+| Model loading | Startup `serve --model ... --model-id ...`, authenticated `models load/unload` and model-gated readiness **work** in the packaged GGUF tests. The old #106 missing-capability statement is superseded. |
+| Supported inference | CPU GGUF, one resident model, authenticated local IPC, streaming, deadlines and cancellation. GPU/multi-model switching/ONNX generation/performance superiority are not RC-verified. |
+| Process security | Linux seccomp qualified; Windows Job Object is resource/process containment only; macOS has no daemon sandbox. In-process embedding inherits the application security boundary. |
+| Native context | `GG_CORE_N_CTX` defaults to 2048, separately from 4096-token admission settings. Long-prompt tests set both to 4096. |
+| Exact source qualification | `d55ba50a`: [Rust](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060869327), [CodeQL](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060869220) and [nonpublishing Release](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060941207) passed, including installed real-model acceptance Linux 35/35, Windows 33/33 + 1 documented SKIP, macOS 34/34. |
+| Benchmarks | ~40 tokens/sec is a historical single-host measurement, not a promise for this RC. Same-host secured-path measurements are open under [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136). |
+| Consumer boundary | [Producer contract](integration/COREFORGE_PRODUCER_CONTRACT.md), [support guide](RELEASE_SUPPORT_AND_MAINTENANCE.md) and [#112–#114](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/112) identify supported integration versus future API stability. |
+
+## Historical 2026-08-01 record (not current instructions)
+
+The full prior audit follows unchanged for provenance. It describes version `0.8.2`, an unimplemented bootstrap and older packaging/README drift. Those statements have been superseded and must **not** be quoted as the current release state.
+
+---
+
 # README Verification Record
 
 **Repository:** `MythologIQ-Labs-LLC/GG-CORE`  

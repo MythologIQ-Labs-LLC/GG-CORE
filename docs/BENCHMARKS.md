@@ -3,7 +3,7 @@
 > **Benchmark evidence status (2026-11-04):** The ~40 tokens/sec Qwen2.5 0.5B Q4_K_M result is retained as a historical, single-host measurement on an i7-7700K/Windows system, **not** a verified result for the forthcoming 0.10.0 RC. The cross-runtime "Infrastructure Overhead" multipliers below do not compare identical workload, model, transport, security policy, host hardware and build; treat them as historical directional hypotheses **not validated speed advantages**. The hardware scaling matrix is explicitly estimated. Real-model RC, security-overhead and fair mistral.rs/llama.cpp acceptance live in [release gate #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). No claim is being removed solely for lack of evidence; it is retained for re-verification.
 
 
-This document contains verified benchmark results for GG-CORE inference performance.
+This is a **historical single-host measurement and archive of old comparison hypotheses**, not a performance qualification of the current GG-CORE RC. Consult [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136) before using these numbers to select a runtime or make a speed claim.
 
 ## Test Configuration
 
@@ -64,14 +64,16 @@ codegen-units = 1
 
 **Note**: Direct comparison requires identical models. The 0.5B model is significantly smaller than 7B models, resulting in proportionally higher throughput. Per-parameter efficiency is comparable.
 
-### Infrastructure Overhead
+### Archived infrastructure estimates (not comparable end-to-end measurements)
 
-| Runtime | Overhead | vs GG-CORE |
+| Runtime | Historical control/transport estimate | Comparable? |
 |---------|----------|------------|
-| **GG-CORE** | **361 ns** | Baseline |
-| Ollama | 1-10 ms | 2,770-27,700x slower |
-| llama.cpp server | 0.5-5 ms | 1,385-13,850x slower |
-| vLLM | 0.6-2.3 ms | 1,660-6,370x slower |
+| **GG-CORE** | 361 ns, internal control-path figure | **No** |
+| Ollama | 1-10 ms, different transport assumptions | **No** |
+| llama.cpp server | 0.5-5 ms, different transport assumptions | **No** |
+| vLLM | 0.6-2.3 ms, different transport assumptions | **No** |
+
+The original multiplier ratios were **not legitimate comparisons**: unlike workloads, models, transports, platforms and security controls were mixed. They must not be used to claim speed superiority. A fair benchmark is tracked in [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136).
 
 ---
 

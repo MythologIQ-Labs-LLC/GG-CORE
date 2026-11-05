@@ -1,6 +1,6 @@
 # GG-CORE: First Release Candidate Acceptance
 
-**Status: convergence candidate [#139](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/139) (long-context prefill + IPC stream/non-stream controls) is the canonical release PR; its runtime tree passed the three-OS packaged real-model qualification (see the convergence section at the end). Recovery points: `9a6716d` on `main` (workflow 41914034275) and the #138 head `146bdae` (workflow 41938814283). HOLD for owner review, merge and tag.** Owner release gate: [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Performance qualification remains OPEN by design (not an RC blocker).
+**Current status (2026-11-05):** #139 and the #141 supply-chain repair are merged. Exact source candidate `main@d55ba50a262469d4cee828e9c6431670635c3cc5` passed Rust [42060869327](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060869327), CodeQL [42060869220](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060869220), and three-platform packaged real-GGUF [Release qualification 42060941207](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060941207). This runbook and other documentation updates are not included in that SHA; **requalify any later merge SHA before tagging**. Publication remains on hold in [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Later performance/multi-model milestones remain open.
 
 **Target:** `v0.10.0-rc.1` (the Rust package version is now `0.10.0-rc.1`; the owner has not issued a tag). A pre-release is not a claim that the public 1.0 API is stable.
 
@@ -15,14 +15,14 @@ All advertised standalone inference packages must actually compile the `gguf` fe
 
 ## Execution and evidence
 
-1. Merge the workflow PR only after review and successful existing Rust/CodeQL CI. On `main`, open GitHub Actions → Release → Run workflow. Choose the exact release source branch/commit. Manual dispatch must leave **no** GitHub Release or tag.
+1. The workflow and corrective PRs have already merged. Run a new nonpublishing Release qualification on the **exact new source SHA** only when a change requires it. A manual workflow dispatch creates no tag or GitHub Release.
 2. Confirm the `verify`, all three `build` jobs, and `assemble` succeeded. Download `gg-core-release-bundle`. Inspect the three archives and run `sha256sum -c SHA256SUMS` in the extracted bundle folder.
 3. On clean Linux x86_64, Windows x86_64, and the built macOS architecture, unpack the respective archive. Run the binary's `version` and `--help`. Inspect the shared library and `gg_core.h`. Verify native loader dependencies and document toolchain/runtime prerequisites.
 4. Use an approved real GGUF fixture with a known SHA256 and manifest. Run `serve --model` with a nonempty `CORE_AUTH_TOKEN` and the **platform default sandbox**. Verify readiness, listing, non-streaming and streaming inference, authenticated model load/unload, failed-load cleanup, cancellation where supported, bounded resource use, and graceful shutdown. Capture exact commands, logs, model provenance/license, hashes and results without publishing model bytes or secrets.
 5. **Linux sandbox gate:** prove actual token generation while default seccomp is applied, not merely successful IPC probes. Reject a `GG_CORE_SANDBOX=off` workaround as a passing sandbox test. Check for unexpected SIGSYS termination.
 6. **Security gate:** privately assess filesystem-indirection/path confinement and malformed-present manifest handling; verify no unauthorized model read or silent integrity downgrade. Check default authentication boundary and file/socket permissions. Confirm Windows Job Object restrictions on a normal user account. Document that macOS currently has no enforced daemon sandbox by default.
 7. **Owner gate:** enable and verify GitHub private vulnerability reporting, the channel documented in `SECURITY.md`. Maintain a dated, exact-SHA acceptance record including all platform results, residual risks, security exceptions, rollback, and explicit owner approval.
-8. Only after the above is accepted, bump the source to the selected prerelease version (recommend `0.10.0-rc.1`) in `core-runtime/Cargo.toml` and `Cargo.lock`, create actual `CHANGELOG.md` notes, and correct README/SECURITY support labels. Re-run the manual dress rehearsal on **that exact source commit** before pushing the tag. Pushing the tag is an owner action.
+8. Cargo.toml and CHANGELOG already declare `0.10.0-rc.1`; do not bump the version for this release. Confirm private vulnerability reporting and owner publication GO, then only tag the freshly qualified final merge SHA. The tag runs the publishing workflow; verify downloaded public artifacts afterwards.
 
 **No substitute evidence:** A green default-feature Rust build, YAML inspection, a backend-less CLI `version` response, green CodeQL, or checksum validity alone does not prove a working inference release. A successful release workflow also does not prove every security claim.
 
@@ -51,7 +51,7 @@ All advertised standalone inference packages must actually compile the `gguf` fe
 
 **Decision:** We can issue a narrowly scoped *functional/security RC* after its separate P0 gates, with performance qualification explicitly OPEN and no unverified speed advantage. We cannot claim a **performance-qualified RC** or promote speed comparisons until the above measured evidence is accepted.
 
-## Sign-off record (fill from actual runs)
+## Historical sign-off record (superseded by current #130 receipts)
 
 | Gate | Receipt | Result |
 | --- | --- | --- |
@@ -99,4 +99,4 @@ The fix is an RC correctness/security gate, not a mandate to add GPU or automati
 
 Receipts common to every platform: non-streaming `timeout_ms:350` on a ~2,500-token prompt → `deadline_exceeded` in ~350–360 ms with the next request served in 2.6–3.4 s; `cancel_request` during prefill → `cancelled` in ≤16 ms; disconnect during prefill releases the worker; cancelling one connection's request leaves a concurrent request's greedy output byte-identical; cancel → immediate unload → reload → inference. The one SKIP is the Windows graceful console-signal shutdown, not drivable from Git Bash (process terminated instead).
 
-Gates that remain: Rust CI matrix + CodeQL on the exact head (every earlier commit on the branch skipped CI), owner review and merge of #139, a repeat of the exact-commit Release qualification on the merge commit if its tree differs, and the owner-only items (private vulnerability reporting, trusted-host bundle checksum re-verification, tag). #138 stays open as a recovery point until #139 is accepted and must not be merged independently.
+**Historical note (superseded):** The above gates were written before #139/#141 merged and #138 closed. The current exact merge SHA `d55ba50a` passed Rust, CodeQL and the full packaged qualifier. Only remaining owner-controlled publication and post-publication checks are in #130.

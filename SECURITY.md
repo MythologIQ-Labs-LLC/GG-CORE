@@ -27,7 +27,7 @@ which remains planned (see Roadmap).
 
 | Version | Supported | Notes |
 | --- | --- | --- |
-| 0.10.0-rc.x | Yes (release candidate) | Current line: daemon trust boundary (mandatory token, owner-only socket, pipe-name claim), physical path confinement + fail-closed manifests, real-model sandbox qualification; see the acceptance record in issue #130 |
+| 0.10.0-rc.x | Qualified candidate line (check Releases) | Source and packaged candidate are qualified, but verify a published tag before treating an artifact as released. Mandatory token, local transport controls, path confinement and real-model security evidence are tracked in #130. |
 | 0.9.x | Security fixes only until 0.10.0 ships | First line published through the release pipeline |
 | ≤ 0.8.x | No | Pre-release-pipeline development tags (v0.6.5, v0.7.0, v0.8.2) |
 
