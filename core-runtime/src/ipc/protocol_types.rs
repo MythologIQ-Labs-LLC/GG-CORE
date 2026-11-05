@@ -96,6 +96,10 @@ pub enum InferenceErrorCode {
     ModelNotLoaded,
     InputInvalid,
     ShuttingDown,
+    /// The caller cancelled the request (`cancel_request` or disconnect).
+    Cancelled,
+    /// The request's `timeout_ms` elapsed before it completed.
+    DeadlineExceeded,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,8 +1,8 @@
 # GG-CORE: First Release Candidate Acceptance
 
-**Status: functional/security evidence complete on all three advertised platforms; awaiting owner GO (tag is an owner action).** Owner release gate: [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Performance qualification remains OPEN by design (not an RC blocker).
+**Status: convergence candidate [#139](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/139) (long-context prefill + IPC stream/non-stream controls) is the canonical release PR; its runtime tree passed the three-OS packaged real-model qualification (see the convergence section at the end). Recovery points: `9a6716d` on `main` (workflow 41914034275) and the #138 head `146bdae` (workflow 41938814283). HOLD for owner review, merge and tag.** Owner release gate: [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Performance qualification remains OPEN by design (not an RC blocker).
 
-**Target:** `v0.10.0-rc.1` (recommended; version not yet changed or tagged). The Rust package is currently `0.9.0`. A pre-release is not a claim that the public 1.0 API is stable.
+**Target:** `v0.10.0-rc.1` (the Rust package version is now `0.10.0-rc.1`; the owner has not issued a tag). A pre-release is not a claim that the public 1.0 API is stable.
 
 ## What changed in the release workflow
 
@@ -75,3 +75,28 @@ All advertised standalone inference packages must actually compile the `gguf` fe
 The following are legitimate later work, not grounds for deleting long-term product expectations: independent security audit, stable embedded public API contract [#112](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/112), pinned downstream distribution [#113](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/113), integration conformance [#114](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/114), GPU and speculative performance qualification, and model encryption integrated into the loader. They must be described accurately and never implied to be RC-verified.
 
 **Decision rule:** unresolved P0 or missing evidence = HOLD. If a P0 requires a code change, repair it on a focused PR and repeat the applicable acceptance tests. No premature `v1.0.0`, and no release merely because the PR queue is empty.
+
+## Post-qualification Qortara Harden acceptance (#138)
+
+The original packaged real-inference receipts remain valid for `9a6716d` and for the behaviors actually exercised. A source-level independent `qortara-harden` review identified unqualified control-flow behavior not covered by those receipts. Before owner tagging, require the reviewed repair commit to prove:
+
+- Authenticated stream cancellation on the originating connection **while generation is still active**, with cancel acknowledgment, an error terminal, and no continued unbounded model work.
+- Request-scoped streaming timeout through queue wait and active GGUF generation, with cooperative cancellation and a final error; no success-shaped partial response.
+- Unauthenticated warmup refusal with 401; authenticated warmup still works, and harmless liveness/observability probes remain available.
+- Cancellation/disconnect cleanup of native generation and request/resource tracking; valid stream output and PII/injection controls still pass.
+- Rust fmt, all relevant feature Clippy/tests, CodeQL, and a new exact-candidate three-OS packaged real-GGUF qualification run. Update #130 with reviewed SHA and receipts.
+
+The fix is an RC correctness/security gate, not a mandate to add GPU or automatic model switching. The previously qualified `9a6716d` is the untouched recovery baseline; a PR being open or CI being green for source-only tests is **not** equivalent to a qualified release artifact.
+
+## Convergence candidate acceptance (#139)
+
+#139 combines the #138 controls with the bounded-prefill repair (long prompts no longer abort the daemon; `GG_CORE_N_CTX` is applied to the loader), then adds non-streaming `timeout_ms`, cancellation during prompt prefill (checkpoints between ≤512-token decode chunks), disconnect cleanup, and a CLI deadline instead of a fixed 5 s read timeout. The `qualify` job now runs the long-prompt, Alden-class (>2,048-token) and over-context checks plus nine IPC control checks through the packaged daemon with `GG_CORE_N_CTX=4096`.
+
+| Runtime tree | Release run (`workflow_dispatch`, `qualify=true`, no tag) | Linux (seccomp) | Windows (Job Object, real named pipe) | macOS (no sandbox) |
+| --- | --- | --- | --- | --- |
+| `081de425` | 41968658661 | 35/35 | 33/33 + 1 SKIP | 34/34 |
+| `37a4a71d` (same runtime; removes a tracked `.pyc`, adds ignore rules) | 41973023488 | 35/35 | 33/33 + 1 SKIP | 34/34 |
+
+Receipts common to every platform: non-streaming `timeout_ms:350` on a ~2,500-token prompt → `deadline_exceeded` in ~350–360 ms with the next request served in 2.6–3.4 s; `cancel_request` during prefill → `cancelled` in ≤16 ms; disconnect during prefill releases the worker; cancelling one connection's request leaves a concurrent request's greedy output byte-identical; cancel → immediate unload → reload → inference. The one SKIP is the Windows graceful console-signal shutdown, not drivable from Git Bash (process terminated instead).
+
+Gates that remain: Rust CI matrix + CodeQL on the exact head (every earlier commit on the branch skipped CI), owner review and merge of #139, a repeat of the exact-commit Release qualification on the merge commit if its tree differs, and the owner-only items (private vulnerability reporting, trusted-host bundle checksum re-verification, tag). #138 stays open as a recovery point until #139 is accepted and must not be merged independently.

@@ -6,6 +6,22 @@ use crate::memory::ResourceLimits;
 use crate::security::SecurityPipeline;
 use crate::telemetry;
 
+/// One control bundle keeps cancellation and deadline tied to the same request
+/// without growing the worker's already-wide execution signature.
+struct StreamControl {
+    cancel: tokio_util::sync::CancellationToken,
+    deadline: Option<std::time::Instant>,
+}
+
+impl StreamControl {
+    fn should_stop(&self) -> bool {
+        self.cancel.is_cancelled()
+            || self
+                .deadline
+                .is_some_and(|d| std::time::Instant::now() >= d)
+    }
+}
+
 /// Execute a streaming inference request with resource control.
 pub(crate) async fn execute(
     engine: &InferenceEngine,
@@ -16,6 +32,18 @@ pub(crate) async fn execute(
     let model_id = request.model_id.clone();
 
     if !scan_ingress(security, &request).await {
+        return;
+    }
+    if request.is_cancelled() || request.is_expired() {
+        let reason = if request.is_cancelled() {
+            "stream cancelled before execution"
+        } else {
+            "stream deadline exceeded before execution"
+        };
+        let _ = request
+            .token_sender
+            .end(crate::engine::StreamTerminal::Error(reason.into()))
+            .await;
         return;
     }
 
@@ -39,6 +67,10 @@ pub(crate) async fn execute(
         request.config,
         request.token_sender,
         security,
+        StreamControl {
+            cancel: request.cancelled,
+            deadline: request.deadline,
+        },
     )
     .await;
     let latency_ms = start.elapsed().as_millis() as u64;
@@ -86,6 +118,7 @@ async fn run_stream(
     config: crate::engine::InferenceConfig,
     sender: crate::engine::TokenStreamSender,
     security: Option<&SecurityPipeline>,
+    control: StreamControl,
 ) -> Result<Result<(), crate::engine::inference::InferenceError>, tokio::task::JoinError> {
     #[cfg(feature = "gguf")]
     {
@@ -98,13 +131,21 @@ async fn run_stream(
         tokio::task::spawn_blocking(move || {
             let engine = unsafe { &*(engine_addr as *const InferenceEngine) };
             let security = sec_addr.map(|a| unsafe { &*(a as *const SecurityPipeline) });
-            engine.run_stream_sync(&mid, &prompt, &config, sender, security)
+            let should_stop = || control.should_stop();
+            engine.run_stream_sync(&mid, &prompt, &config, sender, security, Some(&should_stop))
         })
         .await
     }
     #[cfg(not(feature = "gguf"))]
     {
-        let _ = (engine, model_id, prompt, config, security);
+        let _ = (
+            engine,
+            model_id,
+            prompt,
+            config,
+            security,
+            control.should_stop(),
+        );
         let err = crate::engine::inference::InferenceError::ExecutionFailed(
             "streaming requires gguf feature".into(),
         );

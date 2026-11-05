@@ -197,7 +197,9 @@ impl IpcHandler {
             }
 
             IpcMessage::WarmupRequest(request) => {
-                // NO AUTH REQUIRED (orchestrator pattern, same as health/metrics)
+                // Warmup runs real inference and consumes compute; it must be
+                // authorized like every other inference request.
+                self.require_auth(session).await?;
                 let response = self.handle_warmup(request.model_id, request.tokens).await;
                 Ok((IpcMessage::WarmupResponse(response), None))
             }
@@ -239,66 +241,11 @@ impl IpcHandler {
         Ok(())
     }
 
+    /// Non-streaming inference without a connection-scoped cancel owner; the
+    /// request's `timeout_ms` deadline still applies.
     async fn handle_inference(&self, request: InferenceRequest) -> InferenceResponse {
-        let _guard = match self.shutdown.track() {
-            Some(g) => g,
-            None => {
-                return InferenceResponse::error_coded(
-                    request.request_id,
-                    "Server is shutting down".into(),
-                    InferenceErrorCode::ShuttingDown,
-                );
-            }
-        };
-
-        if let Err(e) = request.validate() {
-            return InferenceResponse::error_coded(
-                request.request_id,
-                e.to_string(),
-                InferenceErrorCode::InputInvalid,
-            );
-        }
-
-        // Enqueue and await result from worker (queue is sole execution path)
-        let enqueue_result = self
-            .queue
-            .enqueue_with_response(
-                request.model_id.clone(),
-                request.prompt.clone(),
-                request.parameters.clone(),
-                Priority::Normal,
-            )
-            .await;
-
-        let (_id, rx) = match enqueue_result {
-            Ok(r) => r,
-            Err(e) => {
-                return InferenceResponse::error_coded(
-                    request.request_id,
-                    e.to_string(),
-                    InferenceErrorCode::AdmissionRejected,
-                )
-            }
-        };
-
-        // Await the worker's response — classify the error code from message content.
-        match rx.await {
-            Ok(Ok(result)) => InferenceResponse::success(
-                request.request_id,
-                result.output,
-                result.tokens_generated,
-                result.finished,
-            ),
-            Ok(Err(e)) => {
-                let code = classify_worker_error(&e);
-                InferenceResponse::error_coded(request.request_id, e, code)
-            }
-            Err(_) => InferenceResponse::error_coded(
-                request.request_id,
-                "worker dropped response channel".into(),
-                InferenceErrorCode::ExecutionFailed,
-            ),
-        }
+        self.handle_inference_controlled(request, CancellationToken::new())
+            .await
     }
 
     async fn handle_warmup(&self, model_id: String, _tokens: usize) -> WarmupResponse {
@@ -397,6 +344,12 @@ impl IpcHandler {
             return Ok(());
         }
 
+        if let Err(e) = request.parameters.validate() {
+            let chunk = StreamChunk::error(request.request_id, e.to_string());
+            sender.send(IpcMessage::StreamChunk(chunk)).await?;
+            return Ok(());
+        }
+
         // Streaming requires gguf feature
         #[cfg(not(feature = "gguf"))]
         {
@@ -430,19 +383,21 @@ impl IpcHandler {
         let config = request.parameters.to_config();
 
         let (token_sender, mut stream) = TokenStream::new(32);
+        let timeout = std::time::Duration::from_millis(config.timeout_ms);
 
         // Enqueue into the streaming queue — worker picks it up.
         self.queue
-            .enqueue_streaming(
+            .enqueue_streaming_controlled(
                 request.model_id.clone(),
                 request.prompt.clone(),
                 config,
                 token_sender,
+                cancel.clone(),
             )
             .await
             .map_err(|e| HandlerError::QueueFull(e.to_string()))?;
 
-        self.relay_stream(request_id, &mut stream, sender, cancel)
+        self.relay_stream(request_id, &mut stream, sender, cancel, timeout)
             .await
     }
 
@@ -454,12 +409,22 @@ impl IpcHandler {
         stream: &mut TokenStream,
         sender: &dyn StreamSender,
         cancel: CancellationToken,
+        timeout: std::time::Duration,
     ) -> Result<(), HandlerError> {
+        // One deadline for the whole request, never a reset after each chunk.
+        let deadline = tokio::time::sleep(timeout);
+        tokio::pin!(deadline);
         loop {
             tokio::select! {
                 biased;
                 _ = cancel.cancelled() => {
                     let chunk = StreamChunk::error(request_id, "cancelled".into());
+                    let _ = sender.send(IpcMessage::StreamChunk(chunk)).await;
+                    break;
+                }
+                _ = &mut deadline => {
+                    cancel.cancel();
+                    let chunk = StreamChunk::error(request_id, "stream deadline exceeded".into());
                     let _ = sender.send(IpcMessage::StreamChunk(chunk)).await;
                     break;
                 }
@@ -507,20 +472,78 @@ impl IpcHandler {
     }
 }
 
+#[path = "handler_inference.rs"]
+mod inference_control;
+
 /// Map a worker error string to a structured `InferenceErrorCode`.
 ///
 /// The worker stringifies `engine::InferenceError` variants. We classify by
 /// matching known prefixes so callers can distinguish admission rejections
 /// (retriable) from execution failures (not retriable without change).
 fn classify_worker_error(msg: &str) -> InferenceErrorCode {
-    if msg.contains("Memory limit exceeded")
+    if msg.contains("Request cancelled") {
+        InferenceErrorCode::Cancelled
+    } else if msg.contains("Deadline exceeded") {
+        InferenceErrorCode::DeadlineExceeded
+    } else if msg.contains("Memory limit exceeded")
         || msg.contains("queue full")
         || msg.contains("Queue full")
     {
         InferenceErrorCode::AdmissionRejected
     } else if msg.contains("Model not loaded") {
         InferenceErrorCode::ModelNotLoaded
+    } else if msg.contains("Context length exceeded") || msg.contains("Input validation failed") {
+        // Engine estimate or the GGUF backend's exact tokenized check: the
+        // prompt cannot fit the configured context. Retrying cannot succeed.
+        InferenceErrorCode::InputInvalid
     } else {
         InferenceErrorCode::ExecutionFailed
+    }
+}
+
+#[cfg(test)]
+mod classify_tests {
+    use super::*;
+
+    #[test]
+    fn context_overflow_is_input_invalid() {
+        for msg in [
+            "Context length exceeded: max 4096, got 5000",
+            "Inference failed: Input validation failed: prompt contains 5000 tokens, \
+             leaving no room in the 4096-token context",
+        ] {
+            assert_eq!(classify_worker_error(msg), InferenceErrorCode::InputInvalid);
+        }
+    }
+
+    #[test]
+    fn other_worker_errors_keep_their_codes() {
+        assert_eq!(
+            classify_worker_error("Queue full: 3/3 pending requests"),
+            InferenceErrorCode::AdmissionRejected
+        );
+        assert_eq!(
+            classify_worker_error("Model not loaded: qwen"),
+            InferenceErrorCode::ModelNotLoaded
+        );
+        assert_eq!(
+            classify_worker_error("Inference failed: Model error: decode: -1"),
+            InferenceErrorCode::ExecutionFailed
+        );
+    }
+
+    #[test]
+    fn stopped_requests_get_explicit_codes() {
+        let cancelled = crate::engine::inference::InferenceError::Cancelled.to_string();
+        assert_eq!(
+            classify_worker_error(&cancelled),
+            InferenceErrorCode::Cancelled
+        );
+        let expired =
+            crate::engine::inference::InferenceError::DeadlineExceeded { timeout_ms: 350 };
+        assert_eq!(
+            classify_worker_error(&expired.to_string()),
+            InferenceErrorCode::DeadlineExceeded
+        );
     }
 }

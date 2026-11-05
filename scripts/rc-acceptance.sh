@@ -44,6 +44,11 @@ with_timeout() {
 }
 
 export CORE_AUTH_TOKEN="rc-accept-$RANDOM$RANDOM"
+# Exercise an actual >2048-token Alden-class prompt in the supported
+# 4096-token context. This was previously parsed but ignored on model load.
+export GG_CORE_N_CTX=4096
+export GG_CORE_MAX_CONTEXT=4096
+export GG_CORE_MAX_CONTEXT_TOKENS=4096
 unset GG_CORE_SANDBOX
 if [ "$OS" = windows ]; then export GG_CORE_SOCKET_PATH="\\\\.\\pipe\\gg-core-rc-$RANDOM"; else export GG_CORE_SOCKET_PATH="$WORK/gg.sock"; fi
 LOG="$WORK/daemon.log"
@@ -74,6 +79,68 @@ echo "  output: $(echo "$OUT" | tr '\n' ' ' | head -c 200)"
 [ $RC -eq 0 ] && echo "$OUT" | grep -qi paris && ok "non-streaming inference (correct answer)" || bad "non-streaming inference rc=$RC"
 SOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "Count from one to five in words." --max-tokens 32 --stream 2>&1)"; RC=$?
 [ $RC -eq 0 ] && [ -n "$SOUT" ] && ok "streaming inference" || bad "streaming inference rc=$RC"
+
+# A real-persona system prompt is commonly longer than llama.cpp's default
+# decode batch (512 tokens). Earlier release checks used only short questions,
+# allowing an oversized single decode to abort the entire daemon. Keep this
+# as a real-model, packaged-binary regression on every qualified platform.
+LONG_PROMPT="Read the following harmless note and reply with the word READY: "
+n=0
+while [ "$n" -lt 100 ]; do
+  LONG_PROMPT="$LONG_PROMPT""The brown fox walks beside a clear river under a quiet blue sky. "
+  n=$((n+1))
+done
+LOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$LONG_PROMPT" --max-tokens 8 2>&1)"; RC=$?
+[ $RC -eq 0 ] && [ -n "$LOUT" ] && ok "long prompt non-streaming (bounded prefill)" || bad "long prompt non-streaming rc=$RC: $(echo "$LOUT" | tr -s '[:space:]' ' ' | tail -c 200)"
+kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived long non-streaming prompt" || { bad "daemon died on long prompt"; cat "$LOG"; exit 1; }
+LSOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$LONG_PROMPT" --max-tokens 8 --stream 2>&1)"; RC=$?
+[ $RC -eq 0 ] && [ -n "$LSOUT" ] && ok "long prompt streaming (bounded prefill)" || bad "long prompt streaming rc=$RC: $(echo "$LSOUT" | tr -s '[:space:]' ' ' | tail -c 200)"
+kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived long streaming prompt" || { bad "daemon died on long streaming prompt"; cat "$LOG"; exit 1; }
+
+# Deliberately longer than the old 2048-token context (roughly 3k tokens
+# for the pinned Qwen fixture). Assert this with the model tokenizer in
+# the Rust fixture test. A successful response here also tests that
+# GG_CORE_N_CTX actually reached the GGUF backend, not just the config log.
+ALDEN_CLASS_PROMPT="Reply with the word READY after reading this note: "
+for ((n=0; n<220; n++)); do
+  ALDEN_CLASS_PROMPT="$ALDEN_CLASS_PROMPT""The brown fox walks beside a clear river under a quiet blue sky. "
+done
+AOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$ALDEN_CLASS_PROMPT" --max-tokens 8 2>&1)"; RC=$?
+[ $RC -eq 0 ] && [ -n "$AOUT" ] && ok "Alden-class long-context prompt (configured 4096)" || bad "Alden-class prompt rc=$RC: $(echo "$AOUT" | tr -s '[:space:]' ' ' | tail -c 200)"
+kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived Alden-class context" || { bad "daemon died on long context"; cat "$LOG"; exit 1; }
+
+# A prompt exceeding the context limit must fail as a normal request, never
+# reach the native llama assertion or kill the daemon. Repeat the same simple
+# text to avoid relying on external fixtures, prompt templates or user data.
+OVERFLOW_PROMPT="$LONG_PROMPT"
+# Keep the CLI argument under Windows CreateProcess's command-line bound.
+# The 100 + 240 repeated phrases are deliberately much larger than 4096
+# Qwen tokens; the separate Rust fixture checks tokenizer-based limits.
+for ((n=0; n<240; n++)); do
+  OVERFLOW_PROMPT="$OVERFLOW_PROMPT""The brown fox walks beside a clear river under a quiet blue sky. "
+done
+OOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$OVERFLOW_PROMPT" --max-tokens 8 2>&1)"; RC=$?
+if [ $RC -ne 0 ] && echo "$OOUT" | grep -Eqi "context|token|prompt"; then
+  ok "over-context prompt refused with an explicit error"
+else
+  bad "over-context prompt did not fail explicitly (rc=$RC)"
+fi
+kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived over-context refusal" || { bad "daemon died on over-context prompt"; cat "$LOG"; exit 1; }
+echo "== authenticated real-model IPC controls =="
+# The normal CLI smoke test establishes successful generation but does not
+# exercise cancellation while native generation is active. The standard-library
+# probe talks to the SAME packaged daemon through its actual socket/pipe.
+if command -v python3 >/dev/null 2>&1; then PYTHON=python3
+elif command -v python >/dev/null 2>&1; then PYTHON=python
+else PYTHON=""
+fi
+if [ -z "$PYTHON" ]; then
+  bad "Python 3 required for cross-platform IPC control acceptance"
+elif with_timeout 420 "$PYTHON" "$BASE/scripts/rc-ipc-control-acceptance.py"; then
+  ok "packaged IPC authentication, active cancel, deadlines, prefill cancel, isolation"
+else
+  bad "packaged IPC control acceptance"
+fi
 kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon alive after inference" || { bad "daemon died during inference"; cat "$LOG"; exit 1; }
 
 echo "== lifecycle + invalid loads =="

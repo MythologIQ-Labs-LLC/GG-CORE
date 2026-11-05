@@ -136,6 +136,8 @@ impl From<crate::engine::inference::InferenceError> for CoreErrorCode {
             // No memory-specific FFI code exists; surface as an internal fault.
             InferenceError::MemoryExceeded { .. } => CoreErrorCode::Internal,
             InferenceError::SecurityRejected(_) => CoreErrorCode::SecurityRejected,
+            InferenceError::Cancelled => CoreErrorCode::Cancelled,
+            InferenceError::DeadlineExceeded { .. } => CoreErrorCode::Timeout,
         }
     }
 }

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::engine::inference::InferenceResult;
-use crate::engine::InferenceParams;
+use crate::engine::{InferenceParams, StopControl};
 
 /// Response channel type (re-exported for queue).
 pub type ResponseTx = tokio::sync::oneshot::Sender<Result<InferenceResult, String>>;
@@ -82,5 +82,27 @@ impl QueuedRequest {
     /// Get a closure that checks cancellation (for passing to backends).
     pub fn cancel_check(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.cancelled)
+    }
+
+    /// Stop control for execution: this request's cancel flag and the
+    /// deadline fixed at enqueue time.
+    pub fn stop_control(&self) -> StopControl {
+        StopControl::new(
+            Some(self.cancel_check()),
+            self.deadline,
+            self.params.timeout_ms.unwrap_or(0),
+        )
+    }
+
+    /// Finish a request that was cancelled or expired before it ran: the
+    /// caller receives an explicit failure instead of a dropped channel.
+    pub fn reject_unexecuted(self) {
+        let error = self
+            .stop_control()
+            .stop_error()
+            .unwrap_or(crate::engine::inference::InferenceError::Cancelled);
+        if let Some(tx) = self.response_tx {
+            let _ = tx.send(Err(error.to_string()));
+        }
     }
 }

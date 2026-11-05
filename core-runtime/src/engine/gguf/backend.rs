@@ -5,6 +5,7 @@
 
 use std::num::NonZeroU32;
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
@@ -18,9 +19,9 @@ use llama_cpp_2::token::LlamaToken;
 use crate::engine::{FinishReason, GenerationResult, InferenceConfig, InferenceError};
 use crate::security::stream_sanitizer::StreamSanitizer;
 
-/// Holds the loaded llama-cpp-2 model and backend.
+/// Holds the loaded llama-cpp-2 model and a handle to the process backend.
 pub struct LlamaBackendInner {
-    backend: LlamaBackend,
+    backend: &'static LlamaBackend,
     model: LlamaModel,
     n_ctx: u32,
     n_threads: i32,
@@ -30,13 +31,36 @@ pub struct LlamaBackendInner {
 unsafe impl Send for LlamaBackendInner {}
 unsafe impl Sync for LlamaBackendInner {}
 
+/// The process-wide llama.cpp backend.
+///
+/// llama-cpp-2 permits exactly one live `LlamaBackend` and frees it on drop.
+/// Tying it to a model's lifetime made `unload` + `load` fail with
+/// `BackendAlreadyInitialized` whenever any generation thread still held the
+/// old model (for example right after a cancelled or expired stream, while the
+/// native loop winds down to its next checkpoint). Initialize once and keep it
+/// for the life of the process; model lifetimes then never depend on each
+/// other's in-flight work.
+fn process_backend() -> Result<&'static LlamaBackend, InferenceError> {
+    static BACKEND: OnceLock<LlamaBackend> = OnceLock::new();
+    static INIT: Mutex<()> = Mutex::new(());
+    if let Some(backend) = BACKEND.get() {
+        return Ok(backend);
+    }
+    let _serialize = INIT.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(backend) = BACKEND.get() {
+        return Ok(backend);
+    }
+    let backend = LlamaBackend::init()
+        .map_err(|e| InferenceError::ModelError(format!("backend init: {e}")))?;
+    Ok(BACKEND.get_or_init(|| backend))
+}
+
 impl LlamaBackendInner {
     /// Load a GGUF model from disk.
     pub fn load(path: &Path, config: &super::GgufConfig) -> Result<Self, InferenceError> {
-        let backend = LlamaBackend::init()
-            .map_err(|e| InferenceError::ModelError(format!("backend init: {e}")))?;
+        let backend = process_backend()?;
         let model_params = LlamaModelParams::default().with_n_gpu_layers(config.n_gpu_layers);
-        let model = LlamaModel::load_from_file(&backend, path, &model_params)
+        let model = LlamaModel::load_from_file(backend, path, &model_params)
             .map_err(|e| InferenceError::ModelError(format!("load: {e}")))?;
         let n_threads = resolve_threads(config.n_threads);
         Ok(Self {
@@ -62,8 +86,10 @@ impl LlamaBackendInner {
 
     /// Generate text with optional cooperative cancellation.
     ///
-    /// When `is_cancelled` is provided, it is checked once per token.
-    /// If set, generation stops early with `FinishReason::Cancelled`.
+    /// When `is_cancelled` is provided, it is checked before the context is
+    /// created, between prompt-prefill decode chunks, and once per generated
+    /// token. If set, generation stops early with `FinishReason::Cancelled`
+    /// and the context (KV cache) is released on return.
     pub fn generate_cancellable(
         &self,
         prompt: &str,
@@ -72,6 +98,9 @@ impl LlamaBackendInner {
     ) -> Result<GenerationResult, InferenceError> {
         let tokens = self.tokenize(prompt)?;
         let max_tok = config.max_tokens.unwrap_or(256);
+        if stop_requested(is_cancelled) {
+            return Ok(cancelled_result());
+        }
         let mut ctx = self.create_context()?;
         let (out_tokens, reason) =
             self.sample_loop(&mut ctx, &tokens, max_tok, config, is_cancelled)?;
@@ -97,17 +126,25 @@ impl LlamaBackendInner {
         mut sanitizer: Option<&mut StreamSanitizer>,
     ) -> Result<(), InferenceError> {
         let tokens = self.tokenize(prompt)?;
-        let max_tok = config.max_tokens.unwrap_or(256);
+        if stop_requested(is_cancelled) {
+            return Ok(());
+        }
         let mut ctx = self.create_context()?;
-        let mut batch = LlamaBatch::new(tokens.len(), 1);
-        add_seq(&mut batch, &tokens)?;
-        decode(&mut ctx, &mut batch)?;
+        ensure_prompt_room(&ctx, tokens.len())?;
+        // llama.cpp rejects any single decode larger than ctx.n_batch(). A stop
+        // between prefill chunks ends the stream; the caller reports the reason.
+        if !decode_prompt(&mut ctx, &tokens, is_cancelled)? {
+            return Ok(());
+        }
+        let limit =
+            (config.max_tokens.unwrap_or(256) as usize).min(ctx.n_ctx() as usize - tokens.len());
+        let mut batch = LlamaBatch::new(1, 1);
         let mut sampler = build_sampler(config, self.model.n_vocab());
         sampler.accept_many(tokens.iter().copied());
         let start_pos = tokens.len() as i32;
         let rt = tokio::runtime::Handle::current();
         let mut acc: Vec<LlamaToken> = Vec::new();
-        for (offset, i) in (0..max_tok).enumerate() {
+        for offset in 0..limit {
             let pos = start_pos + offset as i32;
             if is_cancelled.as_ref().is_some_and(|f| f()) {
                 break;
@@ -119,7 +156,7 @@ impl LlamaBackendInner {
             if !self.emit_token(&rt, sender, sanitizer.as_deref_mut(), tok, &mut acc)? {
                 break;
             }
-            if eog || i + 1 == max_tok {
+            if eog || offset + 1 == limit {
                 break;
             }
             batch.clear();
@@ -180,14 +217,15 @@ impl LlamaBackendInner {
         let tokens: Vec<LlamaToken> = context.iter().map(|&t| LlamaToken(t as i32)).collect();
         let config = InferenceConfig::default();
         let mut ctx = self.create_context()?;
-        let mut batch = LlamaBatch::new(tokens.len().max(1), 1);
-        add_seq(&mut batch, &tokens)?;
-        decode(&mut ctx, &mut batch)?;
+        ensure_prompt_room(&ctx, tokens.len())?;
+        decode_range(&mut ctx, &tokens, 0, false)?;
+        let mut batch = LlamaBatch::new(1, 1);
         let mut sampler = build_sampler(&config, self.model.n_vocab());
         sampler.accept_many(tokens.iter().copied());
         let mut out = Vec::with_capacity(count);
         let start_pos = tokens.len() as i32;
-        for (offset, _) in (0..count).enumerate() {
+        let limit = count.min(ctx.n_ctx() as usize - tokens.len());
+        for offset in 0..limit {
             let pos = start_pos + offset as i32;
             let tok = sampler.sample(&ctx, -1);
             sampler.accept(tok);
@@ -195,6 +233,9 @@ impl LlamaBackendInner {
                 break;
             }
             out.push(tok.0 as u32);
+            if offset + 1 == limit {
+                break;
+            }
             batch.clear();
             add_one(&mut batch, tok, pos)?;
             decode(&mut ctx, &mut batch)?;
@@ -210,29 +251,59 @@ impl LlamaBackendInner {
         draft: &[u32],
     ) -> Result<crate::engine::speculative_types::VerifyResult, InferenceError> {
         use crate::engine::speculative_types::VerifyResult;
-        let all_tokens: Vec<LlamaToken> = context
-            .iter()
-            .chain(draft.iter())
-            .map(|&t| LlamaToken(t as i32))
-            .collect();
-        let config = InferenceConfig::default();
+
+        if draft.is_empty() {
+            return Ok(VerifyResult::accept_all(0));
+        }
+        if context.is_empty() {
+            return Err(InferenceError::InputValidation(
+                "speculative verification requires non-empty context".into(),
+            ));
+        }
         let mut ctx = self.create_context()?;
-        // Add all tokens with logits enabled for verification positions
-        let mut batch = LlamaBatch::new(all_tokens.len(), 1);
-        let ctx_len = context.len();
-        for (i, &tok) in all_tokens.iter().enumerate() {
-            // Enable logits for context's last token and all draft positions
-            let needs_logits = i >= ctx_len.saturating_sub(1);
+        let total = context.len().checked_add(draft.len()).ok_or_else(|| {
+            InferenceError::InputValidation("speculative context length overflow".into())
+        })?;
+        if total > ctx.n_ctx() as usize {
+            return Err(InferenceError::InputValidation(
+                "speculative context exceeds model context window".into(),
+            ));
+        }
+        // All draft logits must remain available after one decode. Decode the
+        // preceding context in bounded chunks, then decode its last token
+        // together with the draft. A huge draft fails without a native assert.
+        if draft.len() >= ctx.n_batch().min(ctx.n_ubatch()) as usize {
+            return Err(InferenceError::InputValidation(
+                "speculative draft exceeds the supported decode batch".into(),
+            ));
+        }
+        let context_tokens: Vec<LlamaToken> =
+            context.iter().map(|&t| LlamaToken(t as i32)).collect();
+        decode_range(&mut ctx, &context_tokens[..context.len() - 1], 0, false)?;
+        let mut batch = LlamaBatch::new(draft.len() + 1, 1);
+        batch
+            .add(
+                context_tokens[context.len() - 1],
+                (context.len() - 1) as i32,
+                &[0],
+                true,
+            )
+            .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
+        for (i, &tok) in draft.iter().enumerate() {
             batch
-                .add(tok, i as i32, &[0], needs_logits)
+                .add(
+                    LlamaToken(tok as i32),
+                    (context.len() + i) as i32,
+                    &[0],
+                    true,
+                )
                 .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
         }
         decode(&mut ctx, &mut batch)?;
-        let mut sampler = build_sampler(&config, self.model.n_vocab());
-        // Verify each draft token
+        let mut sampler = build_sampler(&InferenceConfig::default(), self.model.n_vocab());
         for (i, &draft_tok) in draft.iter().enumerate() {
-            let logit_idx = (ctx_len - 1 + i) as i32;
-            let predicted = sampler.sample(&ctx, logit_idx);
+            // A logit index is relative to this batch, not the absolute KV position.
+            let predicted = sampler.sample(&ctx, i as i32);
             sampler.accept(predicted);
             if predicted.0 as u32 != draft_tok {
                 return Ok(VerifyResult::diverge_at(i, predicted.0 as u32));
@@ -271,7 +342,7 @@ impl LlamaBackendInner {
             .with_n_threads(self.n_threads)
             .with_n_threads_batch(self.n_threads);
         self.model
-            .new_context(&self.backend, p)
+            .new_context(self.backend, p)
             .map_err(|e| InferenceError::ModelError(format!("ctx: {e}")))
     }
 
@@ -283,25 +354,31 @@ impl LlamaBackendInner {
         config: &InferenceConfig,
         is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<(Vec<LlamaToken>, FinishReason), InferenceError> {
-        let mut batch = LlamaBatch::new(tokens.len(), 1);
-        add_seq(&mut batch, tokens)?;
-        decode(ctx, &mut batch)?;
+        ensure_prompt_room(ctx, tokens.len())?;
+        if !decode_prompt(ctx, tokens, is_cancelled)? {
+            return Ok((Vec::new(), FinishReason::Cancelled));
+        }
+        let mut batch = LlamaBatch::new(1, 1);
         let mut sampler = build_sampler(config, self.model.n_vocab());
         sampler.accept_many(tokens.iter().copied());
         let mut out = Vec::new();
         let start_pos = tokens.len() as i32;
-        for (offset, _) in (0..max_tok).enumerate() {
+        // The final sampled token requires no extra decode once context is full.
+        let limit = (max_tok as usize).min(ctx.n_ctx() as usize - tokens.len());
+        for offset in 0..limit {
             let pos = start_pos + offset as i32;
             if is_cancelled.as_ref().is_some_and(|f| f()) {
                 return Ok((out, FinishReason::Cancelled));
             }
-            // Use -1 to sample from the last token that had logits computed
             let tok = sampler.sample(ctx, -1);
             sampler.accept(tok);
             if self.model.vocab().is_eog(tok) {
                 return Ok((out, FinishReason::Stop));
             }
             out.push(tok);
+            if offset + 1 == limit {
+                return Ok((out, FinishReason::MaxTokens));
+            }
             batch.clear();
             add_one(&mut batch, tok, pos)?;
             decode(ctx, &mut batch)?;
@@ -310,18 +387,17 @@ impl LlamaBackendInner {
     }
 }
 
-fn add_seq(batch: &mut LlamaBatch, tokens: &[LlamaToken]) -> Result<(), InferenceError> {
-    // Add all tokens except the last with logits=false
-    // Add the last token with logits=true so we can sample from it
-    let n = tokens.len();
-    if n == 0 {
-        return Ok(());
+fn ensure_prompt_room(ctx: &LlamaContext<'_>, prompt_len: usize) -> Result<(), InferenceError> {
+    if prompt_len == 0 {
+        return Err(InferenceError::InputValidation(
+            "prompt must contain at least one token".into(),
+        ));
     }
-    for (i, &tok) in tokens.iter().enumerate() {
-        let logits = i == n - 1; // Only compute logits for last token
-        batch
-            .add(tok, i as i32, &[0], logits)
-            .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
+    if prompt_len >= ctx.n_ctx() as usize {
+        return Err(InferenceError::InputValidation(format!(
+            "prompt contains {prompt_len} tokens, leaving no room in the {}-token context",
+            ctx.n_ctx()
+        )));
     }
     Ok(())
 }
@@ -337,28 +413,109 @@ fn decode(ctx: &mut LlamaContext<'_>, batch: &mut LlamaBatch) -> Result<(), Infe
         .map_err(|e| InferenceError::ModelError(format!("decode: {e}")))
 }
 
-/// Decode `tokens` into `ctx` at positions `start_pos..start_pos+len` (single sequence 0).
-/// `logits_all` enables logits on every position (verification); otherwise only the last
-/// (generation / prefix commit). Used by the persistent speculative session (B-21f).
-#[cfg(feature = "advanced")]
+/// Upper bound on one prompt-prefill decode chunk when the request can be
+/// cancelled (further capped by the context's physical batch). Cancellation
+/// and deadlines are honored between chunks, so this bounds the prefill work
+/// a stopped request can still perform: about 1 s for a 0.5B Q4 model on the
+/// 8-vCPU build VM. A 256-token cap halved that but cost ~20% prefill
+/// throughput on a 2,500-token prompt; the caller is answered at the
+/// deadline or cancel either way, so throughput wins.
+pub(super) const PREFILL_CHECKPOINT_TOKENS: usize = 512;
+
+fn stop_requested(should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>) -> bool {
+    should_stop.is_some_and(|f| f())
+}
+
+fn cancelled_result() -> GenerationResult {
+    GenerationResult {
+        text: String::new(),
+        tokens_generated: 0,
+        finish_reason: FinishReason::Cancelled,
+    }
+}
+
+/// Prefill a prompt with cooperative stop checkpoints between decode chunks.
+/// Returns `Ok(false)` when stopped before the prompt was fully decoded; the
+/// context is then incomplete and must be discarded by the caller.
+pub(super) fn decode_prompt(
+    ctx: &mut LlamaContext<'_>,
+    tokens: &[LlamaToken],
+    should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
+) -> Result<bool, InferenceError> {
+    let cap = should_stop.map(|_| PREFILL_CHECKPOINT_TOKENS);
+    decode_range_checked(ctx, tokens, 0, false, cap, should_stop)
+}
+
+/// Decode a token range in batches bounded by the live llama.cpp context.
+/// The last overall token receives logits for sampling. For all-position
+/// speculative logits, too many tokens fail cleanly instead of returning
+/// stale logits from a prior batch or triggering a native assert.
 pub(super) fn decode_range(
     ctx: &mut LlamaContext<'_>,
     tokens: &[LlamaToken],
     start_pos: i32,
     logits_all: bool,
 ) -> Result<(), InferenceError> {
+    decode_range_checked(ctx, tokens, start_pos, logits_all, None, None).map(|_| ())
+}
+
+/// `decode_range` with an optional smaller chunk cap and a stop check that
+/// runs before every chunk. Returns `Ok(false)` if stopped early.
+pub(super) fn decode_range_checked(
+    ctx: &mut LlamaContext<'_>,
+    tokens: &[LlamaToken],
+    start_pos: i32,
+    logits_all: bool,
+    chunk_cap: Option<usize>,
+    should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
+) -> Result<bool, InferenceError> {
     if tokens.is_empty() {
-        return Ok(());
+        return Ok(true);
     }
-    let mut batch = LlamaBatch::new(tokens.len(), 1);
-    let last = tokens.len() - 1;
-    for (i, &tok) in tokens.iter().enumerate() {
-        let logits = logits_all || i == last;
-        batch
-            .add(tok, start_pos + i as i32, &[0], logits)
-            .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
+    let begin = usize::try_from(start_pos)
+        .map_err(|_| InferenceError::InputValidation("negative decode position".into()))?;
+    let end = begin
+        .checked_add(tokens.len())
+        .ok_or_else(|| InferenceError::InputValidation("decode position overflow".into()))?;
+    if end > ctx.n_ctx() as usize {
+        return Err(InferenceError::InputValidation(format!(
+            "decode would exceed the {}-token context window",
+            ctx.n_ctx()
+        )));
     }
-    decode(ctx, &mut batch)
+    // Bound to both logical and physical decode capacity. The default llama
+    // context can report a larger logical n_batch than physical n_ubatch.
+    let native_cap = ctx.n_batch().min(ctx.n_ubatch()) as usize;
+    let batch_cap = chunk_cap.map_or(native_cap, |cap| cap.min(native_cap));
+    if batch_cap == 0 {
+        return Err(InferenceError::ModelError(
+            "llama.cpp returned a zero-sized decode batch".into(),
+        ));
+    }
+    if logits_all && tokens.len() > batch_cap {
+        return Err(InferenceError::InputValidation(
+            "all-position logits require a single decode batch".into(),
+        ));
+    }
+    for (chunk_index, chunk) in tokens.chunks(batch_cap).enumerate() {
+        if stop_requested(should_stop) {
+            return Ok(false);
+        }
+        let offset = chunk_index * batch_cap;
+        let mut batch = LlamaBatch::new(chunk.len(), 1);
+        for (i, &tok) in chunk.iter().enumerate() {
+            let index = offset + i;
+            let pos = i32::try_from(begin + index).map_err(|_| {
+                InferenceError::InputValidation("decode position exceeds i32".into())
+            })?;
+            let logits = logits_all || index + 1 == tokens.len();
+            batch
+                .add(tok, pos, &[0], logits)
+                .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
+        }
+        decode(ctx, &mut batch)?;
+    }
+    Ok(true)
 }
 
 fn build_sampler(config: &InferenceConfig, n_vocab: i32) -> LlamaSampler {
@@ -393,3 +550,129 @@ fn resolve_threads(n: u32) -> i32 {
         i32::try_from(n).unwrap_or(4)
     }
 }
+
+#[cfg(test)]
+mod real_model_regression_tests {
+    use super::super::GgufConfig;
+    use super::*;
+
+    #[test]
+    fn real_model_long_prompt_beyond_batch() {
+        // The fixture may be an LFS pointer in source-only CI. The release
+        // acceptance script separately requires a real downloaded model.
+        let path = Path::new("../models/qwen2.5-0.5b-instruct-q4_k_m.gguf");
+        let Ok(metadata) = std::fs::metadata(path) else {
+            eprintln!("SKIP: real GGUF fixture not installed");
+            return;
+        };
+        if metadata.len() < 1_000_000 {
+            eprintln!("SKIP: GGUF fixture is an LFS pointer");
+            return;
+        }
+
+        let gguf = GgufConfig {
+            n_ctx: 2048,
+            n_threads: 4,
+            n_gpu_layers: 0,
+        };
+        let backend = LlamaBackendInner::load(path, &gguf).expect("real Qwen fixture must load");
+        let prompt =
+            "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(100);
+        let tokens = backend.tokenize(&prompt).expect("tokenize fixture prompt");
+        let context = backend.create_context().expect("create fixture context");
+        let batch_cap = context.n_batch().min(context.n_ubatch()) as usize;
+        assert!(
+            tokens.len() > 512,
+            "fixture must exceed the old single-batch ceiling"
+        );
+        assert!(
+            tokens.len() > batch_cap,
+            "fixture must exercise multiple actual decode batches (cap: {batch_cap})"
+        );
+        assert!(
+            tokens.len() < context.n_ctx() as usize,
+            "fixture must remain inside the context window"
+        );
+        drop(context);
+        let result = backend
+            .generate(
+                &prompt,
+                &InferenceConfig {
+                    max_tokens: Some(4),
+                    ..InferenceConfig::default()
+                },
+            )
+            .expect("long prompt must not terminate native inference");
+        assert!(result.tokens_generated <= 4);
+
+        // The other side of the batch/context distinction: a prompt that does
+        // not fit in the configured context must return an ordinary Rust error.
+        // Native llama.cpp must never receive an oversized decode request.
+        let overlong =
+            "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(500);
+        let overlong_tokens = backend
+            .tokenize(&overlong)
+            .expect("tokenize overflow fixture");
+        assert!(
+            overlong_tokens.len() >= 4096,
+            "overflow fixture must exceed even the configured 4096-token context"
+        );
+        assert!(matches!(
+            backend.generate(&overlong, &InferenceConfig::default()),
+            Err(InferenceError::InputValidation(_))
+        ));
+
+        // Release the 2048-token model before loading the 4096-token one so the
+        // test holds one fixture at a time (the llama backend is process-wide).
+        drop(backend);
+
+        // An actual Alden-style prompt also exceeds the old 2048-token
+        // context, so bounded batching alone would not be enough. The
+        // producer daemon must apply GG_CORE_N_CTX=4096 to model loading.
+        let long_context = GgufConfig {
+            n_ctx: 4096,
+            ..gguf.clone()
+        };
+        let long_backend = LlamaBackendInner::load(path, &long_context)
+            .expect("GGUF fixture with 4096-token context must load");
+        let persona =
+            "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(220);
+        let persona_tokens = long_backend
+            .tokenize(&persona)
+            .expect("tokenize Alden-class fixture");
+        assert!(
+            persona_tokens.len() > 2048,
+            "Alden-class fixture must exceed the old default context"
+        );
+        assert!(
+            persona_tokens.len() < long_context.n_ctx as usize,
+            "fixture must fit in configured 4096-token context"
+        );
+        let persona_result = long_backend
+            .generate(
+                &persona,
+                &InferenceConfig {
+                    max_tokens: Some(4),
+                    ..InferenceConfig::default()
+                },
+            )
+            .expect("generation must work with the configured extended context");
+        assert!(persona_result.tokens_generated <= 4);
+
+        assert!(matches!(
+            long_backend.generate(&overlong, &InferenceConfig::default()),
+            Err(InferenceError::InputValidation(_))
+        ));
+        long_backend
+            .generate("Answer in one word: hello.", &InferenceConfig::default())
+            .expect("model remains usable after rejecting a long prompt");
+    }
+}
+
+#[cfg(test)]
+#[path = "backend_lifetime_tests.rs"]
+mod lifetime_tests;
+
+#[cfg(test)]
+#[path = "backend_cancel_tests.rs"]
+mod cancel_tests;

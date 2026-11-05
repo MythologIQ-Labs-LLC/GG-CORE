@@ -57,6 +57,17 @@ pub fn read_sibling_manifest(model_path: &Path) -> Result<Option<ModelManifest>,
     Ok(Some(manifest))
 }
 
+/// Map the already parsed daemon settings into actual model-load settings.
+/// This stays pure so the contract can be tested without mutating the test
+/// process's environment or loading a large native GGUF fixture.
+fn gguf_load_config(env: &crate::config::GgufEnvConfig) -> GgufConfig {
+    GgufConfig {
+        n_ctx: env.n_ctx,
+        n_threads: env.n_threads,
+        ..GgufConfig::default()
+    }
+}
+
 /// Load the backend a model file selects, resolving an optional sibling
 /// `manifest.json`. A parsed manifest's declared `sha256` is verified against
 /// the file BEFORE any backend reads it, and the file's identity is re-checked
@@ -73,7 +84,14 @@ pub fn load_model_dispatch(
     };
     let model = match choose_backend(manifest) {
         BackendChoice::Onnx(m) => load_onnx_from_manifest(&m, model_path, &OnnxConfig::default()),
-        BackendChoice::GgufDefault => load_gguf_model(model_path, model_id, &GgufConfig::default()),
+        BackendChoice::GgufDefault => {
+            // The IPC daemon's model-load path must use its configured context.
+            // Previously the env settings were parsed and advertised, but every
+            // model silently loaded with the 2048-token default.
+            let env = crate::config::load_gguf_config();
+            let gguf = gguf_load_config(&env);
+            load_gguf_model(model_path, model_id, &gguf)
+        }
     }?;
     if let Some(identity) = hashed {
         check_identity_unchanged(model_path, &identity)?;
@@ -84,3 +102,22 @@ pub fn load_model_dispatch(
 #[cfg(test)]
 #[path = "backend_dispatch_tests.rs"]
 mod tests;
+
+/// The daemon's advertised context and thread env settings must actually
+/// reach the native GGUF loader, not just its diagnostic output.
+#[cfg(test)]
+mod gguf_config_dispatch_tests {
+    use super::*;
+
+    #[test]
+    fn configured_context_and_threads_reach_the_model_loader() {
+        let runtime = crate::config::GgufEnvConfig {
+            n_ctx: 8192,
+            n_threads: 6,
+        };
+        let load = gguf_load_config(&runtime);
+        assert_eq!(load.n_ctx, 8192);
+        assert_eq!(load.n_threads, 6);
+        assert_eq!(load.n_gpu_layers, 0);
+    }
+}
