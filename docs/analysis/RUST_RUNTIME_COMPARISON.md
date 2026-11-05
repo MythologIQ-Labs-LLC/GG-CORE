@@ -94,7 +94,7 @@ GG-CORE (Unsandboxed):   ██████████████████�
 | GG-CORE (sandboxed) | ~85 ms | 12 inf/s |
 | GG-CORE (unsandboxed) | ~5 ms | 200 inf/s |
 
-**Security Tax**: GG-CORE trades ~40-90% performance for complete isolation.
+**Historical, unverified security-overhead estimate:** The claimed 40–90% penalty is not supported by a matched secured-path experiment. GG-CORE does not provide complete isolation on every OS; do not cite this as an actual benchmark or assurance claim.
 
 **When to choose Tract**: On-device inference, minimal footprint.
 **When to choose GG-CORE**: Server deployment, compliance, security hardening.

@@ -62,7 +62,7 @@ codegen-units = 1
 | llama.cpp | Ryzen 5600X (2020) | Llama 7B Q4 | ~9 tok/s | Community |
 | Ollama | M1 Pro | Llama 7B Q4 | ~15 tok/s | Community |
 
-**Note**: Direct comparison requires identical models. The 0.5B model is significantly smaller than 7B models, resulting in proportionally higher throughput. Per-parameter efficiency is comparable.
+**Not a comparison:** These are different model sizes, hardware, software versions and serving conditions. The 0.5B model is much smaller than 7B models, and these figures **cannot establish per-parameter efficiency or GG-CORE superiority**. This table is historical context only.
 
 ### Archived infrastructure estimates (not comparable end-to-end measurements)
 

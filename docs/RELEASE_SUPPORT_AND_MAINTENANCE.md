@@ -34,9 +34,8 @@ Use a genuine permitted `models/example.gguf` in the daemon's configured base pa
 
 ```bash
 export CORE_AUTH_TOKEN='<replace-with-a-long-random-secret>'
-export GG_CORE_N_CTX=4096
-export GG_CORE_MAX_CONTEXT=4096
-export GG_CORE_MAX_CONTEXT_TOKENS=4096
+# The 2048-token native default is sufficient for this short smoke test.
+# For longer prompts explicitly set N_CTX and admission limits together.
 
 # From the configured base directory, with the installed CLI on PATH:
 gg-core-cli version --json
@@ -53,7 +52,7 @@ gg-core-cli infer --model local-model --prompt 'Answer with a short greeting.' -
 gg-core-cli infer --model local-model --prompt 'Count to three.' --max-tokens 32 --stream
 ```
 
-**Windows PowerShell:** Set the same environment variables with `$env:NAME = 'value'`; start `gg-core-cli.exe serve --model models/example.gguf --model-id local-model`. Use `gg-core-cli.exe version --json`, `ready`, and `infer --model local-model` in a second PowerShell with the same token and selected named-pipe path. The Windows termination procedure must be supervised by the consuming host; do not assume a Unix signal behavior.
+**Windows PowerShell:** Set `CORE_AUTH_TOKEN` and any selected context values with `$env:NAME = 'value'`; start `gg-core-cli.exe serve --model models/example.gguf --model-id local-model`. Use `gg-core-cli.exe version --json`, `ready`, and `infer --model local-model` in a second PowerShell with the same token and selected named-pipe path. The Windows termination procedure must be supervised by the consuming host; do not assume a Unix signal behavior.
 
 **Expected:** `live` can succeed without a model, but `ready` should succeed only after a model is usable. A failed preload must abort startup, not report a serving model. A real inference must return sanitized text, not just a healthy process, probe or backend-less version banner.
 
