@@ -86,8 +86,10 @@ impl LlamaBackendInner {
 
     /// Generate text with optional cooperative cancellation.
     ///
-    /// When `is_cancelled` is provided, it is checked once per token.
-    /// If set, generation stops early with `FinishReason::Cancelled`.
+    /// When `is_cancelled` is provided, it is checked before the context is
+    /// created, between prompt-prefill decode chunks, and once per generated
+    /// token. If set, generation stops early with `FinishReason::Cancelled`
+    /// and the context (KV cache) is released on return.
     pub fn generate_cancellable(
         &self,
         prompt: &str,
@@ -96,6 +98,9 @@ impl LlamaBackendInner {
     ) -> Result<GenerationResult, InferenceError> {
         let tokens = self.tokenize(prompt)?;
         let max_tok = config.max_tokens.unwrap_or(256);
+        if stop_requested(is_cancelled) {
+            return Ok(cancelled_result());
+        }
         let mut ctx = self.create_context()?;
         let (out_tokens, reason) =
             self.sample_loop(&mut ctx, &tokens, max_tok, config, is_cancelled)?;
@@ -121,10 +126,16 @@ impl LlamaBackendInner {
         mut sanitizer: Option<&mut StreamSanitizer>,
     ) -> Result<(), InferenceError> {
         let tokens = self.tokenize(prompt)?;
+        if stop_requested(is_cancelled) {
+            return Ok(());
+        }
         let mut ctx = self.create_context()?;
         ensure_prompt_room(&ctx, tokens.len())?;
-        // llama.cpp rejects any single decode larger than ctx.n_batch().
-        decode_range(&mut ctx, &tokens, 0, false)?;
+        // llama.cpp rejects any single decode larger than ctx.n_batch(). A stop
+        // between prefill chunks ends the stream; the caller reports the reason.
+        if !decode_prompt(&mut ctx, &tokens, is_cancelled)? {
+            return Ok(());
+        }
         let limit =
             (config.max_tokens.unwrap_or(256) as usize).min(ctx.n_ctx() as usize - tokens.len());
         let mut batch = LlamaBatch::new(1, 1);
@@ -344,7 +355,9 @@ impl LlamaBackendInner {
         is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<(Vec<LlamaToken>, FinishReason), InferenceError> {
         ensure_prompt_room(ctx, tokens.len())?;
-        decode_range(ctx, tokens, 0, false)?;
+        if !decode_prompt(ctx, tokens, is_cancelled)? {
+            return Ok((Vec::new(), FinishReason::Cancelled));
+        }
         let mut batch = LlamaBatch::new(1, 1);
         let mut sampler = build_sampler(config, self.model.n_vocab());
         sampler.accept_many(tokens.iter().copied());
@@ -400,6 +413,37 @@ fn decode(ctx: &mut LlamaContext<'_>, batch: &mut LlamaBatch) -> Result<(), Infe
         .map_err(|e| InferenceError::ModelError(format!("decode: {e}")))
 }
 
+/// Upper bound on one prompt-prefill decode chunk when the request can be
+/// cancelled. Cancellation and deadlines are honored between chunks, so this
+/// bounds how much prefill work a stopped request can still perform (about
+/// 0.6 s for a 0.5B Q4 model on a 2-vCPU build VM) without materially slowing
+/// prefill compared with llama.cpp's default 512-token physical batch.
+pub(super) const PREFILL_CHECKPOINT_TOKENS: usize = 256;
+
+fn stop_requested(should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>) -> bool {
+    should_stop.is_some_and(|f| f())
+}
+
+fn cancelled_result() -> GenerationResult {
+    GenerationResult {
+        text: String::new(),
+        tokens_generated: 0,
+        finish_reason: FinishReason::Cancelled,
+    }
+}
+
+/// Prefill a prompt with cooperative stop checkpoints between decode chunks.
+/// Returns `Ok(false)` when stopped before the prompt was fully decoded; the
+/// context is then incomplete and must be discarded by the caller.
+pub(super) fn decode_prompt(
+    ctx: &mut LlamaContext<'_>,
+    tokens: &[LlamaToken],
+    should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
+) -> Result<bool, InferenceError> {
+    let cap = should_stop.map(|_| PREFILL_CHECKPOINT_TOKENS);
+    decode_range_checked(ctx, tokens, 0, false, cap, should_stop)
+}
+
 /// Decode a token range in batches bounded by the live llama.cpp context.
 /// The last overall token receives logits for sampling. For all-position
 /// speculative logits, too many tokens fail cleanly instead of returning
@@ -410,8 +454,21 @@ pub(super) fn decode_range(
     start_pos: i32,
     logits_all: bool,
 ) -> Result<(), InferenceError> {
+    decode_range_checked(ctx, tokens, start_pos, logits_all, None, None).map(|_| ())
+}
+
+/// `decode_range` with an optional smaller chunk cap and a stop check that
+/// runs before every chunk. Returns `Ok(false)` if stopped early.
+pub(super) fn decode_range_checked(
+    ctx: &mut LlamaContext<'_>,
+    tokens: &[LlamaToken],
+    start_pos: i32,
+    logits_all: bool,
+    chunk_cap: Option<usize>,
+    should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
+) -> Result<bool, InferenceError> {
     if tokens.is_empty() {
-        return Ok(());
+        return Ok(true);
     }
     let begin = usize::try_from(start_pos)
         .map_err(|_| InferenceError::InputValidation("negative decode position".into()))?;
@@ -426,7 +483,8 @@ pub(super) fn decode_range(
     }
     // Bound to both logical and physical decode capacity. The default llama
     // context can report a larger logical n_batch than physical n_ubatch.
-    let batch_cap = ctx.n_batch().min(ctx.n_ubatch()) as usize;
+    let native_cap = ctx.n_batch().min(ctx.n_ubatch()) as usize;
+    let batch_cap = chunk_cap.map_or(native_cap, |cap| cap.min(native_cap));
     if batch_cap == 0 {
         return Err(InferenceError::ModelError(
             "llama.cpp returned a zero-sized decode batch".into(),
@@ -438,6 +496,9 @@ pub(super) fn decode_range(
         ));
     }
     for (chunk_index, chunk) in tokens.chunks(batch_cap).enumerate() {
+        if stop_requested(should_stop) {
+            return Ok(false);
+        }
         let offset = chunk_index * batch_cap;
         let mut batch = LlamaBatch::new(chunk.len(), 1);
         for (i, &tok) in chunk.iter().enumerate() {
@@ -452,7 +513,7 @@ pub(super) fn decode_range(
         }
         decode(ctx, &mut batch)?;
     }
-    Ok(())
+    Ok(true)
 }
 
 fn build_sampler(config: &InferenceConfig, n_vocab: i32) -> LlamaSampler {
@@ -609,3 +670,7 @@ mod real_model_regression_tests {
 #[cfg(test)]
 #[path = "backend_lifetime_tests.rs"]
 mod lifetime_tests;
+
+#[cfg(test)]
+#[path = "backend_cancel_tests.rs"]
+mod cancel_tests;

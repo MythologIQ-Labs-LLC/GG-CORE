@@ -65,7 +65,7 @@ impl RequestQueue {
         params: InferenceParams,
         priority: Priority,
     ) -> Result<(u64, usize), QueueError> {
-        self.enqueue_inner(model_id, prompt, params, priority, None)
+        self.enqueue_inner(model_id, prompt, params, priority, None, None)
             .await
     }
 
@@ -79,7 +79,33 @@ impl RequestQueue {
     ) -> Result<(u64, ResponseRx), QueueError> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let (id, _pos) = self
-            .enqueue_inner(model_id, prompt, params, priority, Some(tx))
+            .enqueue_inner(model_id, prompt, params, priority, Some(tx), None)
+            .await?;
+        Ok((id, rx))
+    }
+
+    /// Enqueue with a response channel and a caller-owned cancel flag. The
+    /// caller sets the flag on cancel, disconnect, or its own deadline; the
+    /// worker observes it before execution, between prefill chunks, and per
+    /// generated token.
+    pub async fn enqueue_controlled(
+        &self,
+        model_id: String,
+        prompt: String,
+        params: InferenceParams,
+        priority: Priority,
+        cancelled: Arc<std::sync::atomic::AtomicBool>,
+    ) -> Result<(u64, ResponseRx), QueueError> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let (id, _pos) = self
+            .enqueue_inner(
+                model_id,
+                prompt,
+                params,
+                priority,
+                Some(tx),
+                Some(cancelled),
+            )
             .await?;
         Ok((id, rx))
     }
@@ -91,6 +117,7 @@ impl RequestQueue {
         params: InferenceParams,
         priority: Priority,
         response_tx: Option<ResponseTx>,
+        cancelled: Option<Arc<std::sync::atomic::AtomicBool>>,
     ) -> Result<(u64, usize), QueueError> {
         check_context(&prompt, self.config.max_context_tokens)?;
 
@@ -103,7 +130,10 @@ impl RequestQueue {
         }
 
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        let request = QueuedRequest::with_tx(id, model_id, prompt, params, response_tx);
+        let mut request = QueuedRequest::with_tx(id, model_id, prompt, params, response_tx);
+        if let Some(flag) = cancelled {
+            request.cancelled = flag;
+        }
         let position = queue.len();
         queue.push(request, priority);
         drop(queue);
@@ -130,6 +160,7 @@ impl RequestQueue {
         loop {
             let request = queue.pop()?;
             if request.is_cancelled() || request.is_expired() {
+                request.reject_unexecuted();
                 continue;
             }
             return Some(request);

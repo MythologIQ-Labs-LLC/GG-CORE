@@ -94,11 +94,16 @@ async fn execute_request(
     request: QueuedRequest,
 ) {
     let model_id = request.model_id.clone();
-    let cancelled = request.cancel_check();
+    let control = request.stop_control();
 
     let Some(request) = scan_ingress(security, request) else {
         return;
     };
+    // Cancelled or expired while waiting for the worker: explicit failure, no work.
+    if control.should_stop() {
+        request.reject_unexecuted();
+        return;
+    }
 
     let _guard = match acquire_guard(engine, resource_limits, &model_id).await {
         Ok(g) => g,
@@ -109,15 +114,16 @@ async fn execute_request(
         }
     };
     let start = std::time::Instant::now();
-    let result = run_inference(
-        engine,
-        resource_limits,
-        &model_id,
-        &request.prompt,
-        &request.params,
-        cancelled,
-    )
-    .await;
+    let max_memory = resource_limits.map(ResourceLimits::max_memory_per_call);
+    let result = engine
+        .run_controlled(
+            &model_id,
+            &request.prompt,
+            &request.params,
+            &control,
+            max_memory,
+        )
+        .await;
     let latency_ms = start.elapsed().as_millis() as u64;
 
     let result = apply_egress(security, &model_id, result);
@@ -182,31 +188,6 @@ pub(super) async fn acquire_guard(
     limits.try_acquire(mem).map(Some).map_err(|e| e.to_string())
 }
 
-async fn run_inference(
-    engine: &InferenceEngine,
-    resource_limits: Option<&ResourceLimits>,
-    model_id: &str,
-    prompt: &str,
-    params: &crate::engine::InferenceParams,
-    cancelled: Arc<std::sync::atomic::AtomicBool>,
-) -> InferResult {
-    if let Some(limits) = resource_limits {
-        engine
-            .run_cancellable_with_memory_limit(
-                model_id,
-                prompt,
-                params,
-                cancelled,
-                limits.max_memory_per_call(),
-            )
-            .await
-    } else {
-        engine
-            .run_cancellable(model_id, prompt, params, cancelled)
-            .await
-    }
-}
-
 async fn record_result(
     result: &InferResult,
     model_id: &str,
@@ -252,3 +233,7 @@ mod security_tests;
 #[cfg(test)]
 #[path = "worker_streaming_tests.rs"]
 mod streaming_tests;
+
+#[cfg(test)]
+#[path = "worker_stop_tests.rs"]
+mod stop_tests;

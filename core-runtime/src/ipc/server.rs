@@ -82,8 +82,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
     let (mut read_half, write_half) = tokio::io::split(stream);
     let write_half = Arc::new(Mutex::new(write_half));
     let mut session: Option<super::auth::SessionToken> = None;
-    let active_streams: Arc<Mutex<HashMap<u64, CancellationToken>>> =
-        Arc::new(Mutex::new(HashMap::new()));
+    let active_requests: ActiveRequests = Arc::new(Mutex::new(HashMap::new()));
 
     loop {
         let request_bytes = match read_frame(&mut read_half, max_frame_size).await {
@@ -116,7 +115,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                     let id = req.request_id.0;
                     let cancel = CancellationToken::new();
                     {
-                        let mut streams = active_streams.lock().await;
+                        let mut streams = active_requests.lock().await;
                         if streams.contains_key(&id) {
                             drop(streams);
                             let err = r#"{"type":"error","code":409,"message":"Duplicate active request ID"}"#;
@@ -127,7 +126,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                     }
                     // Stream relay runs independently of the connection reader,
                     // allowing cancellation and other control frames to arrive.
-                    let streams = Arc::clone(&active_streams);
+                    let streams = Arc::clone(&active_requests);
                     let writer = Arc::clone(&write_half);
                     let stream_handler = Arc::clone(&handler);
                     let stream_session = (*sess).clone();
@@ -156,8 +155,32 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                 }
             }
 
+            // Non-streaming inference runs beside the reader, like a stream,
+            // so cancel_request and disconnect reach it while it executes.
+            IpcMessage::InferenceRequest(req) => {
+                if handler.require_auth(session.as_ref()).await.is_err() {
+                    let err = r#"{"type":"error","code":401,"message":"Not authenticated"}"#;
+                    let _ = write_frame_locked(&write_half, err.as_bytes()).await;
+                    break;
+                }
+                let Some(cancel) = register_request(&active_requests, req.request_id.0).await
+                else {
+                    let err =
+                        r#"{"type":"error","code":409,"message":"Duplicate active request ID"}"#;
+                    let _ = write_frame_locked(&write_half, err.as_bytes()).await;
+                    continue;
+                };
+                spawn_inference(
+                    Arc::clone(&handler),
+                    Arc::clone(&write_half),
+                    Arc::clone(&active_requests),
+                    req,
+                    cancel,
+                );
+            }
+
             // Cancellation is an authenticated operation on the originating
-            // connection, including while its stream is still running.
+            // connection, including while its request is still running.
             IpcMessage::CancelRequest { request_id } => {
                 if let Some(ref sess) = session {
                     if handler.auth.validate(sess).await.is_err() {
@@ -165,7 +188,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                         let _ = write_frame_locked(&write_half, err.as_bytes()).await;
                         continue;
                     }
-                    let streams = active_streams.lock().await;
+                    let streams = active_requests.lock().await;
                     let cancelled = if let Some(cancel) = streams.get(&request_id.0) {
                         cancel.cancel();
                         true
@@ -212,10 +235,44 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
         }
     }
     // The last client reference disappeared. Stop inference rather than
-    // leaving the worker generating into an abandoned streaming channel.
-    for cancel in active_streams.lock().await.values() {
+    // leaving the worker generating for an abandoned stream or response.
+    for cancel in active_requests.lock().await.values() {
         cancel.cancel();
     }
+}
+
+type ActiveRequests = Arc<Mutex<HashMap<u64, CancellationToken>>>;
+
+/// Register an in-flight request ID on this connection; `None` if the ID is
+/// already active.
+async fn register_request(active: &ActiveRequests, id: u64) -> Option<CancellationToken> {
+    let mut requests = active.lock().await;
+    if requests.contains_key(&id) {
+        return None;
+    }
+    let cancel = CancellationToken::new();
+    requests.insert(id, cancel.clone());
+    Some(cancel)
+}
+
+/// Run one non-streaming request and write its single response frame. The
+/// ID is released before the write: a cancel arriving after completion
+/// correctly reports `cancelled: false`.
+fn spawn_inference<W: AsyncWriteExt + Unpin + Send + 'static>(
+    handler: Arc<IpcHandler>,
+    writer: Arc<Mutex<W>>,
+    active: ActiveRequests,
+    request: super::protocol::InferenceRequest,
+    cancel: CancellationToken,
+) {
+    tokio::spawn(async move {
+        let id = request.request_id.0;
+        let response = handler.handle_inference_controlled(request, cancel).await;
+        active.lock().await.remove(&id);
+        if let Ok(bytes) = encode_message(&IpcMessage::InferenceResponse(response)) {
+            let _ = write_frame_locked(&writer, &bytes).await;
+        }
+    });
 }
 
 /// Accept one connection, acquire a guard, and spawn a handler task.
@@ -245,3 +302,7 @@ pub use super::listener::run_server;
 #[cfg(all(test, feature = "gguf"))]
 #[path = "server_control_tests.rs"]
 mod control_tests;
+
+#[cfg(test)]
+#[path = "server_inference_tests.rs"]
+mod inference_tests;

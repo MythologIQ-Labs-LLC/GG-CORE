@@ -17,7 +17,7 @@ use crate::engine::TokenStream;
 use crate::health::HealthChecker;
 use crate::models::ModelRegistry;
 use crate::scheduler::Priority;
-use crate::scheduler::{QueueError, RequestQueue};
+use crate::scheduler::RequestQueue;
 use crate::shutdown::ShutdownCoordinator;
 use crate::telemetry::MetricsStore;
 
@@ -241,68 +241,11 @@ impl IpcHandler {
         Ok(())
     }
 
+    /// Non-streaming inference without a connection-scoped cancel owner; the
+    /// request's `timeout_ms` deadline still applies.
     async fn handle_inference(&self, request: InferenceRequest) -> InferenceResponse {
-        let _guard = match self.shutdown.track() {
-            Some(g) => g,
-            None => {
-                return InferenceResponse::error_coded(
-                    request.request_id,
-                    "Server is shutting down".into(),
-                    InferenceErrorCode::ShuttingDown,
-                );
-            }
-        };
-
-        if let Err(e) = request.validate() {
-            return InferenceResponse::error_coded(
-                request.request_id,
-                e.to_string(),
-                InferenceErrorCode::InputInvalid,
-            );
-        }
-
-        // Enqueue and await result from worker (queue is sole execution path)
-        let enqueue_result = self
-            .queue
-            .enqueue_with_response(
-                request.model_id.clone(),
-                request.prompt.clone(),
-                request.parameters.clone(),
-                Priority::Normal,
-            )
-            .await;
-
-        let (_id, rx) = match enqueue_result {
-            Ok(r) => r,
-            Err(e) => {
-                // An over-long prompt is a permanent input error, not a
-                // retriable admission rejection like a full queue.
-                let code = match &e {
-                    QueueError::ContextTooLarge { .. } => InferenceErrorCode::InputInvalid,
-                    _ => InferenceErrorCode::AdmissionRejected,
-                };
-                return InferenceResponse::error_coded(request.request_id, e.to_string(), code);
-            }
-        };
-
-        // Await the worker's response — classify the error code from message content.
-        match rx.await {
-            Ok(Ok(result)) => InferenceResponse::success(
-                request.request_id,
-                result.output,
-                result.tokens_generated,
-                result.finished,
-            ),
-            Ok(Err(e)) => {
-                let code = classify_worker_error(&e);
-                InferenceResponse::error_coded(request.request_id, e, code)
-            }
-            Err(_) => InferenceResponse::error_coded(
-                request.request_id,
-                "worker dropped response channel".into(),
-                InferenceErrorCode::ExecutionFailed,
-            ),
-        }
+        self.handle_inference_controlled(request, CancellationToken::new())
+            .await
     }
 
     async fn handle_warmup(&self, model_id: String, _tokens: usize) -> WarmupResponse {
@@ -529,13 +472,20 @@ impl IpcHandler {
     }
 }
 
+#[path = "handler_inference.rs"]
+mod inference_control;
+
 /// Map a worker error string to a structured `InferenceErrorCode`.
 ///
 /// The worker stringifies `engine::InferenceError` variants. We classify by
 /// matching known prefixes so callers can distinguish admission rejections
 /// (retriable) from execution failures (not retriable without change).
 fn classify_worker_error(msg: &str) -> InferenceErrorCode {
-    if msg.contains("Memory limit exceeded")
+    if msg.contains("Request cancelled") {
+        InferenceErrorCode::Cancelled
+    } else if msg.contains("Deadline exceeded") {
+        InferenceErrorCode::DeadlineExceeded
+    } else if msg.contains("Memory limit exceeded")
         || msg.contains("queue full")
         || msg.contains("Queue full")
     {
@@ -579,6 +529,21 @@ mod classify_tests {
         assert_eq!(
             classify_worker_error("Inference failed: Model error: decode: -1"),
             InferenceErrorCode::ExecutionFailed
+        );
+    }
+
+    #[test]
+    fn stopped_requests_get_explicit_codes() {
+        let cancelled = crate::engine::inference::InferenceError::Cancelled.to_string();
+        assert_eq!(
+            classify_worker_error(&cancelled),
+            InferenceErrorCode::Cancelled
+        );
+        let expired =
+            crate::engine::inference::InferenceError::DeadlineExceeded { timeout_ms: 350 };
+        assert_eq!(
+            classify_worker_error(&expired.to_string()),
+            InferenceErrorCode::DeadlineExceeded
         );
     }
 }

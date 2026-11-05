@@ -8,7 +8,7 @@ use crate::engine::DegradedModePolicy;
 #[cfg(feature = "gguf")]
 use crate::engine::InferenceConfig;
 use crate::engine::Model;
-use crate::engine::{InferenceInput, InferenceOutput};
+use crate::engine::{FinishReason, InferenceInput, InferenceOutput, StopControl};
 use crate::models::ModelHandle;
 
 pub use super::inference_types::{InferenceError, InferenceParams, InferenceResult};
@@ -69,6 +69,10 @@ impl InferenceEngine {
     }
 
     /// Run inference on text prompt using the specified model.
+    ///
+    /// `params.timeout_ms` is a wall-clock deadline measured from this call;
+    /// prompt prefill and generation stop at their next checkpoint once it
+    /// passes and the call fails with `DeadlineExceeded`.
     pub(crate) async fn run(
         &self,
         model_id: &str,
@@ -76,6 +80,7 @@ impl InferenceEngine {
         params: &InferenceParams,
     ) -> Result<InferenceResult, InferenceError> {
         params.validate()?;
+        let control = StopControl::from_timeout(None, params.timeout_ms);
         let model = self.get_model(model_id).await?;
         let prompt = self.apply_degraded_context(prompt)?;
         // B-21c: config-gated speculative decode (off by default); miss -> single-model.
@@ -84,13 +89,17 @@ impl InferenceEngine {
             .try_speculative(model_id, &model, &prompt, params)
             .await
         {
-            return r;
+            return match control.stop_error() {
+                Some(stopped) => Err(stopped),
+                None => r,
+            };
         }
-        Self::infer_with_model(&model, &prompt, params).await
+        Self::infer_controlled(&model, &prompt, params, None, &control).await
     }
 
-    /// Run inference with cooperative per-token cancellation (checked before
-    /// inference and threaded to the GGUF backend for per-token checks).
+    /// Test convenience over `run_controlled`: a caller-owned cancel flag and
+    /// a deadline from `params.timeout_ms`, measured from this call.
+    #[cfg(test)]
     pub(crate) async fn run_cancellable(
         &self,
         model_id: &str,
@@ -98,26 +107,14 @@ impl InferenceEngine {
         params: &InferenceParams,
         is_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<InferenceResult, InferenceError> {
-        use std::sync::atomic::Ordering;
-
-        params.validate()?;
-
-        if is_cancelled.load(Ordering::Acquire) {
-            return Err(InferenceError::ExecutionFailed("cancelled".into()));
-        }
-
-        let model = self.get_model(model_id).await?;
-        self.check_context(prompt)?;
-
-        let cancel = Arc::clone(&is_cancelled);
-        let check = move || cancel.load(Ordering::Acquire);
-        let result = Self::infer_cancellable(&model, prompt, params, None, Some(&check)).await?;
-
-        Ok(result)
+        let control = StopControl::from_timeout(Some(is_cancelled), params.timeout_ms);
+        self.run_controlled(model_id, prompt, params, &control, None)
+            .await
     }
 
-    /// Run inference with per-token cancellation and a per-call memory budget
+    /// Test convenience: `run_cancellable` plus a per-call memory budget
     /// (`max_memory_bytes` enforced before calling into the model).
+    #[cfg(test)]
     pub(crate) async fn run_cancellable_with_memory_limit(
         &self,
         model_id: &str,
@@ -126,24 +123,29 @@ impl InferenceEngine {
         is_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
         max_memory_bytes: usize,
     ) -> Result<InferenceResult, InferenceError> {
-        use std::sync::atomic::Ordering;
+        let control = StopControl::from_timeout(Some(is_cancelled), params.timeout_ms);
+        self.run_controlled(model_id, prompt, params, &control, Some(max_memory_bytes))
+            .await
+    }
 
+    /// Run inference under an explicit stop control (queue-owned cancel flag
+    /// and deadline). A stopped request always returns `Cancelled` or
+    /// `DeadlineExceeded`, never a partial success.
+    pub(crate) async fn run_controlled(
+        &self,
+        model_id: &str,
+        prompt: &str,
+        params: &InferenceParams,
+        control: &StopControl,
+        max_memory_bytes: Option<usize>,
+    ) -> Result<InferenceResult, InferenceError> {
         params.validate()?;
-
-        if is_cancelled.load(Ordering::Acquire) {
-            return Err(InferenceError::ExecutionFailed("cancelled".into()));
+        if let Some(stopped) = control.stop_error() {
+            return Err(stopped);
         }
-
         let model = self.get_model(model_id).await?;
         self.check_context(prompt)?;
-
-        let cancel = Arc::clone(&is_cancelled);
-        let check = move || cancel.load(Ordering::Acquire);
-        let result =
-            Self::infer_cancellable(&model, prompt, params, Some(max_memory_bytes), Some(&check))
-                .await?;
-
-        Ok(result)
+        Self::infer_controlled(&model, prompt, params, max_memory_bytes, control).await
     }
 
     /// Look up a model by ID, cloning the Arc (drops the read lock).
@@ -169,20 +171,12 @@ impl InferenceEngine {
         Ok(())
     }
 
-    async fn infer_with_model(
-        model: &Arc<dyn Model>,
-        prompt: &str,
-        params: &InferenceParams,
-    ) -> Result<InferenceResult, InferenceError> {
-        Self::infer_cancellable(model, prompt, params, None, None).await
-    }
-
-    async fn infer_cancellable(
+    async fn infer_controlled(
         model: &Arc<dyn Model>,
         prompt: &str,
         params: &InferenceParams,
         max_memory_bytes: Option<usize>,
-        is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
+        control: &StopControl,
     ) -> Result<InferenceResult, InferenceError> {
         if let Some(budget) = max_memory_bytes {
             let model_mem = model.memory_usage();
@@ -198,12 +192,24 @@ impl InferenceEngine {
         config.max_memory_bytes = max_memory_bytes;
 
         let input = InferenceInput::Text(prompt.to_string());
-        let output = model
-            .infer_cancellable(&input, &config, is_cancelled)
-            .await
-            .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))?;
+        let check = || control.should_stop();
+        let output = model.infer_cancellable(&input, &config, Some(&check)).await;
+        // A stop observed at or after a checkpoint wins over whatever the
+        // backend returned: partial output must never look like success.
+        if let Some(stopped) = control.stop_error() {
+            return Err(stopped);
+        }
+        let output = output.map_err(|e| InferenceError::ExecutionFailed(e.to_string()))?;
 
         match output {
+            InferenceOutput::Generation(gen) if gen.finish_reason == FinishReason::Cancelled => {
+                Err(InferenceError::Cancelled)
+            }
+            InferenceOutput::Generation(gen) if gen.finish_reason == FinishReason::Timeout => {
+                Err(InferenceError::DeadlineExceeded {
+                    timeout_ms: config.timeout_ms,
+                })
+            }
             InferenceOutput::Generation(gen) => Ok(InferenceResult {
                 output: gen.text,
                 tokens_generated: gen.tokens_generated as usize,

@@ -25,6 +25,14 @@ pub enum InferenceError {
 
     #[error("{0}")]
     SecurityRejected(String),
+
+    /// The caller cancelled the request (cancel_request, disconnect, or drop).
+    #[error("Request cancelled")]
+    Cancelled,
+
+    /// The request's `timeout_ms` elapsed before it completed.
+    #[error("Deadline exceeded: request did not complete within its {timeout_ms} ms timeout")]
+    DeadlineExceeded { timeout_ms: u64 },
 }
 
 /// Parameters controlling inference behavior (IPC protocol).
@@ -75,6 +83,11 @@ impl InferenceParams {
         if self.top_p <= 0.0 || self.top_p > 1.0 {
             return Err(InferenceError::InvalidParams(
                 "top_p must be in (0, 1]".into(),
+            ));
+        }
+        if self.timeout_ms == Some(0) {
+            return Err(InferenceError::InvalidParams(
+                "timeout_ms must be > 0".into(),
             ));
         }
         Ok(())

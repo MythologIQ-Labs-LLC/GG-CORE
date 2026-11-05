@@ -126,10 +126,12 @@ async fn worker_skips_cancelled_request() {
         .await
         .unwrap();
 
-    // First request: cancelled (receiver dropped or error)
-    let r1 = tokio::time::timeout(std::time::Duration::from_secs(2), rx).await;
-    // Either the receiver gets an error or the channel is dropped
-    assert!(r1.is_err() || r1.unwrap().is_err());
+    // First request: an explicit cancellation failure, never a dropped channel.
+    let r1 = tokio::time::timeout(std::time::Duration::from_secs(2), rx)
+        .await
+        .expect("cancelled request must be answered")
+        .expect("response channel must not be dropped");
+    assert!(r1.expect_err("cancelled request").contains("cancelled"));
 
     // Second request: succeeds
     let r2 = tokio::time::timeout(std::time::Duration::from_secs(2), rx2)
