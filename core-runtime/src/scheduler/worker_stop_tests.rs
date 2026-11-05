@@ -47,7 +47,18 @@ impl Model for SlowModel {
         is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<InferenceOutput, EngineError> {
         let quick = matches!(input, InferenceInput::Text(p) if p == "quick");
-        let steps = if quick { 1 } else { 200 };
+        // A backend that honors the checkpoint stops within a few steps, so
+        // its nominal length only has to exceed the test deadlines. The
+        // ignoring backend runs to completion: keep that well past the 50 ms
+        // deadline but short enough that a loaded 3-vCPU CI runner (macOS
+        // overshot a 5 s budget with 200 steps) cannot turn it into a timeout.
+        let steps = if quick {
+            1
+        } else if self.honor_stop {
+            200
+        } else {
+            40
+        };
         let mut finish = FinishReason::Stop;
         for _ in 0..steps {
             if self.honor_stop && is_cancelled.is_some_and(|f| f()) {
@@ -93,7 +104,9 @@ fn params(timeout_ms: Option<u64>) -> InferenceParams {
 async fn answer(
     rx: crate::scheduler::ResponseRx,
 ) -> Result<crate::engine::InferenceResult, String> {
-    tokio::time::timeout(Duration::from_secs(5), rx)
+    // Generous: promptness is asserted separately (< 1 s) where it matters;
+    // this bound only guards against a hung worker on a slow runner.
+    tokio::time::timeout(Duration::from_secs(30), rx)
         .await
         .expect("worker must answer")
         .expect("response channel must not be dropped")
