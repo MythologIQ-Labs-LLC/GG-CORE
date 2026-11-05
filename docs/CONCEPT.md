@@ -1,5 +1,7 @@
 # Project Concept
 
+> **Design vision, not a verified release-specification.** This early concept includes aspirational sandbox, complete network-denial and performance statements that do **not** describe every platform in the current `0.10.0-rc.1` candidate. Current verified capabilities and risks are in [SECURITY.md](../SECURITY.md), the [producer contract](integration/COREFORGE_PRODUCER_CONTRACT.md), and [release gate #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Do not treat this document's historical goals or illustrative numbers as achieved benchmark or certification evidence.
+
 ## Why (One Sentence)
 
 **GG-CORE** (Greatest Good - Contained Offline Restricted Execution) is a sandboxed, offline inference engine that performs model execution only and has no authority over data, tools, or system actions.
@@ -56,7 +58,7 @@ Built on triage principles ("Greatest Good for the Greatest Number"), GG-CORE pr
 
 ### Tier Progression Targets
 
-Performance targets account for "security tax" (40-88% overhead vs unsandboxed runtimes).
+The original 40–88% "security tax" was **an unverified planning assumption**, not a measured cost. A fair, secured-path benchmark remains open under [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136).
 
 #### Tier 1: Minimum Viable (Baseline)
 
@@ -66,7 +68,7 @@ Performance targets account for "security tax" (40-88% overhead vs unsandboxed r
 | Classification P95 | <100ms | Generous for sandboxed ONNX |
 | Memory Ratio | <1.5x | Industry standard ceiling |
 
-**Proves**: Sandbox works without catastrophic overhead.
+**Intended test:** Once measured on a qualified host, the target would help evaluate sandbox overhead; the target is **not** evidence that it has been met.
 
 #### Tier 2: Competitive (Stretch)
 
@@ -97,7 +99,7 @@ Performance targets account for "security tax" (40-88% overhead vs unsandboxed r
 | vLLM | 16-core EPYC (CPU) | 55 tok/s | Medium benchmarks |
 | ONNX Runtime | Azure Cobalt 100 | 1.86ms / 538 inf/s | Arm Learn |
 
-### Security Tax Visualization
+### Unverified performance target illustration (not benchmark data)
 
 ```
 Unsandboxed Ollama CPU:  ████████████████████ 80 tok/s (100%)
@@ -106,10 +108,6 @@ Tier 2 Target:           ██████               25 tok/s (31%)
 Tier 1 Target:           ███                  10 tok/s (12%)
 ```
 
-The 40-88% performance reduction is the cost of:
-- Process isolation (seccomp/AppContainer)
-- IPC serialization overhead
-- No shared memory with caller
-- Constant-time security operations
+**No verified 40–88% slowdown has been established.** These were possible sources of overhead, not measured deductions: platform-dependent process controls, IPC serialization and security scanning. Linux seccomp, Windows Job Objects and macOS have different isolation properties. The current RC does not claim an AppContainer confinement boundary.
 
 ---

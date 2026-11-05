@@ -1,9 +1,7 @@
 # GG-CORE Roadmap
 
-**Last updated:** 2026-11-04 · **Current version:** 0.10.0-rc.1 (release candidate; functional/security qualification per issue #130 — performance qualification and adaptive model switching remain tracked, not RC blockers)
-**Product:** GG-CORE (Greatest Good - Contained Offline Restricted Execution) —
-a sandboxed, offline, IPC-only inference runtime. Pure compute; no network,
-no business logic, no decision authority.
+**Updated:** 2026-11-05 · **Current source candidate:** `0.10.0-rc.1` at qualified `main@d55ba50a` (Rust, CodeQL and packaged Linux/Windows/macOS GGUF inference all passed). **No public tag or release has yet been issued.** Owner-controlled publication [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130), performance [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136) and switching [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137) remain distinct.
+**Product:** GG-CORE (Greatest Good - Contained Offline Restricted Execution) is a local CPU inference runtime with authenticated IPC, not a plugin or external inference router. Security containment varies by platform; see `SECURITY.md`.
 
 This roadmap is rebuilt from code, green CI, `docs/FEATURE_INDEX.md`,
 `docs/BACKLOG.md`, CHANGELOG, and open issues (per issue #107). Each item
@@ -88,9 +86,7 @@ carries its real maturity. Four maturity levels are used:
 
 These were previously listed as "complete"; that overstated them:
 
-- **Sandbox** (Job Objects / cgroups+seccomp, 49-syscall allowlist): the
-  daemon never calls `create_sandbox`. Wiring it into `serve` startup is a
-  tracked known gap (SECURITY.md).
+- **Platform containment caveat:** The current serving daemon **does** apply sandbox controls before accepting IPC: Linux seccomp, Windows Job Object memory/process restrictions, macOS no OS sandbox. These are qualified, scoped controls rather than universal filesystem/network denial. See `SECURITY.md` and #130.
 - **Model encryption** (AES-256-GCM stack): the load path never decrypts.
 - **Paged KV attention** (`memory/paged.rs`): no live caller on the serving
   path.
@@ -111,18 +107,12 @@ These were previously listed as "complete"; that overstated them:
 ## Planned
 
 ### Near-term (owned, sequenced)
-1. **Daemon sandbox activation** — apply the shipped sandbox in `serve`.
-2. **Model hash enforcement** — verify manifest `sha256` at load, fail loud.
-3. **MSRV / toolchain pin** — CI currently floats `stable` (new rustc 1.99
-   lints landed mid-PR and broke green).
-4. **Dependency currency wave** (each its own PR): RustCrypto generation
-   (sha2/aes/aes-gcm/pbkdf2), candle 0.8 → 0.11 + tokenizers 0.23,
-   llama-cpp-2 → latest 0.1.x (FP4 quants, upstream speculative rework),
-   thiserror 2 / toml 1 / rand 0.10 / metrics 0.24; abi3 floor → py310.
-5. **CLI `infer` authentication** — the authenticated exchange shipped for
-   `models load/unload`; route `infer` through it.
-6. **Fixture-gated standalone e2e smoke in CI** (needs a small committed or
-   cached GGUF fixture) — closes the last #106 acceptance box.
+1. **Publish the qualified RC:** reconcile final docs, requalify any new source SHA, verify private vulnerability reporting, obtain owner GO, then publish `v0.10.0-rc.1` and validate downloaded artifacts. See #130.
+2. **Keep dependency advisories current:** preserve the Cargo lockfile, cargo-deny policy and weekly Dependabot checks. The `pin-utils` advisory was resolved by #141; do not suppress a later feed failure without risk review.
+3. **MSRV/toolchain reproducibility:** `Cargo.toml` declares Rust 1.97; CI uses floating stable. Only change this in a separately qualified maintenance PR if drift creates a repeatable problem.
+4. **Performance evidence (#136):** real packaged model throughput, latency, memory, and security overhead on comparable hosts before making claims.
+5. **Embedded consumer contract (#112–#114):** stable API, exact-version distribution and downstream conformance are future milestones, not silent assurances of this RC.
+6. **Adaptive model switching (#137):** real model loading, memory reclamation and active-request correctness; not required by one-resident-model RC.
 
 ### Backend capability epic (issues #48–#52)
 ADR-first: backend capability contract, `RuntimeBackendCapabilities` schema,
@@ -151,12 +141,12 @@ cache, Burn-LM) validates this abstraction; design against it.
 | 0.8.0/0.8.1 | 2026-02 | GG-CORE rebrand (from Veritas SPARK), hardening |
 | 0.7.0 | 2026-02-19 | Streaming inference (tagged) |
 | ≤ 0.6.x | 2026-02 | Early development line (0.6.5 tagged) |
-| 1.0.0 | Planned | Production stable: sandbox-wired daemon, hash enforcement, GPU story decided, independent audit scheduled |
+| **0.10.0-rc.1** | **Qualified candidate; unpublished** | CPU GGUF, authenticated local IPC, scoped platform confinement and real packaged inference; exact final tag requires #130 owner GO |
+| 1.0.0 | Planned | Stable public API, verified platform security boundaries, repeatable product acceptance and independent audit plan |
 
 ## Contributing
 
-See `CLA.md`. Priority areas: the Near-term list above, GPU execution
-(behind the capability contract), examples/tutorials, and edge-case tests.
+See `CLA.md`. The immediate priority is the release gate above, not expanding supported features. Later GPU/adapter work, API distribution and examples belong in separately reviewed milestones.
 
 ---
 
