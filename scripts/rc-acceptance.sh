@@ -136,8 +136,8 @@ else PYTHON=""
 fi
 if [ -z "$PYTHON" ]; then
   bad "Python 3 required for cross-platform IPC control acceptance"
-elif with_timeout 210 "$PYTHON" "$BASE/scripts/rc-ipc-control-acceptance.py"; then
-  ok "packaged IPC authentication, active cancel, deadline"
+elif with_timeout 420 "$PYTHON" "$BASE/scripts/rc-ipc-control-acceptance.py"; then
+  ok "packaged IPC authentication, active cancel, deadlines, prefill cancel, isolation"
 else
   bad "packaged IPC control acceptance"
 fi

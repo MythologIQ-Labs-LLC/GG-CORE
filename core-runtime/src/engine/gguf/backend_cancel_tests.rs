@@ -120,8 +120,11 @@ fn real_model_cancelled_prefill_does_not_disturb_concurrent_request() {
     let backend =
         Arc::new(LlamaBackendInner::load(&path, &cfg).expect("real Qwen fixture must load"));
     let other_prompt = format!("Repeat the first sentence of this note: {}", FOX.repeat(40));
+    // Same cancellable prefill chunking as the concurrent run, so greedy
+    // outputs are comparable bit for bit.
+    let never = || false;
     let reference = backend
-        .generate(&other_prompt, &greedy(8))
+        .generate_cancellable(&other_prompt, &greedy(8), Some(&never))
         .expect("reference run")
         .text;
 

@@ -227,6 +227,133 @@ def check_deadline():
     print("PASS: streaming inference deadline returns failed terminal", flush=True)
 
 
+FOX = "The brown fox walks beside a clear river under a quiet blue sky. "
+# About 2,500 Qwen tokens: seconds of prompt prefill before the first token.
+LONG_PROMPT = "Reply with the word READY after reading this note: " + FOX * 179
+
+
+def nonstream_request(request_id, prompt, max_tokens, timeout_ms):
+    return {
+        "type": "inference_request", "request_id": request_id,
+        "model_id": MODEL_ID, "prompt": prompt,
+        "parameters": {
+            "stream": False, "timeout_ms": timeout_ms, "max_tokens": max_tokens,
+            "temperature": 0.0, "top_p": 1.0, "top_k": 1
+        }
+    }
+
+
+def assert_stopped(frame, rid, code):
+    """A stopped request is an explicit failure, never a success-shaped reply."""
+    assert frame.get("type") == "inference_response" and frame.get("request_id") == rid, frame
+    assert frame.get("error") and frame.get("error_code") == code, frame
+    assert not frame.get("output") and not frame.get("tokens_generated"), frame
+
+
+def short_request_ok(rid):
+    """The worker, context and queue slot were released: a new request runs."""
+    c = Client()
+    try:
+        c.auth()
+        start = time.monotonic()
+        c.send(nonstream_request(rid, "Reply with the single word OK.", 4, 120000))
+        frame = c.recv()
+        assert frame.get("type") == "inference_response" and not frame.get("error"), frame
+        assert frame.get("output"), frame
+        return time.monotonic() - start
+    finally:
+        c.close()
+
+
+def check_nonstream_prefill_deadline():
+    c = Client()
+    try:
+        c.auth()
+        start = time.monotonic()
+        c.send(nonstream_request(4250, LONG_PROMPT, 256, 350))
+        assert_stopped(c.recv(), 4250, "deadline_exceeded")
+        elapsed = time.monotonic() - start
+        assert elapsed < 5, "non-streaming deadline ignored: %.2fs" % elapsed
+    finally:
+        c.close()
+    after = short_request_ok(4251)
+    print("PASS: non-streaming timeout_ms=350 during long prefill -> deadline_exceeded "
+          "in %.0f ms; next request %.0f ms" % (elapsed * 1000, after * 1000), flush=True)
+
+
+def check_nonstream_prefill_cancel():
+    c = Client()
+    try:
+        c.auth()
+        c.send(nonstream_request(4252, LONG_PROMPT, 256, 90000))
+        time.sleep(0.3)
+        start = time.monotonic()
+        c.send({"type": "cancel_request", "request_id": 4252})
+        acknowledged = stopped = False
+        for _ in range(2):
+            frame = c.recv()
+            if frame.get("type") == "cancel_response":
+                assert frame.get("request_id") == 4252 and frame.get("cancelled") is True, frame
+                acknowledged = True
+            else:
+                assert_stopped(frame, 4252, "cancelled")
+                stopped = True
+        assert acknowledged and stopped, "missing cancel ACK or explicit failure"
+        elapsed = time.monotonic() - start
+    finally:
+        c.close()
+    after = short_request_ok(4253)
+    print("PASS: non-streaming cancel_request during long prefill -> cancelled in %.0f ms; "
+          "next request %.0f ms" % (elapsed * 1000, after * 1000), flush=True)
+
+
+def check_nonstream_disconnect():
+    c = Client()
+    try:
+        c.auth()
+        c.send(nonstream_request(4254, LONG_PROMPT, 256, 90000))
+        time.sleep(0.3)
+    finally:
+        c.close()
+    after = short_request_ok(4255)
+    print("PASS: disconnect during long non-streaming prefill releases the worker; "
+          "next request %.0f ms" % (after * 1000), flush=True)
+
+
+def check_concurrent_isolation():
+    """Cancelling one connection's request must not affect another's."""
+    other = "Repeat the first sentence of this note: " + FOX * 40
+    ref = Client()
+    try:
+        ref.auth()
+        ref.send(nonstream_request(4256, other, 12, 120000))
+        reference = ref.recv()
+        assert not reference.get("error"), reference
+    finally:
+        ref.close()
+    a, b = Client(), Client()
+    try:
+        a.auth()
+        b.auth()
+        a.send(nonstream_request(4257, LONG_PROMPT, 256, 90000))
+        time.sleep(0.1)
+        b.send(nonstream_request(4258, other, 12, 120000))
+        time.sleep(0.3)
+        a.send({"type": "cancel_request", "request_id": 4257})
+        frames = [a.recv(), a.recv()]
+        assert any(f.get("type") == "cancel_response" and f.get("cancelled") for f in frames), frames
+        assert_stopped(next(f for f in frames if f.get("type") == "inference_response"),
+                       4257, "cancelled")
+        survivor = b.recv()
+        assert survivor.get("type") == "inference_response" and not survivor.get("error"), survivor
+        assert survivor.get("output") == reference.get("output"), (survivor, reference)
+    finally:
+        a.close()
+        b.close()
+    print("PASS: cancelling one request leaves a concurrent request's output unchanged",
+          flush=True)
+
+
 def main():
     for key in ("CORE_AUTH_TOKEN", "GG_CORE_SOCKET_PATH"):
         if not os.environ.get(key):
@@ -235,6 +362,10 @@ def main():
     check_auth_warmup()
     check_active_cancel()
     check_deadline()
+    check_nonstream_prefill_deadline()
+    check_nonstream_prefill_cancel()
+    check_nonstream_disconnect()
+    check_concurrent_isolation()
     check_switch_after_cancel()
 
 
