@@ -23,6 +23,7 @@
   <a href="#embed-gg-core-in-rust">Rust consumer</a> ·
   <a href="#other-consumer-surfaces">C, Python, and IPC</a> ·
   <a href="#security-and-trust-boundary">Security</a> ·
+  <a href="docs/RELEASE_SUPPORT_AND_MAINTENANCE.md">Support &amp; rollback</a> ·
   <a href="#claim-and-evidence-policy">Evidence policy</a>
 </p>
 
