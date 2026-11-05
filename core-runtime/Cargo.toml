@@ -146,7 +146,7 @@ python = ["pyo3", "pyo3-async-runtimes"]  # Python bindings via PyO3
 
 [build-dependencies]
 # 0.27+ uses clap 4, dropping the unmaintained `atty` (RUSTSEC-2021-0145).
-cbindgen = { version = "0.28", optional = true }
+cbindgen = { version = "0.29", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
