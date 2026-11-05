@@ -4,7 +4,7 @@
 
 ## Why (One Sentence)
 
-**GG-CORE** (Greatest Good - Contained Offline Restricted Execution) is a sandboxed, offline inference engine that performs model execution only and has no authority over data, tools, or system actions.
+**GG-CORE** (Greatest Good - Contained Offline Restricted Execution) is a local inference engine designed to execute models within a restricted boundary and without application-level authority over data, tools or system actions. Actual process containment differs by operating system and deployment.
 
 ## Philosophy: Greatest Good
 

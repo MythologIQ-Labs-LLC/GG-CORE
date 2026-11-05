@@ -1,6 +1,6 @@
 # GG-CORE Roadmap
 
-**Updated:** 2026-11-05 · **Current source candidate:** `0.10.0-rc.1` at qualified `main@d55ba50a` (Rust, CodeQL and packaged Linux/Windows/macOS GGUF inference all passed). **No public tag or release has yet been issued.** Owner-controlled publication [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130), performance [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136) and switching [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137) remain distinct.
+**Qualification checkpoint: 2026-11-05.** `0.10.0-rc.1` at `main@d55ba50a` passed Rust, CodeQL and packaged Linux/Windows/macOS GGUF inference. **As of this checkpoint, no public tag existed**; see [Releases](https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases) for current publication status. Owner-controlled publication [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130), performance [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136) and switching [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137) remain distinct.
 **Product:** GG-CORE (Greatest Good - Contained Offline Restricted Execution) is a local CPU inference runtime with authenticated IPC, not a plugin or external inference router. Security containment varies by platform; see `SECURITY.md`.
 
 This roadmap is rebuilt from code, green CI, `docs/FEATURE_INDEX.md`,
@@ -81,12 +81,11 @@ carries its real maturity. Four maturity levels are used:
 - **Model compatibility**: claims are limited to the models actually
   exercised (Qwen2.5-0.5B GGUF; all-MiniLM-L6-v2 ONNX embeddings). Other
   models are *expected* to work via llama.cpp/candle but are untested here.
+- **Platform containment (serving daemon):** Linux seccomp is enabled before accepting IPC. Windows Job Objects limit process/resources but not filesystem or network authority; macOS has no daemon OS sandbox. This behavior is **wired and packaged-qualified**, not library-only. See `SECURITY.md` and #130.
 
 ## Library-only (exists, tested, NOT wired into the daemon)
 
 These were previously listed as "complete"; that overstated them:
-
-- **Platform containment caveat:** The current serving daemon **does** apply sandbox controls before accepting IPC: Linux seccomp, Windows Job Object memory/process restrictions, macOS no OS sandbox. These are qualified, scoped controls rather than universal filesystem/network denial. See `SECURITY.md` and #130.
 - **Model encryption** (AES-256-GCM stack): the load path never decrypts.
 - **Paged KV attention** (`memory/paged.rs`): no live caller on the serving
   path.

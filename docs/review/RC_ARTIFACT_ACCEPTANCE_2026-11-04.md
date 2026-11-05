@@ -2,7 +2,7 @@
 
 **Current status (2026-11-05):** #139 and the #141 supply-chain repair are merged. Exact source candidate `main@d55ba50a262469d4cee828e9c6431670635c3cc5` passed Rust [42060869327](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060869327), CodeQL [42060869220](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060869220), and three-platform packaged real-GGUF [Release qualification 42060941207](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060941207). This runbook and other documentation updates are not included in that SHA; **requalify any later merge SHA before tagging**. Publication remains on hold in [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Later performance/multi-model milestones remain open.
 
-**Target:** `v0.10.0-rc.1` (the Rust package version is now `0.10.0-rc.1`; the owner has not issued a tag). A pre-release is not a claim that the public 1.0 API is stable.
+**Target:** `v0.10.0-rc.1` (the Rust package version is `0.10.0-rc.1`; at this 2026-11-05 qualification checkpoint no tag existed). Check [GitHub Releases](https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases) for later publication. A prerelease does not imply stable public 1.0 API compatibility.
 
 ## What changed in the release workflow
 
