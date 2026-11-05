@@ -144,20 +144,25 @@ def sample(client: IpcClient, model: str, prompt: str, max_tokens: int,
     frames, text_chars = 0, 0
     while True:
         response = client.receive(deadline)
-        if response.get("request_id") != request_id:
+        if type(response.get("request_id")) is not int or response["request_id"] != request_id:
             raise ProtocolFailure("request ID mismatch")
         if response["type"] == "inference_response" and not stream:
-            if response.get("error") is not None or not response.get("finished"):
+            if response.get("error") is not None or response.get("finished") is not True:
                 raise ProtocolFailure("nonstream inference failed or incomplete")
             result = response.get("output")
             if not isinstance(result, str) or not result:
                 raise ProtocolFailure("nonstream inference returned no text")
+            generated = response.get("tokens_generated")
+            if type(generated) is not int or generated < 0:
+                raise ProtocolFailure("nonstream inference has invalid token count")
             text_chars = len(result)
             break
         if response["type"] == "stream_chunk" and stream:
             if response.get("error") is not None:
                 raise ProtocolFailure("stream returned terminal error")
-            if response.get("token", 0) != 0:
+            if type(response.get("is_final")) is not bool:
+                raise ProtocolFailure("stream frame has invalid terminal flag")
+            if type(response.get("token")) is not int or response["token"] != 0:
                 raise ProtocolFailure("raw token ID exposed through sanitized IPC path")
             part = response.get("text")
             if part is not None:
@@ -228,11 +233,15 @@ def run_benchmark(args):
     model_hash = file_sha256(args.model_file)
     binary_hash = file_sha256(args.daemon_binary)
     with IpcClient(args.socket, args.timeout_ms / 1000 + 5) as client:
-        auth_ms = client.authenticate(token)
+        handshake_ms = client.authenticate(token)
+        warmup_start = time.perf_counter()
         client.send({"type": "warmup_request", "model_id": args.model_id, "tokens": 1})
         warm = client.receive(time.monotonic() + args.timeout_ms / 1000 + 5)
-        if warm.get("type") != "warmup_response" or not warm.get("success"):
-            raise ProtocolFailure("authenticated model warmup failed")
+        warmup_request_ms = (time.perf_counter() - warmup_start) * 1000
+        if (warm.get("type") != "warmup_response" or warm.get("success") is not True
+                or warm.get("model_id") != args.model_id or warm.get("error") is not None
+                or type(warm.get("elapsed_ms")) is not int or warm["elapsed_ms"] < 0):
+            raise ProtocolFailure("authenticated model warmup failed or malformed response")
     records = []
     for concurrency in args.concurrent:
         samples = []
@@ -242,7 +251,7 @@ def run_benchmark(args):
         records.append({"concurrency": concurrency, "stats": summary(samples),
                         "samples": samples})
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "collected_at_utc": datetime.now(timezone.utc).isoformat(),
         "producer_sha": args.producer_sha,
         "model_sha256": model_hash,
@@ -255,7 +264,9 @@ def run_benchmark(args):
                       "timeout_ms": args.timeout_ms, "concurrency": args.concurrent,
                       "waves": args.waves, "auth": True,
                       "security_and_sandbox_configuration": "not independently established by benchmark"},
-        "warmup_auth_ms": round(auth_ms, 3),
+        "handshake_ms": round(handshake_ms, 3),
+        "warmup_request_ms": round(warmup_request_ms, 3),
+        "daemon_reported_warmup_ms": warm["elapsed_ms"],
         "results": records,
         "limitations": [
             "The benchmark rejects raw token IDs; it does not independently prove PII/injection decision parity.",

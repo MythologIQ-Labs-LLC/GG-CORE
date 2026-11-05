@@ -25,7 +25,7 @@ Use the Windows named-pipe path with `--socket`, e.g. `\\.\pipe\gg-core-...`, an
 
 Each concurrency count receives the specified number of *waves* (10 waves × 4 requests = 40 samples in the concurrency-4 cohort). Each client authenticates independently. Concurrent requests in a wave wait on a barrier **after handshake** so the recorded request start times are close. Reports store p50/p95/p99 of request latency, p50/p95/p99 of first sanitized text latency in streaming mode, every sample's timings, and SHA-256 hashes of the supplied executable, GGUF and prompt fixture. They never store token secrets, prompt text, or generated text. Streaming raw-token-ID exposure fails closed.
 
-The output JSON names the model, hardware/OS, declared producer SHA, and benchmark options. **The script does not attest that the running daemon is identical to the supplied executable or that the loaded model is identical to the supplied GGUF file.** Record the actual process artifact, installation manifests, sandbox configuration, model-load receipt, auth mode, thread affinity, `GG_CORE_N_THREADS` and `GG_CORE_N_CTX` alongside the JSON. Only use comparable results when those facts match.
+The output JSON names the model, hardware/OS, declared producer SHA, and benchmark options. Schema v2 separately records the client handshake duration (`handshake_ms`), measured warmup request/response duration (`warmup_request_ms`), and daemon-reported warmup inference duration (`daemon_reported_warmup_ms`). These are distinct timings and do not include model load time. **The script does not attest that the running daemon is identical to the supplied executable or that the loaded model is identical to the supplied GGUF file.** Record the actual process artifact, installation manifests, sandbox configuration, model-load receipt, auth mode, thread affinity, `GG_CORE_N_THREADS` and `GG_CORE_N_CTX` alongside the JSON. Only use comparable results when those facts match.
 
 ## Metrics this script does NOT supply
 
@@ -40,7 +40,7 @@ This intentionally avoids inventing benchmark numbers. The historical throughput
 ## Developer validation
 
 ```bash
-python3 -m unittest discover -s scripts -p 'test-bench_packaged_ipc.py' -v
+python3 -m unittest discover -s scripts -p 'test_bench_packaged_ipc.py' -v
 ```
 
 The mock IPC server tests framing, concurrent requests, authentication failures, raw token ID refusal, provenance hashing and the distinction between non-stream latency and first-sanitized-text latency. They do **not** qualify Windows named pipes or model speed. Real performance claims require completed archived JSON, exact SHA, approved model, and recorded security configuration.

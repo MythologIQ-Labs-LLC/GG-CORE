@@ -72,14 +72,16 @@ class MockDaemon:
                 elif not authed:
                     peer.sendall(frame({"type": "error", "code": 401, "message": "not authenticated"}))
                 elif request["type"] == "warmup_request":
-                    peer.sendall(frame({"type": "warmup_response", "model_id": request["model_id"], "success": True, "error": None, "elapsed_ms": 1}))
+                    model_id = "unexpected-model" if self.behavior == "wrong_warmup_model" else request["model_id"]
+                    elapsed = -1 if self.behavior == "invalid_warmup_elapsed" else 1
+                    peer.sendall(frame({"type": "warmup_response", "model_id": model_id, "success": True, "error": None, "elapsed_ms": elapsed}))
                 elif request["type"] == "inference_request":
                     rid = request["request_id"]
                     if self.behavior == "wrong_id":
                         rid += 1
                     if request["parameters"]["stream"]:
                         messages = [
-                            {"type": "stream_chunk", "request_id": rid, "is_final": False, "token": 123 if self.behavior == "raw_token" else 0, "text": "hello", "error": None},
+                            {"type": "stream_chunk", "request_id": rid, "is_final": False, "token": (123 if self.behavior == "raw_token" else True if self.behavior == "boolean_token" else 0), "text": "hello", "error": None},
                             {"type": "stream_chunk", "request_id": rid, "is_final": True, "token": 0, "text": None, "error": None},
                         ]
                         # Send two messages in one write, in small chunks to stress frame parsing.
@@ -90,7 +92,9 @@ class MockDaemon:
                         except (BrokenPipeError, ConnectionResetError):
                             return
                     else:
-                        peer.sendall(frame({"type": "inference_response", "request_id": rid, "output": "hello", "tokens_generated": 2, "finished": True, "error": None}))
+                        output = 123 if self.behavior == "invalid_output_type" else "hello"
+                        finished = "true" if self.behavior == "invalid_finished_type" else True
+                        peer.sendall(frame({"type": "inference_response", "request_id": rid, "output": output, "tokens_generated": 2, "finished": finished, "error": None}))
                 else:
                     peer.sendall(frame({"type": "error", "code": 400, "message": "bad request"}))
 
@@ -140,6 +144,11 @@ class BenchIpcTests(unittest.TestCase):
         self.assertEqual(result["model_sha256"], bench.file_sha256(self.model_file))
         self.assertEqual(result["requested"]["security_and_sandbox_configuration"], "not independently established by benchmark")
         self.assertIsNotNone(result["results"][0]["stats"]["first_sanitized_text_ms"])
+        self.assertEqual(result["schema_version"], 2)
+        self.assertIn("handshake_ms", result)
+        self.assertIn("warmup_request_ms", result)
+        self.assertEqual(result["daemon_reported_warmup_ms"], 1)
+        self.assertNotIn("warmup_auth_ms", result)
         self.assertNotIn(os.environ["CORE_AUTH_TOKEN"], json.dumps(result))
         self.assertNotIn("A deliberately synthetic test prompt", json.dumps(result))
 
@@ -163,6 +172,36 @@ class BenchIpcTests(unittest.TestCase):
     def test_raw_token_ids_are_not_benchmarked_as_sanitized_text(self):
         self.mock.close()
         self.mock = MockDaemon("raw_token")
+        with self.assertRaisesRegex(bench.ProtocolFailure, "raw token"):
+            bench.run_benchmark(self.args())
+
+    def test_warmup_model_identity_must_match(self):
+        self.mock.close()
+        self.mock = MockDaemon("wrong_warmup_model")
+        with self.assertRaisesRegex(bench.ProtocolFailure, "warmup"):
+            bench.run_benchmark(self.args())
+
+    def test_warmup_elapsed_must_be_valid(self):
+        self.mock.close()
+        self.mock = MockDaemon("invalid_warmup_elapsed")
+        with self.assertRaisesRegex(bench.ProtocolFailure, "warmup"):
+            bench.run_benchmark(self.args())
+
+    def test_nonstream_finished_flag_must_be_boolean(self):
+        self.mock.close()
+        self.mock = MockDaemon("invalid_finished_type")
+        with self.assertRaisesRegex(bench.ProtocolFailure, "failed or incomplete"):
+            bench.run_benchmark(self.args(stream=False))
+
+    def test_nonstream_output_must_be_text(self):
+        self.mock.close()
+        self.mock = MockDaemon("invalid_output_type")
+        with self.assertRaisesRegex(bench.ProtocolFailure, "no text"):
+            bench.run_benchmark(self.args(stream=False))
+
+    def test_boolean_raw_token_is_rejected(self):
+        self.mock.close()
+        self.mock = MockDaemon("boolean_token")
         with self.assertRaisesRegex(bench.ProtocolFailure, "raw token"):
             bench.run_benchmark(self.args())
 
