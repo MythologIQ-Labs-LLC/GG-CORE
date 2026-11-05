@@ -224,7 +224,7 @@ Windows PowerShell:
 .\target\release\gg-core-cli.exe serve --model models/qwen2.5-0.5b-instruct-q4_k_m.gguf --model-id local-model
 ```
 
-Put a permitted GGUF file in the configured base path's `models/` directory before using this command. The daemon does not download it, and preload failure aborts startup. Startup runs cryptographic power-on self-tests before opening the IPC server. `Ctrl+C` initiates graceful request draining.
+Put a permitted GGUF file in the configured base path's `models/` directory before using this command. The daemon does not download it, and preload failure aborts startup. Startup runs cryptographic power-on self-tests before opening the IPC server. On Unix, `Ctrl+C` initiates graceful request draining; on Windows, the consuming host owns process termination and must handle in-flight requests separately (see the [producer contract](docs/integration/COREFORGE_PRODUCER_CONTRACT.md)).
 
 ### 4. Verify the daemon from another terminal
 
