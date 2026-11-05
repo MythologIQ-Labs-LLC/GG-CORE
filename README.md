@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/workflows/rust.yml"><img src="https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/workflows/rust.yml/badge.svg" alt="Rust CI"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/candidate-0.10.0--rc.1-orange.svg" alt="Qualified candidate 0.10.0-rc.1; publication pending"></a>
+  <a href="https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases"><img src="https://img.shields.io/badge/candidate-0.10.0--rc.1-orange.svg" alt="GG-CORE 0.10.0-rc.1 release candidate; see Releases for publication status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache 2.0 license"></a>
   <a href="docs/FEATURE_INDEX.md"><img src="https://img.shields.io/badge/evidence-feature%20index-5b5bd6.svg" alt="Evidence-backed feature index"></a>
   <img src="https://img.shields.io/badge/status-pre--production-yellow.svg" alt="Pre-production status">
