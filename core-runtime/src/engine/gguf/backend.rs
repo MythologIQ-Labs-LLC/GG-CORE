@@ -414,11 +414,13 @@ fn decode(ctx: &mut LlamaContext<'_>, batch: &mut LlamaBatch) -> Result<(), Infe
 }
 
 /// Upper bound on one prompt-prefill decode chunk when the request can be
-/// cancelled. Cancellation and deadlines are honored between chunks, so this
-/// bounds how much prefill work a stopped request can still perform (about
-/// 0.6 s for a 0.5B Q4 model on a 2-vCPU build VM) without materially slowing
-/// prefill compared with llama.cpp's default 512-token physical batch.
-pub(super) const PREFILL_CHECKPOINT_TOKENS: usize = 256;
+/// cancelled (further capped by the context's physical batch). Cancellation
+/// and deadlines are honored between chunks, so this bounds the prefill work
+/// a stopped request can still perform: about 1 s for a 0.5B Q4 model on the
+/// 8-vCPU build VM. A 256-token cap halved that but cost ~20% prefill
+/// throughput on a 2,500-token prompt; the caller is answered at the
+/// deadline or cancel either way, so throughput wins.
+pub(super) const PREFILL_CHECKPOINT_TOKENS: usize = 512;
 
 fn stop_requested(should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>) -> bool {
     should_stop.is_some_and(|f| f())
