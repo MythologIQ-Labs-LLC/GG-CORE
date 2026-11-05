@@ -54,7 +54,7 @@ pub fn spawn_worker_with_registry(
 
 async fn worker_loop(
     queue: &RequestQueue,
-    engine: &InferenceEngine,
+    engine: &Arc<InferenceEngine>,
     lifecycle: Option<&ModelLifecycle>,
     registry: Option<&ModelRegistry>,
     resource_limits: Option<&ResourceLimits>,
@@ -86,7 +86,7 @@ async fn worker_loop(
 }
 
 async fn execute_request(
-    engine: &InferenceEngine,
+    engine: &Arc<InferenceEngine>,
     lifecycle: Option<&ModelLifecycle>,
     registry: Option<&ModelRegistry>,
     resource_limits: Option<&ResourceLimits>,
@@ -115,15 +115,7 @@ async fn execute_request(
     };
     let start = std::time::Instant::now();
     let max_memory = resource_limits.map(ResourceLimits::max_memory_per_call);
-    let result = engine
-        .run_controlled(
-            &model_id,
-            &request.prompt,
-            &request.params,
-            &control,
-            max_memory,
-        )
-        .await;
+    let result = run_blocking(engine, &request, control, max_memory).await;
     let latency_ms = start.elapsed().as_millis() as u64;
 
     let result = apply_egress(security, &model_id, result);
@@ -186,6 +178,32 @@ pub(super) async fn acquire_guard(
     };
     let mem = estimate_memory(engine, model_id).await;
     limits.try_acquire(mem).map(Some).map_err(|e| e.to_string())
+}
+
+/// Run native inference on the blocking pool. Prefill and generation block
+/// for seconds; on an async worker thread they could starve the tasks that
+/// deliver `cancel_request`, disconnects and deadlines for this very request.
+/// A panic in the backend becomes an explicit error instead of killing the loop.
+async fn run_blocking(
+    engine: &Arc<InferenceEngine>,
+    request: &QueuedRequest,
+    control: crate::engine::StopControl,
+    max_memory: Option<usize>,
+) -> InferResult {
+    let engine = Arc::clone(engine);
+    let model_id = request.model_id.clone();
+    let prompt = request.prompt.clone();
+    let params = request.params.clone();
+    let handle = tokio::runtime::Handle::current();
+    tokio::task::spawn_blocking(move || {
+        handle.block_on(engine.run_controlled(&model_id, &prompt, &params, &control, max_memory))
+    })
+    .await
+    .unwrap_or_else(|e| {
+        Err(InferenceError::ExecutionFailed(format!(
+            "inference task failed: {e}"
+        )))
+    })
 }
 
 async fn record_result(
