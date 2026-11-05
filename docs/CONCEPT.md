@@ -14,15 +14,15 @@ Built on triage principles ("Greatest Good for the Greatest Number"), GG-CORE pr
 
 | Principle | Meaning |
 |-----------|---------|
-| **Contained** | Sandbox with no ambient privileges |
-| **Offline** | Zero network access (inbound/outbound blocked) |
+| **Contained** | Intended isolation; shipping daemon has Linux seccomp, Windows Job Object resource/process limits, and no macOS daemon sandbox. |
+| **Offline** | No model-network inference service; full OS network denial requires host enforcement where not supplied by the platform sandbox. |
 | **Restricted** | IPC-only communication with authenticated callers |
 | **Execution** | Pure compute, no business logic or decision authority |
 
 ## Vibe (Three Keywords)
 
 1. **Minimal** - Pure function: tokens in, tokens out. No scope creep.
-2. **Secure** - Sandboxed, isolated, zero network access, least privilege.
+2. **Secure** - Aim for isolation and least privilege. Current daemon security is platform-specific and independently documented.
 3. **Traceable** - Deterministic execution with observable metrics, no hidden state.
 
 ## Anti-Goals (What This Is NOT)
@@ -38,8 +38,8 @@ Built on triage principles ("Greatest Good for the Greatest Number"), GG-CORE pr
 
 | Pillar | How CORE Supports It |
 |--------|---------------------|
-| Data Sovereignty | No persistent storage or network - cannot leak data |
-| System Integrity | Sandbox + isolation - cannot bypass boundaries |
+| Data Sovereignty | Goal: minimize state and avoid network inference endpoints. No runtime can promise data cannot leak without host permissions and deployment controls. |
+| System Integrity | Goal: protect model access and process resources. Qualified containment varies by OS; do not claim boundaries cannot be bypassed. |
 | AI Governance | No authority - cannot act independently |
 | System Reliability | Stateless + restartable - safe recovery |
 
