@@ -65,8 +65,8 @@ Choose the integration surface that matches the deployment and ownership boundar
 | You need | Use | Current state |
 | --- | --- | --- |
 | A separate local process with health, status, streaming, cancellation, and authenticated IPC | `gg-core-cli` daemon | **Operational standalone**: startup preload (`serve --model`), authenticated `models load/unload`, model-gated readiness (packaged GGUF inference qualified on three OSes in [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130)). |
-| A Rust application that owns model lifecycle directly | `gg_core` library | **Verified primary embedding path.** Use the secure `Runtime` façade. |
-| A stable native boundary for C, C++, .NET, or other FFI consumers | `cdylib` + `include/gg_core.h` | **Implemented and covered by the `ffi` CI feature leg.** |
+| A Rust application that owns model lifecycle directly | `gg_core` library | **Verified embedding path.** Use the secure `Runtime` façade, pin the exact revision, and do not assume stable embedded API compatibility before [#112](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/112). |
+| A native ABI integration path for C, C++, .NET, or other FFI consumers (pre-1.0 stability not promised) | `cdylib` + `include/gg_core.h` | **Implemented and covered by the `ffi` CI feature leg.** Bind a verified exact version; ABI compatibility across prereleases is not guaranteed. |
 | Python-native local inference | PyO3 module `gg_core` | **Implemented and covered by the `python` CI feature leg.** Packaging automation is not yet a polished release surface. |
 | A non-Rust process that can implement a local framed protocol | Raw IPC | **Implemented.** JSON over a 4-byte little-endian length prefix after an authenticated handshake. |
 
@@ -83,7 +83,7 @@ The labels below are part of the product contract:
 | --- | --- | --- |
 | Secure Rust inference façade | **Verified** | `Runtime::infer` and `infer_stream` are the sole external engine path; direct engine execution is crate-private. |
 | GGUF text generation | **Verified + Conditional** | Real-model E2E coverage exists for Qwen 2.5 0.5B Q4_K_M. Other llama.cpp-compatible GGUF families are expected, not blanket-certified. |
-| ONNX embedding and classification | **Verified + Conditional** | Enabled with `onnx`; CPU execution; selected by a sibling `manifest.json`; classification requires ordered labels. |
+| ONNX embedding and classification | **Verified + Conditional (not an RC package surface)** | Enabled with `onnx` in source; CPU execution; selected by a sibling `manifest.json`; classification requires ordered labels. The GGUF/FFI-only RC archives do not qualify this backend for installed use. |
 | Local IPC daemon | **Verified + Conditional** | Server, authentication, probes, status, inference, streaming, cancellation, metrics, and model listing exist. A model must already be registered. |
 | Standalone first-run model bootstrap | **Verified + Conditional** | Startup `serve --model ... --model-id ...`, authenticated CLI load/unload and model-gated readiness pass packaged real-GGUF acceptance on all three supported build platforms; requires local model and token ([#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130)). |
 | Adaptive speculative decoding | **Experimental** | Wired behind `advanced`, off by default, with correctness and fallback tests. Current `main` does not claim a demonstrated wall-clock speedup. |
