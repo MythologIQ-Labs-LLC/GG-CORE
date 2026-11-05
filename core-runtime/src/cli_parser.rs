@@ -184,6 +184,7 @@ OPTIONS:
     --prompt <PROMPT>    Input prompt for generation
     --max-tokens <N>     Maximum tokens to generate (default: 256)
     --stream             Enable token-by-token streaming output
+    --timeout-ms <MS>    Request deadline enforced by the daemon (default: 300000)
 
 EXIT CODES:
     0  Inference completed successfully

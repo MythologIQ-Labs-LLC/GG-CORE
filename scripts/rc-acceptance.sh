@@ -91,10 +91,10 @@ while [ "$n" -lt 100 ]; do
   n=$((n+1))
 done
 LOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$LONG_PROMPT" --max-tokens 8 2>&1)"; RC=$?
-[ $RC -eq 0 ] && [ -n "$LOUT" ] && ok "long prompt non-streaming (bounded prefill)" || bad "long prompt non-streaming rc=$RC"
+[ $RC -eq 0 ] && [ -n "$LOUT" ] && ok "long prompt non-streaming (bounded prefill)" || bad "long prompt non-streaming rc=$RC: $(echo "$LOUT" | tr -s '[:space:]' ' ' | tail -c 200)"
 kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived long non-streaming prompt" || { bad "daemon died on long prompt"; cat "$LOG"; exit 1; }
 LSOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$LONG_PROMPT" --max-tokens 8 --stream 2>&1)"; RC=$?
-[ $RC -eq 0 ] && [ -n "$LSOUT" ] && ok "long prompt streaming (bounded prefill)" || bad "long prompt streaming rc=$RC"
+[ $RC -eq 0 ] && [ -n "$LSOUT" ] && ok "long prompt streaming (bounded prefill)" || bad "long prompt streaming rc=$RC: $(echo "$LSOUT" | tr -s '[:space:]' ' ' | tail -c 200)"
 kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived long streaming prompt" || { bad "daemon died on long streaming prompt"; cat "$LOG"; exit 1; }
 
 # Deliberately longer than the old 2048-token context (roughly 3k tokens
@@ -106,7 +106,7 @@ for ((n=0; n<220; n++)); do
   ALDEN_CLASS_PROMPT="$ALDEN_CLASS_PROMPT""The brown fox walks beside a clear river under a quiet blue sky. "
 done
 AOUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "$ALDEN_CLASS_PROMPT" --max-tokens 8 2>&1)"; RC=$?
-[ $RC -eq 0 ] && [ -n "$AOUT" ] && ok "Alden-class long-context prompt (configured 4096)" || bad "Alden-class prompt rc=$RC"
+[ $RC -eq 0 ] && [ -n "$AOUT" ] && ok "Alden-class long-context prompt (configured 4096)" || bad "Alden-class prompt rc=$RC: $(echo "$AOUT" | tr -s '[:space:]' ' ' | tail -c 200)"
 kill -0 "$SERVE_PID" 2>/dev/null && ok "daemon survived Alden-class context" || { bad "daemon died on long context"; cat "$LOG"; exit 1; }
 
 # A prompt exceeding the context limit must fail as a normal request, never

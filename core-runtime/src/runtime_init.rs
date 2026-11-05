@@ -104,12 +104,21 @@ pub async fn preload_models(
     Ok(())
 }
 
+/// Default `infer` request deadline (ms) when `--timeout-ms` is not given.
+const DEFAULT_INFER_TIMEOUT_MS: u64 = 300_000;
+/// Extra client wait beyond the request deadline for the daemon's answer.
+const INFER_CLIENT_GRACE_MS: u64 = 10_000;
+
 /// Run the inference CLI command.
 pub async fn run_inference(args: &[String]) -> i32 {
     let mut model_id = String::new();
     let mut prompt = String::new();
     let mut max_tokens = 256usize;
     let mut stream = false;
+    // The daemon enforces this deadline; the client waits a little longer so
+    // the daemon's explicit `deadline_exceeded` arrives instead of a client
+    // read timeout. The old fixed 5 s read timeout failed long prompts.
+    let mut timeout_ms = DEFAULT_INFER_TIMEOUT_MS;
 
     let mut i = 2;
     while i < args.len() {
@@ -145,6 +154,16 @@ pub async fn run_inference(args: &[String]) -> i32 {
                 stream = true;
                 i += 1;
             }
+            "--timeout-ms" => match args.get(i + 1).and_then(|v| v.parse::<u64>().ok()) {
+                Some(ms) if ms > 0 => {
+                    timeout_ms = ms;
+                    i += 2;
+                }
+                _ => {
+                    eprintln!("--timeout-ms requires a positive integer");
+                    return 1;
+                }
+            },
             _ => {
                 eprintln!("Unknown argument: {}", args[i]);
                 return 1;
@@ -154,15 +173,18 @@ pub async fn run_inference(args: &[String]) -> i32 {
 
     if model_id.is_empty() || prompt.is_empty() {
         eprintln!(
-            "Usage: GG-CORE infer --model <MODEL> --prompt <PROMPT> [--max-tokens N] [--stream]"
+            "Usage: GG-CORE infer --model <MODEL> --prompt <PROMPT> [--max-tokens N] [--stream] [--timeout-ms MS]"
         );
         return 1;
     }
 
     let socket_path = get_socket_path();
-    let client = CliIpcClient::new(socket_path);
+    let client = CliIpcClient::new(socket_path).with_timeout(std::time::Duration::from_millis(
+        timeout_ms.saturating_add(INFER_CLIENT_GRACE_MS),
+    ));
     let params = InferenceParams {
         max_tokens,
+        timeout_ms: Some(timeout_ms),
         ..Default::default()
     };
 
