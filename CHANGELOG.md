@@ -4,7 +4,11 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 
 ## [Unreleased]
 
-### Correctness and security hardening (pending requalification)
+_No additional changes beyond the untagged RC candidate below._
+
+## [0.10.0-rc.1] - 2026-11-04
+
+### Producer convergence after the initial short-prompt acceptance
 
 - Process stream cancellation concurrently with IPC reads so an authenticated caller can cancel an active response on the same connection; cancellation and disconnect now propagate to the native generation loop.
 - Bound streaming requests by a wall-clock deadline and ensure cancellation/timeouts return a failed terminal rather than false successful completion.
@@ -12,9 +16,10 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 - Keep one process-wide llama.cpp backend so `model_unload_request` → `model_load_request` succeeds while a cancelled or expired stream's native loop is still winding down to its next checkpoint (previously the reload failed with `BackendAlreadyInitialized`). The packaged acceptance now exercises cancel → immediate unload/reload → inference.
 - `inference_request.parameters` fields are optional on the wire, as the IPC schema has always documented; a request omitting `temperature`/`top_p`/`top_k`/`max_tokens` now takes the documented defaults instead of failing with a serialization error.
 
-## [0.10.0-rc.1] - 2026-11-04
+- Bound GGUF prompt prefill to the actual llama.cpp batch and microbatch capacities instead of issuing one unbounded decode that could abort the daemon. Reject prompts exceeding the configured model context with an ordinary input error, preserve the process, and cover long prompts with a real-model fixture and packaged daemon acceptance checks.
+- Apply `GG_CORE_N_CTX` and `GG_CORE_N_THREADS` to the model loader rather than only parsing and displaying the settings. Verify >2,048-token prompts using the configured 4,096-token context.
 
-**Release candidate (functional/security scope).** Qualified per issue #130: packaged `gguf,ffi` binaries built on Linux x86_64, Windows x86_64 and macOS, each exercised with a real GGUF model (Qwen2.5-0.5B-Instruct Q4_K_M, Apache-2.0) through the shipped daemon and CLI with the platform's default sandbox. Declared scope: CPU inference, GGUF backend, one actively resident model per daemon, authenticated local IPC, non-streaming and streaming generation. **Not RC-qualified (tracked, not hidden):** performance qualification against a same-host baseline, adaptive model switching with real memory reclamation, GPU acceleration, ONNX as a release surface, macOS daemon sandbox (none enforced), the stable embedded public API contract (#112), pinned downstream distribution (#113), integration conformance (#114), independent audit.
+**Release candidate (functional/security scope, pending exact-artifact requalification).** The earlier `main@9a6716d` was qualified in #130 with packaged `gguf,ffi` binaries on Linux x86_64, Windows x86_64 and macOS, each exercised with a real Qwen2.5-0.5B-Instruct Q4_K_M model and platform-default sandbox. That historical receipt does **not** qualify the later combined long-prompt and IPC-control corrections. The converged source received separate Windows VM qualification at `0f4a1bbd`; all three packaged-platform acceptance gates must pass again on the exact final release commit before tagging. Declared scope: CPU inference, GGUF backend, one actively resident model per daemon, authenticated local IPC, non-streaming and streaming generation. **Not RC-qualified (tracked, not hidden):** performance qualification against a same-host baseline, adaptive model switching with real memory reclamation, GPU acceleration, ONNX as a release surface, macOS daemon sandbox (none enforced), the stable embedded public API contract (#112), pinned downstream distribution (#113), integration conformance (#114), independent audit.
 
 ### Security
 - Model-load confinement and integrity (RC acceptance gate, issue #130): path confinement is now **physical** as well as lexical — an existing entry under `models/`/`tokenizers/` must resolve (symlinks, linked directories) under the real path of an allowed root (`models/containment.rs`); escapes are refused, logged as `path_traversal_attempt`, and never echo the link target. Model files are opened with `O_NOFOLLOW` for hashing and mmap, so a link swapped in after validation is refused. A sibling `manifest.json` that **exists must parse and validate** or the load fails (previously a malformed manifest was silently treated as absent, dropping the integrity check); the hashed file's identity is re-checked after the backend loaded it by path, so a rename/symlink substitution between hash and load fails the load with nothing registered. New `tests/security_containment_test.rs` (symlinked file/dir/absolute/dangling/inside/root cases + post-validation swap), manifest fail-closed tests, identity-swap tests.
