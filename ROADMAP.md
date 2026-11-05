@@ -62,7 +62,7 @@ carries its real maturity. Four maturity levels are used:
   Dependabot (grouped RustCrypto/candle updates).
 - Release pipeline: tag-triggered verify → 3-platform artifact build
   (binary + cdylib + header, SHA-256 checksums) → GitHub Release with
-  CHANGELOG notes. v0.9.0 is the first release published through it.
+  CHANGELOG notes. The pipeline was introduced during the 0.9.0 source line, but **no `v0.9.0` tag or GitHub Release was present on 2026-11-05**; see [Releases](https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases).
 - Governance: QoreLogic Merkle-chained ledger, FEATURE_INDEX (63+ verified
   rows), reconciled BACKLOG.
 
@@ -131,11 +131,11 @@ cache, Burn-LM) validates this abstraction; design against it.
   self-tests only, no certification). Multi-tenant isolation (GG-CORE
   Nexus shim).
 
-## Release history (real)
+## Release history and source milestones (check published tags)
 
 | Version | Date | Notes |
 | --- | --- | --- |
-| **0.9.0** | 2026-10-05 | Standalone bootstrap; security suite activation; supply-chain gate; first pipeline-published release |
+| **0.9.0** | 2026-10-05 source history; not currently tagged | Standalone bootstrap, security suite and supply-chain gate. The `v0.9.0` tag and GitHub Release were absent at the 2026-11-05 check; not an available published binary. |
 | 0.8.2 | 2026-07-27 | Security & dependency hardening (tagged; predates the release pipeline) |
 | 0.8.0/0.8.1 | 2026-02 | GG-CORE rebrand (from Veritas SPARK), hardening |
 | 0.7.0 | 2026-02-19 | Streaming inference (tagged) |
