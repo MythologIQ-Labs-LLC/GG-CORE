@@ -78,7 +78,8 @@ async fn setup(honor_stop: bool) -> (Arc<RequestQueue>, tokio_util::sync::Cancel
         .register_model("slow".into(), crate::models::ModelHandle::new(1), model)
         .await;
     let shutdown = tokio_util::sync::CancellationToken::new();
-    let _ = spawn_worker(Arc::clone(&queue), engine, shutdown.clone());
+    // Detached: the worker runs until `shutdown` is cancelled.
+    drop(spawn_worker(Arc::clone(&queue), engine, shutdown.clone()));
     (queue, shutdown)
 }
 
