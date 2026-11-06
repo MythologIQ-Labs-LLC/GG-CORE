@@ -114,6 +114,14 @@ jobs:
           "LIBCLANG_PATH=$llvm" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Build GGUF-enabled CLI and C FFI on each platform
         run: cargo build --locked --release --features "gguf,ffi"
+      - name: Stage verified Microsoft app-local runtime for Windows portable package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stage = Join-Path (Get-Location) 'target/release/windows-runtime'
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          & ../scripts/stage-windows-msvc-runtime.ps1 -StageDirectory $stage
       - name: Package
         shell: bash
         run: |
@@ -129,6 +137,18 @@ jobs:
           cp "target/release/${LIB}" "dist/${STAGE}/"
           cp include/gg_core.h "dist/${STAGE}/"
           cp ../LICENSE ../README.md "dist/${STAGE}/"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            # A Windows runner has the VC runtime installed; the published
+            # archive must *not* depend on that host accident. Stage only
+            # authentic Microsoft-redistributable files, fail on any omission.
+            RUNTIME=target/release/windows-runtime
+            for dll in msvcp140.dll vcomp140.dll vcruntime140.dll vcruntime140_1.dll; do
+              test -f "${RUNTIME}/${dll}" || { echo "::error::Missing app-local ${dll}"; exit 1; }
+              cp "${RUNTIME}/${dll}" "dist/${STAGE}/"
+            done
+            test -f "${RUNTIME}/MSVC_REDISTRIBUTABLES.json" || { echo "::error::Missing Microsoft runtime provenance"; exit 1; }
+            cp "${RUNTIME}/MSVC_REDISTRIBUTABLES.json" "dist/${STAGE}/"
+          fi
           OUTPUT=$("dist/${STAGE}/${BIN}" version)
           if [[ "$OUTPUT" != "GG-CORE ${VERSION#v}" ]]; then
             echo "::error::Packaged CLI reports wrong version: $OUTPUT"
@@ -139,7 +159,27 @@ jobs:
           tar -tzf "dist/${STAGE}.tar.gz" | grep -Fx "${STAGE}/${BIN}"
           tar -tzf "dist/${STAGE}.tar.gz" | grep -Fx "${STAGE}/${LIB}"
           tar -tzf "dist/${STAGE}.tar.gz" | grep -Fx "${STAGE}/gg_core.h"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            for filename in msvcp140.dll vcomp140.dll vcruntime140.dll vcruntime140_1.dll MSVC_REDISTRIBUTABLES.json; do
+              tar -tzf "dist/${STAGE}.tar.gz" | grep -Fx "${STAGE}/${filename}" || exit 1
+            done
+          fi
           rm -r "dist/${STAGE:?}"
+      - name: Verify Microsoft runtime integrity from extracted Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archives = @(Get-ChildItem -Path 'dist' -File -Filter '*windows-x86_64.tar.gz')
+          if ($archives.Count -ne 1) { throw 'Expected exactly one Windows portable archive' }
+          $extract = Join-Path $env:RUNNER_TEMP 'gg-core-msvc-package-inspect'
+          New-Item -Path $extract -ItemType Directory -Force | Out-Null
+          tar -xzf $archives[0].FullName -C $extract
+          if ($LASTEXITCODE -ne 0) { throw 'Could not extract Windows portable archive' }
+          $stage = @(Get-ChildItem -LiteralPath $extract -Directory)
+          if ($stage.Count -ne 1) { throw 'Archive has unexpected Windows package layout' }
+          & ../scripts/verify-windows-msvc-runtime.ps1 -StageDirectory $stage[0].FullName
+          # Passing on the pre-provisioned runner is NOT clean-image qualification.
       - name: Upload platform artifact
         uses: actions/upload-artifact@v4
         with:
