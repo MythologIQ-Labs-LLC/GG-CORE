@@ -45,6 +45,9 @@ jobs:
           workspaces: core-runtime
       - name: Formatting gate
         run: cargo fmt --check
+      - name: Windows PE import-audit parser regression tests
+        # Pure Python fixtures, safe to run on Linux; no Windows binary execution.
+        run: python3 ../scripts/test_audit_windows_pe_imports.py
       - name: Lint gate
         run: cargo clippy --all-targets -- -D warnings
       - name: Default test suite
