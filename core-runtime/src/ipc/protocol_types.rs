@@ -18,6 +18,10 @@ pub struct ModelInfo {
     pub request_count: u64,
     pub avg_latency_ms: f64,
     pub loaded_at: String,
+    /// Tasks the loaded model serves (`text_generation`, `embedding`,
+    /// `text_classification`). Absent from older daemons.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub capabilities: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +104,8 @@ pub enum InferenceErrorCode {
     Cancelled,
     /// The request's `timeout_ms` elapsed before it completed.
     DeadlineExceeded,
+    /// The selected model does not implement the requested typed task.
+    UnsupportedTask,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -296,6 +302,10 @@ pub enum IpcMessage {
         session_id: String,
         #[serde(default)]
         protocol_version: ProtocolVersion,
+        /// Optional protocol features of this daemon, e.g.
+        /// `typed_inference_v1`. Absent for older daemons.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        features: Vec<String>,
     },
     #[serde(rename = "inference_request")]
     InferenceRequest(InferenceRequest),
@@ -342,6 +352,10 @@ pub enum IpcMessage {
     ModelUnloadRequest(super::protocol_model_types::ModelUnloadRequest),
     #[serde(rename = "model_unload_response")]
     ModelUnloadResponse(super::protocol_model_types::ModelUnloadResponse),
+    #[serde(rename = "typed_inference_request")]
+    TypedInferenceRequest(super::protocol_typed::TypedInferenceRequest),
+    #[serde(rename = "typed_inference_response")]
+    TypedInferenceResponse(super::protocol_typed::TypedInferenceResponse),
     #[serde(rename = "error")]
     Error { code: u32, message: String },
 }

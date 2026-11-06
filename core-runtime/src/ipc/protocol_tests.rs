@@ -226,12 +226,13 @@ fn test_handshake_ack_message() {
     let msg = IpcMessage::HandshakeAck {
         session_id: "session-123".to_string(),
         protocol_version: ProtocolVersion::V1,
+        features: vec![],
     };
     let encoded = encode_message(&msg).unwrap();
     let decoded = decode_message(&encoded).unwrap();
     assert!(matches!(
         decoded,
-        IpcMessage::HandshakeAck { session_id, protocol_version: ProtocolVersion::V1 }
+        IpcMessage::HandshakeAck { session_id, protocol_version: ProtocolVersion::V1, .. }
         if session_id == "session-123"
     ));
 }

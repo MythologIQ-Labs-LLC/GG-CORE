@@ -67,6 +67,10 @@ async fn worker_loop(
             worker_streaming::execute(engine, resource_limits, security, sreq).await;
             continue;
         }
+        if let Some(treq) = queue.dequeue_typed().await {
+            super::worker_typed::execute(engine, resource_limits, security, treq).await;
+            continue;
+        }
         tokio::select! {
             biased;
             () = shutdown.cancelled() => {
@@ -129,21 +133,12 @@ fn scan_ingress(
     security: Option<&SecurityPipeline>,
     request: QueuedRequest,
 ) -> Option<QueuedRequest> {
-    let Some(sec) = security else {
-        return Some(request);
-    };
-    let verdict = sec.scan_prompt(&request.prompt);
-    telemetry::record_security_scan(
-        &request.model_id,
-        verdict.latency_us,
-        verdict.risk_score,
-        !verdict.allowed,
-    );
-    if verdict.allowed {
-        Some(request)
-    } else {
-        send_response(request, Err("request rejected by security policy".into()));
-        None
+    match super::worker_ingress::scan_texts(security, &request.model_id, &[&request.prompt]) {
+        Ok(()) => Some(request),
+        Err(message) => {
+            send_response(request, Err(message));
+            None
+        }
     }
 }
 

@@ -88,8 +88,7 @@ pub struct IpcHandler {
     pub(super) model_lifecycle: Arc<crate::models::ModelLifecycle>,
     /// Path-validating loader bound to the runtime's base path (B-41, #106).
     pub(super) model_loader: Arc<crate::models::ModelLoader>,
-    /// Used by streaming path (gguf feature).
-    #[allow(dead_code)]
+    /// Streaming path (gguf feature) and typed capability listing.
     inference_engine: Arc<InferenceEngine>,
 }
 
@@ -155,6 +154,7 @@ impl IpcHandler {
                 let response = IpcMessage::HandshakeAck {
                     session_id: session_token.as_str().to_string(),
                     protocol_version: negotiated_version,
+                    features: vec![super::protocol_typed::TYPED_INFERENCE_FEATURE.to_string()],
                 };
                 Ok((response, Some(session_token)))
             }
@@ -163,6 +163,15 @@ impl IpcHandler {
                 self.require_auth(session).await?;
                 let response = self.handle_inference(request).await;
                 Ok((IpcMessage::InferenceResponse(response), None))
+            }
+
+            IpcMessage::TypedInferenceRequest(request) => {
+                // Connection servers route this beside the reader (cancellable);
+                // direct `process` callers get the same authenticated path.
+                self.require_auth(session).await?;
+                let cancel = tokio_util::sync::CancellationToken::new();
+                let response = self.handle_typed_controlled(request, cancel).await;
+                Ok((IpcMessage::TypedInferenceResponse(response), None))
             }
 
             IpcMessage::HealthCheck { check_type } => {
@@ -178,8 +187,10 @@ impl IpcHandler {
             }
 
             IpcMessage::ModelsRequest => {
-                // NO AUTH REQUIRED for model listing (orchestrator pattern, same as health/metrics)
-                let response = self.handle_models_request().await;
+                // NO AUTH REQUIRED for model listing (orchestrator pattern, same as health/metrics).
+                // Task capabilities (#171) are disclosed to authenticated sessions only.
+                let authenticated = self.require_auth(session).await.is_ok();
+                let response = self.handle_models_request(authenticated).await;
                 Ok((IpcMessage::ModelsResponse(response), None))
             }
 
@@ -291,10 +302,17 @@ impl IpcHandler {
         WarmupResponse::success(model_id, elapsed_ms)
     }
 
-    async fn handle_models_request(&self) -> ModelsListResponse {
+    async fn handle_models_request(&self, authenticated: bool) -> ModelsListResponse {
         let models = self.model_registry.list_models().await;
         let total_memory_bytes = models.iter().map(|m| m.memory_bytes).sum();
 
+        let mut capabilities = std::collections::HashMap::new();
+        for m in models.iter().filter(|_| authenticated) {
+            if let Some(id) = self.model_lifecycle.get_model_id(m.handle_id).await {
+                let caps = self.inference_engine.model_capabilities(&id).await;
+                capabilities.insert(m.handle_id, caps);
+            }
+        }
         let model_infos: Vec<ModelInfo> = models
             .into_iter()
             .map(|m| {
@@ -313,6 +331,12 @@ impl IpcHandler {
                     request_count: m.request_count,
                     avg_latency_ms,
                     loaded_at: format_system_time(m.loaded_at),
+                    capabilities: capabilities
+                        .remove(&m.handle_id)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|c| super::protocol_typed::capability_name(c).to_string())
+                        .collect(),
                 }
             })
             .collect();
@@ -472,8 +496,14 @@ impl IpcHandler {
     }
 }
 
+#[path = "handler_control.rs"]
+mod handler_control;
+
 #[path = "handler_inference.rs"]
 mod inference_control;
+
+#[path = "handler_typed.rs"]
+mod typed_control;
 
 /// Map a worker error string to a structured `InferenceErrorCode`.
 ///

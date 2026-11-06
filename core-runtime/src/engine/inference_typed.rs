@@ -12,6 +12,15 @@ const MAX_CLASS_LABELS: usize = 2_048;
 const MAX_CLASS_LABEL_BYTES: usize = 256;
 
 impl InferenceEngine {
+    /// Capabilities of a loaded model, for authenticated capability listing.
+    /// Empty when the model is not loaded.
+    pub(crate) async fn model_capabilities(&self, model_id: &str) -> Vec<InferenceCapability> {
+        match self.get_model(model_id).await {
+            Ok(model) => model.capabilities().to_vec(),
+            Err(_) => Vec::new(),
+        }
+    }
+
     /// Execute a typed model task after the external worker has granted
     /// admission and applied ingress policy. Not a public IPC/API entrypoint.
     ///
@@ -56,7 +65,12 @@ impl InferenceEngine {
                     self.check_context(text)?;
                 }
             }
-            InferenceInput::ChatMessages(_) => unreachable!("typed chat is not yet admitted"),
+            // Already refused by validate_task_input; fail closed, never panic.
+            InferenceInput::ChatMessages(_) => {
+                return Err(InferenceError::InvalidParams(
+                    "typed chat input is not supported".into(),
+                ))
+            }
         }
 
         let mut config = params.to_config();

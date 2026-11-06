@@ -9,6 +9,8 @@
 //! `cancelled` / `deadline_exceeded` failure, never a partial success.
 
 use std::sync::atomic::{AtomicBool, Ordering};
+
+use super::handler_control::{enqueue_failure, stopped, CancelOnDrop};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -17,18 +19,7 @@ use tokio_util::sync::CancellationToken;
 use super::{classify_worker_error, IpcHandler};
 use crate::engine::inference::{InferenceError, InferenceResult};
 use crate::ipc::protocol::{InferenceErrorCode, InferenceRequest, InferenceResponse, RequestId};
-use crate::scheduler::{Priority, QueueError, ResponseRx};
-
-/// Stops the queued request if the awaiting future is dropped (for example
-/// when its connection task ends), so no work runs for a vanished caller.
-/// Setting it after completion is harmless: the flag belongs to one request.
-struct CancelOnDrop(Arc<AtomicBool>);
-
-impl Drop for CancelOnDrop {
-    fn drop(&mut self) {
-        self.0.store(true, Ordering::Release);
-    }
-}
+use crate::scheduler::{Priority, ResponseRx};
 
 impl IpcHandler {
     /// Process one non-streaming inference request under `cancel` and the
@@ -96,24 +87,6 @@ impl IpcHandler {
             }),
         }
     }
-}
-
-fn enqueue_failure(id: RequestId, e: QueueError) -> InferenceResponse {
-    // An over-long prompt is a permanent input error, not a retriable
-    // admission rejection like a full queue.
-    let code = match &e {
-        QueueError::ContextTooLarge { .. } => InferenceErrorCode::InputInvalid,
-        _ => InferenceErrorCode::AdmissionRejected,
-    };
-    InferenceResponse::error_coded(id, e.to_string(), code)
-}
-
-fn stopped(id: RequestId, error: InferenceError) -> InferenceResponse {
-    let code = match error {
-        InferenceError::DeadlineExceeded { .. } => InferenceErrorCode::DeadlineExceeded,
-        _ => InferenceErrorCode::Cancelled,
-    };
-    InferenceResponse::error_coded(id, error.to_string(), code)
 }
 
 type WorkerOutcome = <ResponseRx as std::future::Future>::Output;

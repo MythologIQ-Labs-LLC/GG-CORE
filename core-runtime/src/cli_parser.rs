@@ -12,6 +12,8 @@ USAGE:
 COMMANDS:
     serve        Run the IPC server (default when no command given)
     infer        Run inference on a model (supports streaming)
+    embed        Typed embedding over authenticated IPC (--model ID --text T ...)
+    classify     Typed text classification over authenticated IPC (--model ID --text T)
     health       Full health check (exit 0 if healthy, 1 if unhealthy)
     live         Liveness probe for Kubernetes (exit 0 if alive)
     ready        Readiness probe for Kubernetes (exit 0 if ready)

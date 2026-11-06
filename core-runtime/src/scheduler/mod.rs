@@ -16,7 +16,11 @@ pub mod streaming_queue;
 pub mod thread_pool;
 pub mod thread_pool_types;
 pub mod worker;
+pub(crate) mod worker_ingress;
 pub(crate) mod worker_streaming;
+pub(crate) mod worker_typed;
+#[cfg(test)]
+mod worker_typed_tests;
 
 pub use batch::{BatchConfig, BatchProcessor, RequestBatch};
 pub use continuous::{
@@ -26,6 +30,7 @@ pub use dedup::{CachedOutput, DedupResult, OutputCache, OutputCacheConfig};
 pub use pool::ThreadPoolConfig;
 pub use priority::{Priority, PriorityQueue};
 pub use queue::{QueueError, QueuedRequest, RequestQueue, RequestQueueConfig, ResponseRx};
+pub use queue::{TypedQueuedRequest, TypedResponseRx};
 pub use streaming_queue::StreamingQueuedRequest;
 pub use thread_pool::{
     TaskPriority, ThreadPool, ThreadPoolConfig as TunableThreadPoolConfig, ThreadPoolStats,
