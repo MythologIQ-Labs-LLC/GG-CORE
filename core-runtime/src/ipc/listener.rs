@@ -113,7 +113,7 @@ pub async fn run_server(
     loop {
         // Some clients can have attached to a standby instance already;
         // Tokio connect() handles ERROR_PIPE_CONNECTED in that case.
-        let mut server = pending
+        let server = pending
             .pop_front()
             .expect("Windows named-pipe backlog must remain nonempty");
         tokio::select! {
