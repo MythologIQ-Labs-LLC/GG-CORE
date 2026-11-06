@@ -305,6 +305,16 @@ mod windows_server_tests {
                 start.wait().await;
                 let mut client = ClientOptions::new().open(&pipe)
                     .expect("eight simultaneous clients should have pending pipe instances");
+                // Health checks are intentionally readable without auth;
+                // a burst test must instead prove that privileged IPC does
+                // not bypass the connection-bound handshake.
+                let cancel = br#"{"type":"cancel_request","request_id":999999}"#;
+                write_frame(&mut client, cancel).await;
+                let denied = read_frame(&mut client).await;
+                assert!(
+                    String::from_utf8_lossy(&denied).contains(r#""code":401"#),
+                    "unauthenticated control must fail closed"
+                );
                 let handshake = br#"{"type":"handshake","token":"test-token"}"#;
                 write_frame(&mut client, handshake).await;
                 let response = read_frame(&mut client).await;
@@ -312,12 +322,12 @@ mod windows_server_tests {
                     String::from_utf8_lossy(&response).contains("handshake_ack"),
                     "authenticated handshake should be accepted"
                 );
-                write_frame(
-                    &mut client,
-                    br#"{"type":"health_check","check_type":"Liveness"}"#,
-                ).await;
+                write_frame(&mut client, cancel).await;
                 let response = read_frame(&mut client).await;
-                assert!(String::from_utf8_lossy(&response).contains("health_response"));
+                assert!(
+                    String::from_utf8_lossy(&response).contains("cancel_response"),
+                    "authenticated control should succeed on same pipe"
+                );
             }));
         }
         start.wait().await;
