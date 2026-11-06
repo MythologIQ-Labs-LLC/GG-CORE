@@ -81,6 +81,17 @@ try {
   $d = New-Case 'no-manifest'; Remove-Item -LiteralPath (Join-Path $d 'MSVC_REDISTRIBUTABLES.json')
   Assert-Case 'missing provenance manifest' (Invoke-Verify $d) 'manifest missing'
 
+  # A validly signed, non-Microsoft binary must be refused by signer identity.
+  $thirdParty = @("$env:ProgramFiles\nodejs\node.exe", "$env:ProgramFiles\Git\cmd\git.exe",
+                  "$env:ProgramFiles\GitHub CLI\gh.exe", "$env:ProgramFiles\PowerShell\7\pwsh.exe") |
+    Where-Object { Test-Path -LiteralPath $_ } |
+    Where-Object { $s = Get-AuthenticodeSignature -LiteralPath $_; $s.Status -eq 'Valid' -and $s.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation' } |
+    Select-Object -First 1
+  if ($thirdParty) {
+    $d = New-Case 'third-party'; Copy-Item -LiteralPath $thirdParty -Destination (Join-Path $d 'vcomp140.dll') -Force
+    Assert-Case 'validly signed non-Microsoft DLL' (Invoke-Verify $d) 'Non-Microsoft runtime signer: vcomp140\.dll'
+  } else { Write-Output 'skip validly signed non-Microsoft DLL (no third-party signed binary found on this host)' }
+
   # A genuinely Microsoft-signed DLL from a different runtime build must still be refused.
   $other = Join-Path $env:SystemRoot 'System32\msvcp140.dll'
   $baseVersion = (Get-Item -LiteralPath (Join-Path $work 'base\msvcp140.dll')).VersionInfo.FileVersion

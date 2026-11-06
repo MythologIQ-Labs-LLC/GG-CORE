@@ -7,8 +7,10 @@
   VS 2022 14.44 redistributables are signed as "Microsoft Windows" (CRT) and
   "Microsoft Windows Software Compatibility Publisher" (OpenMP), not
   "Microsoft Corporation", so a CN substring test is both wrong and weak.
-  Require: Authenticode Valid, an exact Microsoft signer subject, and a chain
-  that terminates in a pinned Microsoft root (Root CA 2010 or 2011).
+  Require: Authenticode Valid, an exact Microsoft signer subject, a
+  Microsoft-named issuer, and - whenever the chain can be resolved to a
+  self-signed root (online, cached, or from embedded certificates) - a pinned
+  Microsoft root (Root CA 2010 or 2011).
 #>
 $script:MicrosoftSignerSubjects = @(
   'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US',
@@ -31,16 +33,30 @@ function Assert-MicrosoftSigned {
   if ($cert.Subject -notin $script:MicrosoftSignerSubjects) {
     throw "Non-Microsoft runtime signer: $leaf ($($cert.Subject))"
   }
-  # Authenticode Valid already covered timestamped validity; build the chain
-  # only to identify its root, tolerating an expired-but-timestamped leaf.
+  if ($cert.Issuer -notmatch '^CN=Microsoft [^,]+, (.+, )?O=Microsoft Corporation(,|$)') {
+    throw "Runtime signer issued by a non-Microsoft CA: $leaf ($($cert.Issuer))"
+  }
+  # Authenticode Valid (WinVerifyTrust) already validated a full trusted chain
+  # and the timestamp. Re-build it only to identify the root, adding the
+  # certificates embedded in the file so this also works on an offline host.
+  # The reported signer may come from a Windows catalog whose intermediate is
+  # neither embedded nor cached offline; then the chain cannot reach a root
+  # here and the WinVerifyTrust result plus exact Microsoft subject/issuer
+  # identity is the evidence. Any chain that DOES reach a self-signed root
+  # must end in a pinned Microsoft root.
   $chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
   $chain.ChainPolicy.RevocationMode = 'NoCheck'
   $chain.ChainPolicy.VerificationFlags = 'IgnoreNotTimeValid'
+  try {
+    $embedded = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+    $embedded.Import($Path)
+    [void]$chain.ChainPolicy.ExtraStore.AddRange($embedded)
+  } catch { Write-Verbose "No embedded certificates readable from $leaf" }
   [void]$chain.Build($cert)
   $elements = @($chain.ChainElements)
-  if ($elements.Count -lt 2) { throw "Microsoft signer chain incomplete: $leaf" }
-  $root = $elements[$elements.Count - 1].Certificate.Thumbprint.ToUpperInvariant()
-  if ($root -notin $script:MicrosoftRootThumbprints) {
-    throw "Runtime signer does not chain to a pinned Microsoft root: $leaf ($root)"
+  $top = $elements[$elements.Count - 1].Certificate
+  $script:LastChainReachedRoot = ($elements.Count -ge 2 -and $top.Subject -eq $top.Issuer)
+  if ($script:LastChainReachedRoot -and $top.Thumbprint.ToUpperInvariant() -notin $script:MicrosoftRootThumbprints) {
+    throw "Runtime signer does not chain to a pinned Microsoft root: $leaf ($($top.Thumbprint))"
   }
 }
