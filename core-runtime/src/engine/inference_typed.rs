@@ -56,7 +56,12 @@ impl InferenceEngine {
                     self.check_context(text)?;
                 }
             }
-            InferenceInput::ChatMessages(_) => unreachable!("typed chat is not yet admitted"),
+            // Already refused by validate_task_input; fail closed, never panic.
+            InferenceInput::ChatMessages(_) => {
+                return Err(InferenceError::InvalidParams(
+                    "typed chat input is not supported".into(),
+                ))
+            }
         }
 
         let mut config = params.to_config();
