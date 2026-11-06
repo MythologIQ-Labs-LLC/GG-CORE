@@ -12,9 +12,9 @@
 //!   DACL grants write (and so duplex connect) only to the creator,
 //!   Administrators and SYSTEM.
 
-use std::sync::Arc;
 #[cfg(windows)]
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use tokio::sync::watch;
 
@@ -105,7 +105,10 @@ pub async fn run_server(
     for _ in 1..backlog {
         pending.push_back(new_instance()?);
     }
-    eprintln!("IPC server listening on {} (pending instances {})", pipe_name, backlog);
+    eprintln!(
+        "IPC server listening on {} (pending instances {})",
+        pipe_name, backlog
+    );
 
     loop {
         // Some clients can have attached to a standby instance already;

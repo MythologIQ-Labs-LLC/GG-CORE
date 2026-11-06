@@ -303,7 +303,8 @@ mod windows_server_tests {
             let start = Arc::clone(&start);
             clients.push(tokio::spawn(async move {
                 start.wait().await;
-                let mut client = ClientOptions::new().open(&pipe)
+                let mut client = ClientOptions::new()
+                    .open(&pipe)
                     .expect("eight simultaneous clients should have pending pipe instances");
                 // Health checks are intentionally readable without auth;
                 // a burst test must instead prove that privileged IPC does
@@ -362,7 +363,9 @@ mod windows_server_tests {
         let _occupied = ClientOptions::new().open(&pipe).unwrap();
         let client = CliIpcClient::new(pipe).with_timeout(Duration::from_millis(75));
         let started = tokio::time::Instant::now();
-        let result = client.check_health(gg_core::ipc::HealthCheckType::Liveness).await;
+        let result = client
+            .check_health(gg_core::ipc::HealthCheckType::Liveness)
+            .await;
         assert!(matches!(result, Err(gg_core::cli::CliError::Timeout)));
         assert!(started.elapsed() >= Duration::from_millis(70));
         assert!(started.elapsed() < Duration::from_secs(2));
