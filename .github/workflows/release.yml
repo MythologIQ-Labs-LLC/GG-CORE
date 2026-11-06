@@ -179,6 +179,11 @@ jobs:
           $stage = @(Get-ChildItem -LiteralPath $extract -Directory)
           if ($stage.Count -ne 1) { throw 'Archive has unexpected Windows package layout' }
           & ../scripts/verify-windows-msvc-runtime.ps1 -StageDirectory $stage[0].FullName
+          # Inspect both native binaries and recursively follow each imported
+          # application DLL. Any new non-system import must be in the package.
+          # This catches version drift that the four-name baseline cannot.
+          python ../scripts/audit_windows_pe_imports.py $stage[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Windows PE dependency closure failed' }
           # Passing on the pre-provisioned runner is NOT clean-image qualification.
       - name: Upload platform artifact
         uses: actions/upload-artifact@v4
