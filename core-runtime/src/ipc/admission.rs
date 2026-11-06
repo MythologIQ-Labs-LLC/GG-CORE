@@ -43,16 +43,22 @@ where
     });
 }
 
-/// Send the 503 frame, drain at most one small client frame so the client's
-/// pending write completes and it can read the rejection, then close.
+/// Send the 503 frame, drain exactly one complete small client frame (length
+/// prefix and body; clients commonly write them separately) so the client's
+/// pending writes complete and it can read the rejection, then close.
 async fn reject_over_capacity<S: AsyncReadExt + AsyncWriteExt + Unpin>(mut stream: S) {
     let _ = tokio::time::timeout(REJECT_DEADLINE, async {
         let len = (OVER_CAPACITY_FRAME.len() as u32).to_le_bytes();
         stream.write_all(&len).await?;
         stream.write_all(OVER_CAPACITY_FRAME).await?;
         stream.flush().await?;
-        let mut buf = [0u8; MAX_DRAIN_BYTES];
-        let _ = stream.read(&mut buf).await?;
+        let mut header = [0u8; 4];
+        stream.read_exact(&mut header).await?;
+        let body = u32::from_le_bytes(header) as usize;
+        if body <= MAX_DRAIN_BYTES {
+            let mut buf = [0u8; MAX_DRAIN_BYTES];
+            stream.read_exact(&mut buf[..body]).await?;
+        }
         Ok::<(), std::io::Error>(())
     })
     .await;
@@ -84,6 +90,27 @@ mod tests {
             0,
             "closed after 503"
         );
+    }
+
+    /// Regression: a client that writes the length prefix and body separately
+    /// must still complete its write and read the 503 (no close mid-frame).
+    #[tokio::test]
+    async fn split_header_and_body_write_still_reads_503() {
+        let (server, mut client) = tokio::io::duplex(8192);
+        let task = tokio::spawn(reject_over_capacity(server));
+        let hs = br#"{"type":"handshake","token":"t"}"#;
+        client
+            .write_all(&(hs.len() as u32).to_le_bytes())
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        client.write_all(hs).await.expect("body write after header");
+        let mut len = [0u8; 4];
+        client.read_exact(&mut len).await.unwrap();
+        let mut body = vec![0u8; u32::from_le_bytes(len) as usize];
+        client.read_exact(&mut body).await.unwrap();
+        assert_eq!(body, OVER_CAPACITY_FRAME);
+        task.await.unwrap();
     }
 
     #[tokio::test]
