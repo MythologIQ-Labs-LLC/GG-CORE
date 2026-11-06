@@ -38,31 +38,31 @@ fn choose_onnx_manifest_selects_onnx() {
         BackendChoice::Onnx(carried) => {
             assert_eq!(carried.architecture, ModelArchitecture::Onnx);
         }
-        BackendChoice::GgufDefault => panic!("expected Onnx"),
+        other => panic!("expected Onnx, got {other:?}"),
     }
 }
 
 #[test]
-fn choose_gguf_manifest_selects_gguf_default() {
+fn choose_gguf_manifest_is_explicit_not_a_fallback() {
     let m = manifest(
         ModelArchitecture::Gguf,
         vec![ModelCapability::TextGeneration],
     );
     assert!(matches!(
         choose_backend(Some(m)),
-        BackendChoice::GgufDefault
+        BackendChoice::GgufManifest(_)
     ));
 }
 
 #[test]
-fn choose_safetensors_manifest_selects_gguf_default() {
+fn unsupported_safetensors_manifest_does_not_fall_back_to_gguf() {
     let m = manifest(
         ModelArchitecture::SafeTensors,
         vec![ModelCapability::Embedding],
     );
     assert!(matches!(
         choose_backend(Some(m)),
-        BackendChoice::GgufDefault
+        BackendChoice::Unsupported(ModelArchitecture::SafeTensors)
     ));
 }
 
@@ -149,4 +149,106 @@ fn dispatch_routes_no_manifest_to_gguf_loader() {
     let err = load_model_dispatch(&dir.join("model.gguf"), "m");
     // No manifest → GGUF default; the GGUF loader stub proves the route.
     assert!(err_message(err).contains("GGUF support not compiled in"));
+}
+
+#[test]
+fn manifest_free_onnx_requires_explicit_manifest() {
+    let dir = fresh_dir("onnx_no_manifest");
+    let model_path = dir.join("model.onnx");
+    std::fs::write(&model_path, b"irrelevant onnx input").unwrap();
+    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    assert!(msg.contains("requires a validated sibling manifest"), "got: {msg}");
+}
+
+#[test]
+fn manifest_free_safetensors_never_falls_back_to_gguf() {
+    let dir = fresh_dir("safetensors_no_manifest");
+    let model_path = dir.join("model.safetensors");
+    std::fs::write(&model_path, b"irrelevant safetensors input").unwrap();
+    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    assert!(msg.contains("requires a validated sibling manifest"), "got: {msg}");
+}
+
+#[test]
+fn explicit_safetensors_manifest_is_rejected_before_backend_work() {
+    let dir = fresh_dir("safetensors_explicit");
+    let model_path = dir.join("model.safetensors");
+    std::fs::write(&model_path, b"irrelevant safetensors input").unwrap();
+    let mut m = manifest(ModelArchitecture::SafeTensors, vec![ModelCapability::Embedding]);
+    m.sha256 = crate::models::integrity::file_sha256_hex(&model_path).unwrap();
+    m.size_bytes = std::fs::metadata(&model_path).unwrap().len();
+    std::fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_string(&m).unwrap(),
+    ).unwrap();
+    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    assert!(msg.contains("unsupported model backend: SafeTensors"), "got: {msg}");
+}
+
+#[test]
+fn gguf_embedding_only_manifest_is_not_accepted_as_text_generation() {
+    let dir = fresh_dir("gguf_claims_embedding");
+    let model_path = dir.join("model.gguf");
+    std::fs::write(&model_path, b"irrelevant gguf input").unwrap();
+    let mut m = manifest(ModelArchitecture::Gguf, vec![ModelCapability::Embedding]);
+    m.sha256 = crate::models::integrity::file_sha256_hex(&model_path).unwrap();
+    m.size_bytes = std::fs::metadata(&model_path).unwrap().len();
+    std::fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_string(&m).unwrap(),
+    ).unwrap();
+    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    assert!(msg.contains("unsupported GGUF capabilities"), "got: {msg}");
+}
+
+#[test]
+fn gguf_declared_generation_plus_embedding_is_not_silently_accepted() {
+    let dir = fresh_dir("gguf_claims_two");
+    let model_path = dir.join("model.gguf");
+    std::fs::write(&model_path, b"irrelevant gguf input").unwrap();
+    let mut m = manifest(
+        ModelArchitecture::Gguf,
+        vec![ModelCapability::TextGeneration, ModelCapability::Embedding],
+    );
+    m.sha256 = crate::models::integrity::file_sha256_hex(&model_path).unwrap();
+    m.size_bytes = std::fs::metadata(&model_path).unwrap().len();
+    std::fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_string(&m).unwrap(),
+    ).unwrap();
+    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    assert!(msg.contains("unsupported GGUF capabilities"), "got: {msg}");
+}
+
+#[test]
+fn onnx_generation_is_not_advertised_as_serving_supported() {
+    let dir = fresh_dir("onnx_generation");
+    let model_path = dir.join("model.onnx");
+    std::fs::write(&model_path, b"irrelevant onnx input").unwrap();
+    let mut m = manifest(ModelArchitecture::Onnx, vec![ModelCapability::TextGeneration]);
+    m.sha256 = crate::models::integrity::file_sha256_hex(&model_path).unwrap();
+    m.size_bytes = std::fs::metadata(&model_path).unwrap().len();
+    std::fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_string(&m).unwrap(),
+    ).unwrap();
+    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    assert!(msg.contains("no ONNX-servable capability"), "got: {msg}");
+}
+
+#[cfg(not(feature = "gguf"))]
+#[test]
+fn verified_gguf_text_generation_manifest_still_reaches_backend() {
+    let dir = fresh_dir("gguf_generation_valid");
+    let model_path = dir.join("model.gguf");
+    std::fs::write(&model_path, b"irrelevant gguf input").unwrap();
+    let mut m = manifest(ModelArchitecture::Gguf, vec![ModelCapability::TextGeneration]);
+    m.sha256 = crate::models::integrity::file_sha256_hex(&model_path).unwrap();
+    m.size_bytes = std::fs::metadata(&model_path).unwrap().len();
+    std::fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_string(&m).unwrap(),
+    ).unwrap();
+    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    assert!(msg.contains("GGUF support not compiled in"), "got: {msg}");
 }

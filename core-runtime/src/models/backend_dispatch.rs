@@ -1,40 +1,62 @@
 //! Manifest-driven backend dispatch for the production model-load path.
 //!
-//! Resolves an optional sibling `manifest.json` next to a model file and selects
-//! the backend. Absent manifest → GGUF (every existing GGUF load ships no
-//! manifest and is unchanged). A manifest that is *present* must parse and
-//! validate, or the load fails: a malformed manifest never silently downgrades
-//! to "no integrity expectations". Only `architecture: onnx` routes to the ONNX
-//! manifest dispatcher (B-29a); both loaders return `Arc<dyn Model>` (B-29b-1),
-//! so the registry/lifecycle never cares which backend produced the model.
+//! Resolves an optional sibling `manifest.json` next to a model file and
+//! selects a supported backend explicitly. A missing manifest preserves the
+//! historical GGUF default for GGUF files; manifest-driven ONNX embedding and
+//! classification are dispatched separately. Unsupported formats and
+//! incompatible declared capabilities fail closed, never silently masquerade
+//! as GGUF. Backends return `Arc<dyn Model>` (B-29b-1), keeping the model
+//! lifecycle neutral to architecture.
 
 use std::path::Path;
 use std::sync::Arc;
 
 use crate::engine::error::InferenceError;
 use crate::engine::gguf::{load_gguf_model, GgufConfig};
-use crate::engine::onnx::{load_onnx_from_manifest, OnnxConfig};
+use crate::engine::onnx::{load_onnx_from_manifest, plan_onnx_load, OnnxConfig};
 use crate::engine::Model;
 use crate::models::integrity::{check_identity_unchanged, verify_manifest_hash, FileIdentity};
 use crate::models::manifest::{ModelArchitecture, ModelManifest};
 
-/// Which backend a manifest selects. `Onnx` carries the parsed
-/// manifest forward so the loader needs no `unwrap`/`expect`.
+/// Selected model backend. A manifest declaring an unknown serving format
+/// MUST NOT downgrade into a different backend. Explicit GGUF manifests are
+/// retained to validate their claimed capabilities before any model IO.
 #[derive(Debug)]
 pub enum BackendChoice {
-    /// A sibling manifest declares ONNX architecture.
+    /// ONNX capability + labels must pass the ONNX load planner.
     Onnx(Box<ModelManifest>),
-    /// No manifest, or a non-ONNX manifest — load as GGUF (default behavior).
+    /// GGUF with a manifest; validate the declared served capabilities.
+    GgufManifest(Box<ModelManifest>),
+    /// Historical, manifest-free GGUF path.
     GgufDefault,
+    /// Known file type with no implemented inference backend.
+    Unsupported(ModelArchitecture),
 }
 
-/// Decide the backend from an optional manifest, without IO. Consumes the
-/// manifest, moving it into the `Onnx` variant when it applies.
+/// Pure, manifest-driven architecture routing. Qwen is only one model family
+/// using GGUF, not the backend's identity or default model.
 pub fn choose_backend(manifest: Option<ModelManifest>) -> BackendChoice {
     match manifest {
-        Some(m) if m.architecture == ModelArchitecture::Onnx => BackendChoice::Onnx(Box::new(m)),
-        _ => BackendChoice::GgufDefault,
+        None => BackendChoice::GgufDefault,
+        Some(m) => match m.architecture {
+            ModelArchitecture::Onnx => BackendChoice::Onnx(Box::new(m)),
+            ModelArchitecture::Gguf => BackendChoice::GgufManifest(Box::new(m)),
+            ModelArchitecture::SafeTensors => BackendChoice::Unsupported(ModelArchitecture::SafeTensors),
+        },
     }
+}
+
+/// GGUF inference currently exposes text generation, not arbitrary manifest
+/// capabilities. Fail closed rather than silently registering a GGUF model
+/// as an embedder or classifier. Future added GGUF capabilities must earn
+/// their own real-model serving-path qualification and update this contract.
+fn validate_gguf_manifest(manifest: &ModelManifest) -> Result<(), InferenceError> {
+    if manifest.capabilities.as_slice() != [crate::models::manifest::ModelCapability::TextGeneration] {
+        return Err(InferenceError::ModelError(
+            "GGUF serving currently supports exactly text_generation; manifest declares unsupported GGUF capabilities".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Read the sibling `manifest.json`: `None` only when it does not exist.
@@ -78,20 +100,53 @@ pub fn load_model_dispatch(
     model_id: &str,
 ) -> Result<Arc<dyn Model>, InferenceError> {
     let manifest = read_sibling_manifest(model_path)?;
-    let hashed: Option<FileIdentity> = match &manifest {
-        Some(m) => Some(verify_manifest_hash(model_path, m)?),
-        None => None,
+    let choice = choose_backend(manifest);
+
+    // Do not fall through to the GGUF loader just because a non-GGUF model
+    // lacks the manifest required to describe its architecture/capability.
+    if matches!(&choice, BackendChoice::GgufDefault)
+        && model_path
+            .extension()
+            .and_then(|v| v.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx") || ext.eq_ignore_ascii_case("safetensors"))
+    {
+        return Err(InferenceError::ModelError(
+            "non-GGUF model requires a validated sibling manifest.json and a supported backend".into(),
+        ));
+    }
+
+    // Reject unsupported declarations before hashing/loading untrusted
+    // model bytes. ONNX must be a supported embedding/classifier plan;
+    // text generation remains unimplemented until independently qualified.
+    match &choice {
+        BackendChoice::Unsupported(arch) => {
+            return Err(InferenceError::ModelError(format!(
+                "unsupported model backend: {arch:?}; GGUF text generation and ONNX embedding/classification are implemented paths"
+            )));
+        }
+        BackendChoice::GgufManifest(m) => validate_gguf_manifest(m)?,
+        BackendChoice::Onnx(m) => {
+            plan_onnx_load(m)?;
+        }
+        BackendChoice::GgufDefault => {}
+    }
+
+    let hashed: Option<FileIdentity> = match &choice {
+        BackendChoice::Onnx(m) | BackendChoice::GgufManifest(m) => {
+            Some(verify_manifest_hash(model_path, m)?)
+        }
+        BackendChoice::GgufDefault | BackendChoice::Unsupported(_) => None,
     };
-    let model = match choose_backend(manifest) {
+    let model = match choice {
         BackendChoice::Onnx(m) => load_onnx_from_manifest(&m, model_path, &OnnxConfig::default()),
-        BackendChoice::GgufDefault => {
-            // The IPC daemon's model-load path must use its configured context.
-            // Previously the env settings were parsed and advertised, but every
-            // model silently loaded with the 2048-token default.
+        BackendChoice::GgufManifest(_) | BackendChoice::GgufDefault => {
+            // Both manifest-free and verified GGUF models use the same
+            // configured loader, with no model-family-specific behavior.
             let env = crate::config::load_gguf_config();
             let gguf = gguf_load_config(&env);
             load_gguf_model(model_path, model_id, &gguf)
         }
+        BackendChoice::Unsupported(_) => unreachable!("unsupported backend rejected before load"),
     }?;
     if let Some(identity) = hashed {
         check_identity_unchanged(model_path, &identity)?;
