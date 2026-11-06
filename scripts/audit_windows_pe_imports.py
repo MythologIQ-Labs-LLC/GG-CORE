@@ -109,6 +109,12 @@ def analyze(stage):
     entries = {p.name.lower(): p for p in stage.iterdir() if p.is_file() and not p.is_symlink()}
     if len(entries) != len([p for p in stage.iterdir() if p.is_file()]):
         raise PEError("case-colliding filenames or symlinks in package")
+    # DLL search order and side-loading risks make unexpected app-local files
+    # security-sensitive, even when they are not referenced in import tables.
+    shadowed = sorted(name for name in entries if name in SYSTEM_DLLS or
+                      name.startswith(("api-ms-win-", "ext-ms-win-")))
+    if shadowed:
+        raise PEError(f"packaged DLL shadows a Windows system/API-set name: {shadowed}")
     for name in EXPECTED_ROOTS:
         if name not in entries:
             raise PEError(f"missing packaged binary: {name}")
@@ -130,8 +136,10 @@ def analyze(stage):
                 pending.append(dll)
             else:
                 missing.add(dll)
+    unused = sorted(name for name in entries if name.endswith(".dll") and name not in checked)
     return {"format": "gg-core-pe-import-audit-v1", "binaries": dict(sorted(checked.items())),
-            "missing_app_local": sorted(missing), "result": "FAIL" if missing else "PASS"}
+            "missing_app_local": sorted(missing), "unreferenced_dlls": unused,
+            "result": "FAIL" if missing or unused else "PASS"}
 
 
 def main():
@@ -140,7 +148,7 @@ def main():
     args = parser.parse_args()
     report = analyze(args.stage)
     print(json.dumps(report, indent=2, sort_keys=True))
-    if report["missing_app_local"]:
+    if report["missing_app_local"] or report["unreferenced_dlls"]:
         raise SystemExit(2)
 
 
