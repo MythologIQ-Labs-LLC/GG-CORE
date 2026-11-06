@@ -42,7 +42,9 @@ pub fn choose_backend(manifest: Option<ModelManifest>) -> BackendChoice {
         Some(m) => match m.architecture {
             ModelArchitecture::Onnx => BackendChoice::Onnx(Box::new(m)),
             ModelArchitecture::Gguf => BackendChoice::GgufManifest(Box::new(m)),
-            ModelArchitecture::SafeTensors => BackendChoice::Unsupported(ModelArchitecture::SafeTensors),
+            ModelArchitecture::SafeTensors => {
+                BackendChoice::Unsupported(ModelArchitecture::SafeTensors)
+            }
         },
     }
 }
@@ -52,7 +54,9 @@ pub fn choose_backend(manifest: Option<ModelManifest>) -> BackendChoice {
 /// as an embedder or classifier. Future added GGUF capabilities must earn
 /// their own real-model serving-path qualification and update this contract.
 fn validate_gguf_manifest(manifest: &ModelManifest) -> Result<(), InferenceError> {
-    if manifest.capabilities.as_slice() != [crate::models::manifest::ModelCapability::TextGeneration] {
+    if manifest.capabilities.as_slice()
+        != [crate::models::manifest::ModelCapability::TextGeneration]
+    {
         return Err(InferenceError::ModelError(
             "GGUF serving currently supports exactly text_generation; manifest declares unsupported GGUF capabilities".into(),
         ));
@@ -70,7 +74,9 @@ fn validate_gguf_manifest(manifest: &ModelManifest) -> Result<(), InferenceError
 pub fn read_sibling_manifest(model_path: &Path) -> Result<Option<ModelManifest>, InferenceError> {
     const MAX_MANIFEST_BYTES: u64 = 1_048_576;
     let Some(file_name) = model_path.file_name() else {
-        return Err(InferenceError::ModelError("model path has no file name".into()));
+        return Err(InferenceError::ModelError(
+            "model path has no file name".into(),
+        ));
     };
     let mut specific_name = file_name.to_os_string();
     specific_name.push(".manifest.json");
@@ -157,10 +163,13 @@ pub fn load_model_dispatch(
         && model_path
             .extension()
             .and_then(|v| v.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx") || ext.eq_ignore_ascii_case("safetensors"))
+            .is_some_and(|ext| {
+                ext.eq_ignore_ascii_case("onnx") || ext.eq_ignore_ascii_case("safetensors")
+            })
     {
         return Err(InferenceError::ModelError(
-            "non-GGUF model requires a validated sibling manifest.json and a supported backend".into(),
+            "non-GGUF model requires a validated sibling manifest.json and a supported backend"
+                .into(),
         ));
     }
 
