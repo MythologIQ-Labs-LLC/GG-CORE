@@ -253,9 +253,8 @@ mod tests;
 
 // Typed non-generative inference is crate-private until a capability-aware
 // authenticated IPC queue and uniform security pipeline are qualified.
-// No production caller until the typed IPC path (#171) is qualified; the
-// allow is scoped to non-test builds and must be removed by that change.
-#[cfg_attr(not(test), allow(dead_code))]
+// Typed non-generative inference, reached only through the authenticated
+// typed IPC queue and worker security pipeline (#171).
 #[path = "inference_typed.rs"]
 mod typed;
 
