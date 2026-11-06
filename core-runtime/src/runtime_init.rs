@@ -7,6 +7,7 @@ use gg_core::ipc::server;
 use gg_core::shutdown::ShutdownResult;
 use gg_core::{Runtime, RuntimeConfig};
 
+use crate::chat_template::{format_prompt, ChatTemplate};
 use gg_core::cli::CliIpcClient;
 
 /// Load runtime configuration from environment.
@@ -115,6 +116,8 @@ pub async fn run_inference(args: &[String]) -> i32 {
     let mut prompt = String::new();
     let mut max_tokens = 256usize;
     let mut stream = false;
+    let mut chat_template: Option<ChatTemplate> = None;
+    let mut system_message: Option<String> = None;
     // The daemon enforces this deadline; the client waits a little longer so
     // the daemon's explicit `deadline_exceeded` arrives instead of a client
     // read timeout. The old fixed 5 s read timeout failed long prompts.
@@ -154,6 +157,36 @@ pub async fn run_inference(args: &[String]) -> i32 {
                 stream = true;
                 i += 1;
             }
+            "--chat-template" => {
+                if chat_template.is_some() {
+                    eprintln!("--chat-template may only be provided once");
+                    return 1;
+                }
+                let Some(name) = args.get(i + 1) else {
+                    eprintln!("--chat-template requires a model template identifier");
+                    return 1;
+                };
+                match ChatTemplate::parse(name) {
+                    Ok(template) => chat_template = Some(template),
+                    Err(message) => {
+                        eprintln!("--chat-template: {}", message);
+                        return 1;
+                    }
+                }
+                i += 2;
+            }
+            "--system" => {
+                if system_message.is_some() {
+                    eprintln!("--system may only be provided once");
+                    return 1;
+                }
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("--system requires a message");
+                    return 1;
+                };
+                system_message = Some(value.clone());
+                i += 2;
+            }
             "--timeout-ms" => match args.get(i + 1).and_then(|v| v.parse::<u64>().ok()) {
                 Some(ms) if ms > 0 => {
                     timeout_ms = ms;
@@ -173,10 +206,25 @@ pub async fn run_inference(args: &[String]) -> i32 {
 
     if model_id.is_empty() || prompt.is_empty() {
         eprintln!(
-            "Usage: GG-CORE infer --model <MODEL> --prompt <PROMPT> [--max-tokens N] [--stream] [--timeout-ms MS]"
+            "Usage: GG-CORE infer --model <MODEL> --prompt <PROMPT> [--max-tokens N] [--stream] [--timeout-ms MS] [--chat-template qwen2.5] [--system TEXT]"
         );
         return 1;
     }
+
+    // Explicit Qwen2.5 ChatML opt-in. Raw completions stay unchanged for
+    // compatibility with the frozen runtime and unrelated model families.
+    // The daemon still performs all auth, ingress/egress and resource checks.
+    let prompt = match format_prompt(
+        chat_template.unwrap_or(ChatTemplate::Raw),
+        &prompt,
+        system_message.as_deref(),
+    ) {
+        Ok(formatted) => formatted,
+        Err(message) => {
+            eprintln!("infer: {}", message);
+            return 1;
+        }
+    };
 
     let socket_path = get_socket_path();
     let client = CliIpcClient::new(socket_path).with_timeout(std::time::Duration::from_millis(
