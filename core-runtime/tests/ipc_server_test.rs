@@ -268,6 +268,155 @@ mod windows_server_tests {
         let _ = tokio::time::timeout(Duration::from_secs(2), server).await;
     }
 
+    /// Simultaneous authenticated IPC clients must not lose connections
+    /// while the Windows listener replenishes its named-pipe instances.
+    /// The handshake stays connection-scoped; no inferred model or GPU
+    /// readiness is involved in this transport regression test.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_server_authenticated_burst_eight_clients() {
+        const CLIENTS: usize = 8;
+        let pipe = unique_pipe_name("burst-auth");
+        let handler = test_handler();
+        let pool = Arc::new(ConnectionPool::new(ConnectionConfig {
+            max_connections: CLIENTS + 4,
+        }));
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        let server_pipe = pipe.clone();
+        let server_handler = Arc::clone(&handler);
+        let server_pool = Arc::clone(&pool);
+        let server = tokio::spawn(async move {
+            gg_core::ipc::server::run_server(
+                server_pipe,
+                server_handler,
+                server_pool,
+                rx,
+                gg_core::ipc::IpcServerConfig::default(),
+            )
+            .await
+        });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let start = Arc::new(tokio::sync::Barrier::new(CLIENTS + 1));
+        let mut clients = Vec::new();
+        for _ in 0..CLIENTS {
+            let pipe = pipe.clone();
+            let start = Arc::clone(&start);
+            clients.push(tokio::spawn(async move {
+                start.wait().await;
+                let mut client = ClientOptions::new()
+                    .open(&pipe)
+                    .expect("eight simultaneous clients should have pending pipe instances");
+                // Health checks are intentionally readable without auth;
+                // a burst test must instead prove that privileged IPC does
+                // not bypass the connection-bound handshake.
+                let cancel = br#"{"type":"cancel_request","request_id":999999}"#;
+                write_frame(&mut client, cancel).await;
+                let denied = read_frame(&mut client).await;
+                assert!(
+                    String::from_utf8_lossy(&denied).contains(r#""code":401"#),
+                    "unauthenticated control must fail closed"
+                );
+                let handshake = br#"{"type":"handshake","token":"test-token"}"#;
+                write_frame(&mut client, handshake).await;
+                let response = read_frame(&mut client).await;
+                assert!(
+                    String::from_utf8_lossy(&response).contains("handshake_ack"),
+                    "authenticated handshake should be accepted"
+                );
+                write_frame(&mut client, cancel).await;
+                let response = read_frame(&mut client).await;
+                assert!(
+                    String::from_utf8_lossy(&response).contains("cancel_response"),
+                    "authenticated control should succeed on same pipe"
+                );
+            }));
+        }
+        start.wait().await;
+        for client in clients {
+            tokio::time::timeout(Duration::from_secs(10), client)
+                .await
+                .expect("client must not hang in listener")
+                .expect("client roundtrip must succeed");
+        }
+
+        let _ = tx.send(true);
+        let completed = tokio::time::timeout(Duration::from_secs(3), server)
+            .await
+            .expect("server shutdown should be bounded")
+            .expect("server task should complete");
+        assert!(completed.is_ok());
+    }
+
+    /// A client beyond the connection cap receives an explicit 503 frame
+    /// (bounded admission rejection), not a silent close, and the slot is
+    /// reusable once the admitted client disconnects.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_over_capacity_client_gets_explicit_503() {
+        let pipe = unique_pipe_name("over-cap");
+        let pool = Arc::new(ConnectionPool::new(ConnectionConfig { max_connections: 1 }));
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        let (server_pipe, handler) = (pipe.clone(), test_handler());
+        let server = tokio::spawn(async move {
+            gg_core::ipc::server::run_server(
+                server_pipe,
+                handler,
+                pool,
+                rx,
+                gg_core::ipc::IpcServerConfig::default(),
+            )
+            .await
+        });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let handshake = br#"{"type":"handshake","token":"test-token"}"#;
+
+        let mut held = ClientOptions::new().open(&pipe).unwrap();
+        write_frame(&mut held, handshake).await;
+        assert!(String::from_utf8_lossy(&read_frame(&mut held).await).contains("handshake_ack"));
+
+        let mut extra = ClientOptions::new().open(&pipe).unwrap();
+        write_frame(&mut extra, handshake).await;
+        let refused = read_frame(&mut extra).await;
+        assert!(
+            String::from_utf8_lossy(&refused).contains(r#""code":503"#),
+            "over-cap client must get explicit admission rejection"
+        );
+        drop(extra);
+        drop(held);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let mut again = ClientOptions::new().open(&pipe).unwrap();
+        write_frame(&mut again, handshake).await;
+        assert!(String::from_utf8_lossy(&read_frame(&mut again).await).contains("handshake_ack"));
+        drop(again);
+
+        let _ = tx.send(true);
+        let _ = tokio::time::timeout(Duration::from_secs(3), server).await;
+    }
+
+    /// When all named-pipe instances are occupied, clients retry busy
+    /// connections only up to their declared deadline. Non-busy errors
+    /// remain immediate failures (never a permission or auth bypass).
+    #[tokio::test]
+    async fn test_busy_pipe_connect_respects_deadline() {
+        use gg_core::cli::CliIpcClient;
+        use tokio::net::windows::named_pipe::ServerOptions;
+        let pipe = unique_pipe_name("busy-deadline");
+        let _server = ServerOptions::new()
+            .first_pipe_instance(true)
+            .max_instances(1)
+            .create(&pipe)
+            .unwrap();
+        let _occupied = ClientOptions::new().open(&pipe).unwrap();
+        let client = CliIpcClient::new(pipe).with_timeout(Duration::from_millis(75));
+        let started = tokio::time::Instant::now();
+        let result = client
+            .check_health(gg_core::ipc::HealthCheckType::Liveness)
+            .await;
+        assert!(matches!(result, Err(gg_core::cli::CliError::Timeout)));
+        assert!(started.elapsed() >= Duration::from_millis(70));
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
     /// Graceful shutdown stops accepting new connections.
     #[tokio::test]
     async fn test_server_graceful_shutdown() {

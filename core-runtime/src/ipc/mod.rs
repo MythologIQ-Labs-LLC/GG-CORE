@@ -3,6 +3,7 @@
 //! Handles named pipe/Unix socket communication with authenticated callers.
 //! This is the ONLY external interface - no HTTP/REST/WebSocket allowed.
 
+mod admission;
 mod auth;
 mod auth_session;
 mod connections;

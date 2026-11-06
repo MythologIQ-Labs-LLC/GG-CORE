@@ -263,16 +263,37 @@ impl CliIpcClient {
         self.exchange_data(&mut stream, request).await
     }
 
+    /// Open a Windows pipe with a single bounded retry window. Retry only
+    /// ERROR_PIPE_BUSY (231), never access denied, missing pipe or failed
+    /// authentication. The same helper is used by both authenticated and
+    /// read-only CLI paths so bursts behave consistently.
     #[cfg(windows)]
-    async fn send_receive(&self, request: &[u8]) -> Result<Vec<u8>, CliError> {
+    pub(super) async fn open_windows_pipe(
+        &self,
+    ) -> Result<tokio::net::windows::named_pipe::NamedPipeClient, CliError> {
         use tokio::net::windows::named_pipe::ClientOptions;
 
-        let connect_future = ClientOptions::new().open(&self.socket_path);
-        let mut pipe = timeout(self.timeout_duration, async { connect_future })
-            .await
-            .map_err(|_| CliError::Timeout)?
-            .map_err(|e| CliError::ConnectionFailed(e.to_string()))?;
+        const ERROR_PIPE_BUSY: i32 = 231;
+        const RETRY_INTERVAL: Duration = Duration::from_millis(20);
+        let deadline = tokio::time::Instant::now() + self.timeout_duration;
+        loop {
+            match ClientOptions::new().open(&self.socket_path) {
+                Ok(pipe) => return Ok(pipe),
+                Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY) => {
+                    let now = tokio::time::Instant::now();
+                    if now >= deadline {
+                        return Err(CliError::Timeout);
+                    }
+                    tokio::time::sleep_until(std::cmp::min(now + RETRY_INTERVAL, deadline)).await;
+                }
+                Err(e) => return Err(CliError::ConnectionFailed(e.to_string())),
+            }
+        }
+    }
 
+    #[cfg(windows)]
+    async fn send_receive(&self, request: &[u8]) -> Result<Vec<u8>, CliError> {
+        let mut pipe = self.open_windows_pipe().await?;
         self.exchange_data(&mut pipe, request).await
     }
 
