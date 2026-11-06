@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 5.1
 <#
 .SYNOPSIS
   Stage only verified, redistributable Microsoft x64 VC++/OpenMP DLLs.
@@ -45,15 +45,7 @@ function Find-RedistDirectory {
   if ($dirs.Count -eq 0) { throw 'No Visual Studio MSVC redistribution versions found' }
   return $dirs[0].FullName
 }
-function Assert-MicrosoftSigned {
-  param([string]$Path)
-  $signature = Get-AuthenticodeSignature -LiteralPath $Path
-  if ($signature.Status -ne 'Valid' -or
-      $null -eq $signature.SignerCertificate -or
-      $signature.SignerCertificate.Subject -notmatch 'CN=Microsoft Corporation') {
-    throw "Unsigned or non-Microsoft runtime: $(Split-Path -Leaf $Path)"
-  }
-}
+. (Join-Path $PSScriptRoot 'windows-microsoft-signature.ps1')
 $root = Find-RedistDirectory -Explicit $RedistRoot
 if (-not (Test-Path -LiteralPath (Join-Path $root 'x64') -PathType Container)) {
   throw 'Required licensed x64 redistributable root not present'
@@ -98,6 +90,8 @@ foreach ($item in $required.GetEnumerator()) {
     publisher = 'Microsoft Corporation'
   }
 }
+$versions = @($records | ForEach-Object { $_.version } | Sort-Object -Unique)
+if ($versions.Count -ne 1) { throw "Redistributable DLL versions disagree: $($versions -join ', ')" }
 $manifest = [ordered]@{
   format_version = 1
   distribution = 'licensed-visual-studio-app-local-redist'
@@ -108,5 +102,6 @@ $manifest = [ordered]@{
 }
 $manifestPath = Join-Path $stage 'MSVC_REDISTRIBUTABLES.json'
 if (Test-Path -LiteralPath $manifestPath) { throw 'Provenance manifest already exists' }
-$manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
+# UTF-8 without BOM on both Windows PowerShell 5.1 and PowerShell 7.
+[System.IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 5), (New-Object System.Text.UTF8Encoding $false))
 Write-Output "PASS: staged $($records.Count) original signed Microsoft runtime DLLs"

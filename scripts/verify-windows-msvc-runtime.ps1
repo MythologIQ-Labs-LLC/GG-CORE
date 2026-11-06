@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 5.1
 <#
 .SYNOPSIS
   Verify an extracted Windows GG-CORE package's app-local MSVC runtime.
@@ -11,6 +11,7 @@
 param([Parameter(Mandatory)][string]$StageDirectory)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'windows-microsoft-signature.ps1')
 $stage = (Resolve-Path -LiteralPath $StageDirectory -ErrorAction Stop).Path
 $manifestPath = Join-Path $stage 'MSVC_REDISTRIBUTABLES.json'
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
@@ -25,6 +26,7 @@ $required = @('msvcp140.dll', 'vcomp140.dll', 'vcruntime140.dll', 'vcruntime140_
 $listed = @($manifest.windows_runtime)
 if ($listed.Count -ne $required.Count) { throw 'Unexpected number of Microsoft runtime entries' }
 $seen = @{}
+$versions = @{}
 foreach ($item in $listed) {
   $name = [string]$item.file
   if ($name -notin $required -or $seen.ContainsKey($name)) {
@@ -35,11 +37,12 @@ foreach ($item in $listed) {
   if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
     throw "Missing required packaged $name"
   }
-  $sig = Get-AuthenticodeSignature -LiteralPath $path
-  if ($sig.Status -ne 'Valid' -or $null -eq $sig.SignerCertificate -or
-      $sig.SignerCertificate.Subject -notmatch 'CN=Microsoft Corporation') {
-    throw "Microsoft signature verification failed: $name"
+  Assert-MicrosoftSigned -Path $path
+  $fileVersion = (Get-Item -LiteralPath $path).VersionInfo.FileVersion
+  if ([string]::IsNullOrWhiteSpace($fileVersion) -or $fileVersion -ne [string]$item.version) {
+    throw "Runtime version mismatch: $name file=$fileVersion manifest=$($item.version)"
   }
+  $versions[$fileVersion] = $true
   $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne [string]$item.sha256) {
     throw "Runtime SHA-256 mismatch: $name"
@@ -47,6 +50,11 @@ foreach ($item in $listed) {
 }
 foreach ($name in $required) {
   if (-not $seen.ContainsKey($name)) { throw "Omitted required DLL $name" }
+}
+if ($versions.Count -ne 1) { throw "Packaged runtime DLL versions disagree: $($versions.Keys -join ', ')" }
+$runtimeVersion = [version]@($versions.Keys)[0]
+if ($runtimeVersion -lt [version][string]$manifest.source_version) {
+  throw "Packaged runtime $runtimeVersion is older than its declared redistributable set $($manifest.source_version)"
 }
 $exe = Join-Path $stage 'gg-core-cli.exe'
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {

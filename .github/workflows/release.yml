@@ -125,6 +125,10 @@ jobs:
           $stage = Join-Path (Get-Location) 'target/release/windows-runtime'
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           & ../scripts/stage-windows-msvc-runtime.ps1 -StageDirectory $stage
+          # Fail-closed regression cases (missing/corrupt/unsigned/unexpected/
+          # wrong-version/tampered) against the same genuine redistributables.
+          & ../scripts/test-windows-msvc-runtime.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'MSVC runtime verifier regression tests failed' }
       - name: Package
         shell: bash
         run: |
