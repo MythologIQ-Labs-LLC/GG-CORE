@@ -5,9 +5,7 @@
 //! request lifecycle. No new public transport is authorized by this module.
 
 use super::{InferenceEngine, InferenceError, InferenceParams};
-use crate::engine::{
-    InferenceCapability, InferenceInput, InferenceOutput, StopControl,
-};
+use crate::engine::{InferenceCapability, InferenceInput, InferenceOutput, StopControl};
 
 const MAX_EMBEDDING_DIM: usize = 16_384;
 const MAX_CLASS_LABELS: usize = 2_048;
@@ -102,10 +100,7 @@ fn validate_task_input(
     }
 }
 
-fn validate_embedding(
-    vector: &[f32],
-    dimensions: usize,
-) -> Result<(), InferenceError> {
+fn validate_embedding(vector: &[f32], dimensions: usize) -> Result<(), InferenceError> {
     if dimensions == 0
         || dimensions > MAX_EMBEDDING_DIM
         || dimensions != vector.len()

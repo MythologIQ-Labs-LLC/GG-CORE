@@ -2,9 +2,7 @@
 //! that real ONNX weights or the authenticated IPC path are qualified.
 
 use super::*;
-use crate::engine::{
-    ClassificationResult, EmbeddingResult, InferenceConfig, Model,
-};
+use crate::engine::{ClassificationResult, EmbeddingResult, InferenceConfig, Model};
 use crate::models::ModelHandle;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -18,9 +16,15 @@ struct TypedMock {
 
 #[async_trait::async_trait]
 impl Model for TypedMock {
-    fn model_id(&self) -> &str { "typed-mock" }
-    fn capabilities(&self) -> &[InferenceCapability] { &self.caps }
-    fn memory_usage(&self) -> usize { self.memory }
+    fn model_id(&self) -> &str {
+        "typed-mock"
+    }
+    fn capabilities(&self) -> &[InferenceCapability] {
+        &self.caps
+    }
+    fn memory_usage(&self) -> usize {
+        self.memory
+    }
 
     async fn infer(
         &self,
@@ -37,7 +41,9 @@ impl Model for TypedMock {
         Ok(())
     }
 
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 fn embedding() -> InferenceOutput {
@@ -51,10 +57,7 @@ fn classification() -> InferenceOutput {
     InferenceOutput::Classification(ClassificationResult {
         label: "positive".into(),
         confidence: 0.8,
-        all_labels: vec![
-            ("positive".into(), 0.8),
-            ("negative".into(), 0.2),
-        ],
+        all_labels: vec![("positive".into(), 0.8), ("negative".into(), 0.2)],
     })
 }
 
@@ -65,16 +68,18 @@ async fn engine_with(
     cancel_during_call: Option<Arc<AtomicBool>>,
 ) -> InferenceEngine {
     let engine = InferenceEngine::new(4096);
-    engine.register_model(
-        "typed-mock".into(),
-        ModelHandle::new(77),
-        Arc::new(TypedMock {
-            caps: vec![capability],
-            response: result,
-            memory,
-            cancel_during_call,
-        }),
-    ).await;
+    engine
+        .register_model(
+            "typed-mock".into(),
+            ModelHandle::new(77),
+            Arc::new(TypedMock {
+                caps: vec![capability],
+                response: result,
+                memory,
+                cancel_during_call,
+            }),
+        )
+        .await;
     engine
 }
 
@@ -85,14 +90,16 @@ async fn execute(
     control: &StopControl,
     max_memory_bytes: Option<usize>,
 ) -> Result<InferenceOutput, InferenceError> {
-    engine.run_typed_controlled(
-        "typed-mock",
-        &input,
-        capability,
-        &InferenceParams::default(),
-        control,
-        max_memory_bytes,
-    ).await
+    engine
+        .run_typed_controlled(
+            "typed-mock",
+            &input,
+            capability,
+            &InferenceParams::default(),
+            control,
+            max_memory_bytes,
+        )
+        .await
 }
 
 #[tokio::test]
@@ -104,23 +111,37 @@ async fn embedding_text_preserves_typed_vector() {
         InferenceCapability::Embedding,
         &StopControl::default(),
         None,
-    ).await.unwrap();
-    let InferenceOutput::Embedding(value) = out else { panic!("expected embedding") };
+    )
+    .await
+    .unwrap();
+    let InferenceOutput::Embedding(value) = out else {
+        panic!("expected embedding")
+    };
     assert_eq!(value.dimensions, 3);
     assert_eq!(value.vector.len(), 3);
 }
 
 #[tokio::test]
 async fn classification_text_preserves_typed_labels() {
-    let engine = engine_with(InferenceCapability::TextClassification, classification(), 64, None).await;
+    let engine = engine_with(
+        InferenceCapability::TextClassification,
+        classification(),
+        64,
+        None,
+    )
+    .await;
     let out = execute(
         &engine,
         InferenceInput::Text("A happy sentence".into()),
         InferenceCapability::TextClassification,
         &StopControl::default(),
         None,
-    ).await.unwrap();
-    let InferenceOutput::Classification(value) = out else { panic!("expected classification") };
+    )
+    .await
+    .unwrap();
+    let InferenceOutput::Classification(value) = out else {
+        panic!("expected classification")
+    };
     assert_eq!(value.label, "positive");
     assert_eq!(value.confidence, 0.8);
 }
@@ -128,76 +149,147 @@ async fn classification_text_preserves_typed_labels() {
 #[tokio::test]
 async fn embedding_batch_preserves_exact_count() {
     let items = vec![
-        EmbeddingResult { vector: vec![0.1, 0.2], dimensions: 2 },
-        EmbeddingResult { vector: vec![0.3, 0.4], dimensions: 2 },
+        EmbeddingResult {
+            vector: vec![0.1, 0.2],
+            dimensions: 2,
+        },
+        EmbeddingResult {
+            vector: vec![0.3, 0.4],
+            dimensions: 2,
+        },
     ];
-    let engine = engine_with(InferenceCapability::Embedding, InferenceOutput::EmbeddingBatch(items), 64, None).await;
+    let engine = engine_with(
+        InferenceCapability::Embedding,
+        InferenceOutput::EmbeddingBatch(items),
+        64,
+        None,
+    )
+    .await;
     let out = execute(
         &engine,
         InferenceInput::TextBatch(vec!["one".into(), "two".into()]),
         InferenceCapability::Embedding,
         &StopControl::default(),
         None,
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
     assert!(matches!(out, InferenceOutput::EmbeddingBatch(batch) if batch.len() == 2));
 }
 
 #[tokio::test]
 async fn batch_count_mismatch_fails_closed() {
-    let engine = engine_with(InferenceCapability::Embedding, InferenceOutput::EmbeddingBatch(vec![
-        EmbeddingResult { vector: vec![1.0], dimensions: 1 }
-    ]), 64, None).await;
+    let engine = engine_with(
+        InferenceCapability::Embedding,
+        InferenceOutput::EmbeddingBatch(vec![EmbeddingResult {
+            vector: vec![1.0],
+            dimensions: 1,
+        }]),
+        64,
+        None,
+    )
+    .await;
     let err = execute(
         &engine,
         InferenceInput::TextBatch(vec!["one".into(), "two".into()]),
         InferenceCapability::Embedding,
         &StopControl::default(),
         None,
-    ).await.unwrap_err();
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, InferenceError::ExecutionFailed(_)));
 }
 
 #[tokio::test]
 async fn non_finite_embedding_fails_closed() {
     let bad = InferenceOutput::Embedding(EmbeddingResult {
-        vector: vec![f32::NAN, 0.1], dimensions: 2,
+        vector: vec![f32::NAN, 0.1],
+        dimensions: 2,
     });
     let engine = engine_with(InferenceCapability::Embedding, bad, 64, None).await;
-    let err = execute(&engine, InferenceInput::Text("hi".into()),
-        InferenceCapability::Embedding, &StopControl::default(), None).await.unwrap_err();
+    let err = execute(
+        &engine,
+        InferenceInput::Text("hi".into()),
+        InferenceCapability::Embedding,
+        &StopControl::default(),
+        None,
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, InferenceError::ExecutionFailed(_)));
 }
 
 #[tokio::test]
 async fn output_variant_cannot_impersonate_requested_task() {
     let engine = engine_with(InferenceCapability::Embedding, classification(), 64, None).await;
-    let err = execute(&engine, InferenceInput::Text("hi".into()),
-        InferenceCapability::Embedding, &StopControl::default(), None).await.unwrap_err();
+    let err = execute(
+        &engine,
+        InferenceInput::Text("hi".into()),
+        InferenceCapability::Embedding,
+        &StopControl::default(),
+        None,
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, InferenceError::ExecutionFailed(_)));
 }
 
 #[tokio::test]
 async fn model_capability_is_checked_before_execution() {
     let engine = engine_with(InferenceCapability::Embedding, embedding(), 64, None).await;
-    let err = execute(&engine, InferenceInput::Text("hi".into()),
-        InferenceCapability::TextClassification, &StopControl::default(), None).await.unwrap_err();
+    let err = execute(
+        &engine,
+        InferenceInput::Text("hi".into()),
+        InferenceCapability::TextClassification,
+        &StopControl::default(),
+        None,
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, InferenceError::InvalidParams(_)));
 }
 
 #[tokio::test]
 async fn unsupported_classification_batch_refused() {
-    let engine = engine_with(InferenceCapability::TextClassification, classification(), 64, None).await;
-    let err = execute(&engine, InferenceInput::TextBatch(vec!["one".into(), "two".into()]),
-        InferenceCapability::TextClassification, &StopControl::default(), None).await.unwrap_err();
+    let engine = engine_with(
+        InferenceCapability::TextClassification,
+        classification(),
+        64,
+        None,
+    )
+    .await;
+    let err = execute(
+        &engine,
+        InferenceInput::TextBatch(vec!["one".into(), "two".into()]),
+        InferenceCapability::TextClassification,
+        &StopControl::default(),
+        None,
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, InferenceError::InvalidParams(_)));
 }
 
 #[tokio::test]
 async fn per_call_memory_limit_rejects_before_model_execution() {
     let engine = engine_with(InferenceCapability::Embedding, embedding(), 2048, None).await;
-    let err = execute(&engine, InferenceInput::Text("hi".into()),
-        InferenceCapability::Embedding, &StopControl::default(), Some(1024)).await.unwrap_err();
-    assert!(matches!(err, InferenceError::MemoryExceeded { used: 2048, limit: 1024 }));
+    let err = execute(
+        &engine,
+        InferenceInput::Text("hi".into()),
+        InferenceCapability::Embedding,
+        &StopControl::default(),
+        Some(1024),
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(
+        err,
+        InferenceError::MemoryExceeded {
+            used: 2048,
+            limit: 1024
+        }
+    ));
 }
 
 #[tokio::test]
@@ -205,18 +297,38 @@ async fn pre_cancelled_typed_call_fails_before_model_execution() {
     let engine = engine_with(InferenceCapability::Embedding, embedding(), 64, None).await;
     let cancelled = Arc::new(AtomicBool::new(true));
     let ctrl = StopControl::from_timeout(Some(cancelled), None);
-    let err = execute(&engine, InferenceInput::Text("hi".into()),
-        InferenceCapability::Embedding, &ctrl, None).await.unwrap_err();
+    let err = execute(
+        &engine,
+        InferenceInput::Text("hi".into()),
+        InferenceCapability::Embedding,
+        &ctrl,
+        None,
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, InferenceError::Cancelled));
 }
 
 #[tokio::test]
 async fn cancellation_during_backend_call_never_returns_partial_vector() {
     let cancelled = Arc::new(AtomicBool::new(false));
-    let engine = engine_with(InferenceCapability::Embedding, embedding(), 64, Some(Arc::clone(&cancelled))).await;
+    let engine = engine_with(
+        InferenceCapability::Embedding,
+        embedding(),
+        64,
+        Some(Arc::clone(&cancelled)),
+    )
+    .await;
     let ctrl = StopControl::from_timeout(Some(cancelled), None);
-    let err = execute(&engine, InferenceInput::Text("hi".into()),
-        InferenceCapability::Embedding, &ctrl, None).await.unwrap_err();
+    let err = execute(
+        &engine,
+        InferenceInput::Text("hi".into()),
+        InferenceCapability::Embedding,
+        &ctrl,
+        None,
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, InferenceError::Cancelled));
 }
 
@@ -228,16 +340,30 @@ async fn classification_nan_confidence_rejected() {
         all_labels: vec![("positive".into(), f32::NAN)],
     });
     let engine = engine_with(InferenceCapability::TextClassification, bad, 64, None).await;
-    let err = execute(&engine, InferenceInput::Text("hi".into()),
-        InferenceCapability::TextClassification, &StopControl::default(), None).await.unwrap_err();
+    let err = execute(
+        &engine,
+        InferenceInput::Text("hi".into()),
+        InferenceCapability::TextClassification,
+        &StopControl::default(),
+        None,
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, InferenceError::ExecutionFailed(_)));
 }
 
 #[tokio::test]
 async fn invalid_empty_text_refused() {
     let engine = engine_with(InferenceCapability::Embedding, embedding(), 64, None).await;
-    let err = execute(&engine, InferenceInput::Text("".into()),
-        InferenceCapability::Embedding, &StopControl::default(), None).await.unwrap_err();
+    let err = execute(
+        &engine,
+        InferenceInput::Text("".into()),
+        InferenceCapability::Embedding,
+        &StopControl::default(),
+        None,
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, InferenceError::InvalidParams(_)));
 }
 
@@ -248,8 +374,15 @@ async fn no_typed_text_generation_or_ner_bypass_is_available() {
         InferenceCapability::TextGeneration,
         InferenceCapability::NamedEntityRecognition,
     ] {
-        let err = execute(&engine, InferenceInput::Text("hi".into()),
-            cap, &StopControl::default(), None).await.unwrap_err();
+        let err = execute(
+            &engine,
+            InferenceInput::Text("hi".into()),
+            cap,
+            &StopControl::default(),
+            None,
+        )
+        .await
+        .unwrap_err();
         assert!(matches!(err, InferenceError::InvalidParams(_)));
     }
 }
