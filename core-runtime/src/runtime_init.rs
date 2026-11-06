@@ -7,8 +7,8 @@ use gg_core::ipc::server;
 use gg_core::shutdown::ShutdownResult;
 use gg_core::{Runtime, RuntimeConfig};
 
-use gg_core::cli::CliIpcClient;
 use crate::chat_template::{format_prompt, ChatTemplate};
+use gg_core::cli::CliIpcClient;
 
 /// Load runtime configuration from environment.
 ///
