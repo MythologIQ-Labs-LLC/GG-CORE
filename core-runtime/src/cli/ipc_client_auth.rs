@@ -62,13 +62,8 @@ impl CliIpcClient {
     pub(super) async fn connect_authenticated(
         &self,
     ) -> Result<tokio::net::windows::named_pipe::NamedPipeClient, CliError> {
-        use tokio::net::windows::named_pipe::ClientOptions;
-        use tokio::time::timeout;
-
-        let connect_future = ClientOptions::new().open(&self.socket_path);
-        timeout(self.timeout_duration, async { connect_future })
-            .await
-            .map_err(|_| CliError::Timeout)?
-            .map_err(|e| CliError::ConnectionFailed(e.to_string()))
+        // Connection retries never retry the handshake, which is bound to
+        // this single successfully opened instance and remains fail-closed.
+        self.open_windows_pipe().await
     }
 }

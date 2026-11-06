@@ -13,6 +13,8 @@
 //!   Administrators and SYSTEM.
 
 use std::sync::Arc;
+#[cfg(windows)]
+use std::collections::VecDeque;
 
 use tokio::sync::watch;
 
@@ -77,28 +79,50 @@ pub async fn run_server(
 ) -> Result<(), ServerError> {
     use tokio::net::windows::named_pipe::ServerOptions;
 
-    // Claim the name: fails if any instance already exists (pipe squatting).
-    let mut server = ServerOptions::new()
-        .first_pipe_instance(true)
-        .reject_remote_clients(true)
-        .create(&pipe_name)?;
-    eprintln!("IPC server listening on {}", pipe_name);
+    // Claim the name first (anti-squatting) and keep a bounded pool of
+    // unconnected instances available *before* clients arrive. A single
+    // waiting instance loses concurrent CreateFile calls with ERROR_PIPE_BUSY
+    // during the accept/re-arm gap. Never remove first_pipe_instance(true)
+    // from the very first create; every later instance has the same default
+    // local-only DACL and reject_remote_clients policy.
+    const MAX_PENDING_PIPE_INSTANCES: usize = 16;
+    let backlog = connections
+        .max_connections()
+        .clamp(1, MAX_PENDING_PIPE_INSTANCES);
+    let mut pending = VecDeque::with_capacity(backlog);
+    pending.push_back(
+        ServerOptions::new()
+            .first_pipe_instance(true)
+            .reject_remote_clients(true)
+            .create(&pipe_name)?,
+    );
+    let new_instance = || {
+        ServerOptions::new()
+            .first_pipe_instance(false)
+            .reject_remote_clients(true)
+            .create(&pipe_name)
+    };
+    for _ in 1..backlog {
+        pending.push_back(new_instance()?);
+    }
+    eprintln!("IPC server listening on {} (pending instances {})", pipe_name, backlog);
 
     loop {
+        // Some clients can have attached to a standby instance already;
+        // Tokio connect() handles ERROR_PIPE_CONNECTED in that case.
+        let mut server = pending
+            .pop_front()
+            .expect("Windows named-pipe backlog must remain nonempty");
         tokio::select! {
             result = server.connect() => {
+                // Replenish before spawning a handler, including after errors.
+                // Standby instances preserve availability during bursts; no
+                // client-side retries may bypass auth or the connection cap.
+                pending.push_back(new_instance()?);
                 match result {
-                    Ok(()) => {
-                        // Hand the connected instance off, then open the next.
-                        let next = ServerOptions::new()
-                            .first_pipe_instance(false)
-                            .reject_remote_clients(true)
-                            .create(&pipe_name)?;
-                        let connected = std::mem::replace(&mut server, next);
-                        spawn_connection(
-                            connected, &handler, &connections, ipc_config.max_frame_size,
-                        );
-                    }
+                    Ok(()) => spawn_connection(
+                        server, &handler, &connections, ipc_config.max_frame_size,
+                    ),
                     Err(e) => eprintln!("Pipe connect error: {}", e),
                 }
             }
