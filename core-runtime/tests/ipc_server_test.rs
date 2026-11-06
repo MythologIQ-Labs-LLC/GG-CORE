@@ -347,6 +347,52 @@ mod windows_server_tests {
         assert!(completed.is_ok());
     }
 
+    /// A client beyond the connection cap receives an explicit 503 frame
+    /// (bounded admission rejection), not a silent close, and the slot is
+    /// reusable once the admitted client disconnects.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_over_capacity_client_gets_explicit_503() {
+        let pipe = unique_pipe_name("over-cap");
+        let pool = Arc::new(ConnectionPool::new(ConnectionConfig { max_connections: 1 }));
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        let (server_pipe, handler) = (pipe.clone(), test_handler());
+        let server = tokio::spawn(async move {
+            gg_core::ipc::server::run_server(
+                server_pipe,
+                handler,
+                pool,
+                rx,
+                gg_core::ipc::IpcServerConfig::default(),
+            )
+            .await
+        });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let handshake = br#"{"type":"handshake","token":"test-token"}"#;
+
+        let mut held = ClientOptions::new().open(&pipe).unwrap();
+        write_frame(&mut held, handshake).await;
+        assert!(String::from_utf8_lossy(&read_frame(&mut held).await).contains("handshake_ack"));
+
+        let mut extra = ClientOptions::new().open(&pipe).unwrap();
+        write_frame(&mut extra, handshake).await;
+        let refused = read_frame(&mut extra).await;
+        assert!(
+            String::from_utf8_lossy(&refused).contains(r#""code":503"#),
+            "over-cap client must get explicit admission rejection"
+        );
+        drop(extra);
+        drop(held);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let mut again = ClientOptions::new().open(&pipe).unwrap();
+        write_frame(&mut again, handshake).await;
+        assert!(String::from_utf8_lossy(&read_frame(&mut again).await).contains("handshake_ack"));
+        drop(again);
+
+        let _ = tx.send(true);
+        let _ = tokio::time::timeout(Duration::from_secs(3), server).await;
+    }
+
     /// When all named-pipe instances are occupied, clients retry busy
     /// connections only up to their declared deadline. Non-busy errors
     /// remain immediate failures (never a permission or auth bypass).
