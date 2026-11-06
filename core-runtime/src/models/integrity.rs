@@ -109,7 +109,8 @@ fn windows_file_id(file: &File) -> Result<(u32, u64), InferenceError> {
 }
 
 /// Open a model file for reading without following a symlink at the final
-/// path component (Unix). A symlinked model file is refused outright.
+/// path component (Unix O_NOFOLLOW; Windows FILE_FLAG_OPEN_REPARSE_POINT plus
+/// a reparse-attribute check). A symlinked model file is refused outright.
 pub fn open_nofollow(path: &Path) -> Result<File, InferenceError> {
     let mut opts = std::fs::OpenOptions::new();
     opts.read(true);
@@ -118,7 +119,16 @@ pub fn open_nofollow(path: &Path) -> Result<File, InferenceError> {
         use std::os::unix::fs::OpenOptionsExt;
         opts.custom_flags(libc::O_NOFOLLOW);
     }
-    opts.open(path).map_err(|e| {
+    // Windows: never traverse a final-component reparse point (symlink,
+    // junction, mount point, ...). The handle then refers to the reparse
+    // point itself and is refused below, closing the check/open race.
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+        opts.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    let file = opts.open(path).map_err(|e| {
         #[cfg(unix)]
         if e.raw_os_error() == Some(libc::ELOOP) {
             return InferenceError::ModelError(format!(
@@ -127,7 +137,30 @@ pub fn open_nofollow(path: &Path) -> Result<File, InferenceError> {
             ));
         }
         InferenceError::ModelError(format!("cannot open model for hashing: {}", e))
-    })
+    })?;
+    #[cfg(windows)]
+    refuse_windows_reparse_point(&file, path)?;
+    Ok(file)
+}
+
+/// Fail closed on any reparse point at the opened path (opened, not followed,
+/// via `FILE_FLAG_OPEN_REPARSE_POINT`). This includes cloud placeholders,
+/// which must be hydrated into regular files before use as model inputs.
+#[cfg(windows)]
+fn refuse_windows_reparse_point(file: &File, path: &Path) -> Result<(), InferenceError> {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
+    let attributes = file
+        .metadata()
+        .map_err(|e| InferenceError::ModelError(format!("cannot stat model: {}", e)))?
+        .file_attributes();
+    if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(InferenceError::ModelError(format!(
+            "model path is a reparse point such as a symbolic link (refused): {}",
+            path.display()
+        )));
+    }
+    Ok(())
 }
 
 /// Streaming SHA-256 of the file plus the identity of the handle hashed.
