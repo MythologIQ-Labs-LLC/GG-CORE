@@ -18,7 +18,9 @@ The script validates the original Microsoft Authenticode certificate and full SH
 
 - `scripts/stage-windows-msvc-runtime.ps1`: discover approved redistributable root (prefer `VCToolsRedistDir`; fallback licensed `vswhere` installation), stage the four required signed x64 DLLs, record digest provenance, refuse ambiguous/unsigned/non-Microsoft sources.
 - `scripts/verify-windows-msvc-runtime.ps1`: verify exact four library names, SHA-256 and Microsoft Authenticode signatures, and test the packaged executable can start with GGUF.
-- `.github/workflows/release.yml`: **future branch code only** stages those files after Windows GGUF build, packages them with the archive and metadata, and re-extracts/verifies the Windows archive before upload. Existing Linux/macOS paths are unchanged. No Actions run was triggered by this draft.
+- `scripts/audit_windows_pe_imports.py`: parse the PE32+ import and delay-import tables for **both** Windows binaries and recursively follow app-local dependencies; reject unresolved non-system DLL imports, wrong-architecture/malformed PE files, Windows system/API-set DLL shadowing, and unexpected unreferenced DLLs. This is a stdlib-only **static dependency closure check**, not a replacement for actual clean-OS execution, signature or dynamic `LoadLibrary` testing.
+- `scripts/test_audit_windows_pe_imports.py`: seven synthetic PE regression checks with no network/model execution; `python3 scripts/test_audit_windows_pe_imports.py` passed **7/7 locally** in the research environment.
+- `.github/workflows/release.yml`: **future branch code only** runs the pure-Python parser tests at verification, stages those files after Windows GGUF build, packages them with the archive and metadata, and re-extracts/verifies **both Microsoft signatures and recursive PE import closure** before upload. Existing Linux/macOS packaging paths are unchanged. No Actions run was triggered by this draft.
 
 ## Required independent qualification before merge and future release
 
