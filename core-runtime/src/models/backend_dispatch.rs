@@ -8,6 +8,7 @@
 //! as GGUF. Backends return `Arc<dyn Model>` (B-29b-1), keeping the model
 //! lifecycle neutral to architecture.
 
+use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -59,22 +60,70 @@ fn validate_gguf_manifest(manifest: &ModelManifest) -> Result<(), InferenceError
     Ok(())
 }
 
-/// Read the sibling `manifest.json`: `None` only when it does not exist.
-/// Present-but-unreadable, malformed, or invalid manifests are errors.
+/// Read a bounded, local manifest without following final symlinks.
+///
+/// Each model may now have its own adjacent `<filename>.manifest.json`
+/// (e.g., `qwen.gguf.manifest.json`). This supports multiple independently
+/// hashed GGUF/ONNX models in one allowed directory. A model-specific file
+/// takes precedence; otherwise legacy single-model `manifest.json` remains
+/// supported. A malformed/present dedicated file never falls back to legacy.
 pub fn read_sibling_manifest(model_path: &Path) -> Result<Option<ModelManifest>, InferenceError> {
-    let manifest_path = model_path.with_file_name("manifest.json");
-    match std::fs::symlink_metadata(&manifest_path) {
+    const MAX_MANIFEST_BYTES: u64 = 1_048_576;
+    let Some(file_name) = model_path.file_name() else {
+        return Err(InferenceError::ModelError("model path has no file name".into()));
+    };
+    let mut specific_name = file_name.to_os_string();
+    specific_name.push(".manifest.json");
+    let dedicated = model_path.with_file_name(specific_name);
+    let legacy = model_path.with_file_name("manifest.json");
+
+    // Metadata lookup distinguishes an absent dedicated manifest from a
+    // present-but-invalid one; the latter must never downgrade to legacy.
+    let manifest_path = match std::fs::symlink_metadata(&dedicated) {
+        Ok(_) => dedicated,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => legacy,
+        Err(e) => {
+            return Err(InferenceError::ModelError(format!(
+                "model-specific manifest cannot be inspected: {e}"
+            )));
+        }
+    };
+    let meta = match std::fs::symlink_metadata(&manifest_path) {
+        Ok(meta) => meta,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(e) => {
             return Err(InferenceError::ModelError(format!(
-                "manifest present but unreadable ({}): {}",
-                e,
-                manifest_path.display()
-            )))
+                "manifest present but unreadable: {e}"
+            )));
         }
-        Ok(_) => {}
+    };
+    if !meta.is_file() || meta.file_type().is_symlink() {
+        return Err(InferenceError::ModelError(
+            "manifest must be a regular non-symlink file".into(),
+        ));
     }
-    let manifest = ModelManifest::from_file(&manifest_path)?;
+    if meta.len() > MAX_MANIFEST_BYTES {
+        return Err(InferenceError::ModelError(
+            "model manifest exceeds 1 MiB metadata limit".into(),
+        ));
+    }
+
+    // The final-component no-follow open also prevents Unix symlink swaps
+    // between the metadata check and open. Windows reparse/path race
+    // qualification remains a required native security gate.
+    let file = crate::models::integrity::open_nofollow(&manifest_path)?;
+    let mut bytes = Vec::new();
+    file.take(MAX_MANIFEST_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| InferenceError::ModelError(format!("cannot read model manifest: {e}")))?;
+    if bytes.len() as u64 > MAX_MANIFEST_BYTES {
+        return Err(InferenceError::ModelError(
+            "model manifest exceeds 1 MiB metadata limit".into(),
+        ));
+    }
+    let json = std::str::from_utf8(&bytes)
+        .map_err(|_| InferenceError::ModelError("model manifest is not UTF-8".into()))?;
+    let manifest = ModelManifest::from_json(json)?;
     manifest.validate()?;
     Ok(Some(manifest))
 }
@@ -90,8 +139,8 @@ fn gguf_load_config(env: &crate::config::GgufEnvConfig) -> GgufConfig {
     }
 }
 
-/// Load the backend a model file selects, resolving an optional sibling
-/// `manifest.json`. A parsed manifest's declared `sha256` is verified against
+/// Load the backend a model file selects, resolving a model-specific or
+/// legacy sibling `manifest.json`. A parsed manifest's declared `sha256` is verified against
 /// the file BEFORE any backend reads it, and the file's identity is re-checked
 /// AFTER the backend loaded it by path, so a substitution in between fails the
 /// load (nothing is registered; the model is dropped).

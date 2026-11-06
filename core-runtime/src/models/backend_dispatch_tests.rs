@@ -252,3 +252,106 @@ fn verified_gguf_text_generation_manifest_still_reaches_backend() {
     let msg = err_message(load_model_dispatch(&model_path, "m"));
     assert!(msg.contains("GGUF support not compiled in"), "got: {msg}");
 }
+
+
+#[test]
+fn two_models_in_one_directory_use_independent_pinned_manifests() {
+    let dir = fresh_dir("two_independent_manifests");
+    let gguf_file = dir.join("qwen.gguf");
+    let onnx_file = dir.join("embedder.onnx");
+    std::fs::write(&gguf_file, b"model A bytes").unwrap();
+    std::fs::write(&onnx_file, b"model B bytes").unwrap();
+
+    let mut gguf = manifest(ModelArchitecture::Gguf, vec![ModelCapability::TextGeneration]);
+    gguf.model_id = "qwen".into();
+    gguf.sha256 = crate::models::integrity::file_sha256_hex(&gguf_file).unwrap();
+    gguf.size_bytes = std::fs::metadata(&gguf_file).unwrap().len();
+    let mut onnx = manifest(ModelArchitecture::Onnx, vec![ModelCapability::Embedding]);
+    onnx.model_id = "embedder".into();
+    onnx.sha256 = crate::models::integrity::file_sha256_hex(&onnx_file).unwrap();
+    onnx.size_bytes = std::fs::metadata(&onnx_file).unwrap().len();
+
+    std::fs::write(
+        dir.join("qwen.gguf.manifest.json"),
+        serde_json::to_string(&gguf).unwrap(),
+    ).unwrap();
+    std::fs::write(
+        dir.join("embedder.onnx.manifest.json"),
+        serde_json::to_string(&onnx).unwrap(),
+    ).unwrap();
+    let got_gguf = read_sibling_manifest(&gguf_file).unwrap().unwrap();
+    let got_onnx = read_sibling_manifest(&onnx_file).unwrap().unwrap();
+    assert_eq!(got_gguf.model_id, "qwen");
+    assert_eq!(got_gguf.architecture, ModelArchitecture::Gguf);
+    assert_eq!(got_onnx.model_id, "embedder");
+    assert_eq!(got_onnx.architecture, ModelArchitecture::Onnx);
+    assert_ne!(got_gguf.sha256, got_onnx.sha256);
+}
+
+#[test]
+fn dedicated_manifest_has_precedence_over_legacy_sibling() {
+    let dir = fresh_dir("dedicated_beats_legacy");
+    let path = dir.join("qwen.gguf");
+    let dedicated = manifest(ModelArchitecture::Gguf, vec![ModelCapability::TextGeneration]);
+    let legacy = manifest(ModelArchitecture::Onnx, vec![ModelCapability::Embedding]);
+    std::fs::write(dir.join("manifest.json"), serde_json::to_string(&legacy).unwrap()).unwrap();
+    std::fs::write(
+        dir.join("qwen.gguf.manifest.json"),
+        serde_json::to_string(&dedicated).unwrap(),
+    ).unwrap();
+    assert_eq!(
+        read_sibling_manifest(&path).unwrap().unwrap().architecture,
+        ModelArchitecture::Gguf
+    );
+}
+
+#[test]
+fn malformed_dedicated_manifest_must_not_fall_back_to_valid_legacy() {
+    let dir = fresh_dir("dedicated_malformed");
+    let path = dir.join("qwen.gguf");
+    let legacy = manifest(ModelArchitecture::Gguf, vec![ModelCapability::TextGeneration]);
+    std::fs::write(dir.join("manifest.json"), serde_json::to_string(&legacy).unwrap()).unwrap();
+    std::fs::write(dir.join("qwen.gguf.manifest.json"), b"{NOT JSON").unwrap();
+    let err = read_sibling_manifest(&path).unwrap_err().to_string();
+    assert!(err.contains("invalid manifest JSON"), "got: {err}");
+}
+
+#[test]
+fn legacy_manifest_still_reads_without_dedicated_entry() {
+    let dir = fresh_dir("legacy_compatible");
+    let path = dir.join("qwen.gguf");
+    let m = manifest(ModelArchitecture::Gguf, vec![ModelCapability::TextGeneration]);
+    std::fs::write(dir.join("manifest.json"), serde_json::to_string(&m).unwrap()).unwrap();
+    assert_eq!(read_sibling_manifest(&path).unwrap().unwrap().model_id, "m");
+}
+
+#[test]
+fn manifest_size_is_bounded_before_parsing() {
+    let dir = fresh_dir("manifest_size_limit");
+    let path = dir.join("model.gguf");
+    std::fs::write(dir.join("model.gguf.manifest.json"), vec![b' '; 1_048_577]).unwrap();
+    let err = read_sibling_manifest(&path).unwrap_err().to_string();
+    assert!(err.contains("exceeds 1 MiB"), "got: {err}");
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_manifest_is_refused_even_when_legacy_is_valid() {
+    use std::os::unix::fs::symlink;
+    let dir = fresh_dir("manifest_link");
+    let path = dir.join("model.gguf");
+    let trusted = manifest(ModelArchitecture::Gguf, vec![ModelCapability::TextGeneration]);
+    std::fs::write(dir.join("manifest.json"), serde_json::to_string(&trusted).unwrap()).unwrap();
+    symlink(dir.join("manifest.json"), dir.join("model.gguf.manifest.json")).unwrap();
+    let err = read_sibling_manifest(&path).unwrap_err().to_string();
+    assert!(err.contains("regular non-symlink"), "got: {err}");
+}
+
+#[test]
+fn directory_named_like_a_manifest_is_refused() {
+    let dir = fresh_dir("manifest_directory");
+    let path = dir.join("model.gguf");
+    std::fs::create_dir_all(dir.join("model.gguf.manifest.json")).unwrap();
+    let err = read_sibling_manifest(&path).unwrap_err().to_string();
+    assert!(err.contains("regular non-symlink"), "got: {err}");
+}

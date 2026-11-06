@@ -25,7 +25,9 @@
 
 The previous dispatch selected GGUF for **every** manifest other than ONNX, including declared SafeTensors and unsupported GGUF capabilities. The fix routes explicit architectures, rejects unsupported claims before model IO, preserves manifest-free GGUF, and validates ONNX servability with its existing pure planner. This is a **safety/correctness prerequisite** to supporting a large interchangeable model catalog; it does not add a new model backend.
 
-**Known remaining catalog defect:** the legacy loader reads one sibling `manifest.json` per directory, which complicates independently pinned manifests when multiple files share a directory. For broad model management, implement a deterministic **per-model manifest** identity without ambiguous fallback/TOCTOU, and qualify path/hash/license preservation. Do not implicitly accept an arbitrary extension as a supported model.
+**Per-model manifest draft implemented (not yet native qualified):** a model file can have `<exact-model-filename>.manifest.json` adjacent to it, such as `qwen.gguf.manifest.json` or `embedder.onnx.manifest.json`. The model-specific file deterministically wins over the legacy `manifest.json`, which remains supported for a single model directory. A **present but invalid** per-model manifest fails closed rather than quietly falling back to legacy. The reader rejects non-files and symbolic links, enforces a **1 MiB** metadata bound, and uses a no-follow final-component open on Unix. **Windows native reparse-point/TOCTOU security qualification remains outstanding**. Each manifest still must match the actual loaded model's SHA-256 and permitted capabilities. No code path auto-downloads or registers a model merely because a manifest exists.
+
+This removes a directory-level metadata collision for multi-model catalogs, **not** the larger model selection/swap task. Model aliases, ordered metadata priority, tokenizer dependencies and cross-model memory use still require independent qualification. Do not implicitly accept an arbitrary extension as a supported model.
 
 ## Required v1.0.0 cross-family acceptance matrix
 
