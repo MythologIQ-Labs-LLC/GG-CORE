@@ -311,6 +311,7 @@ pub(super) fn spawn_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 
         Some(g) => g,
         None => {
             eprintln!("Connection limit reached, rejecting client");
+            super::admission::spawn_rejection(stream);
             return;
         }
     };
