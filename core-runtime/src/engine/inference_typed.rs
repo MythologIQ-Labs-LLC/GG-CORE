@@ -50,12 +50,10 @@ impl InferenceEngine {
                 "requested task is not supported by selected model".into(),
             ));
         }
-        if let Some(limit) = max_memory_bytes {
-            let used = model.memory_usage();
-            if used > limit {
-                return Err(InferenceError::MemoryExceeded { used, limit });
-            }
-        }
+        // `max_memory_bytes` is the per-request working budget reserved by
+        // the worker; resident weights are accounted once at model load and
+        // are never compared against it (that refused every model larger
+        // than the budget). It is passed to the backend below.
         // Context validation is per input item. Never silently truncate
         // typed embedding or classification input based on degraded policy.
         match input {
