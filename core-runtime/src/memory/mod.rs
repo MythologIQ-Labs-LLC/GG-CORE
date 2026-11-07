@@ -6,6 +6,7 @@
 mod arena;
 mod cache;
 mod gpu;
+pub mod host;
 pub mod kv_cache;
 pub mod kv_cache_config;
 pub mod kv_cache_core;
@@ -26,7 +27,7 @@ pub use kv_cache::{
 };
 #[cfg(feature = "advanced")]
 pub use kv_quant::{compute_scale, dequantize, quantize_to, Q8KvStore};
-pub use limits::{ResourceGuard, ResourceLimits, ResourceLimitsConfig};
+pub use limits::{ResidentGuard, ResourceGuard, ResourceLimits, ResourceLimitsConfig};
 pub use paged::{Page, PageId, PageTable, PAGE_TOKENS};
 pub use pool::{MemoryPool, MemoryPoolConfig, PooledBuffer};
 pub use prompt_cache::{CachedKv, PromptCache};
