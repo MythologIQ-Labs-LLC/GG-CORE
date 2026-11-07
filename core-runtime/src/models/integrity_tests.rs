@@ -113,3 +113,45 @@ fn identity_detects_a_symlink_swapped_in_after_hashing() {
     std::os::unix::fs::symlink(&elsewhere, &p).unwrap();
     assert!(check_identity_unchanged(&p, &identity).is_err());
 }
+
+/// Windows: create a file symlink, or report that this host forbids it
+/// (unprivileged, Developer Mode off). The refusal tests then skip loudly.
+#[cfg(windows)]
+fn windows_symlink(target: &std::path::Path, link: &std::path::Path) -> bool {
+    match std::os::windows::fs::symlink_file(target, link) {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("SKIP: cannot create Windows symlink on this host: {e}");
+            false
+        }
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_symlinked_model_file_is_refused_for_hashing() {
+    let dir = tempfile::tempdir().unwrap();
+    let real = hello_file(&dir);
+    let link = dir.path().join("link.gguf");
+    if !windows_symlink(&real, &link) {
+        return;
+    }
+    let err = hash_file(&link).unwrap_err().to_string();
+    assert!(err.contains("reparse point"), "{err}");
+    assert!(hash_file(&real).is_ok(), "regular file must still hash");
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_identity_detects_a_symlink_swapped_in_after_hashing() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = hello_file(&dir);
+    let (_, identity) = hash_file(&p).unwrap();
+    let elsewhere = dir.path().join("other.gguf");
+    std::fs::write(&elsewhere, b"hello world").unwrap();
+    std::fs::remove_file(&p).unwrap();
+    if !windows_symlink(&elsewhere, &p) {
+        return;
+    }
+    assert!(check_identity_unchanged(&p, &identity).is_err());
+}
