@@ -44,6 +44,16 @@ async fn main() -> ExitCode {
             ExitCode::from(run_status(&sp, json).await as u8)
         }
         "infer" => ExitCode::from(runtime_init::run_inference(&args).await as u8),
+        "embed" | "classify" => {
+            use gg_core::ipc::protocol_typed::TypedTask;
+            let task = if command == "embed" {
+                TypedTask::Embedding
+            } else {
+                TypedTask::TextClassification
+            };
+            let rest = args.get(2..).unwrap_or_default();
+            ExitCode::from(gg_core::cli::typed_cmd::run_typed(task, rest).await as u8)
+        }
         "verify" => {
             eprintln!("Verify command not yet implemented. Use 'GG-CORE health'.");
             ExitCode::from(2u8)

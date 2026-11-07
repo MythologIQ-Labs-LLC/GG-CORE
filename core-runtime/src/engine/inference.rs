@@ -251,6 +251,13 @@ mod degraded_impl;
 #[path = "inference_tests.rs"]
 mod tests;
 
+// Typed non-generative inference is crate-private until a capability-aware
+// authenticated IPC queue and uniform security pipeline are qualified.
+// Typed non-generative inference, reached only through the authenticated
+// typed IPC queue and worker security pipeline (#171).
+#[path = "inference_typed.rs"]
+mod typed;
+
 #[cfg(test)]
 #[path = "inference_chaos_tests.rs"]
 mod chaos_tests;

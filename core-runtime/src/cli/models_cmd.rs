@@ -96,6 +96,7 @@ mod tests {
             request_count: requests,
             avg_latency_ms: lat,
             loaded_at: "2026-02-22T00:00:00Z".to_string(),
+            capabilities: vec![],
         }
     }
 

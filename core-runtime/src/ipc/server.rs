@@ -158,25 +158,50 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
             // Non-streaming inference runs beside the reader, like a stream,
             // so cancel_request and disconnect reach it while it executes.
             IpcMessage::InferenceRequest(req) => {
-                if handler.require_auth(session.as_ref()).await.is_err() {
-                    let err = r#"{"type":"error","code":401,"message":"Not authenticated"}"#;
-                    let _ = write_frame_locked(&write_half, err.as_bytes()).await;
-                    break;
+                let id = req.request_id.0;
+                match requests::admit(
+                    &handler,
+                    session.as_ref(),
+                    &write_half,
+                    &active_requests,
+                    id,
+                )
+                .await
+                {
+                    requests::Admission::Run(cancel) => spawn_inference(
+                        Arc::clone(&handler),
+                        Arc::clone(&write_half),
+                        Arc::clone(&active_requests),
+                        req,
+                        cancel,
+                    ),
+                    requests::Admission::Continue => continue,
+                    requests::Admission::Close => break,
                 }
-                let Some(cancel) = register_request(&active_requests, req.request_id.0).await
-                else {
-                    let err =
-                        r#"{"type":"error","code":409,"message":"Duplicate active request ID"}"#;
-                    let _ = write_frame_locked(&write_half, err.as_bytes()).await;
-                    continue;
-                };
-                spawn_inference(
-                    Arc::clone(&handler),
-                    Arc::clone(&write_half),
-                    Arc::clone(&active_requests),
-                    req,
-                    cancel,
-                );
+            }
+
+            // Typed embedding/classification (#171): same admission rules.
+            IpcMessage::TypedInferenceRequest(req) => {
+                let id = req.request_id.0;
+                match requests::admit(
+                    &handler,
+                    session.as_ref(),
+                    &write_half,
+                    &active_requests,
+                    id,
+                )
+                .await
+                {
+                    requests::Admission::Run(cancel) => requests::spawn_typed(
+                        Arc::clone(&handler),
+                        Arc::clone(&write_half),
+                        Arc::clone(&active_requests),
+                        req,
+                        cancel,
+                    ),
+                    requests::Admission::Continue => continue,
+                    requests::Admission::Close => break,
+                }
             }
 
             // Cancellation is an authenticated operation on the originating
@@ -298,6 +323,9 @@ pub(super) fn spawn_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 
 // Platform listeners (Unix socket / Windows named pipe) live in `listener.rs`;
 // re-exported here so `ipc::server::run_server` stays the public entry point.
 pub use super::listener::run_server;
+
+#[path = "server_requests.rs"]
+mod requests;
 
 #[cfg(all(test, feature = "gguf"))]
 #[path = "server_control_tests.rs"]

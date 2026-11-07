@@ -69,6 +69,7 @@ fn handshake_ack_includes_negotiated_version() {
     let message = IpcMessage::HandshakeAck {
         session_id: "session-abc".to_string(),
         protocol_version: ProtocolVersion::V1,
+        features: vec![],
     };
 
     let encoded = encode_message(&message).unwrap();
@@ -78,6 +79,7 @@ fn handshake_ack_includes_negotiated_version() {
         IpcMessage::HandshakeAck {
             session_id,
             protocol_version,
+            ..
         } => {
             assert_eq!(session_id, "session-abc");
             assert_eq!(protocol_version, ProtocolVersion::V1);
@@ -91,6 +93,7 @@ fn handshake_ack_v2_negotiated() {
     let message = IpcMessage::HandshakeAck {
         session_id: "session-xyz".to_string(),
         protocol_version: ProtocolVersion::V2,
+        features: vec![],
     };
 
     let encoded = encode_message(&message).unwrap();
@@ -100,6 +103,7 @@ fn handshake_ack_v2_negotiated() {
         IpcMessage::HandshakeAck {
             session_id,
             protocol_version,
+            ..
         } => {
             assert_eq!(session_id, "session-xyz");
             assert_eq!(protocol_version, ProtocolVersion::V2);
@@ -118,6 +122,7 @@ fn legacy_handshake_ack_defaults_to_v1() {
         IpcMessage::HandshakeAck {
             session_id,
             protocol_version,
+            ..
         } => {
             assert_eq!(session_id, "session-old");
             assert_eq!(protocol_version, ProtocolVersion::V1); // Default
