@@ -272,24 +272,19 @@ async fn unsupported_classification_batch_refused() {
 }
 
 #[tokio::test]
-async fn per_call_memory_limit_rejects_before_model_execution() {
+async fn working_budget_is_not_compared_to_resident_weights() {
+    // Regression (2026-11-07): weights are reserved once at load; a model
+    // larger than the per-request working budget must still serve.
     let engine = engine_with(InferenceCapability::Embedding, embedding(), 2048, None).await;
-    let err = execute(
+    let out = execute(
         &engine,
         InferenceInput::Text("hi".into()),
         InferenceCapability::Embedding,
         &StopControl::default(),
         Some(1024),
     )
-    .await
-    .unwrap_err();
-    assert!(matches!(
-        err,
-        InferenceError::MemoryExceeded {
-            used: 2048,
-            limit: 1024
-        }
-    ));
+    .await;
+    assert!(matches!(out, Ok(InferenceOutput::Embedding(_))), "{out:?}");
 }
 
 #[tokio::test]
