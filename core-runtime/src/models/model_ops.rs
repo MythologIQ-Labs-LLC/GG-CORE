@@ -51,9 +51,29 @@ pub fn prepare_model(
     relative_path: &str,
     model_id: Option<String>,
 ) -> Result<PreparedModel, ModelOpError> {
+    prepare_model_admitted(loader, None, relative_path, model_id)
+}
+
+/// [`prepare_model`] that first refuses a model whose file size cannot fit
+/// the remaining total-memory budget, before any backend allocation (so a
+/// too-large load fails explicitly instead of inside the backend at the
+/// Windows Job Object cap). The final resident reservation is taken by
+/// `ModelLifecycle::load` from the backend-reported footprint.
+pub fn prepare_model_admitted(
+    loader: &ModelLoader,
+    limits: Option<&crate::memory::ResourceLimits>,
+    relative_path: &str,
+    model_id: Option<String>,
+) -> Result<PreparedModel, ModelOpError> {
     let validated = loader.validate_path(relative_path)?;
     let metadata = loader.load_metadata(&validated)?;
     let id = model_id.unwrap_or_else(|| metadata.name.clone());
+    if let Some(limits) = limits {
+        let bytes = usize::try_from(metadata.size_bytes).unwrap_or(usize::MAX);
+        limits.check_resident_headroom(bytes).map_err(|e| {
+            ModelOpError::Lifecycle(LifecycleError::ResourceExhausted(e.to_string()))
+        })?;
+    }
 
     let model = load_model_dispatch(validated.as_path(), &id)
         .map_err(|e| ModelOpError::Backend(e.to_string()))?;
@@ -90,7 +110,8 @@ pub async fn load_model_from_path(
     relative_path: &str,
     model_id: Option<String>,
 ) -> Result<LoadedModel, ModelOpError> {
-    let prepared = prepare_model(loader, relative_path, model_id)?;
+    let prepared =
+        prepare_model_admitted(loader, lifecycle.resource_limits(), relative_path, model_id)?;
     register_prepared(lifecycle, prepared).await
 }
 

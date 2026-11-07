@@ -112,8 +112,8 @@ impl InferenceEngine {
             .await
     }
 
-    /// Test convenience: `run_cancellable` plus a per-call memory budget
-    /// (`max_memory_bytes` enforced before calling into the model).
+    /// Test convenience: `run_cancellable` plus a per-call working budget
+    /// (passed to the backend; not compared against resident weights).
     #[cfg(test)]
     pub(crate) async fn run_cancellable_with_memory_limit(
         &self,
@@ -178,16 +178,9 @@ impl InferenceEngine {
         max_memory_bytes: Option<usize>,
         control: &StopControl,
     ) -> Result<InferenceResult, InferenceError> {
-        if let Some(budget) = max_memory_bytes {
-            let model_mem = model.memory_usage();
-            if model_mem > budget {
-                return Err(InferenceError::MemoryExceeded {
-                    used: model_mem,
-                    limit: budget,
-                });
-            }
-        }
-
+        // `max_memory_bytes` is the per-request working budget the worker
+        // already reserved; resident weights are accounted at load. It is
+        // passed to the backend, never compared against model weights.
         let mut config = params.to_config();
         config.max_memory_bytes = max_memory_bytes;
 

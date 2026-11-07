@@ -123,8 +123,12 @@ async fn memory_budget_allows_inference_when_model_fits() {
     assert!(result.is_ok(), "expected success, got {result:?}");
 }
 
+/// Regression (2026-11-07): the per-call budget is working memory. A model
+/// whose resident weights exceed it must still run; weights are accounted
+/// once at load by `ModelLifecycle`, not per request. Previously every call
+/// to a model larger than 1 GiB was refused (Phi-3.5-mini, 2.39 GB).
 #[tokio::test]
-async fn memory_budget_rejects_when_model_exceeds_budget() {
+async fn model_larger_than_working_budget_still_runs() {
     let engine = engine_with_budget_model(2048).await;
     let params = InferenceParams::default();
     let cancelled = StdArc::new(std::sync::atomic::AtomicBool::new(false));
@@ -132,46 +136,28 @@ async fn memory_budget_rejects_when_model_exceeds_budget() {
         .run_cancellable_with_memory_limit("budget-model", "hi", &params, cancelled, 1024)
         .await;
     assert!(
-        matches!(
-            result,
-            Err(InferenceError::MemoryExceeded {
-                used: 2048,
-                limit: 1024
-            })
-        ),
-        "expected MemoryExceeded, got {result:?}"
+        result.is_ok(),
+        "weights must not be compared to the working budget: {result:?}"
     );
 }
 
 #[tokio::test]
-async fn zero_byte_budget_always_rejects() {
-    let engine = engine_with_budget_model(1).await;
-    let params = InferenceParams::default();
-    let cancelled = StdArc::new(std::sync::atomic::AtomicBool::new(false));
-    let result = engine
-        .run_cancellable_with_memory_limit("budget-model", "hi", &params, cancelled, 0)
-        .await;
-    assert!(
-        matches!(result, Err(InferenceError::MemoryExceeded { .. })),
-        "zero budget must reject every model"
-    );
-}
-
-#[tokio::test]
-async fn to_config_sets_max_memory_bytes_from_budget() {
+async fn working_budget_is_not_a_weights_gate_even_when_tiny() {
     let engine = engine_with_budget_model(100).await;
     let params = InferenceParams::default();
     let cancelled = StdArc::new(std::sync::atomic::AtomicBool::new(false));
-
-    let ok = engine
-        .run_cancellable_with_memory_limit("budget-model", "hi", &params, cancelled.clone(), 200)
-        .await;
-    assert!(ok.is_ok());
-
-    let err = engine
-        .run_cancellable_with_memory_limit("budget-model", "hi", &params, cancelled, 50)
-        .await;
-    assert!(matches!(err, Err(InferenceError::MemoryExceeded { .. })));
+    for budget in [0, 50, 200] {
+        let result = engine
+            .run_cancellable_with_memory_limit(
+                "budget-model",
+                "hi",
+                &params,
+                cancelled.clone(),
+                budget,
+            )
+            .await;
+        assert!(result.is_ok(), "budget {budget}: {result:?}");
+    }
 }
 
 // ---- Per-token cancellation tests (P3.2) ----

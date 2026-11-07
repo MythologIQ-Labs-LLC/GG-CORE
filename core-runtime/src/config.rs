@@ -10,8 +10,8 @@
 //! | `GG_CORE_MAX_CONTEXT` | 4096 | Max context length (tokens) |
 //! | `GG_CORE_MAX_QUEUE_DEPTH` | 256 | Max pending requests |
 //! | `GG_CORE_MAX_CONTEXT_TOKENS` | 4096 | Max context tokens per request |
-//! | `GG_CORE_MAX_MEMORY_PER_CALL` | 1073741824 | Max memory per call (bytes) |
-//! | `GG_CORE_MAX_TOTAL_MEMORY` | 2147483648 | Max total memory (bytes) |
+//! | `GG_CORE_MAX_MEMORY_PER_CALL` | 1073741824 | Working memory reserved per request, excluding resident weights (bytes) |
+//! | `GG_CORE_MAX_TOTAL_MEMORY` | max(2 GiB, 50% RAM) | Resident weights + working memory; Job Object cap (bytes) |
 //! | `GG_CORE_MAX_CONCURRENT` | 2 | Max concurrent requests |
 //! | `GG_CORE_BATCH_MAX_REQUESTS` | 8 | Max requests per batch |
 //! | `GG_CORE_BATCH_MAX_TOKENS` | 4096 | Max tokens per batch |
@@ -119,7 +119,10 @@ fn load_queue_config() -> RequestQueueConfig {
 /// Load resource limits configuration from environment.
 fn load_resource_limits() -> ResourceLimitsConfig {
     let per_call = parse_usize("GG_CORE_MAX_MEMORY_PER_CALL", 1024 * 1024 * 1024);
-    let total = parse_usize("GG_CORE_MAX_TOTAL_MEMORY", 2 * 1024 * 1024 * 1024);
+    let total = parse_usize(
+        "GG_CORE_MAX_TOTAL_MEMORY",
+        crate::memory::host::default_total_memory(),
+    );
     let concurrent = parse_usize("GG_CORE_MAX_CONCURRENT", 2);
     let per_call = per_call.max(1024 * 1024); // floor: 1MB
     let total = total.max(per_call); // total >= per_call
@@ -257,7 +260,11 @@ mod tests {
         assert_eq!(cfg.request_queue.max_pending, 256);
         assert_eq!(cfg.request_queue.max_context_tokens, 4096);
         assert_eq!(cfg.resource_limits.max_memory_per_call, 1024 * 1024 * 1024);
-        assert_eq!(cfg.resource_limits.max_total_memory, 2 * 1024 * 1024 * 1024);
+        assert_eq!(
+            cfg.resource_limits.max_total_memory,
+            crate::memory::host::default_total_memory()
+        );
+        assert!(cfg.resource_limits.max_total_memory >= 2 * 1024 * 1024 * 1024);
         assert_eq!(cfg.resource_limits.max_concurrent, 2);
         assert_eq!(cfg.batch.max_batch_size, 8);
         assert_eq!(cfg.batch.max_total_tokens, 4096);

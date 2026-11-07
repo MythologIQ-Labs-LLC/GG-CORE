@@ -23,12 +23,19 @@ pub enum LifecycleError {
 
     #[error("Load failed: {0}")]
     LoadFailed(String),
+
+    /// The model's resident bytes do not fit the total-memory budget
+    /// (`GG_CORE_MAX_TOTAL_MEMORY`, also the Windows Job Object cap).
+    #[error("Insufficient memory budget: {0} (raise GG_CORE_MAX_TOTAL_MEMORY or unload a model)")]
+    ResourceExhausted(String),
 }
 
 /// Bidirectional O(1) lookup between model_id and ModelHandle.
 struct LookupIndex {
     id_to_handle: HashMap<String, ModelHandle>,
     handle_to_id: HashMap<u64, String>,
+    /// Resident-weight reservation per loaded model, released on unload.
+    residents: HashMap<String, crate::memory::ResidentGuard>,
 }
 
 impl LookupIndex {
@@ -36,6 +43,7 @@ impl LookupIndex {
         Self {
             id_to_handle: HashMap::new(),
             handle_to_id: HashMap::new(),
+            residents: HashMap::new(),
         }
     }
 
@@ -73,6 +81,8 @@ pub struct ModelLifecycle {
     registry: Arc<ModelRegistry>,
     engine: Arc<InferenceEngine>,
     index: Arc<RwLock<LookupIndex>>,
+    /// Resident-weight accounting (None: unlimited, embedded/test use).
+    limits: Option<crate::memory::ResourceLimits>,
 }
 
 impl ModelLifecycle {
@@ -81,7 +91,19 @@ impl ModelLifecycle {
             registry,
             engine,
             index: Arc::new(RwLock::new(LookupIndex::new())),
+            limits: None,
         }
+    }
+
+    /// Account every loaded model's resident bytes against `limits`.
+    pub fn with_resource_limits(mut self, limits: crate::memory::ResourceLimits) -> Self {
+        self.limits = Some(limits);
+        self
+    }
+
+    /// The resource limits loads are admitted against, if any.
+    pub fn resource_limits(&self) -> Option<&crate::memory::ResourceLimits> {
+        self.limits.as_ref()
     }
 
     /// Atomically load a model into both registry and engine.
@@ -101,10 +123,23 @@ impl ModelLifecycle {
         }
 
         let memory = model.memory_usage();
+        // Reserve resident weights before registering: a model that does not
+        // fit is refused explicitly and never becomes visible.
+        let resident = match &self.limits {
+            Some(limits) => Some(
+                limits
+                    .reserve_resident(memory)
+                    .map_err(|e| LifecycleError::ResourceExhausted(e.to_string()))?,
+            ),
+            None => None,
+        };
         let handle = self.registry.register(metadata, memory).await;
         self.engine
             .register_model(model_id.clone(), handle, model)
             .await;
+        if let Some(guard) = resident {
+            index.residents.insert(model_id.clone(), guard);
+        }
         index.insert(model_id, handle);
 
         Ok(handle)
@@ -123,6 +158,8 @@ impl ModelLifecycle {
         self.engine.unregister_model(model_id).await;
         self.registry.unregister(handle).await;
         index.remove_by_id(model_id);
+        // Dropping the guard releases the model's resident reservation.
+        index.residents.remove(model_id);
 
         Ok(handle)
     }
@@ -166,3 +203,7 @@ impl ModelLifecycle {
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "lifecycle_resident_tests.rs"]
+mod resident_tests;

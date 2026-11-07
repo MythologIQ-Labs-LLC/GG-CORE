@@ -164,15 +164,21 @@ type GuardResult = Result<Option<crate::memory::ResourceGuard>, String>;
 type InferResult = Result<InferenceResult, InferenceError>;
 
 pub(super) async fn acquire_guard(
-    engine: &InferenceEngine,
+    _engine: &InferenceEngine,
     limits: Option<&ResourceLimits>,
-    model_id: &str,
+    _model_id: &str,
 ) -> GuardResult {
     let Some(limits) = limits else {
         return Ok(None);
     };
-    let mem = estimate_memory(engine, model_id).await;
-    limits.try_acquire(mem).map(Some).map_err(|e| e.to_string())
+    // Reserve the per-request working budget (KV + activations). Resident
+    // model weights were reserved once at load (ModelLifecycle) and must not
+    // be charged again per call: doing so refused every request for models
+    // larger than the per-call budget even when the host had ample memory.
+    limits
+        .try_acquire(limits.max_memory_per_call())
+        .map(Some)
+        .map_err(|e| e.to_string())
 }
 
 /// Run native inference on the blocking pool. Prefill and generation block
@@ -219,14 +225,6 @@ async fn record_result(
         }
         Err(e) => telemetry::record_request_failure(model_id, &e.to_string()),
     }
-}
-
-async fn estimate_memory(engine: &InferenceEngine, model_id: &str) -> usize {
-    const FALLBACK_BYTES: usize = 256 * 1024 * 1024;
-    engine
-        .model_memory_usage(model_id)
-        .await
-        .unwrap_or(FALLBACK_BYTES)
 }
 
 fn send_response(request: QueuedRequest, result: Result<InferenceResult, String>) {

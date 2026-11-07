@@ -161,16 +161,18 @@ impl Runtime {
         let model_loader = Arc::new(ModelLoader::new(config.base_path.clone()));
         let model_registry = Arc::new(ModelRegistry::new());
         let inference_engine = Arc::new(InferenceEngine::new(config.max_context_length));
-        let model_lifecycle = Arc::new(ModelLifecycle::new(
-            model_registry.clone(),
-            Arc::clone(&inference_engine),
-        ));
+        let (request_queue, batch_processor, resource_limits, output_cache) =
+            Self::init_scheduler(&config);
+        // Loads share the worker's limits: resident weights + per-request
+        // working reservations are bounded by one total budget.
+        let model_lifecycle = Arc::new(
+            ModelLifecycle::new(model_registry.clone(), Arc::clone(&inference_engine))
+                .with_resource_limits(resource_limits.clone()),
+        );
         let smart_loader = Arc::new(SmartLoader::new(
             SmartLoaderConfig::default(),
             build_loader_callback(model_registry.clone()),
         ));
-        let (request_queue, batch_processor, resource_limits, output_cache) =
-            Self::init_scheduler(&config);
         let shutdown = Arc::new(ShutdownCoordinator::new());
         let health = Arc::new(HealthChecker::new(config.health.clone()));
         let metrics_store = Arc::new(MetricsStore::new());

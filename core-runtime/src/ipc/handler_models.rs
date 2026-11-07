@@ -22,9 +22,10 @@ impl IpcHandler {
     pub(super) async fn handle_model_load(&self, request: ModelLoadRequest) -> ModelLoadResponse {
         let loader = std::sync::Arc::clone(&self.model_loader);
         let ModelLoadRequest { path, model_id } = request;
+        let limits = self.model_lifecycle.resource_limits().cloned();
 
         let prepared = match spawn_blocking(move || {
-            model_ops::prepare_model(&loader, &path, model_id)
+            model_ops::prepare_model_admitted(&loader, limits.as_ref(), &path, model_id)
         })
         .await
         {
