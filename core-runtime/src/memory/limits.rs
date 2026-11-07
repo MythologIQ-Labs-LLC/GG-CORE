@@ -7,6 +7,10 @@ use std::sync::Arc;
 
 use crate::engine::InferenceError;
 
+#[path = "resident.rs"]
+mod resident;
+pub use resident::ResidentGuard;
+
 /// Configuration for resource limits.
 #[derive(Debug, Clone)]
 pub struct ResourceLimitsConfig {
@@ -21,8 +25,10 @@ pub struct ResourceLimitsConfig {
 impl Default for ResourceLimitsConfig {
     fn default() -> Self {
         Self {
-            max_memory_per_call: 1024 * 1024 * 1024,  // 1GB
-            max_total_memory: 2 * 1024 * 1024 * 1024, // 2GB
+            // Per-request working memory (weights are reserved at load).
+            max_memory_per_call: 1024 * 1024 * 1024, // 1GB
+            // Weights + working; also the Job cap. max(2 GiB, RAM/2).
+            max_total_memory: super::host::default_total_memory(),
             max_concurrent: 2,
         }
     }
