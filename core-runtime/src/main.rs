@@ -4,6 +4,7 @@
 //! configuration loading, IPC listener setup, and signal handling.
 
 mod auth_boot;
+mod chat_template;
 mod cli_parser;
 mod runtime_init;
 mod sandbox_boot;

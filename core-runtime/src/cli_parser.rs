@@ -185,6 +185,8 @@ OPTIONS:
     --model <MODEL>      Model ID to use for inference
     --prompt <PROMPT>    Input prompt for generation
     --max-tokens <N>     Maximum tokens to generate (default: 256)
+    --chat-template ID   Opt-in model-specific prompt format: qwen2.5
+    --system TEXT        System instructions (requires --chat-template)
     --stream             Enable token-by-token streaming output
     --timeout-ms <MS>    Request deadline enforced by the daemon (default: 300000)
 
@@ -192,8 +194,14 @@ EXIT CODES:
     0  Inference completed successfully
     1  Inference failed or connection error
 
+DESCRIPTION:
+    Default: raw completion. Qwen2.5 ChatML is explicit opt-in only;
+    it does NOT inspect model metadata or change daemon security policy.
+    Reject reserved role-token syntax in chat message text.
+
 EXAMPLES:
     GG-CORE infer --model phi-3 --prompt \"Count to 5\" --stream
+    GG-CORE infer --model qwen --prompt \"Hello\" --chat-template qwen2.5 --stream
 "
     );
 }
