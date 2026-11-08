@@ -159,27 +159,7 @@ fn apply_egress(
     })
 }
 
-type GuardResult = Result<Option<crate::memory::ResourceGuard>, String>;
-
 type InferResult = Result<InferenceResult, InferenceError>;
-
-pub(super) async fn acquire_guard(
-    _engine: &InferenceEngine,
-    limits: Option<&ResourceLimits>,
-    _model_id: &str,
-) -> GuardResult {
-    let Some(limits) = limits else {
-        return Ok(None);
-    };
-    // Reserve the per-request working budget (KV + activations). Resident
-    // model weights were reserved once at load (ModelLifecycle) and must not
-    // be charged again per call: doing so refused every request for models
-    // larger than the per-call budget even when the host had ample memory.
-    limits
-        .try_acquire(limits.max_memory_per_call())
-        .map(Some)
-        .map_err(|e| e.to_string())
-}
 
 /// Run native inference on the blocking pool. Prefill and generation block
 /// for seconds; on an async worker thread they could starve the tasks that
@@ -232,6 +212,10 @@ fn send_response(request: QueuedRequest, result: Result<InferenceResult, String>
         let _ = tx.send(result);
     }
 }
+
+#[path = "worker_admission.rs"]
+mod admission;
+pub(super) use admission::acquire_guard;
 
 #[cfg(test)]
 #[path = "worker_tests.rs"]

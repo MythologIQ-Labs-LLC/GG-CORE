@@ -39,6 +39,8 @@ struct LimitsInner {
     config: ResourceLimitsConfig,
     current_memory: AtomicUsize,
     current_concurrent: AtomicUsize,
+    /// Optional operator per-request ceiling (daemon env only; set once).
+    per_call_ceiling: std::sync::OnceLock<usize>,
 }
 
 /// Resource limit tracker and enforcer.
@@ -55,6 +57,7 @@ impl ResourceLimits {
                 config,
                 current_memory: AtomicUsize::new(0),
                 current_concurrent: AtomicUsize::new(0),
+                per_call_ceiling: std::sync::OnceLock::new(),
             }),
         }
     }
@@ -71,6 +74,39 @@ impl ResourceLimits {
             });
         }
 
+        self.reserve_call(memory_bytes)
+    }
+
+    /// Reserve one request's working memory. Only an operator-set per-call
+    /// ceiling ([`Self::set_per_call_ceiling`]) bounds a single request;
+    /// otherwise the shared total does.
+    pub fn try_acquire_working(
+        &self,
+        memory_bytes: usize,
+    ) -> Result<ResourceGuard, InferenceError> {
+        if let Some(&ceiling) = self.inner.per_call_ceiling.get() {
+            if memory_bytes > ceiling {
+                return Err(InferenceError::MemoryExceeded {
+                    used: memory_bytes,
+                    limit: ceiling,
+                });
+            }
+        }
+        self.reserve_call(memory_bytes)
+    }
+
+    /// Set the operator per-call ceiling once (daemon start, before serving).
+    pub fn set_per_call_ceiling(&self, ceiling: usize) -> Result<(), usize> {
+        self.inner.per_call_ceiling.set(ceiling)
+    }
+
+    /// The operator per-call ceiling, if one was set.
+    pub fn per_call_ceiling(&self) -> Option<usize> {
+        self.inner.per_call_ceiling.get().copied()
+    }
+
+    fn reserve_call(&self, memory_bytes: usize) -> Result<ResourceGuard, InferenceError> {
+        let inner = &self.inner;
         // Reserve memory with a checked compare-and-swap: never wraps, and a
         // failed attempt never transiently inflates the shared counter.
         if let Err(used) = resident::try_reserve(
@@ -143,106 +179,5 @@ impl Drop for ResourceGuard {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn config_1mb_2concurrent() -> ResourceLimitsConfig {
-        ResourceLimitsConfig {
-            max_memory_per_call: 1024 * 1024,
-            max_total_memory: 4 * 1024 * 1024,
-            max_concurrent: 2,
-        }
-    }
-
-    #[test]
-    fn acquire_within_limits_succeeds() {
-        let limits = ResourceLimits::new(config_1mb_2concurrent());
-        let guard = limits.try_acquire(512 * 1024);
-        assert!(guard.is_ok());
-        assert_eq!(limits.current_memory(), 512 * 1024);
-        assert_eq!(limits.current_concurrent(), 1);
-    }
-
-    #[test]
-    fn per_call_memory_cap_rejects_oversized_request() {
-        let limits = ResourceLimits::new(config_1mb_2concurrent());
-        let err = limits.try_acquire(2 * 1024 * 1024).unwrap_err();
-        assert!(
-            matches!(err, InferenceError::MemoryExceeded { .. }),
-            "expected MemoryExceeded, got {err}"
-        );
-        // Gauges must not have changed.
-        assert_eq!(limits.current_memory(), 0);
-        assert_eq!(limits.current_concurrent(), 0);
-    }
-
-    #[test]
-    fn total_memory_cap_rejects_when_pool_full() {
-        let limits = ResourceLimits::new(ResourceLimitsConfig {
-            max_memory_per_call: 3 * 1024 * 1024,
-            max_total_memory: 4 * 1024 * 1024,
-            max_concurrent: 8,
-        });
-        // First acquire: 3 MiB — fits in total.
-        let _g1 = limits.try_acquire(3 * 1024 * 1024).unwrap();
-        // Second acquire: 2 MiB — 3+2 = 5 MiB > 4 MiB total.
-        let err = limits.try_acquire(2 * 1024 * 1024).unwrap_err();
-        assert!(matches!(err, InferenceError::MemoryExceeded { .. }));
-        // Total memory reflects only the first allocation.
-        assert_eq!(limits.current_memory(), 3 * 1024 * 1024);
-    }
-
-    #[test]
-    fn concurrency_cap_rejects_when_slots_exhausted() {
-        let limits = ResourceLimits::new(ResourceLimitsConfig {
-            max_memory_per_call: usize::MAX,
-            max_total_memory: usize::MAX,
-            max_concurrent: 1,
-        });
-        let _g = limits.try_acquire(0).unwrap();
-        let err = limits.try_acquire(0).unwrap_err();
-        assert!(
-            matches!(err, InferenceError::QueueFull { .. }),
-            "expected QueueFull, got {err}"
-        );
-        assert_eq!(limits.current_concurrent(), 1);
-    }
-
-    #[test]
-    fn guard_drop_releases_memory_and_concurrency() {
-        let limits = ResourceLimits::new(config_1mb_2concurrent());
-        {
-            let _guard = limits.try_acquire(1024).unwrap();
-            assert_eq!(limits.current_memory(), 1024);
-            assert_eq!(limits.current_concurrent(), 1);
-        }
-        assert_eq!(limits.current_memory(), 0);
-        assert_eq!(limits.current_concurrent(), 0);
-    }
-
-    #[test]
-    fn max_memory_per_call_accessor_matches_config() {
-        let limits = ResourceLimits::new(ResourceLimitsConfig {
-            max_memory_per_call: 42 * 1024,
-            max_total_memory: usize::MAX,
-            max_concurrent: 1,
-        });
-        assert_eq!(limits.max_memory_per_call(), 42 * 1024);
-    }
-
-    #[test]
-    fn memory_cap_100_percent_rejection() {
-        // max_memory_per_call = 0 means every request is rejected.
-        let limits = ResourceLimits::new(ResourceLimitsConfig {
-            max_memory_per_call: 0,
-            max_total_memory: usize::MAX,
-            max_concurrent: 8,
-        });
-        for _ in 0..5 {
-            let err = limits.try_acquire(1).unwrap_err();
-            assert!(matches!(err, InferenceError::MemoryExceeded { .. }));
-        }
-        assert_eq!(limits.current_memory(), 0);
-        assert_eq!(limits.current_concurrent(), 0);
-    }
-}
+#[path = "limits_tests.rs"]
+mod tests;

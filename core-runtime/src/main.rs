@@ -103,6 +103,11 @@ async fn run_serve(args: &[String]) -> ExitCode {
         }
     }
     let runtime = Runtime::new(config);
+    // Optional operator per-request ceiling, set once before any preload or
+    // serving (unset: requests are bounded only by GG_CORE_MAX_TOTAL_MEMORY).
+    if let Some(ceiling) = gg_core::config::per_call_ceiling_from_env() {
+        let _ = runtime.resource_limits.set_per_call_ceiling(ceiling);
+    }
 
     // B-41 (#106): fail-loud startup preload through the canonical load path.
     if let Err(e) = runtime_init::preload_models(&runtime, &preload).await {

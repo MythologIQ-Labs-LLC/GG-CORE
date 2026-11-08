@@ -387,3 +387,28 @@ file for now-orphaned `use` lines before sealing. Relates to [[b29-onnx-dispatch
 ---
 
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._
+
+---
+
+## Failure Entry #3
+
+**Date:** 2026-11-08
+**Verdict ID:** WORKING_MEMORY_ESTIMATE_V1_AUDIT (VETO)
+**Failure Mode:** SECURITY_STUB / GHOST_PATH / ORPHAN
+
+### What failed
+The plan for a per-request working-memory estimate derived from GGUF metadata.
+
+### Why it failed
+- **V1:** the estimate assumed flash attention was on, but llama.cpp can resolve it, or force it, off. That under-reserves and breaks the plan's own fail-closed claim.
+- **V2:** the per-call limit semantics were left to a future owner decision.
+- **V3:** the CLI config surface was not covered.
+- **V4:** a baseline reservation was proposed without an owner.
+
+### Pattern to avoid
+- Before calling a resource estimate "fail-closed", enumerate every path where the backend can override the parameters the estimate assumes.
+- Never leave the default meaning of a limit undecided in a gated plan.
+- Every config change must include its CLI reporting and validation surface.
+
+### Remediation attempted
+Revision 2 (2026-11-08): the owner decided V2 (unset means bounded by the total); V1 now always carries the non-flash bound plus a measured acceptance gate; V3 added to scope; V4 dropped. Resubmission: PASS.
