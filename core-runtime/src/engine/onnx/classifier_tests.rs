@@ -82,12 +82,18 @@ fn classifier_with_initializer_bytes(bytes: usize) -> OnnxClassifier {
     // This synthetic ONNX is not intended for inference; it proves the exact
     // resident bytes reported from graph initializer storage, rather than
     // depending on an external or unlicensed model download.
-    let mut graph = candle_onnx::onnx::GraphProto::default();
-    let mut initializer = candle_onnx::onnx::TensorProto::default();
-    initializer.raw_data = vec![0u8; bytes];
-    graph.initializer.push(initializer);
-    let mut model = candle_onnx::onnx::ModelProto::default();
-    model.graph = Some(graph);
+    let initializer = candle_onnx::onnx::TensorProto {
+        raw_data: vec![0u8; bytes],
+        ..Default::default()
+    };
+    let graph = candle_onnx::onnx::GraphProto {
+        initializer: vec![initializer],
+        ..Default::default()
+    };
+    let model = candle_onnx::onnx::ModelProto {
+        graph: Some(graph),
+        ..Default::default()
+    };
     OnnxClassifier::with_model(
         "accounting-classifier".into(),
         vec!["NEGATIVE".into(), "POSITIVE".into()],
@@ -111,10 +117,10 @@ async fn loaded_classifier_reports_weight_bytes_and_clears_after_unload() {
 
 #[tokio::test]
 async fn classifier_memory_reservation_shares_budget_with_working_requests() {
+    use crate::engine::InferenceEngine;
     use crate::engine::Model;
     use crate::memory::{ResourceLimits, ResourceLimitsConfig};
     use crate::models::{ModelLifecycle, ModelMetadata, ModelRegistry};
-    use crate::engine::InferenceEngine;
     use std::sync::Arc;
 
     let limits = ResourceLimits::new(ResourceLimitsConfig {
@@ -124,8 +130,7 @@ async fn classifier_memory_reservation_shares_budget_with_working_requests() {
     });
     let engine = Arc::new(InferenceEngine::new(4_096));
     let registry = Arc::new(ModelRegistry::new());
-    let lifecycle =
-        ModelLifecycle::new(registry, engine).with_resource_limits(limits.clone());
+    let lifecycle = ModelLifecycle::new(registry, engine).with_resource_limits(limits.clone());
     let classifier: Arc<dyn Model> = Arc::new(classifier_with_initializer_bytes(5_000));
     lifecycle
         .load(
@@ -156,10 +161,10 @@ async fn classifier_memory_reservation_shares_budget_with_working_requests() {
 
 #[tokio::test]
 async fn oversized_classifier_is_refused_before_registration_without_leak() {
+    use crate::engine::InferenceEngine;
     use crate::engine::Model;
     use crate::memory::{ResourceLimits, ResourceLimitsConfig};
     use crate::models::{ModelLifecycle, ModelMetadata, ModelRegistry};
-    use crate::engine::InferenceEngine;
     use std::sync::Arc;
 
     let limits = ResourceLimits::new(ResourceLimitsConfig {
