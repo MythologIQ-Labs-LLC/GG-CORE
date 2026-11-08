@@ -47,3 +47,47 @@ The estimate is well grounded: KV is byte-exact on three model families, and com
 
 ## Ledger
 Deferred to merge (parallel v1 branches). A Shadow Genome entry is appended on this branch.
+
+---
+
+# AUDIT REPORT: resubmission (Revision 2)
+
+**Tribunal Date:** 2026-11-08
+**Target:** `WORKING_MEMORY_ESTIMATE_V1_PLAN.md` with Revision 2 (sha256 `8f3c50d75c76dca756312653f8d00a50554456b932639631daf1c68f4849cb72`)
+**Risk Grade:** L2/L3
+**Auditor:** The QoreLogic Judge
+**VERDICT:** PASS
+
+## Disposition of the prior violations
+- **V1: resolved.**
+  - The compute estimate now always carries the non-flash attention bound, `2 × n_ubatch × n_ctx × n_head × 4` (scores plus softmax), so no flash-attention resolution can lower the real need below the estimate.
+  - Because that bound is analytic, a **measured** flash-attention-off acceptance test (Job Object `PeakProcessMemoryUsed` on the three pinned models) is a ship-blocking gate.
+  - `ContextShape` pins only the inputs the formula depends on (`n_ubatch` and f16 K/V); inference behaviour is unchanged.
+- **V2: resolved.** The owner decided on 2026-11-08 that unset means no per-call ceiling, bounded by the total.
+  - There is one behaviour: `OnceLock` ceiling state in the shared `LimitsInner`, set only by the daemon from an explicitly present environment variable, before serving.
+  - No public struct changes, so existing `ResourceLimitsConfig` literals (FFI/Python, external embedders) still compile, and they have no ceiling.
+- **V3: resolved.** `config_cmd` defaults and validation, plus `config.rs` docs, are in scope and tested. The stale #174 total default is corrected there.
+- **V4: resolved by removal.** The process-baseline reservation is dropped; the unbudgeted daemon idle memory (88–94 MB) is recorded as a residual.
+
+## Passes
+- **Security: PASS.**
+  - No limit is removed; the total and the Job Object cap are unchanged.
+  - Every uncertainty (missing metadata, overflow, flash-attention mode) resolves to a larger reservation.
+  - An explicit operator ceiling still binds.
+  - No new input surface.
+- **Ghost UI: PASS.** The CLI config surface is covered.
+- **Razor: PASS.**
+  - New pure module `engine/gguf/working_memory.rs`.
+  - `backend.rs` gains no net lines; it is a pre-existing 678-line violation, recorded and not worsened.
+  - Functions at most 40 lines, nesting at most 3.
+- **Dependencies: PASS.** None added. The `windows-sys` features used (`Win32_System_JobObjects`) already exist.
+- **Orphans: PASS.**
+  - `working_memory.rs` is wired from `engine/gguf/mod.rs`.
+  - `Model::working_memory_estimate` is consumed by the single `worker::acquire_guard`, which already serves the generation, streaming and typed paths.
+  - The ceiling setter is called from the daemon's main between `Runtime::new` and preload.
+- **Macro architecture: PASS.**
+  - Single sources of truth: `ContextShape` for both the parameters and the estimate; `LimitsInner` for the ceiling.
+  - Layering is preserved: memory has no engine imports, and the engine reports estimates through the `Model` trait.
+
+## Ledger
+Deferred to merge (parallel v1 branches). Shadow Genome entry #3: remediation applied in Revision 2.

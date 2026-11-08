@@ -411,4 +411,4 @@ The plan for a per-request working-memory estimate derived from GGUF metadata.
 - Every config change must include its CLI reporting and validation surface.
 
 ### Remediation attempted
-Pending: the plan is to be resubmitted after the owner decides V2.
+Revision 2 (2026-11-08): the owner decided V2 (unset means bounded by the total); V1 now always carries the non-flash bound plus a measured acceptance gate; V3 added to scope; V4 dropped. Resubmission: PASS.
