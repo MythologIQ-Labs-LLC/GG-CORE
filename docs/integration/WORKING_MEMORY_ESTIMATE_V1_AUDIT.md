@@ -91,3 +91,30 @@ Deferred to merge (parallel v1 branches). A Shadow Genome entry is appended on t
 
 ## Ledger
 Deferred to merge (parallel v1 branches). Shadow Genome entry #3: remediation applied in Revision 2.
+
+---
+
+# AUDIT REPORT: Revision 3 (fail-closed metadata validation)
+
+**Tribunal Date:** 2026-11-08
+**Target:** plan with Revision 3 (sha256 `e4f7bda3e4ca51e9cb1fc5601b6130f2f88091003e44574ad0f25e1992d899d3`); implementation `862965f`
+**Risk Grade:** L2/L3
+**Auditor:** The QoreLogic Judge
+**VERDICT:** PASS
+
+## Passes
+- **Security: PASS.**
+  - Revision 3 removes the only path by which malformed metadata could under-reserve (the guessed conservative bound).
+  - Every invalid or unsupported shape is unadmittable, with an explicit refusal before native allocation.
+  - The one substitution that remains, KV heads → `n_head`, is monotone upward.
+- **Ghost UI: PASS** (not applicable).
+- **Razor: PASS.**
+  - `working_memory.rs` is 200 lines; the negative tests go in their own 173-line sidecar.
+  - `model_dims` is 30 lines or fewer; nesting is 2 or less.
+- **Dependencies: PASS.** None added.
+- **Orphans: PASS.** The `UNBOUNDED` refusal is used by `acquire_guard` and tested.
+- **Macro architecture: PASS.**
+  - Validation lives in one place (`bounded()`).
+  - The support claim is narrowed explicitly to the measured families.
+
+**Process note:** this tribunal sat after implementation, within the same review-response change, and before any push. The implementation was verified against the plan text.

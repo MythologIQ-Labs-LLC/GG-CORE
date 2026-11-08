@@ -143,3 +143,34 @@ These rules **supersede** the corresponding text above.
 
 ### V4: baseline reservation dropped
 The 128 MiB process-baseline reservation is removed from scope. Recorded as a residual: the daemon's idle private memory (88–94 MB measured) is not budgeted. It is covered in practice by the flash-attention-off over-reservation above, but that is not a guarantee.
+
+## Revision 3 (2026-11-08): fail-closed metadata validation (independent review on #176)
+
+These rules supersede the Revision 1 "missing or implausible metadata → conservative upper bound" rule. That rule could not bound `n_embd = 0`, accepted zero `n_layer`/`n_vocab`, and treated `Some(0)` FFN as present.
+
+### Admissible shapes
+`ModelDims::bounded()` admits a shape only when all of these hold:
+- every core dimension (`n_layer`, `n_embd`, `n_head`, `n_vocab`) is nonzero;
+- the FFN width is present and nonzero; no multiple of `n_embd` is guessed;
+- explicit `key_length`/`value_length`, when present, are nonzero;
+- a derived head length is used only when `n_embd` is an exact multiple of `n_head`.
+
+An out-of-range KV head count (0 or more than `n_head`) is replaced by `n_head`. That is the upper bound, so the estimate cannot drop.
+
+### Unsupported shapes
+`model_dims()` marks a shape unsupported when any of these is true:
+- `is_recurrent()` or `is_hybrid()`;
+- `{arch}.expert_count` > 0, or unparsable;
+- any per-layer array, or unparsable value, for `attention.head_count`, `attention.head_count_kv`, `feed_forward_length`, `attention.key_length` or `attention.value_length`.
+
+### Admission
+- An unboundable shape yields `usize::MAX`. Admission refuses it with an explicit reason before any native allocation.
+- Loading such a model is unchanged, so embedders without limits can still use it.
+
+### Tests
+- Every single-field corruption of the three measured shapes is either unadmittable or not smaller than the valid estimate.
+- 2k/4k/8k scaling.
+- The measured flash-attention-off gate is parameterised by `GG_CORE_WM_CTX` and also asserts that pinned models remain boundable.
+
+### Support claim
+The estimate is qualified only for the measured CPU GGUF families (`qwen2`, `llama`, `phi3`), dense attention, f16 KV, at the measured context lengths. Other architectures that pass `bounded()` are admitted under the formula, but they are **unqualified**. They must not be advertised as proven, and they need their own measured gate.
