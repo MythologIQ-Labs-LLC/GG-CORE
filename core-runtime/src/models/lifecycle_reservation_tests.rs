@@ -115,8 +115,11 @@ async fn registration_resizes_reservation_to_reported_footprint() {
     let (lc, limits) = setup(1_000);
     let guard = limits.reserve_resident(900).unwrap(); // file-size estimate
     let p = PreparedModel::for_test("m", Arc::new(Weights(600)), Some(guard));
-    register_prepared(&Arc::new(lc), p).await.unwrap();
+    let lc = Arc::new(lc);
+    register_prepared(&lc, p).await.unwrap();
     assert_eq!(limits.current_memory(), 600, "shrunk to backend report");
+    lc.unload("m").await.unwrap();
+    assert_eq!(limits.current_memory(), 0);
 }
 
 #[tokio::test]
