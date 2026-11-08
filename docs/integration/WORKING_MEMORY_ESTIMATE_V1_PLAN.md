@@ -104,7 +104,7 @@ These rules **supersede** the corresponding text above.
 
   | Model | Estimate | Measured | Ratio |
   |---|---|---|---|
-  | Qwen | 560 MiB | 358 MiB | 1.56 |
+  | Qwen | 560 MiB | 358 MiB | 1.57 |
   | SmolLM2 | 1319 MiB | 888 MiB | 1.49 |
   | Phi-3.5 | 2150 MiB | 1633 MiB | 1.32 |
 
@@ -114,9 +114,10 @@ These rules **supersede** the corresponding text above.
 
 ### V2: owner decision recorded (2026-11-08)
 **`GG_CORE_MAX_MEMORY_PER_CALL` unset means no separate per-call ceiling; the total bounds everything.**
-- `ResourceLimitsConfig` gains `per_call_ceiling: Option<usize>`:
-  - `None` by default and for every programmatic or FFI/Python constructor;
-  - `Some(v)` only when the environment variable is explicitly set.
+- **No struct change.** `ResourceLimitsConfig` is unchanged; a new field would break every existing struct literal, including any external Rust embedder's.
+  - The ceiling lives on `ResourceLimits` as builder state: `ResourceLimits::with_per_call_ceiling(self, Option<usize>)`, `None` by default.
+  - Only the daemon's environment loading (`config.rs` → `lib.rs` limits construction) sets `Some(v)`, and only when the variable is explicitly set.
+  - FFI, Python and programmatic constructors stay `None`.
 - `try_acquire` applies its per-call refusal only when the ceiling is `Some`.
 - **Existing field `max_memory_per_call`:** it becomes the **fallback working reservation**, for models without an estimate (ONNX, or GGUF where the estimate is unavailable).
   - Its default stays 1 GiB, so existing struct users compile and behave as before.
