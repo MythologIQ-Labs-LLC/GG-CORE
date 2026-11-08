@@ -71,29 +71,28 @@ impl ResourceLimits {
             });
         }
 
-        // Try to reserve memory
-        let prev_memory = inner
-            .current_memory
-            .fetch_add(memory_bytes, Ordering::SeqCst);
-        if prev_memory + memory_bytes > inner.config.max_total_memory {
-            inner
-                .current_memory
-                .fetch_sub(memory_bytes, Ordering::SeqCst);
+        // Reserve memory with a checked compare-and-swap: never wraps, and a
+        // failed attempt never transiently inflates the shared counter.
+        if let Err(used) = resident::try_reserve(
+            &inner.current_memory,
+            memory_bytes,
+            inner.config.max_total_memory,
+        ) {
             return Err(InferenceError::MemoryExceeded {
-                used: prev_memory + memory_bytes,
+                used,
                 limit: inner.config.max_total_memory,
             });
         }
 
-        // Try to reserve concurrency slot
-        let prev_concurrent = inner.current_concurrent.fetch_add(1, Ordering::SeqCst);
-        if prev_concurrent >= inner.config.max_concurrent {
-            inner.current_concurrent.fetch_sub(1, Ordering::SeqCst);
+        // Reserve a concurrency slot the same way; roll memory back on failure.
+        if let Err(attempted) =
+            resident::try_reserve(&inner.current_concurrent, 1, inner.config.max_concurrent)
+        {
             inner
                 .current_memory
                 .fetch_sub(memory_bytes, Ordering::SeqCst);
             return Err(InferenceError::QueueFull {
-                current: prev_concurrent + 1,
+                current: attempted,
                 max: inner.config.max_concurrent,
             });
         }

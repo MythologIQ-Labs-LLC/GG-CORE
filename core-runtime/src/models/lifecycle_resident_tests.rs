@@ -11,7 +11,7 @@ use crate::engine::{
 use crate::memory::{ResourceLimits, ResourceLimitsConfig};
 use crate::models::loader::ModelMetadata;
 
-struct Weights(usize);
+pub(super) struct Weights(pub(super) usize);
 
 #[async_trait::async_trait]
 impl Model for Weights {
@@ -43,7 +43,7 @@ impl Model for Weights {
     }
 }
 
-fn setup(total: usize) -> (ModelLifecycle, ResourceLimits) {
+pub(super) fn setup(total: usize) -> (ModelLifecycle, ResourceLimits) {
     let limits = ResourceLimits::new(ResourceLimitsConfig {
         max_memory_per_call: 10,
         max_total_memory: total,
@@ -55,7 +55,7 @@ fn setup(total: usize) -> (ModelLifecycle, ResourceLimits) {
     (lc, limits)
 }
 
-fn meta(name: &str, size: u64) -> ModelMetadata {
+pub(super) fn meta(name: &str, size: u64) -> ModelMetadata {
     ModelMetadata {
         name: name.into(),
         size_bytes: size,
@@ -121,6 +121,9 @@ async fn working_reservations_and_residents_share_one_budget() {
         "985 + 10 + 10 exceeds 1000"
     );
 }
+
+#[path = "lifecycle_reservation_tests.rs"]
+mod reservation;
 
 #[test]
 fn oversized_load_is_refused_before_backend_io() {

@@ -34,8 +34,9 @@ pub enum LifecycleError {
 struct LookupIndex {
     id_to_handle: HashMap<String, ModelHandle>,
     handle_to_id: HashMap<u64, String>,
-    /// Resident-weight reservation per loaded model, released on unload.
-    residents: HashMap<String, crate::memory::ResidentGuard>,
+    /// Resident-weight budget per loaded model, released on unload once no
+    /// request still holds the model.
+    residents: HashMap<String, resident::Resident>,
 }
 
 impl LookupIndex {
@@ -116,29 +117,38 @@ impl ModelLifecycle {
         metadata: ModelMetadata,
         model: Arc<dyn Model>,
     ) -> Result<ModelHandle, LifecycleError> {
+        self.load_reserved(model_id, metadata, model, None).await
+    }
+
+    /// [`Self::load`] that adopts a reservation taken before backend
+    /// allocation (re-sized to the model's reported footprint). On any
+    /// refusal the model is dropped before its reservation is released.
+    pub async fn load_reserved(
+        &self,
+        model_id: String,
+        metadata: ModelMetadata,
+        model: Arc<dyn Model>,
+        reservation: Option<crate::memory::ResidentGuard>,
+    ) -> Result<ModelHandle, LifecycleError> {
         let mut index = self.index.write().await;
-
-        if index.contains_id(&model_id) {
-            return Err(LifecycleError::AlreadyLoaded(model_id));
-        }
-
-        let memory = model.memory_usage();
-        // Reserve resident weights before registering: a model that does not
-        // fit is refused explicitly and never becomes visible.
-        let resident = match &self.limits {
-            Some(limits) => Some(
-                limits
-                    .reserve_resident(memory)
-                    .map_err(|e| LifecycleError::ResourceExhausted(e.to_string()))?,
-            ),
-            None => None,
+        let mut reservation = reservation;
+        let admitted = if index.contains_id(&model_id) {
+            Err(LifecycleError::AlreadyLoaded(model_id.clone()))
+        } else {
+            resident::admit(self.limits.as_ref(), &mut reservation, model.memory_usage())
         };
-        let handle = self.registry.register(metadata, memory).await;
+        if let Err(e) = admitted {
+            drop(model); // free backend memory before the budget returns
+            drop(reservation);
+            return Err(e);
+        }
+        let handle = self.registry.register(metadata, model.memory_usage()).await;
         self.engine
-            .register_model(model_id.clone(), handle, model)
+            .register_model(model_id.clone(), handle, Arc::clone(&model))
             .await;
-        if let Some(guard) = resident {
-            index.residents.insert(model_id.clone(), guard);
+        if let Some(guard) = reservation {
+            let entry = resident::Resident::new(model, guard);
+            index.residents.insert(model_id.clone(), entry);
         }
         index.insert(model_id, handle);
 
@@ -158,8 +168,10 @@ impl ModelLifecycle {
         self.engine.unregister_model(model_id).await;
         self.registry.unregister(handle).await;
         index.remove_by_id(model_id);
-        // Dropping the guard releases the model's resident reservation.
-        index.residents.remove(model_id);
+        // Budget returns once in-flight requests release the model.
+        if let Some(entry) = index.residents.remove(model_id) {
+            entry.release();
+        }
 
         Ok(handle)
     }
@@ -199,6 +211,9 @@ impl ModelLifecycle {
         in_index && in_registry
     }
 }
+
+#[path = "lifecycle_resident.rs"]
+mod resident;
 
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]
