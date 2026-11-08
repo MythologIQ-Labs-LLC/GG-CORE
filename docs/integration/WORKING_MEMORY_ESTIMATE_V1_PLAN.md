@@ -96,21 +96,26 @@ These rules **supersede** the corresponding text above.
 ### V1: always fail closed on attention mode
 - The compute estimate **always** includes the attention-score term, whether or not flash attention ends up enabled:
 
-  `compute = n_ubatch × (n_vocab + n_ff + 2·n_embd) × 4 + n_ubatch × n_ctx × n_head × 4`
+  `compute = n_ubatch × (n_vocab + n_ff + 2·n_embd) × 4 + 2 × n_ubatch × n_ctx × n_head × 4`
 
-- This is the bound for flash attention disabled, so whatever llama.cpp resolves (auto probe, forced off for Grok, a backend that lacks the op) the estimate is at or above the real need. With flash attention enabled it over-reserves by that term: 112 MiB for Qwen, 256 MiB for SmolLM2 and Phi-3.5 at `n_ctx` 4096.
+  The factor 2 covers both the attention-score matrix (KQ) and its softmax output, which can be live at the same time in the non-flash graph.
+
+- This is the bound for flash attention disabled, so whatever llama.cpp resolves (auto probe, forced off for Grok, a backend that lacks the op) the estimate is at or above the real need. With flash attention enabled it over-reserves by that term: 224 MiB for Qwen and 512 MiB for SmolLM2 and Phi-3.5 at `n_ctx` 4096 (before margin).
 - `ContextShape` still pins `n_ubatch = 512` and f16 K/V, the two inputs the formula depends on. Flash attention stays **auto**: the estimate no longer depends on it, so inference behaviour is untouched.
 - **Revised anchors** (estimate vs measured real need):
 
   | Model | Estimate | Measured | Ratio |
   |---|---|---|---|
-  | Qwen | 560 MiB | 358 MiB | 1.57 |
-  | SmolLM2 | 1319 MiB | 888 MiB | 1.49 |
-  | Phi-3.5 | 2150 MiB | 1633 MiB | 1.32 |
+  | Qwen | 686 MiB | 358 MiB | 1.92 |
+  | SmolLM2 | 1607 MiB | 888 MiB | 1.81 |
+  | Phi-3.5 | 2438 MiB | 1633 MiB | 1.49 |
 
-- **Unit tests:**
-  - The estimate is at least the measured flash-attention-on need **and** at least the computed flash-attention-off need, and at most 1.75 × the measured need.
-  - The flash-attention-off bound is covered explicitly.
+- **Unit tests:** the estimate is at least the measured flash-attention-on need for all three anchors, and at most 2.25 × that need.
+- **Measured flash-attention-off acceptance.** This is required, because the flash-attention-off bound is analytic.
+  - An `#[ignore]` real-model integration test (`gguf` feature, Windows) assigns its own process to a fresh Job Object, through the existing `Win32_System_JobObjects` feature.
+  - It loads each anchor model, records `PeakProcessMemoryUsed`, creates a context with flash attention **disabled** (a test-only `ContextShape` override) and runs one prefill. It then asserts that the peak delta is at or below `working_memory_estimate`.
+  - It runs natively in the offline VM against the three pinned models.
+  - **If any model's peak delta exceeds the estimate, implementation does not ship:** the margin must be raised and the test re-run.
 
 ### V2: owner decision recorded (2026-11-08)
 **`GG_CORE_MAX_MEMORY_PER_CALL` unset means no separate per-call ceiling; the total bounds everything.**
