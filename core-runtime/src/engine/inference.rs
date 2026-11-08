@@ -222,21 +222,6 @@ impl InferenceEngine {
     pub async fn has_model(&self, model_id: &str) -> bool {
         self.models.read().await.contains_key(model_id)
     }
-
-    /// Per-request working memory a registered model reports, if known.
-    pub async fn working_memory_estimate(&self, model_id: &str) -> Option<usize> {
-        let models = self.models.read().await;
-        models.get(model_id)?.working_memory_estimate()
-    }
-
-    /// Return the memory usage reported by a registered model, or None if not found.
-    pub async fn model_memory_usage(&self, model_id: &str) -> Option<usize> {
-        self.models
-            .read()
-            .await
-            .get(model_id)
-            .map(|m| m.memory_usage())
-    }
 }
 
 #[cfg(feature = "gguf")]
@@ -245,6 +230,9 @@ mod streaming;
 
 #[path = "inference_degraded.rs"]
 mod degraded_impl;
+
+#[path = "inference_memory.rs"]
+mod memory_report;
 
 #[cfg(test)]
 #[path = "inference_tests.rs"]
