@@ -88,3 +88,50 @@ If the failure happens after the KV cache was allocated, the vendored llama.cpp 
 - The estimate goes in a new `engine/gguf/working_memory.rs` (pure functions plus tests); `ContextShape` lives there too.
 - `backend.rs` is already 678 lines, a Razor violation that predates this change and is recorded here but not addressed by it. This change must not grow it: the `LlamaContextParams` construction in `create_context` moves into `working_memory.rs` (`ContextShape::params()`), so the net change to `backend.rs` is 0 or fewer lines.
 - Functions stay at or under 40 lines, and nesting at 3 or less.
+
+## Revision 2 (2026-11-08): remediation of audit VETO V1–V4
+
+These rules **supersede** the corresponding text above.
+
+### V1: always fail closed on attention mode
+- The compute estimate **always** includes the attention-score term, whether or not flash attention ends up enabled:
+
+  `compute = n_ubatch × (n_vocab + n_ff + 2·n_embd) × 4 + n_ubatch × n_ctx × n_head × 4`
+
+- This is the bound for flash attention disabled, so whatever llama.cpp resolves (auto probe, forced off for Grok, a backend that lacks the op) the estimate is at or above the real need. With flash attention enabled it over-reserves by that term: 112 MiB for Qwen, 256 MiB for SmolLM2 and Phi-3.5 at `n_ctx` 4096.
+- `ContextShape` still pins `n_ubatch = 512` and f16 K/V, the two inputs the formula depends on. Flash attention stays **auto**: the estimate no longer depends on it, so inference behaviour is untouched.
+- **Revised anchors** (estimate vs measured real need):
+
+  | Model | Estimate | Measured | Ratio |
+  |---|---|---|---|
+  | Qwen | 560 MiB | 358 MiB | 1.56 |
+  | SmolLM2 | 1319 MiB | 888 MiB | 1.49 |
+  | Phi-3.5 | 2150 MiB | 1633 MiB | 1.32 |
+
+- **Unit tests:**
+  - The estimate is at least the measured flash-attention-on need **and** at least the computed flash-attention-off need, and at most 1.75 × the measured need.
+  - The flash-attention-off bound is covered explicitly.
+
+### V2: owner decision recorded (2026-11-08)
+**`GG_CORE_MAX_MEMORY_PER_CALL` unset means no separate per-call ceiling; the total bounds everything.**
+- `ResourceLimitsConfig` gains `per_call_ceiling: Option<usize>`:
+  - `None` by default and for every programmatic or FFI/Python constructor;
+  - `Some(v)` only when the environment variable is explicitly set.
+- `try_acquire` applies its per-call refusal only when the ceiling is `Some`.
+- **Existing field `max_memory_per_call`:** it becomes the **fallback working reservation**, for models without an estimate (ONNX, or GGUF where the estimate is unavailable).
+  - Its default stays 1 GiB, so existing struct users compile and behave as before.
+  - When the variable is set, it equals the ceiling, as today.
+- **Reservation per request:**
+  - **with an estimate:** `estimate`, refused explicitly if it exceeds a `Some` ceiling;
+  - **without one:** `max_memory_per_call`.
+
+### V3: CLI and config surface
+- `config_cmd::run_defaults` prints:
+  - `GG_CORE_MAX_MEMORY_PER_CALL=unset (no per-call ceiling; bounded by GG_CORE_MAX_TOTAL_MEMORY; fallback reservation 1073741824)`;
+  - `GG_CORE_MAX_TOTAL_MEMORY=max(2147483648, 50% of physical RAM)`, which also corrects the stale #174 value.
+- `run_validate` warns on total < per-call **only when the ceiling is explicitly set**.
+- The `config.rs` table and docs are updated to match.
+- **Tests:** the defaults output strings, and validate with the ceiling unset or set.
+
+### V4: baseline reservation dropped
+The 128 MiB process-baseline reservation is removed from scope. Recorded as a residual: the daemon's idle private memory (88–94 MB measured) is not budgeted. It is covered in practice by the flash-attention-off over-reservation above, but that is not a guarantee.
