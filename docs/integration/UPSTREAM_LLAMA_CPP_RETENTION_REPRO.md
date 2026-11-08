@@ -16,7 +16,7 @@ The report is redacted: it contains no prompts, tokens, hostnames, user paths or
   - The process runs inside a Windows Job Object with `JOB_OBJECT_LIMIT_JOB_MEMORY` (a commit limit). Any limit that makes a large `_aligned_malloc` fail reproduces it.
 
 ## Reproduction
-1. **Model:** `SmolLM2-1.7B-Instruct-Q4_K_M.gguf`, sha256 `77665ea4815999596525c636c8b8a1e7c1aa7b76a4cdf4d82bb0c8ef7e57f6e5` (from `bartowski/SmolLM2-1.7B-Instruct-GGUF`). A second small model is co-resident: Qwen2.5-0.5B-Instruct Q4_K_M.
+1. **Model:** `SmolLM2-1.7B-Instruct-Q4_K_M.gguf`, sha256 `77665ea4815999596525c636fbeb56ba8b080b46ae85efef4f0d986a139834d7`, 1,055,609,824 bytes (from `bartowski/SmolLM2-1.7B-Instruct-GGUF` at revision `72da00985aa7cb57cd436a6172be99c3bd906d9c`). A second small model is co-resident: Qwen2.5-0.5B-Instruct Q4_K_M.
 2. **Cap:** set the process commit cap so that loading the weights and allocating the KV cache succeed, but the compute buffer does not. Reproduced at a **1,740,000,000-byte** job memory limit with about 872 MB committed after model load.
 3. **Context:** `llama_init_from_model` with `n_ctx = 4096` (f16 KV, `n_ubatch` 512, flash attention auto).
    - The KV buffer allocates successfully: `llama_kv_cache: CPU KV buffer size = 768.00 MiB`.
