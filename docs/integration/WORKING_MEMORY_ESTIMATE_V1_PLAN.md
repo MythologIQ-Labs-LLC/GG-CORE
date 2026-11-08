@@ -86,5 +86,5 @@ If the failure happens after the KV cache was allocated, the vendored llama.cpp 
 
 ## Razor
 - The estimate goes in a new `engine/gguf/working_memory.rs` (pure functions plus tests); `ContextShape` lives there too.
-- `backend.rs` gains a single params-builder call. If it would exceed 250 lines, the context-param construction moves into the new file.
+- `backend.rs` is already 678 lines, a Razor violation that predates this change and is recorded here but not addressed by it. This change must not grow it: the `LlamaContextParams` construction in `create_context` moves into `working_memory.rs` (`ContextShape::params()`), so the net change to `backend.rs` is 0 or fewer lines.
 - Functions stay at or under 40 lines, and nesting at 3 or less.
