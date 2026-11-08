@@ -115,9 +115,11 @@ These rules **supersede** the corresponding text above.
 ### V2: owner decision recorded (2026-11-08)
 **`GG_CORE_MAX_MEMORY_PER_CALL` unset means no separate per-call ceiling; the total bounds everything.**
 - **No struct change.** `ResourceLimitsConfig` is unchanged; a new field would break every existing struct literal, including any external Rust embedder's.
-  - The ceiling lives on `ResourceLimits` as builder state: `ResourceLimits::with_per_call_ceiling(self, Option<usize>)`, `None` by default.
-  - Only the daemon's environment loading (`config.rs` → `lib.rs` limits construction) sets `Some(v)`, and only when the variable is explicitly set.
-  - FFI, Python and programmatic constructors stay `None`.
+  - The ceiling lives in the shared `LimitsInner` as a `OnceLock<usize>`, so every clone already held by the scheduler, worker and lifecycle sees it.
+  - It is set at most once, through `ResourceLimits::set_per_call_ceiling(&self, usize) -> Result<(), AlreadySet>`. Unset means no ceiling.
+  - `config::EnvConfig` gains `per_call_ceiling: Option<usize>`, which is `Some` only when `GG_CORE_MAX_MEMORY_PER_CALL` is explicitly present. `EnvConfig` is loader output, constructed only in `config.rs`.
+  - The standalone daemon's `runtime_init` calls `set_per_call_ceiling` right after `Runtime` construction and before the IPC server starts or any preload runs.
+  - FFI, Python and programmatic embedders never call it, so they have no ceiling.
 - `try_acquire` applies its per-call refusal only when the ceiling is `Some`.
 - **Existing field `max_memory_per_call`:** it becomes the **fallback working reservation**, for models without an estimate (ONNX, or GGUF where the estimate is unavailable).
   - Its default stays 1 GiB, so existing struct users compile and behave as before.
