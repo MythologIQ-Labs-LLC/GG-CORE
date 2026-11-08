@@ -16,6 +16,14 @@ pub trait Model: Send + Sync {
     fn capabilities(&self) -> &[InferenceCapability];
     fn memory_usage(&self) -> usize;
 
+    /// Bytes one request may commit beyond the resident weights (KV cache,
+    /// compute buffers), when the backend can derive it. Admission reserves
+    /// this before the backend runs; `None` falls back to the configured
+    /// per-request reservation.
+    fn working_memory_estimate(&self) -> Option<usize> {
+        None
+    }
+
     async fn infer(
         &self,
         input: &InferenceInput,

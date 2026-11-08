@@ -213,6 +213,14 @@ impl crate::engine::Model for GgufGenerator {
         self.memory_bytes.load(Ordering::SeqCst)
     }
 
+    fn working_memory_estimate(&self) -> Option<usize> {
+        #[cfg(feature = "gguf")]
+        if let Some(inner) = &self.inner {
+            return Some(inner.working_memory_estimate());
+        }
+        None
+    }
+
     async fn infer(
         &self,
         input: &InferenceInput,
