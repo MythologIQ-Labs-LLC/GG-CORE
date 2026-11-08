@@ -8,9 +8,9 @@
 //! compute-buffer failure path) from being reached at the Job Object cap.
 //!
 //! Fail-closed: the compute term always includes the non-flash-attention
-//! score + softmax bound, and missing or implausible metadata selects a
-//! conservative shape. Checked arithmetic; overflow yields `usize::MAX`
-//! (never admissible).
+//! score + softmax bound; zero, missing, malformed or unsupported metadata
+//! (see [`ModelDims::bounded`]) and arithmetic overflow yield `usize::MAX`,
+//! which admission refuses before any native allocation.
 
 /// Fixed micro-batch the context is created with (llama.cpp's default).
 pub const N_UBATCH: u32 = 512;
@@ -51,35 +51,48 @@ pub struct ModelDims {
     pub n_ff: Option<u64>,
     pub head_k: Option<u64>,
     pub head_v: Option<u64>,
+    /// A shape the formula cannot bound: recurrent/hybrid state, mixture of
+    /// experts, per-layer (array) head or FFN metadata, or unparsable values.
+    pub unsupported: bool,
 }
 
 impl ModelDims {
-    /// Upper-bound dims when metadata is missing or implausible.
-    fn conservative(self) -> Self {
-        let head = self.n_embd / self.n_head.max(1);
-        Self {
-            n_head: self.n_head.max(1),
-            n_head_kv: self.n_head.max(1),
-            n_ff: Some(self.n_embd.saturating_mul(8)),
-            head_k: Some(self.head_k.unwrap_or(head).max(head)),
-            head_v: Some(self.head_v.unwrap_or(head).max(head)),
-            ..self
+    /// The dims the formula may use, or `None` when no safe bound exists.
+    ///
+    /// Fail-closed rules: every core dimension must be nonzero; the FFN
+    /// width must be present and nonzero (no guessed multiple of `n_embd`);
+    /// explicit head lengths must be nonzero, and derived ones must divide
+    /// evenly; an out-of-range KV head count is replaced by `n_head` (the
+    /// upper bound, since KV heads never exceed query heads).
+    pub fn bounded(&self) -> Option<Self> {
+        let core = [self.n_layer, self.n_embd, self.n_head, self.n_vocab];
+        if self.unsupported || core.contains(&0) || !matches!(self.n_ff, Some(f) if f > 0) {
+            return None;
         }
-    }
-
-    fn complete(&self) -> bool {
-        self.n_head > 0 && self.n_head_kv > 0 && self.n_ff.is_some() && self.n_embd > 0
+        let derived = self
+            .n_embd
+            .is_multiple_of(self.n_head)
+            .then(|| self.n_embd / self.n_head);
+        let head = |explicit: Option<u64>| match explicit {
+            Some(0) => None,
+            Some(h) => Some(h),
+            None => derived,
+        };
+        let kv_ok = (1..=self.n_head).contains(&self.n_head_kv);
+        Some(Self {
+            head_k: Some(head(self.head_k)?),
+            head_v: Some(head(self.head_v)?),
+            n_head_kv: if kv_ok { self.n_head_kv } else { self.n_head },
+            ..*self
+        })
     }
 }
 
-/// Bytes one request's context can commit (estimate >= real need).
+/// Bytes one request's context can commit (estimate >= real need), or
+/// `usize::MAX` (never admissible) when the shape cannot be bounded.
 pub fn working_memory_estimate(dims: &ModelDims, shape: &ContextShape) -> usize {
-    let dims = if dims.complete() {
-        *dims
-    } else {
-        dims.conservative()
-    };
-    raw_bytes(&dims, shape)
+    dims.bounded()
+        .and_then(|d| raw_bytes(&d, shape))
         .and_then(|b| b.checked_mul(MARGIN_NUM))
         .map(|b| b.div_ceil(MARGIN_DEN))
         .and_then(|b| b.checked_add(OVERHEAD))
@@ -89,11 +102,7 @@ pub fn working_memory_estimate(dims: &ModelDims, shape: &ContextShape) -> usize 
 
 fn raw_bytes(d: &ModelDims, s: &ContextShape) -> Option<u64> {
     let (ctx, ub) = (u64::from(s.n_ctx), u64::from(s.n_ubatch));
-    let head = d.n_embd / d.n_head.max(1);
-    let per_token = d
-        .head_k
-        .unwrap_or(head)
-        .checked_add(d.head_v.unwrap_or(head))?;
+    let per_token = d.head_k?.checked_add(d.head_v?)?;
     let kv = d.n_layer.checked_mul(ctx)?.checked_mul(d.n_head_kv)?;
     let kv = kv.checked_mul(per_token)?.checked_mul(F16)?;
     let rows = d
@@ -151,20 +160,34 @@ mod native {
     /// Read the dimensions the estimate needs from a loaded model.
     pub fn model_dims(model: &LlamaModel) -> ModelDims {
         let arch = model.meta_val_str("general.architecture").ok();
-        let meta = |key: &str| -> Option<u64> {
+        let raw = |key: &str| -> Option<String> {
             let arch = arch.as_deref()?;
-            let value = model.meta_val_str(&format!("{arch}.{key}")).ok()?;
-            value.trim().parse().ok()
+            model.meta_val_str(&format!("{arch}.{key}")).ok()
         };
+        // Present but not a scalar integer (per-layer array, garbage).
+        let malformed = |key: &str| raw(key).is_some_and(|v| v.trim().parse::<u64>().is_err());
+        let scalar = |key: &str| raw(key).and_then(|v| v.trim().parse::<u64>().ok());
+        let per_layer = [
+            "attention.head_count",
+            "attention.head_count_kv",
+            "feed_forward_length",
+        ];
+        let experts = scalar("expert_count").unwrap_or(0) > 0 || malformed("expert_count");
         ModelDims {
             n_layer: u64::from(model.n_layer()),
             n_embd: u64::try_from(model.n_embd()).unwrap_or(0),
             n_head: u64::from(model.n_head()),
             n_head_kv: u64::from(model.n_head_kv()),
             n_vocab: u64::try_from(model.n_vocab()).unwrap_or(0),
-            n_ff: meta("feed_forward_length"),
-            head_k: meta("attention.key_length"),
-            head_v: meta("attention.value_length"),
+            n_ff: scalar("feed_forward_length"),
+            head_k: scalar("attention.key_length"),
+            head_v: scalar("attention.value_length"),
+            unsupported: model.is_recurrent()
+                || model.is_hybrid()
+                || experts
+                || per_layer.iter().any(|k| malformed(k))
+                || malformed("attention.key_length")
+                || malformed("attention.value_length"),
         }
     }
 }

@@ -2,7 +2,8 @@
 //! models): with flash attention forced OFF, the private-bytes peak of one
 //! context creation + prefill must not exceed `working_memory_estimate`.
 //!
-//! `GG_CORE_WM_MODELS` = `;`-separated GGUF paths. Run single-threaded:
+//! `GG_CORE_WM_MODELS` = `;`-separated GGUF paths; `GG_CORE_WM_CTX` =
+//! `;`-separated context lengths (default 4096). Run single-threaded:
 //! `cargo test --features gguf -- --ignored --test-threads=1 working_memory`.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -71,15 +72,16 @@ fn peak_delta(work: impl FnOnce()) -> usize {
     peak.load(Ordering::SeqCst).saturating_sub(baseline)
 }
 
-fn measure(path: &str, flash_attn_disabled: bool) -> (usize, usize) {
+fn measure(path: &str, n_ctx: u32, flash_attn_disabled: bool) -> (usize, usize) {
     let config = GgufConfig {
-        n_ctx: 4096,
+        n_ctx,
         n_threads: 4,
         n_gpu_layers: 0,
     };
     let mut backend =
         LlamaBackendInner::load(std::path::Path::new(path), &config).expect("model loads");
     backend.shape.flash_attn_disabled = flash_attn_disabled;
+    // ~900 tokens: more than one 512-token micro-batch at every tested n_ctx.
     let prompt = "The brown fox walks beside a clear river under a quiet blue sky. ".repeat(60);
     let cfg = InferenceConfig {
         max_tokens: Some(1),
@@ -91,21 +93,34 @@ fn measure(path: &str, flash_attn_disabled: bool) -> (usize, usize) {
     (delta, backend.working_memory_estimate())
 }
 
+fn contexts() -> Vec<u32> {
+    let raw = std::env::var("GG_CORE_WM_CTX").unwrap_or_else(|_| "4096".into());
+    raw.split(';')
+        .filter_map(|c| c.trim().parse().ok())
+        .collect()
+}
+
 #[test]
 #[ignore = "real models; run natively with GG_CORE_WM_MODELS"]
 fn flash_attention_off_peak_stays_within_estimate() {
     let models = std::env::var("GG_CORE_WM_MODELS").expect("set GG_CORE_WM_MODELS");
     for path in models.split(';').filter(|p| !p.is_empty()) {
-        let (auto_delta, est) = measure(path, false);
-        let (off_delta, _) = measure(path, true);
-        eprintln!("WM {path}: estimate={est} fa_auto_peak={auto_delta} fa_off_peak={off_delta}");
-        assert!(
-            auto_delta <= est,
-            "{path}: auto peak {auto_delta} > estimate {est}"
-        );
-        assert!(
-            off_delta <= est,
-            "{path}: flash-off peak {off_delta} > estimate {est}"
-        );
+        let mut previous = 0;
+        for n_ctx in contexts() {
+            let (auto_delta, est) = measure(path, n_ctx, false);
+            let (off_delta, _) = measure(path, n_ctx, true);
+            eprintln!("WM {path} n_ctx={n_ctx}: estimate={est} fa_auto_peak={auto_delta} fa_off_peak={off_delta}");
+            assert!(
+                auto_delta <= est,
+                "{path}@{n_ctx}: auto peak {auto_delta} > estimate {est}"
+            );
+            assert!(
+                off_delta <= est,
+                "{path}@{n_ctx}: flash-off peak {off_delta} > estimate {est}"
+            );
+            assert_ne!(est, usize::MAX, "{path}: pinned model must be boundable");
+            assert!(est > previous, "{path}: estimate must grow with n_ctx");
+            previous = est;
+        }
     }
 }

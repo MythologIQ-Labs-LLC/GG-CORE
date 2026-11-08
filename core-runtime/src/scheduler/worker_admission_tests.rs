@@ -117,3 +117,11 @@ async fn no_limits_means_no_guard() {
     let engine = engine_with(Some(5_000)).await;
     assert!(acquire_guard(&engine, None, "m").await.unwrap().is_none());
 }
+
+#[tokio::test]
+async fn unboundable_model_is_refused_explicitly_without_reserving() {
+    let (engine, l) = (engine_with(Some(usize::MAX)).await, limits(100, usize::MAX));
+    let err = acquire_guard(&engine, Some(&l), "m").await.unwrap_err();
+    assert_eq!(err, UNBOUNDED);
+    assert_eq!((l.current_memory(), l.current_concurrent()), (0, 0));
+}

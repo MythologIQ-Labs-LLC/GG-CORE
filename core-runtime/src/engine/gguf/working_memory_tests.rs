@@ -30,6 +30,7 @@ fn dims(
         n_ff: Some(n_ff),
         head_k: None,
         head_v: None,
+        unsupported: false,
     }
 }
 
@@ -78,7 +79,7 @@ fn kv_term_is_exact_for_measured_models() {
         let head = a.dims.n_embd / a.dims.n_head;
         let kv = a.dims.n_layer * 4096 * a.dims.n_head_kv * head * 2 * 2;
         assert_eq!(kv, a.kv_bytes, "{}", a.name);
-        let without_kv = raw_bytes(&a.dims, &shape).unwrap() - kv;
+        let without_kv = raw_bytes(&a.dims.bounded().unwrap(), &shape).unwrap() - kv;
         assert!(without_kv as f64 >= a.compute_mib * MIB * 0.9, "{}", a.name);
     }
 }
@@ -91,45 +92,8 @@ fn estimate_scales_with_context() {
     assert!(large > small * 3, "{small} -> {large}");
 }
 
-#[test]
-fn missing_ff_falls_back_to_conservative_bound() {
-    let shape = ContextShape::new(4096);
-    for a in anchors() {
-        let known = working_memory_estimate(&a.dims, &shape);
-        let missing = ModelDims {
-            n_ff: None,
-            ..a.dims
-        };
-        assert!(
-            working_memory_estimate(&missing, &shape) >= known,
-            "{}: fallback below the formula",
-            a.name
-        );
-    }
-}
-
-#[test]
-fn zero_heads_does_not_panic_and_is_conservative() {
-    let d = ModelDims {
-        n_head: 0,
-        n_head_kv: 0,
-        ..anchors()[0].dims
-    };
-    let est = working_memory_estimate(&d, &ContextShape::new(4096));
-    assert!(est >= working_memory_estimate(&anchors()[0].dims, &ContextShape::new(4096)));
-}
-
-#[test]
-fn overflow_is_never_admissible() {
-    let d = ModelDims {
-        n_layer: u64::MAX,
-        ..anchors()[0].dims
-    };
-    assert_eq!(
-        working_memory_estimate(&d, &ContextShape::new(4096)),
-        usize::MAX
-    );
-}
+#[path = "working_memory_negative_tests.rs"]
+mod negative;
 
 #[test]
 fn explicit_head_lengths_are_used() {
