@@ -290,3 +290,13 @@ Phase 1 is implemented on this branch. These notes record where the code refines
   - `cargo test --features ffi --lib`: 753 passed.
   - `doc_examples`: 3 passed.
   - The GGUF/ONNX build and the measurements run in the VM.
+- **Rust 1.99.1 (CI toolchain) in the VM**, rebased on #178 head `aaba859`:
+  - `fmt --check` is clean.
+  - `clippy --all-targets -D warnings` is clean for default, `advanced`, `ffi`, `onnx` and `gguf`.
+  - Tests:
+
+| Feature set | Passed | Failed | Ignored |
+|---|---|---|---|
+| default | 1434 | 0 | 0 |
+| `advanced` | 1569 | 0 | 3 |
+| `onnx,gguf,ffi` | 1516 | 0 | 1 (pre-existing) |
