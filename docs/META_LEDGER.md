@@ -11358,3 +11358,51 @@ clippy -D warnings + fmt clean, both feature configs. Tiny-fixture goldens uncha
 **Decision**: Real-model validation COMPLETE — the residual risk flagged in Entry #204 and
 PR #110 is retired, with one true-positive defect found and fixed. The `ort` fallback is
 NOT needed. Chain tip: `a7537133f4c9caa7c5d5d364dcd3c58c967111419b5b3abb3ae4accc7936b9f3`.
+
+
+---
+
+### Entry #206: INTEGRATION MERGE — GG-CORE v1 stack #165–#177 into main
+
+**Entry ID**: `1fbb2cbef5b4`
+**Timestamp**: 2026-11-09T12:58:24-05:00
+**Phase**: VERIFY (integration) → merge
+**Author**: Specialist + Judge
+**Risk Grade**: L2/L3 (IPC, memory admission, scheduler, packaging)
+
+**Owner decision (2026-11-09)**: merge the qualified v1 stack in order as one integration push. The default total memory stays at 50% of RAM, and Windows ships app-local Microsoft-signed VC++/OpenMP DLLs (#162/#166). Recorded at #161. Each PR's own plan and audit documents are under `docs/integration/`; this single entry records their merge, in place of separate per-branch ledger entries, which would have conflicted in the chain.
+
+**Merged heads** (content hashed below, one line each, LF-joined):
+
+```
+#165 2661ca6 fix/windows-ipc-pipe-busy-v1-20261106-no-ci
+#166 2135943 fix/windows-clean-runtime-package-v1-20261106-no-ci
+#168 efbc06c feat/v1-qwen25-chat-template-cli-20261106-no-ci
+#170 7180a4e fix/v1-backend-manifest-fail-closed-20261106-no-ci
+#172 32ca41e feat/v1-typed-inference-engine-20261106-no-ci
+#173 09fdbd7 feat/v1-typed-ipc-20261106-no-ci
+#174 ab83e90 fix/v1-memory-admission-20261107-no-ci
+#175 a07675b fix/v1-onnx-classifier-resident-20261108-no-ci
+#176 77ed75e feat/v1-working-memory-estimate-20261108-no-ci
+#177 51d0fa4 fix/v1-scheduler-hol-blocking-20261109-no-ci
+integration 1ba42fa integrate/v1-stack-20261109-no-ci
+```
+
+**Verification (exact integrated tree `1ba42fa`, offline Windows Server 2025 Hyper-V guest, 12 vCPU / 24 GiB, no virtual switch, rustc 1.97.0)**:
+- `cargo fmt --check` passed.
+- `clippy --all-targets -D warnings` passed on 5 feature sets: default, gguf, onnx, gguf+ffi and onnx+gguf+ffi.
+- `test` (default): 1428 passed, 0 failed.
+- `test --features onnx,gguf,ffi`: 1510 passed, 0 failed, 1 ignored.
+- Real-model flash-attention-off working-memory gate (Qwen2.5-0.5B, SmolLM2-1.7B and Phi-3.5-mini at n_ctx 2048, 4096 and 8192): 9 of 9 passed, minimum headroom 1.27×.
+
+No GitHub Actions minutes were used before the merge. Frozen `v0.10.0-rc.1` (`fd9ee79`) is unchanged.
+
+**Not qualified by this entry**: GPU/VRAM, Linux/macOS, model switching (#137), the K8s observability work (#164), Azure-signed release artifacts and the v1.0.0 GO/NO-GO gate (#161).
+
+**Content Hash** (SHA256 of the merged-heads block): `97ac128b41596440593bfdc18013298ea068f88b3ba39032c92eff224c320d24`
+
+**Previous Hash**: `a7537133f4c9caa7c5d5d364dcd3c58c967111419b5b3abb3ae4accc7936b9f3`
+
+**Chain Hash** (SHA256 of content + "|" + previous): `1fbb2cbef5b4d4e8f6696bc500cdf880882ab82be1ca61ec8e0f52b5d3a38cf1`
+
+**Decision**: v1 stack integrated into main. Chain tip: `1fbb2cbef5b4d4e8f6696bc500cdf880882ab82be1ca61ec8e0f52b5d3a38cf1`.
