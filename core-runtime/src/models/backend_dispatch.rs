@@ -149,9 +149,18 @@ fn gguf_load_config(env: &crate::config::GgufEnvConfig, workers: usize) -> GgufC
 /// legacy sibling `manifest.json`. A parsed manifest's declared `sha256` is verified against
 /// the file BEFORE any backend reads it, and the file's identity is re-checked
 /// AFTER the backend loaded it by path, so a substitution in between fails the
-/// load (nothing is registered; the model is dropped). `workers` sizes the
-/// GGUF auto thread split: the daemon's loop count, or 1 for embedded paths.
+/// load (nothing is registered; the model is dropped). Single-context
+/// (embedded) GGUF threads; see [`load_model_dispatch_for_workers`].
 pub fn load_model_dispatch(
+    model_path: &Path,
+    model_id: &str,
+) -> Result<Arc<dyn Model>, InferenceError> {
+    load_model_dispatch_for_workers(model_path, model_id, 1)
+}
+
+/// [`load_model_dispatch`] for a model that `workers` concurrent contexts
+/// will share: GGUF auto threads split across them (HOL plan Addendum A).
+pub fn load_model_dispatch_for_workers(
     model_path: &Path,
     model_id: &str,
     workers: usize,

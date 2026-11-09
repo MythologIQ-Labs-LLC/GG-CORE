@@ -357,3 +357,15 @@ ust199`);
   - the concurrency benchmark (`run.py … policy-all`) re-run and compared with §3 of `V1_SCHEDULER_HOL_BENCHMARKS.md`.
 - No GitHub Actions: #179 stays a draft, with `[skip ci]` commits and one push.
 
+### Implementation notes (Addendum B)
+- **Implemented as specified (revision 7).**
+  - The original `load_model_dispatch(path, id)`, `prepare_model_admitted(loader, limits, path, id)` and `load_model_from_path(loader, lifecycle, path, id)` are one-line wrappers that call `load_model_dispatch_for_workers`, `prepare_model_admitted_for_workers` and `load_model_from_path_for_workers` with `workers = 1`.
+  - All six functions are re-exported from `gg_core::models`.
+  - Only `runtime_init::preload_models` and `ipc/handler_models.rs` call the `*_for_workers` variants.
+  - FFI, Python, `prepare_model`, every test, `tests/doc_examples.rs` and the `USAGE_GUIDE.md` example are back to their `origin/main` form. Against `origin/main`, the only changes to them are comment lines in FFI and Python.
+- **Razor fallback used.** With the wrappers, `model_ops.rs` would reach 251 lines, so its inline tests moved unchanged to `models/model_ops_tests.rs`. `model_ops.rs` is now 198 lines, and `backend_dispatch.rs` is 232.
+- **Tests added:**
+  - `tests/public_api_compat_test.rs` (3 tests): the exact-type `fn` bindings and the original calls;
+  - `backend_dispatch_config_tests.rs` (5 tests): the cores ÷ workers policy for 1/2/4/8, written out independently; the explicit override for 1/2/4/8; `worker_loops`; and the wrapper equivalence;
+  - `config_tests.rs::explicit_thread_env_override_is_honoured`, under the existing `ENV_LOCK`.
+

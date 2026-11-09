@@ -90,8 +90,14 @@ pub async fn preload_models(
     let workers = gg_core::memory::ResourceLimits::worker_loops(Some(&runtime.resource_limits));
     for (path, id) in models {
         let (loader, lifecycle) = (&runtime.model_loader, &runtime.model_lifecycle);
-        match gg_core::models::load_model_from_path(loader, lifecycle, path, id.clone(), workers)
-            .await
+        match gg_core::models::load_model_from_path_for_workers(
+            loader,
+            lifecycle,
+            path,
+            id.clone(),
+            workers,
+        )
+        .await
         {
             Ok(loaded) => eprintln!(
                 "Preloaded model '{}' (handle {})",

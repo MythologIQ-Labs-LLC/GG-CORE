@@ -45,7 +45,7 @@ fn second_concurrent_load_is_refused_before_backend_allocation() {
     let l = limits(1_000);
     let in_flight = l.reserve_resident(600).expect("first load reserves");
     let (_dir, loader) = invalid_model(600);
-    let err = prepare_model_admitted(&loader, Some(&l), 1, "models/m.gguf", None)
+    let err = prepare_model_admitted(&loader, Some(&l), "models/m.gguf", None)
         .err()
         .expect("second load must not fit");
     assert!(
@@ -67,7 +67,7 @@ fn parallel_prepares_never_exceed_the_total() {
         .map(|_| {
             let (l, loader, peak) = (l.clone(), Arc::clone(&loader), Arc::clone(&peak));
             std::thread::spawn(move || {
-                let r = prepare_model_admitted(&loader, Some(&l), 1, "models/m.gguf", None);
+                let r = prepare_model_admitted(&loader, Some(&l), "models/m.gguf", None);
                 peak.fetch_max(l.current_memory(), std::sync::atomic::Ordering::SeqCst);
                 r.err().map(|e| is_exhausted(&e))
             })
@@ -85,7 +85,7 @@ fn parallel_prepares_never_exceed_the_total() {
 fn backend_failure_after_reservation_rolls_back() {
     let l = limits(10_000);
     let (_dir, loader) = invalid_model(4_096);
-    let err = prepare_model_admitted(&loader, Some(&l), 1, "models/m.gguf", None)
+    let err = prepare_model_admitted(&loader, Some(&l), "models/m.gguf", None)
         .err()
         .expect("invalid GGUF fails in the backend");
     assert!(matches!(err, ModelOpError::Backend(_)), "{err}");

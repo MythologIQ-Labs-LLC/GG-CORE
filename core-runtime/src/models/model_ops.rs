@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use super::backend_dispatch::load_model_dispatch;
+use super::backend_dispatch::load_model_dispatch_for_workers;
 use super::lifecycle::{LifecycleError, ModelLifecycle};
 use super::loader::{LoadError, ModelLoader, ModelMetadata};
 use crate::engine::Model;
@@ -78,7 +78,7 @@ pub fn prepare_model(
     relative_path: &str,
     model_id: Option<String>,
 ) -> Result<PreparedModel, ModelOpError> {
-    prepare_model_admitted(loader, None, 1, relative_path, model_id)
+    prepare_model_admitted(loader, None, relative_path, model_id)
 }
 
 /// [`prepare_model`] that first **reserves** the model's file size against
@@ -87,15 +87,25 @@ pub fn prepare_model(
 /// cap inside the backend); a load that does not fit fails explicitly. The
 /// reservation travels with the [`PreparedModel`]: it is released if backend
 /// load fails or the prepared model is dropped, and re-sized to the backend's
-/// reported footprint when `ModelLifecycle` registers it. `workers` sizes
-/// the GGUF auto thread split (the daemon passes its worker-loop count;
-/// callers whose inference is not pool-bounded pass 1).
+/// reported footprint when `ModelLifecycle` registers it. Single-context
+/// GGUF threads; see [`prepare_model_admitted_for_workers`].
 pub fn prepare_model_admitted(
     loader: &ModelLoader,
     limits: Option<&crate::memory::ResourceLimits>,
-    workers: usize,
     relative_path: &str,
     model_id: Option<String>,
+) -> Result<PreparedModel, ModelOpError> {
+    prepare_model_admitted_for_workers(loader, limits, relative_path, model_id, 1)
+}
+
+/// [`prepare_model_admitted`] for a model `workers` concurrent contexts will
+/// share (the daemon passes its worker-loop count; HOL plan Addendum A).
+pub fn prepare_model_admitted_for_workers(
+    loader: &ModelLoader,
+    limits: Option<&crate::memory::ResourceLimits>,
+    relative_path: &str,
+    model_id: Option<String>,
+    workers: usize,
 ) -> Result<PreparedModel, ModelOpError> {
     let validated = loader.validate_path(relative_path)?;
     let metadata = loader.load_metadata(&validated)?;
@@ -105,7 +115,7 @@ pub fn prepare_model_admitted(
         None => None,
     };
 
-    let model = load_model_dispatch(validated.as_path(), &id, workers)
+    let model = load_model_dispatch_for_workers(validated.as_path(), &id, workers)
         .map_err(|e| ModelOpError::Backend(e.to_string()))?;
 
     Ok(PreparedModel {
@@ -150,9 +160,18 @@ pub async fn register_prepared(
 ///
 /// `model_id` overrides the default id (the model file stem). Backend
 /// dispatch runs on the calling thread; async contexts serving other traffic
-/// should use [`prepare_model`] under `spawn_blocking` instead. `workers`:
-/// see [`prepare_model_admitted`].
+/// should use [`prepare_model`] under `spawn_blocking` instead.
 pub async fn load_model_from_path(
+    loader: &ModelLoader,
+    lifecycle: &Arc<ModelLifecycle>,
+    relative_path: &str,
+    model_id: Option<String>,
+) -> Result<LoadedModel, ModelOpError> {
+    load_model_from_path_for_workers(loader, lifecycle, relative_path, model_id, 1).await
+}
+
+/// [`load_model_from_path`] for `workers` concurrent contexts (daemon).
+pub async fn load_model_from_path_for_workers(
     loader: &ModelLoader,
     lifecycle: &Arc<ModelLifecycle>,
     relative_path: &str,
@@ -160,7 +179,8 @@ pub async fn load_model_from_path(
     workers: usize,
 ) -> Result<LoadedModel, ModelOpError> {
     let limits = lifecycle.resource_limits();
-    let prepared = prepare_model_admitted(loader, limits, workers, relative_path, model_id)?;
+    let prepared =
+        prepare_model_admitted_for_workers(loader, limits, relative_path, model_id, workers)?;
     register_prepared(lifecycle, prepared).await
 }
 
@@ -174,58 +194,5 @@ pub async fn unload_model(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::engine::InferenceEngine;
-    use crate::models::registry::ModelRegistry;
-
-    fn test_lifecycle() -> Arc<ModelLifecycle> {
-        let registry = Arc::new(ModelRegistry::new());
-        let engine = Arc::new(InferenceEngine::new(4096));
-        Arc::new(ModelLifecycle::new(registry, engine))
-    }
-
-    #[tokio::test]
-    async fn traversal_path_is_rejected_before_any_backend_work() {
-        let loader = ModelLoader::new(std::path::PathBuf::from("."));
-        let lifecycle = test_lifecycle();
-        let err = load_model_from_path(&loader, &lifecycle, "../../etc/passwd", None, 1)
-            .await
-            .unwrap_err();
-        assert!(matches!(err, ModelOpError::Path(_)), "got: {err}");
-        assert_eq!(lifecycle.count().await, 0, "no partial state");
-    }
-
-    #[tokio::test]
-    async fn nul_byte_path_is_rejected() {
-        let loader = ModelLoader::new(std::path::PathBuf::from("."));
-        let lifecycle = test_lifecycle();
-        let err = load_model_from_path(&loader, &lifecycle, "models/a\0b.gguf", None, 1)
-            .await
-            .unwrap_err();
-        assert!(matches!(err, ModelOpError::Path(_)));
-    }
-
-    #[tokio::test]
-    async fn missing_model_fails_loud_with_no_partial_state() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(dir.path().join("models")).unwrap();
-        let loader = ModelLoader::new(dir.path().to_path_buf());
-        let lifecycle = test_lifecycle();
-        let err = load_model_from_path(&loader, &lifecycle, "models/absent.gguf", None, 1)
-            .await
-            .unwrap_err();
-        assert!(matches!(err, ModelOpError::Path(LoadError::NotFound(_))));
-        assert_eq!(lifecycle.count().await, 0);
-    }
-
-    #[tokio::test]
-    async fn unload_of_absent_model_fails_loud() {
-        let lifecycle = test_lifecycle();
-        let err = unload_model(&lifecycle, "ghost").await.unwrap_err();
-        assert!(matches!(
-            err,
-            ModelOpError::Lifecycle(LifecycleError::NotLoaded(_))
-        ));
-    }
-}
+#[path = "model_ops_tests.rs"]
+mod tests;

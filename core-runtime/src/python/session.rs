@@ -103,8 +103,8 @@ impl Session {
         let metadata = self.runtime.model_loader.load_metadata(&validated)?;
         let model_id = metadata.name.clone();
 
-        // workers = 1: embedded inference is not pool-bounded (Addendum A, V7).
-        let model = crate::models::load_model_dispatch(validated.as_path(), &model_id, 1)?;
+        // Single-context threads: embedded inference is not pool-bounded (V7).
+        let model = crate::models::load_model_dispatch(validated.as_path(), &model_id)?;
 
         let handle = self
             .tokio

@@ -27,7 +27,13 @@ impl IpcHandler {
         let workers = crate::memory::ResourceLimits::worker_loops(limits.as_ref());
 
         let prepared = match spawn_blocking(move || {
-            model_ops::prepare_model_admitted(&loader, limits.as_ref(), workers, &path, model_id)
+            model_ops::prepare_model_admitted_for_workers(
+                &loader,
+                limits.as_ref(),
+                &path,
+                model_id,
+                workers,
+            )
         })
         .await
         {

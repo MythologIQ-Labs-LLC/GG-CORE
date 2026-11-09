@@ -138,7 +138,7 @@ fn oversized_load_is_refused_before_backend_io() {
         max_concurrent: 1,
     });
     let result =
-        crate::models::prepare_model_admitted(&loader, Some(&limits), 1, "models/big.gguf", None);
+        crate::models::prepare_model_admitted(&loader, Some(&limits), "models/big.gguf", None);
     let err = result
         .err()
         .expect("4096-byte model must not fit a 1024 budget");
