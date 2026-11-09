@@ -441,3 +441,23 @@ Revisions 2–4 of the plan (see below). Revision 4: PASS.
 **Revision 2 (2026-11-09):** V2–V4 resolved. VETO again on **V5**: the poison flag covered only the stream bridge, while `server.rs` keeps a second frame writer over the same connection. Pattern: before you guard a shared resource, find *every* writer of it, not just the one in the failing path.
 
 **Revision 3 (2026-11-09):** V5 resolved. VETO on **V6**: frame writes bounded by the request deadline would poison the whole connection sooner than the published stall bound. Pattern: when one timeout has connection-wide consequences, it must be the documented one, never the per-request one.
+
+---
+
+## Failure Entry #5
+
+**Date:** 2026-11-09
+**Verdict ID:** V1_SCHEDULER_HOL_BLOCKING_AUDIT (VETO, revision 5)
+**Failure Mode:** GHOST_PATH
+
+### What failed
+Addendum A: dividing the auto GGUF thread count by `max_concurrent`.
+
+### Why it failed
+**V7:** the plan read `max_concurrent` on every load path. But only the daemon's worker pool actually bounds concurrent execution by it. Embedded `Runtime::infer`/`infer_stream` call the engine directly, so serial embedders would have lost half their decode threads with no gain.
+
+### Pattern to avoid
+Before deriving a resource split from a configured limit, confirm that the limit is *enforced* on every path that consumes the split. A configured value is not the same as an enforced one.
+
+### Remediation attempted
+Revision 6: `workers` is explicit, the daemon passes its pool size, and FFI and Python pass 1. Resubmission: PASS.

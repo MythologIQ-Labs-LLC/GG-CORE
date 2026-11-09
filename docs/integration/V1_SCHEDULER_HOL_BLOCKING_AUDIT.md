@@ -220,3 +220,84 @@ This tribunal sat because the implementation departs from the plan text in one p
 
 ## Ledger
 Deferred to merge (parallel v1 branches), as for the other v1 tribunals.
+
+---
+
+# AUDIT REPORT: Revision 5 (Addendum A, per-context thread policy)
+
+**Tribunal Date:** 2026-11-09
+**Target:** plan revision 5 (sha256 `3e15a82489a894a5bb50e06215a68955bd971f1eb91fdfa7a0e935cb76dd0b58`)
+**Risk Grade:** L2
+**Auditor:** The QoreLogic Judge
+**VERDICT:** VETO
+
+## Executive summary
+The policy itself is sound, owner-approved and measured. The verdict is VETO because the plan applies the divided default on load paths where `max_concurrent` does not bound concurrency. That silently regresses embedded users.
+
+## Passes
+- **Security: PASS.**
+  - No new input, IPC surface, dependency or unsafe code.
+  - Division by zero is excluded (`workers ≥ 1`), and the auto result is in [1, 16].
+  - The memory claim checks out: per-thread scratch is inside the fixed 32 MiB `OVERHEAD` term (`working_memory.rs:22`), and the auto count never rises.
+- **Ghost path: FAIL (V7).**
+  - Design step 3 claims that "every load path sees the real worker count", using `ResourceLimits::max_concurrent()` from the lifecycle.
+  - But the embedded `Runtime::infer` (`runtime_facade.rs:60-80`) and `Runtime::infer_stream` (`runtime_facade.rs:93-122`) call `InferenceEngine` directly. They never pass through `worker_pool` or `acquire_guard`, so embedded concurrency is chosen by the caller and is not bounded by `max_concurrent`.
+  - With `ResourceLimitsConfig::default()` (`max_concurrent: 2`, `limits.rs:32`), a serial FFI or Python embedder would get 6 threads instead of 12 on 12 vCPUs: a single-request decode regression with no concurrency gain.
+  - The same applies to a Rust embedder calling the public `models::load_model_from_path`.
+- **Razor: PASS.** The size estimates are within limits, and pre-existing oversize files only shrink.
+- **Dependencies: PASS.** `num_cpus` is already an unconditional dependency (`Cargo.toml:95`).
+- **Orphans: PASS.** `threads.rs` is reached from `engine/gguf/mod.rs`, `backend.rs`, `backend_dispatch.rs` and `config_cmd.rs`.
+- **Macro architecture: PASS, apart from V7.** There is one policy function, and the pool and the policy share `worker_loops`.
+
+## Violations
+| ID | Category | Location | Description |
+|---|---|---|---|
+| V7 | Ghost path (behaviour regression) | Plan Addendum A, Design step 3; `runtime_facade.rs:60,93`; `ffi/models.rs:50`; `python/session.rs:106`; `models/model_ops.rs:151` | The divided default is applied on load paths whose inference is not bounded by `max_concurrent`, halving embedded single-request threads |
+
+## Required remediation
+1. Apply `max_concurrent` division only where the worker pool bounds execution, which is the daemon.
+2. Make `workers` an explicit argument of the public `model_ops` load functions, rather than inferring it from `limits`.
+3. FFI and Python pass 1.
+4. Add a test that pins the embedded value as unchanged, and update the contract to say so.
+
+## Ledger
+Deferred to merge (parallel v1 branches), as for the other v1 tribunals. Shadow Genome entry #5.
+
+---
+
+# AUDIT REPORT: Revision 6
+
+**Tribunal Date:** 2026-11-09
+**Target:** plan revision 6 (sha256 `c900d005e29616c265503a52d255e12ba1fb0a91e2d788f712ab414b5151bf58`)
+**Risk Grade:** L2
+**Auditor:** The QoreLogic Judge
+**VERDICT:** PASS
+
+## Revision-5 violation
+- **V7: resolved.**
+  - `workers` is an explicit argument of `prepare_model_admitted` and `load_model_from_path`.
+  - Only the daemon callers (`runtime_init::preload_models` and `ipc/handler_models.rs`) pass `worker_loops(Some(&runtime.resource_limits))`, which is the same object given to `worker_pool::spawn` (`runtime_init.rs:276`).
+  - FFI and Python pass 1, so embedded behaviour equals today's `min(logical, 16)`, pinned by a test.
+  - The contract text names the embedded behaviour and the override.
+
+## Passes
+- **Security: PASS.** As at revision 5. There is no surface change and the arithmetic is bounded. Memory admission is unchanged and stays an upper bound.
+- **Ghost path: PASS.**
+  - Every load path is enumerated: daemon preload, IPC load, FFI, Python and public Rust.
+  - `config show` and `config defaults` expose the resolved value.
+  - The contract, `config.rs` row and `USAGE_GUIDE.md` are in scope.
+- **Razor: PASS.**
+  - `threads.rs` is ≤ 80 lines; every touched file ≤ 250 stays ≤ 250.
+  - `backend.rs` (678) shrinks, and `runtime_init.rs` (316) does not grow.
+  - Every function is ≤ 40 lines with nesting ≤ 3.
+- **Dependencies: PASS.** None added.
+- **Orphans: PASS.** Every new item has a production caller and a named test.
+- **Macro architecture: PASS.**
+  - One policy function (`threads::per_context`) is reached from both the dispatch path and `resolve_threads`.
+  - One worker-count definition (`ResourceLimits::worker_loops`) is shared by the pool and the daemon load path.
+  - Threads are still resolved once per model load.
+
+**Scope of this PASS:** Addendum A (revision 6) may be implemented on `feat/v1-thread-policy-20261109-no-ci`. The VM re-measurement in its Tests section is the acceptance gate. Any default other than `max(1, min(logical, 16) / workers)` on the daemon path needs a new tribunal.
+
+## Ledger
+Deferred to merge (parallel v1 branches), as for the other v1 tribunals.
