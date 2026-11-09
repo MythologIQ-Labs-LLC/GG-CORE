@@ -136,6 +136,7 @@ const LONG: &str = "Write the numbers from 1 to 400, one per line.";
 /// worker; the next client is served and the stalled connection is closed.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn stalled_reader_does_not_starve_the_next_client() {
+    let _l = super::release::TEST_LOCK.lock().await; // one real-model daemon at a time
     let Some(d) = daemon(1).await else { return };
     let (mut stalled, stalled_task) = connect(&d, 1024).await;
     send(&mut stalled, &generate(1, LONG, 400, true)).await;
@@ -168,6 +169,7 @@ async fn stalled_reader_does_not_starve_the_next_client() {
 /// stream is still generating.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn short_request_is_not_serialized_behind_a_long_stream() {
+    let _l = super::release::TEST_LOCK.lock().await; // one real-model daemon at a time
     let Some(d) = daemon(2).await else { return };
     let (mut streaming, _s) = connect(&d, 64 * 1024).await;
     send(&mut streaming, &generate(1, LONG, 400, true)).await;

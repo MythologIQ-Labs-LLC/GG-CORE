@@ -94,6 +94,7 @@ impl<W: AsyncWriteExt + Unpin + Send + 'static> Wait<W> {
     }
 }
 
-/// Serialises tests that start release waits, so [`LIVE_WAITS`] is exact.
+/// Serialises tests that start release waits (so [`LIVE_WAITS`] is exact)
+/// and real-model daemon tests (so CPU contention cannot skew their timing).
 #[cfg(test)]
 pub(super) static TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
