@@ -177,3 +177,46 @@ Shadow Genome entry #4 is extended: a finding was resolved in one writer while a
 
 ## Ledger
 Deferred to merge (parallel v1 branches), as for the other v1 tribunals. Shadow Genome entry #4: remediation applied in revisions 2–4.
+
+---
+
+# AUDIT REPORT: Phase 2 implementation addendum
+
+**Tribunal Date:** 2026-11-09
+**Target:** plan revision 4 plus Phase 2 implementation notes (sha256 `206aad3672e3e24a627290c5ae1c9cc032d3da98f38b657eed5396794bd2c57e`); implementation `0e4f3de`
+**Risk Grade:** L2
+**Auditor:** The QoreLogic Judge
+**VERDICT:** PASS
+
+This tribunal sat because the implementation departs from the plan text in one place: where the CPU oversubscription note is documented.
+
+## Precondition (Phase 2 gate)
+- **Static review: satisfied.**
+  - `LlamaBackendInner` holds only immutable shared state.
+  - llama-cpp-2 0.1.161 itself declares `LlamaModel: Send + Sync`.
+  - Every generation path builds its own context, batch and sampler.
+  - No statics, thread-locals or interior mutability are on the release path. The speculative `Mutex` is `advanced`-only.
+- **Measured: satisfied.** `concurrent_generations_match_serial_outputs` passed in the offline VM (real Qwen2.5-0.5B, 7.3 s, not skipped): three concurrent rounds were byte-identical to the serial greedy outputs. The `Semaphore(1)` fallback is correctly not applied.
+
+## Passes
+- **Security: PASS.**
+  - Concurrency is bounded by `max_concurrent` loops and by `acquire_guard`. The pool test shows that the peak in flight equals `max_concurrent` and never exceeds it.
+  - Memory remains one checked total, with the Job Object cap as the backstop.
+  - No new IPC surface, dependency or unsafe code.
+  - The default behaviour change (2 concurrent requests) is documented, together with the serial opt-out.
+- **Ghost path: PASS.** The contract §Concurrency and the config table describe the runtime behaviour.
+  - **Deviation (documentation location):** the note is not in `RELEASE_SUPPORT_AND_MAINTENANCE.md`. Accepted, because that file is the RC1 support guide and v1 behaviour there would be a false claim about RC1.
+- **Razor: PASS.**
+  - `worker_pool.rs` is 122 lines. That exceeds the plan's own ≤ 120 estimate but is well within the 250 limit, so it is not a violation.
+  - Every new function is ≤ 40 lines with nesting ≤ 3.
+  - `server.rs` (337 → 336) has not grown.
+- **Dependencies: PASS.** None added.
+- **Orphans: PASS.**
+  - `worker_pool` is reached from `spawn_worker_with_registry` (daemon `runtime_init.rs`, and every test).
+  - `ResourceLimits::max_concurrent` is used by `worker_pool::spawn`.
+- **Macro architecture: PASS.**
+  - Execution logic stays in `worker.rs`, `worker_streaming.rs` and `worker_typed.rs`; the pool only schedules.
+  - Queue ownership and wake semantics are unchanged (`notify_one` per enqueue, checked before each wait).
+
+## Ledger
+Deferred to merge (parallel v1 branches), as for the other v1 tribunals.
