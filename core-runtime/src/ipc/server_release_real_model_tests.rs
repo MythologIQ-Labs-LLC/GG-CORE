@@ -39,7 +39,7 @@ fn instance() -> Option<Arc<dyn Model>> {
     }
     let config = GgufConfig {
         n_ctx: N_CTX,
-        n_threads: 4,
+        n_threads: 2, // light: other real-model tests run in parallel
         n_gpu_layers: 0,
     };
     let generator = GgufGenerator::load("qwen".into(), Path::new(MODEL), &config).expect("load");
@@ -126,7 +126,7 @@ async fn connect(d: &Daemon, pipe: usize) -> DuplexStream {
 }
 
 fn generate(id: u64, model: &str, stream: bool) -> IpcMessage {
-    let (prompt, max_tokens) = if stream { (LONG, 400) } else { (SHORT, 8) };
+    let (prompt, max_tokens) = if stream { (LONG, 120) } else { (SHORT, 8) };
     IpcMessage::InferenceRequest(InferenceRequest {
         request_id: RequestId(id),
         model_id: model.into(),
