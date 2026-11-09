@@ -168,16 +168,21 @@ async fn streams_do_not_starve_main_requests() {
     }
     let main = request(&queue).await;
     let last = streams.pop().expect("three streams");
+    // Streams to an absent model end at once; the main request takes WORK.
+    // Strict stream-first order ends the last stream near `start`; rotation
+    // ends it after the main request, about WORK later. Comparing against
+    // WORK / 2, not the main answer's wake-up instant, is immune to task
+    // wake-up jitter between the two observers.
+    let start = Instant::now();
     let p = spawn_on(queue, 1).await;
     let last_done = tokio::spawn(async move {
         let _ = last.collect().await;
         Instant::now()
     });
     answered(main).await;
-    let main_done = Instant::now();
     let last_done = last_done.await.expect("stream joined");
     assert!(
-        last_done > main_done,
+        last_done.duration_since(start) >= WORK / 2,
         "main request waited behind every stream"
     );
     p.shutdown.cancel();

@@ -19,13 +19,20 @@ use crate::engine::InferenceError;
 
 /// Atomically add `bytes` to `counter` iff the sum is `<= limit` and does not
 /// overflow. On refusal returns the (saturated) total that was attempted.
+/// An explicit CAS loop: `fetch_update` is deprecated on newer toolchains
+/// (renamed `try_update`), which is not available at the 1.97 MSRV.
 pub(super) fn try_reserve(counter: &AtomicUsize, bytes: usize, limit: usize) -> Result<(), usize> {
-    counter
-        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
-            current.checked_add(bytes).filter(|total| *total <= limit)
-        })
-        .map(|_| ())
-        .map_err(|current| current.saturating_add(bytes))
+    let mut current = counter.load(Ordering::SeqCst);
+    loop {
+        let total = match current.checked_add(bytes) {
+            Some(total) if total <= limit => total,
+            _ => return Err(current.saturating_add(bytes)),
+        };
+        match counter.compare_exchange_weak(current, total, Ordering::SeqCst, Ordering::SeqCst) {
+            Ok(_) => return Ok(()),
+            Err(actual) => current = actual,
+        }
+    }
 }
 
 /// RAII reservation for a loaded (or loading) model's resident bytes.
