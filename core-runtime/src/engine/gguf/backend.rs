@@ -538,17 +538,10 @@ fn build_sampler(config: &InferenceConfig, n_vocab: i32) -> LlamaSampler {
     LlamaSampler::chain_simple(s)
 }
 
+/// `GgufConfig::n_threads` (0 = auto for one worker; the daemon dispatch path
+/// resolves its divided value before load) through the single thread policy.
 fn resolve_threads(n: u32) -> i32 {
-    if n == 0 {
-        // LLM inference is memory-bound, hyperthreads help hide latency
-        // Use all logical cores for small models, cap for large models
-        let logical = num_cpus::get();
-        // Cap at 16 to avoid diminishing returns on high-core systems
-        let optimal = logical.clamp(1, 16);
-        i32::try_from(optimal).unwrap_or(4)
-    } else {
-        i32::try_from(n).unwrap_or(4)
-    }
+    i32::try_from(super::threads::per_context_for_host(n, 1)).unwrap_or(4)
 }
 
 #[cfg(test)]

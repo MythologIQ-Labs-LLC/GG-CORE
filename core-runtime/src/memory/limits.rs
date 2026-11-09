@@ -159,6 +159,12 @@ impl ResourceLimits {
     pub fn max_concurrent(&self) -> usize {
         self.inner.config.max_concurrent
     }
+
+    /// Scheduler worker loops for `limits`: `max_concurrent`, or 1 without
+    /// limits. Shared by the pool and the daemon's GGUF thread split.
+    pub fn worker_loops(limits: Option<&Self>) -> usize {
+        limits.map_or(1, Self::max_concurrent).max(1)
+    }
 }
 
 /// RAII guard that releases resources when dropped.

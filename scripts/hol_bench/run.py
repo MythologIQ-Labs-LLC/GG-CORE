@@ -1,6 +1,6 @@
 """HOL Phase 2 measurements (offline Windows VM).
 
-usage: python -I -B run.py <gg-core-cli.exe> <verified models dir> <work dir> [concurrency|multimodel|all]
+usage: python -I -B run.py <gg-core-cli.exe> <verified models dir> <work dir> [concurrency|multimodel|all|policy|policy-all]
 
 Stages a confined base directory whose models/ tree hard-links the verified
 weights (no copy), writes ONNX manifests, then runs the requested phases and
@@ -56,6 +56,10 @@ def main():
         raise SystemExit(f'model hash mismatch: {result["staged"]}')
     if phase in ('concurrency', 'all'):
         result['concurrency'] = concurrency.sweep(exe, str(base), str(logs))
+    if phase in ('policy', 'policy-all'):
+        result['concurrency'] = concurrency.sweep(exe, str(base), str(logs), concurrency.POLICY)
+    if phase == 'policy-all':
+        phase = 'multimodel'
     if phase in ('multimodel', 'all'):
         result['multimodel'] = [multimodel.run(exe, str(base), str(logs / f'daemon-mm-c{n}.log'), n)
                                 for n in (2, 4)]

@@ -33,15 +33,16 @@ pub mod persistence;
 pub mod search;
 pub mod version;
 
-pub use backend_dispatch::{load_model_dispatch, BackendChoice};
+pub use backend_dispatch::{load_model_dispatch, load_model_dispatch_for_workers, BackendChoice};
 pub use drain::{DrainError, FlightGuard, FlightTracker};
 pub use history::{VersionHistory, VersionHistoryEntry, VersionSource};
 pub use lifecycle::{LifecycleError, ModelLifecycle};
 pub use loader::{LoadError, MappedModel, ModelLoader, ModelMetadata, ModelPath};
 pub use manifest::{ModelArchitecture, ModelCapability, ModelManifest};
 pub use model_ops::{
-    load_model_from_path, prepare_model, prepare_model_admitted, register_prepared, unload_model,
-    LoadedModel, ModelOpError, PreparedModel,
+    load_model_from_path, load_model_from_path_for_workers, prepare_model, prepare_model_admitted,
+    prepare_model_admitted_for_workers, register_prepared, unload_model, LoadedModel, ModelOpError,
+    PreparedModel,
 };
 pub use persistence::{PersistedModel, PersistenceError, RegistryPersistence, RegistryState};
 pub use pool::ModelTier as PoolModelTier;

@@ -87,3 +87,62 @@ These figures come from one VM on one day. They are evidence for #177 and #161, 
 - Admission at the memory limit under concurrency (see the #174/#176 qualification).
 - Prompts longer than the fixtures, or contexts other than 4096.
 - Repeated runs for variance: this is a single run per configuration.
+
+## 3. Per-context thread policy (Addendum A), re-measured
+**Build:** `feat/v1-thread-policy-20261109-no-ci` at `cd5f550` (stacked on `51d0fa4`), `gg-core-cli` release build, `onnx,gguf`. Same VM (12 vCPU, 24 GiB), harness (`run.py … policy-all`), models and workload as sections 1 and 2.
+**VM gate before measuring:** fmt and clippy (`onnx,gguf,ffi`, `-D warnings`) clean; `cargo test --features onnx,gguf,ffi` 1516 passed, 0 failed, 1 ignored (pre-existing); default `--lib` 753 passed.
+`GG_CORE_N_THREADS` is unset unless stated, and each row's resolved count was read from `gg-core-cli config show` under the same environment.
+
+| `GG_CORE_MAX_CONCURRENT` | Resolved threads per context (`config show`) | Aggregate tok/s | Before: default threads (§1) | Before: explicit 12/N (§1) | Decode tok/s per request | TTFT p50 / p95 ms | Total p50 / p95 ms | Identical | Peak private |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 12 (auto) | 93.4 | 82.5 | — | 136.0 | 358 / 460 | 1 322 / 1 463 | 16/16 | 0.49 GiB |
+| 2 | 6 (auto) | **102.2** | 85.0 | 106.3 | 81.1 | 670 / 1 023 | 2 349 / 2 956 | 16/16 | 0.90 GiB |
+| 4 | 3 (auto) | **160.2** | 94.9 | 149.4 | 64.8 | 845 / 1 011 | 2 935 / 3 172 | 16/16 | 1.70 GiB |
+| 8 | 1 (auto) | **163.3** | 99.9 | 160.2 | 31.5 | 1 625 / 1 858 | 5 729 / 6 025 | 24/24 | 3.31 GiB |
+| 4 | 12 (explicit override) | 109.7 | 94.9 | — | 39.7 | 1 126 / 1 336 | 4 327 / 4 593 | 16/16 | 1.72 GiB |
+
+**Findings:**
+- **Acceptance gate (plan Addendum A): met.**
+  - Every stream in every row is byte-identical to the serial baseline (88 of 88 concurrent streams, plus 40 of 40 per-daemon serial passes). No request failed.
+  - Aggregate throughput at N ≥ 2 is above the earlier default-thread rows: **+20 % (N=2), +69 % (N=4), +63 % (N=8)**. It is within run-to-run noise of the earlier explicit 12/N rows, which the policy reproduces by construction.
+- **Run-to-run variance is about 13 %.** N = 1 runs the identical configuration as in §1 (12 threads), yet measured 93.4 tok/s against 82.5. Treat differences of that size as noise. Each row is still a single run.
+- **Latency.**
+  - N = 4: p95 TTFT fell from 1 484 ms to 1 011 ms, and p95 total from 5 667 ms to 3 172 ms.
+  - N = 8: p95 TTFT fell from 3 998 ms to 1 858 ms, and p95 total from 11 124 ms to 6 025 ms.
+  - N = 2: p95 total fell from 3 454 ms to 2 956 ms. p95 TTFT rose from 911 ms to 1 023 ms; with 16 samples, p95 is the second-highest value, so this is within noise but is reported as measured.
+- **Override honoured.** `GG_CORE_N_THREADS=12` at N = 4 resolves to 12 per context, as `config show` reports. It reproduces the oversubscribed behaviour: 109.7 tok/s and p95 TTFT 1 336 ms, against 160.2 tok/s and 1 011 ms for the auto value.
+- **Memory unchanged.** Peak private bytes match §1 within 1 % at every N. The thread count does not change admitted working memory, as the plan's security review states.
+- **N = 8 uses 8 of 12 cores** (1 thread × 8 contexts, 7.3 cores busy), because integer division leaves 4 cores idle. It is still the highest-throughput row. A remainder-distributing split is a possible later refinement and is not part of this change.
+
+### Multi-model under the policy (default total 12 GiB)
+| | `max_concurrent=2` (6 threads per GGUF context) | `max_concurrent=4` (3 threads per GGUF context) |
+|---|---|---|
+| All 5 models loaded / admission refusals | 5/5 / **0** | 5/5 / **0** |
+| Failed requests | 0 / 24 | 0 / 24 |
+| Peak private bytes (mixed load) | 5.67 GiB (47 %) | 7.49 GiB (62 %) |
+| Allocation failures (daemon log) | 0 | 0 |
+| Idle: all five resident → after mixed load → end | 2 442 → 2 469 → 2 465 MiB | 2 442 → 2 470 → 2 468 MiB |
+| Phi-3.5 unloaded (×2 cycles); reload and infer | 1 206 / 1 208 MiB; ok | 1 207 / 1 210 MiB; ok |
+| Phi-3.5 generation latency (before, §2) | 6.3–10.4 s (8.1–16.2 s) | 9.6–10.9 s (7.8–9.4 s) |
+| DistilBERT classify latency (before, §2) | 1.1–3.1 s (0.8–8.5 s) | 0.09–0.9 s (0.1–1.6 s) |
+
+- **No change to admission, leaks or memory.** There were zero refusals, zero allocation failures, flat idle memory, and the same unload return as §2.
+- **Larger models at 3 threads.** At N = 4 each Phi-3.5 (3.8B) request is somewhat slower than under the old 12-thread contexts (up to 10.9 s against 9.4 s), while typed requests and N = 2 generations got faster. Splitting cores trades per-request speed for fairness and aggregate throughput, as intended. Operators who prefer per-request speed for large models can set `GG_CORE_N_THREADS`.
+
+## 4. Re-run after Addendum B (source-compatible API)
+**Build:** #179 at `1112378` (Addendum B on top of §3), `gg-core-cli` release build under Rust 1.97, `onnx,gguf`, exe sha256 `50219962…2d6b0e`. Same VM, harness (`run.py … policy`), workload and models as §3. Addendum B changes no runtime behaviour on the daemon path, so this run checks reproducibility, not an improvement.
+
+| N | Resolved threads per context | Aggregate tok/s, §4 (§3) | Decode tok/s per request | TTFT p50 / p95 ms, §4 (§3 p95) | Total p50 / p95 ms, §4 (§3 p95) | Identical | Peak private |
+|---|---|---|---|---|---|---|---|
+| 1 | 12 (auto) | 78.6 (93.4) | 108.9 | 429 / 463 (460) | 1 584 / 1 691 (1 463) | 16/16 | 0.49 GiB |
+| 2 | 6 (auto) | 123.8 (102.2) | 88.5 | 556 / 606 (1 023) | 1 999 / 2 105 (2 956) | 16/16 | 0.90 GiB |
+| 4 | 3 (auto) | 165.3 (160.2) | 62.3 | 780 / 918 (1 011) | 2 838 / 3 115 (3 172) | 16/16 | 1.71 GiB |
+| 8 | 1 (auto) | 147.6 (163.3) | 27.2 | 1 767 / 2 094 (1 858) | 6 560 / 6 757 (6 025) | 24/24 | 3.31 GiB |
+| 4 | 12 (explicit) | 112.2 (109.7) | 39.6 | 1 139 / 1 272 (1 336) | 4 411 / 4 504 (4 593) | 16/16 | 1.72 GiB |
+
+**Findings:**
+- **Correctness reproduced.** Every stream in every row is byte-identical to the serial baseline (88/88 concurrent, 40/40 serial), with 0 errors. Peak private bytes match §3 within 1 %.
+- **The policy's advantage reproduces.** Across §1, §3 and §4, the auto split at N ≥ 2 (102–166 tok/s) is above every default-thread run (85–100 tok/s) and every oversubscribed override run (110–112 tok/s).
+- **Run-to-run variance is larger than one run suggests.** The identical N = 1 configuration measured 82.5, 93.4 and 78.6 tok/s across §1, §3 and §4 (about ±9 %). N = 8 measured 163.3 and then 147.6. Differences under about 15 % between single runs are not significant.
+- **N = 4 is the most consistent best value on this VM** (160.2 and 165.3 tok/s). N = 8 uses 8 of 12 cores (7.4 busy) because of the integer split.
+- **Not covered:** repeated runs for confidence intervals, Linux, macOS and GPU.

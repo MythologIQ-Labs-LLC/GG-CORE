@@ -172,3 +172,19 @@ fn per_call_ceiling_is_none_unless_explicitly_set() {
     );
     clear_env_vars();
 }
+
+/// HOL plan Addendum B: an explicit `GG_CORE_N_THREADS` reaches the GGUF
+/// config and is used per context, not divided by the worker count.
+#[test]
+fn explicit_thread_env_override_is_honoured() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    clear_env_vars();
+    std::env::set_var("GG_CORE_N_THREADS", "5");
+    let n_threads = load_gguf_config().n_threads;
+    std::env::remove_var("GG_CORE_N_THREADS");
+    assert_eq!(n_threads, 5);
+    for workers in [1, 2, 4, 8] {
+        let per = crate::engine::gguf::threads::per_context_for_host(n_threads, workers);
+        assert_eq!(per, 5, "workers {workers}");
+    }
+}

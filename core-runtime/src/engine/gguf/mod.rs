@@ -9,6 +9,7 @@ pub mod backend;
 mod generator;
 #[cfg(all(feature = "gguf", feature = "advanced"))]
 pub mod speculative_session;
+pub mod threads;
 pub mod working_memory;
 
 #[cfg(all(feature = "gguf", feature = "advanced"))]

@@ -15,6 +15,12 @@
 
 **Revision 4 (2026-11-09):** responds to the revision-3 VETO (V6). Frame writes are bounded by `stall` only. The request deadline ends the stream but never poisons the connection.
 
+**Revision 5 (2026-11-09):** Addendum A adds an owner-approved per-context thread policy (auto threads = `max(1, min(logical, 16) / max_concurrent)`, with `GG_CORE_N_THREADS` as the explicit override). It replaces V4's "no per-context thread policy" and nothing else.
+
+**Revision 6 (2026-11-09):** responds to the revision-5 VETO (V7). The divided default applies only where the worker pool actually bounds concurrency. The daemon passes its loop count explicitly into `model_ops`. Embedded FFI/Python and public Rust `model_ops` callers choose `workers` themselves (FFI/Python pass 1) and keep one worker's worth of threads, because embedded `Runtime::infer`/`infer_stream` are not bounded by `max_concurrent`.
+
+**Revision 7 (2026-11-09):** an owner-approved independent review of #179 (head `f54fca3`) requires the public Rust API to stay source-compatible. Addendum B keeps the three existing signatures as single-context wrappers and adds explicitly named worker-aware variants. Only the daemon calls those variants. Revision 6's policy and numbers are unchanged.
+
 ## Observed
 On the v1 integration daemon, with explicit memory limits and CPU GGUF:
 - A worker-path request queued behind an active stream waited until the stream ended (about 17 s).
@@ -186,3 +192,190 @@ Phase 1 is implemented on this branch. These notes record where the code refines
 - **Deviation (documentation location only).** The plan says to document CPU oversubscription in `RELEASE_SUPPORT_AND_MAINTENANCE.md`, but that file is the RC1 support guide, and v1.0.0 behaviour there would mislead RC1 users. The note is in `COREFORGE_PRODUCER_CONTRACT.md` (§Concurrency) and in the `GG_CORE_MAX_CONCURRENT` row of `config.rs`. It was re-audited (see the audit addendum).
 - **Behaviour change to note.** The default daemon (`GG_CORE_MAX_CONCURRENT=2`) now runs two requests at once. `GG_CORE_MAX_CONCURRENT=1` restores serial execution.
 
+## Addendum A: per-context thread policy (revision 5, 2026-11-09)
+
+**Risk grade: L2.** This changes a performance default only. It changes no auth, IPC, memory admission or containment. **Gate: a `/ql-audit` PASS is required before implementation.**
+**Authority:** the owner approved planning this policy for v1 after the #177 measurements (`V1_SCHEDULER_HOL_BENCHMARKS.md`). It supersedes the "no per-context thread policy" text in revision 2 (V4) and in the Phase 2 notes, and nothing else.
+**Branch:** `feat/v1-thread-policy-20261109-no-ci`, stacked on #177's head `51d0fa4`. It is a separate draft PR, with `[skip ci]` commits.
+
+### Problem (measured)
+- `resolve_threads(0)` (`engine/gguf/backend.rs:541`) gives every context `min(logical, 16)` threads, without regard to `max_concurrent`. With N workers that is 12·N threads on 12 vCPUs.
+- With the default thread count, aggregate throughput barely moves with N (82.5 → 99.9 tok/s from 1 to 8 workers).
+- Explicit 12/N threads gave +25 %, +57 % and +60 % at N = 2, 4 and 8, cut p95 TTFT by 13–51 %, and kept every stream byte-identical to serial.
+
+### Policy
+- **Auto (`GG_CORE_N_THREADS` unset or 0):** threads per context = `max(1, min(logical, 16) / workers)`, using integer division.
+  - `workers` is the number of contexts the runtime can actually run at once on this load path (revision 6, V7):
+    - **Daemon** (startup preload and authenticated IPC load, which pass it explicitly into `model_ops`): `ResourceLimits::max_concurrent()`, or 1 without limits. This is the same rule `worker_pool::spawn` uses, and in the daemon every GGUF request runs on one of those loops.
+    - **Embedded FFI/Python** (`ffi/models.rs`, `python/session.rs`): 1. Embedded `Runtime::infer`/`infer_stream` call the engine directly. They are not bounded by `max_concurrent`, and the embedder decides concurrency, so dividing by `max_concurrent` would halve a serial embedder's threads for no benefit. Embedders who run concurrent requests set `GG_CORE_N_THREADS`. Today's embedded behaviour is unchanged.
+  - The existing 16-thread cap on `logical` stays, so N = 1 is unchanged from today on every host.
+  - On 12 vCPUs this gives 12, 6, 3 and 1 threads at N = 1, 2, 4 and 8, which are the measured configurations.
+- **Explicit override (`GG_CORE_N_THREADS` > 0):** this value is used per context, exactly as today. It is not divided by `workers`. Operators who want oversubscription, or a different split, set it.
+- **Resolution time:** threads are resolved once per model load, as today (`LlamaBackendInner::load`). `max_concurrent` is fixed for the life of a runtime, so a model's thread count always matches the pool that runs it.
+
+### Design
+1. **New `engine/gguf/threads.rs`** (≤ 80 lines including tests; not feature-gated, so it is tested in default builds). It holds:
+   - `pub const MAX_AUTO_THREADS: usize = 16`;
+   - `pub fn per_context(explicit: u32, workers: usize, logical: usize) -> u32`, the pure policy above (`workers` 0 is treated as 1, and the result is always ≥ 1);
+   - `pub fn per_context_for_host(explicit: u32, workers: usize) -> u32`, which calls `per_context` with `num_cpus::get()`.
+2. **`ResourceLimits::worker_loops(limits: Option<&ResourceLimits>) -> usize`** in `memory/limits.rs` returns `max_concurrent` or 1. `worker_pool::spawn` uses it in place of its inline `map_or`, so the pool and the thread policy share one definition.
+3. **`load_model_dispatch(path, id, workers)`**: it gains a `workers` argument, and `gguf_load_config(env, workers)` sets `GgufConfig::n_threads = threads::per_context_for_host(env.n_threads, workers)`. The ONNX path ignores it.
+   - `model_ops::prepare_model_admitted` and `model_ops::load_model_from_path` gain an explicit `workers: usize` argument. They do not infer it from `limits`, because `load_model_from_path` is public and a Rust embedder that pairs it with `Runtime::infer` is not pool-bounded (V7).
+     - The daemon callers pass `ResourceLimits::worker_loops(Some(&runtime.resource_limits))`: `runtime_init::preload_models` and `ipc/handler_models.rs` (its `limits` is the same lifecycle object, `lib.rs:170`). That is the object the daemon hands to the worker pool (`runtime_init.rs:276`), so the thread count and the loop count share one source.
+     - `model_ops::prepare_model` (no limits) and the tests pass 1.
+   - `ffi/models.rs` and `python/session.rs` pass 1 (V7), each with a comment that names the reason.
+4. **`backend.rs::resolve_threads(0)`** delegates to `threads::per_context_for_host(0, 1)`. Direct `GgufConfig` users (tests, examples) keep today's behaviour, and the policy has one source.
+5. **Operator visibility:** `gg-core-cli config show` prints the resolved value next to the raw one, for example `GG_CORE_N_THREADS=0 (auto: 6 threads per context = min(12 logical, 16) / 2 workers)`. `config defaults` prints `GG_CORE_N_THREADS=0 (auto: min(logical, 16) / GG_CORE_MAX_CONCURRENT, at least 1)`.
+6. **Docs:**
+   - the `GG_CORE_N_THREADS` row in `config.rs`;
+   - `COREFORGE_PRODUCER_CONTRACT.md` §Concurrency, which replaces "There is no per-context thread cap" and states that the embedded path keeps full-core contexts unless `GG_CORE_N_THREADS` is set;
+   - `USAGE_GUIDE.md` row;
+   - this plan's implementation notes.
+
+### Security and containment review
+- **No new surface:** no new environment variable, IPC message, dependency, unsafe code, network path or file access. `num_cpus` is already an unconditional dependency.
+- **Arithmetic safety:** `workers` is clamped to ≥ 1, so there is no division by zero. The auto result is in [1, 16]. The explicit path is unchanged, including its existing `i32::try_from` fallback.
+- **Memory:** unchanged. Admission is per context working memory, which does not depend on the thread count. llama.cpp's per-thread scratch is inside the estimate's fixed 32 MiB `OVERHEAD` term (`working_memory.rs`, "output buffer, graph metadata, threads"). That term was sized when every context ran up to 16 threads, and the policy only ever lowers the auto count (it is never above today's value), so the estimate stays an upper bound. The Job Object cap is untouched.
+- **Availability and DoS:** this improves both. N concurrent requests no longer contend for 12·N runnable threads, so one long generation slows the others less. The worst-case hold bounds from Phase 1 and Phase 2 are unchanged.
+- **Determinism:** greedy outputs were byte-identical across 12, 6, 3 and 1 threads in the #177 sweep. The VM gate below re-checks this on the implemented policy. If a model's output ever differs with thread count, that is a numerical property of llama.cpp, not a containment issue, and the explicit override restores any fixed count.
+- **Platform honesty:** no OS-confinement claim changes. This is not a CPU quota: a Job Object CPU-rate limit is still not set.
+
+### Razor
+- `threads.rs` is new and ≤ 80 lines.
+- `backend_dispatch.rs` (236) stays ≤ 250: its inline config test moves into `backend_dispatch_tests.rs` if needed.
+- `config_cmd.rs` (239) stays ≤ 250: the auto-description helper lives in `threads.rs`.
+- `config.rs` (246) only gets a doc-row text change.
+- `backend.rs` (678, pre-existing) only shrinks.
+- `limits.rs` (189) gains about 6 lines.
+- `model_ops.rs` (226), `handler_models.rs` (55), `ffi/models.rs` (228) and `python/session.rs` (221) each gain only an argument and a comment, and stay ≤ 250.
+- `runtime_init.rs` (316, pre-existing) gains one call argument and no new lines.
+- Every function is ≤ 40 lines with nesting ≤ 3.
+
+### Tests
+- **Unit (`threads.rs`):**
+  - explicit > 0 is returned unchanged for any `workers`;
+  - auto on 12 logical gives 12/6/3/1 at 1/2/4/8 workers;
+  - workers > cores gives 1;
+  - workers 0 is treated as 1;
+  - logical 32 is capped at 16 (N = 1 → 16, N = 2 → 8);
+  - logical 0 or 1 gives 1.
+- **Dispatch:** `gguf_load_config` with `n_threads` 0 and 4 workers yields the policy value; with `n_threads` 6 it yields 6 for any `workers`.
+- **Embedded (V7):** the FFI and Python load paths pass `workers = 1`. This is pinned by a source-level test in `backend_dispatch_tests.rs`: with `n_threads` 0 and `workers` 1, `gguf_load_config` equals today's `min(logical, 16)`.
+- **Pool:** `worker_loops(None)` is 1 and `worker_loops(Some(limits))` is `max_concurrent`. The existing pool tests stay green.
+- **CLI:** the `config show` line contains the resolved count; `config defaults` describes the policy.
+- **Offline VM (real models, release build), same harness and workload as `V1_SCHEDULER_HOL_BENCHMARKS.md`:**
+  - the concurrency sweep at N = 1/2/4/8 with `GG_CORE_N_THREADS` unset, compared with the earlier default-thread and explicit 12/N rows. The pass criterion is: every stream byte-identical to serial, no request errors, and aggregate throughput at N ≥ 2 not below the earlier default-thread rows;
+  - TTFT and total latency p50/p95, and peak private bytes, per N;
+  - the multi-model run at N = 2 and 4: 0 refusals, 0 failures, 0 allocation failures and no idle drift;
+  - one explicit-override row (`GG_CORE_N_THREADS=12`, N = 4) to show that the override is honoured.
+
+### Validation
+- On the host: `cargo fmt --check`, `cargo clippy --all-targets --features onnx,gguf,ffi -D warnings`, and the unit tests.
+- In the `coreforge-build` VM (`ggv1*` paths only, after the owner session's "VM free"): the full test suite, then the benchmark harness.
+- No GitHub Actions. The PR stays a draft.
+
+
+### Implementation notes (Addendum A)
+- **Implemented as specified (revision 6).**
+  - `engine/gguf/threads.rs` (79 lines) holds `per_context`, `per_context_for_host` and `describe`. `MAX_AUTO_THREADS` is module-private, so cbindgen does not export it into `gg_core.h`.
+  - `ResourceLimits::worker_loops` is used by `worker_pool::spawn`, `runtime_init::preload_models` and `ipc/handler_models.rs`.
+  - `load_model_dispatch`, `prepare_model_admitted` and `load_model_from_path` take `workers`.
+  - FFI and Python pass 1, as do `prepare_model` and the tests. `resolve_threads` delegates to the policy.
+- **Test location.** The dispatch config tests moved from an inline module into `models/backend_dispatch_config_tests.rs`, so `backend_dispatch.rs` stays at 223 lines and the pre-existing 417-line `backend_dispatch_tests.rs` does not grow. The embedded-unchanged check (`workers = 1` equals `min(logical, 16)`) is there.
+- **Public API change.** `models::load_model_from_path` and `models::load_model_dispatch` gain a trailing `workers: usize` argument. The `USAGE_GUIDE.md` embedded example and `tests/doc_examples.rs` pass 1.
+- **Razor.**
+  - Every function is ≤ 40 lines with nesting ≤ 3.
+  - `runtime_init.rs` went from 316 to 314 lines and `backend.rs` from 678 to 671.
+- **Host validation.** On Windows, without `protoc` or a llama.cpp toolchain:
+  - `cargo fmt --check`: clean.
+  - `clippy --all-targets --features ffi -D warnings`: clean, apart from the pre-existing host-toolchain `fetch_update` deprecation in `memory/resident.rs`, which is allowed here and absent on the VM's Rust 1.97.
+  - `cargo test --features ffi --lib`: 753 passed.
+  - `doc_examples`: 3 passed.
+  - The GGUF/ONNX build and the measurements run in the VM.
+- **Rust 1.99.1 (CI toolchain) in the VM**, rebased on #178 head `aaba859`:
+  - `fmt --check` is clean.
+  - `clippy --all-targets -D warnings` is clean for default, `advanced`, `ffi`, `onnx` and `gguf`.
+  - Tests:
+
+| Feature set | Passed | Failed | Ignored |
+|---|---|---|---|
+| default | 1434 | 0 | 0 |
+| `advanced` | 1569 | 0 | 3 |
+| `onnx,gguf,ffi` | 1516 | 0 | 1 (pre-existing) |
+
+## Addendum B: source-compatible public API (revision 7, 2026-11-09)
+
+**Risk grade: L2.** This changes the public API shape only. It does not change the thread policy, IPC, memory admission or containment. **Gate: a `/ql-audit` PASS is required before implementation.**
+**Trigger:** an owner-approved independent review of #179 at `f54fca3`. Revision 6 added a trailing `workers: usize` to three public functions re-exported from `gg_core::models`, which breaks every downstream Rust caller at compile time. GG-CORE has no semver exemption for that.
+
+### Design
+1. **The existing public signatures are restored byte-for-byte as compatibility wrappers.** Each one calls its worker-aware variant with `workers = 1`, which is the single-context, embedded behaviour every caller had before #179:
+   - `models::load_model_dispatch(model_path, model_id)`;
+   - `models::prepare_model_admitted(loader, limits, relative_path, model_id)`;
+   - `models::load_model_from_path(loader, lifecycle, relative_path, model_id)`.
+
+   The thread count resolved through them is exactly the pre-#179 value, `min(logical, 16)`, or `GG_CORE_N_THREADS` when that is > 0.
+2. **New, explicitly named worker-aware variants** take a trailing `workers: usize` and hold the bodies:
+   - `load_model_dispatch_for_workers`;
+   - `prepare_model_admitted_for_workers`;
+   - `load_model_from_path_for_workers`.
+
+   The suffix names what the argument is for: the number of worker loops the loaded model will serve. All three are re-exported from `gg_core::models` beside the originals.
+3. **Callers:**
+   - Only the daemon passes its real worker-loop count, via `ResourceLimits::worker_loops`: `runtime_init::preload_models` calls `load_model_from_path_for_workers`, and `ipc/handler_models.rs` calls `prepare_model_admitted_for_workers`.
+   - FFI, Python, `prepare_model`, the tests, `tests/doc_examples.rs` and the `USAGE_GUIDE.md` example return to the original signatures with no workers argument, as they were before #179.
+4. **Docs:** the producer contract §Concurrency and `USAGE_GUIDE.md` name the `*_for_workers` variants as the daemon-equivalent opt-in for Rust embedders that run their own bounded pool.
+
+### Tests
+- **External-consumer compatibility:** `core-runtime/tests/public_api_compat_test.rs` is an integration test, so it links `gg_core` exactly as a downstream crate does. It:
+  - binds each original function to a function pointer with the exact pre-#179 signature (`fn(&Path, &str) -> Result<Arc<dyn Model>, InferenceError>`, and so on), so any signature change fails to compile;
+  - calls `load_model_from_path`, `prepare_model_admitted` and `load_model_dispatch` with the original arguments on a missing model and asserts an explicit error with no registry state.
+- **Daemon thread policy** (`backend_dispatch_config_tests.rs`): for workers 1/2/4/8, `gguf_load_config` with auto threads equals `max(1, min(logical, 16) / workers)`, written out independently of `threads.rs`. `ResourceLimits::worker_loops` with `max_concurrent` N yields N.
+- **Override honoured:**
+  - `gguf_load_config` with `GgufEnvConfig { n_threads: 5 }` yields 5 for workers 1/2/4/8;
+  - env path: in `config_tests.rs`, under that file's existing `ENV_LOCK` (it already serialises every test that asserts `gguf.n_threads`), `GG_CORE_N_THREADS=5` gives `load_gguf_config().n_threads == 5` and `threads::per_context_for_host(5, 4) == 5`. The variable is removed before the lock is released. `gguf_load_config` itself stays private to `models`;
+  - `threads::describe` reports "explicit".
+- **Wrapper equivalence:** the original `load_model_dispatch` and `load_model_dispatch_for_workers(…, 1)` return the same error on the same missing or invalid input. They share one body.
+
+### Security and containment review
+- **Unchanged from revision 6.** The wrappers add no behaviour: each is a one-line delegation with `workers = 1`. There is no new input, IPC surface, dependency or unsafe code.
+- **Compatibility posture improves.** Existing embedders recompile unchanged and keep their exact thread behaviour. The divided default is reachable only through a name that states it.
+
+### Razor
+- Each wrapper is ≤ 8 lines.
+- `model_ops.rs` (231) becomes about 245 lines and stays ≤ 250. If it would exceed 250, its inline `#[cfg(test)]` module moves to `model_ops_tests.rs`.
+- `backend_dispatch.rs` (223) becomes about 233 lines.
+- `public_api_compat_test.rs` is ≤ 80 lines.
+- Every function is ≤ 40 lines with nesting ≤ 3.
+
+### Validation
+- In the offline VM:
+  - `cargo fmt --check` and `clippy --all-targets -D warnings` (default, `advanced`, `ffi`, `onnx`, `gguf`) on **both** Rust 1.97 (`C:\host
+ust197`) and Rust 1.99.1 (`E:\w
+ust199`);
+  - `cargo test --features onnx,gguf,ffi` on both toolchains, plus default and `advanced` on 1.99.1;
+  - the concurrency benchmark (`run.py … policy-all`) re-run and compared with §3 of `V1_SCHEDULER_HOL_BENCHMARKS.md`.
+- No GitHub Actions: #179 stays a draft, with `[skip ci]` commits and one push.
+
+### Implementation notes (Addendum B)
+- **Implemented as specified (revision 7).**
+  - The original `load_model_dispatch(path, id)`, `prepare_model_admitted(loader, limits, path, id)` and `load_model_from_path(loader, lifecycle, path, id)` are one-line wrappers that call `load_model_dispatch_for_workers`, `prepare_model_admitted_for_workers` and `load_model_from_path_for_workers` with `workers = 1`.
+  - All six functions are re-exported from `gg_core::models`.
+  - Only `runtime_init::preload_models` and `ipc/handler_models.rs` call the `*_for_workers` variants.
+  - FFI, Python, `prepare_model`, every test, `tests/doc_examples.rs` and the `USAGE_GUIDE.md` example are back to their `origin/main` form. Against `origin/main`, the only changes to them are comment lines in FFI and Python.
+- **Razor fallback used.** With the wrappers, `model_ops.rs` would reach 251 lines, so its inline tests moved unchanged to `models/model_ops_tests.rs`. `model_ops.rs` is now 198 lines, and `backend_dispatch.rs` is 232.
+- **Tests added:**
+  - `tests/public_api_compat_test.rs` (3 tests): the exact-type `fn` bindings and the original calls;
+  - `backend_dispatch_config_tests.rs` (5 tests): the cores ÷ workers policy for 1/2/4/8, written out independently; the explicit override for 1/2/4/8; `worker_loops`; and the wrapper equivalence;
+  - `config_tests.rs::explicit_thread_env_override_is_honoured`, under the existing `ENV_LOCK`.
+
+- **VM validation (Addendum B, `1112378`):**
+  - **Rust 1.97** (`C:\host\rust197`, real Qwen fixture staged):
+    - fmt is clean;
+    - clippy `-D warnings` is clean for default, `advanced`, `ffi`, `onnx`, `gguf` and `onnx,gguf,ffi`;
+    - tests: `onnx,gguf,ffi` 1523 passed, 0 failed, 1 ignored; default `--lib` 757 passed.
+  - **Rust 1.99.1** (`E:\w\rust199`):
+    - fmt is clean;
+    - clippy `-D warnings` is clean for default, `advanced`, `ffi`, `onnx` and `gguf`;
+    - tests: default 1441, `advanced` 1576 (3 ignored), `onnx,gguf,ffi` 1523 (1 ignored), with 0 failures in each.
+  - **Benchmark:** re-run; see §4 of `V1_SCHEDULER_HOL_BENCHMARKS.md`.

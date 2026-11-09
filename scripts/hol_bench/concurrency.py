@@ -3,6 +3,7 @@ of streams against a serial baseline, per GG_CORE_MAX_CONCURRENT and
 GG_CORE_N_THREADS setting. One resident model (Qwen2.5-0.5B, CPU GGUF)."""
 import hashlib
 import statistics
+import subprocess
 import threading
 import time
 
@@ -125,14 +126,28 @@ def ipc_path():
     return r'C:\host\vcdlls;' + ipc.SYS_PATH
 
 
-def sweep(exe, base, logdir):
+SWEEP = [(1, None), (2, None), (4, None), (8, None), (2, 6), (4, 3), (8, 1)]
+# Thread policy (Addendum A): auto at 1/2/4/8, plus one explicit override row.
+POLICY = [(1, None), (2, None), (4, None), (8, None), (4, 12)]
+
+
+def resolved_threads(exe, base, max_concurrent, n_threads):
+    """The `config show` thread line the daemon would resolve."""
+    env = {'GG_CORE_MAX_CONCURRENT': str(max_concurrent), 'SystemRoot': r'C:\Windows', 'PATH': ipc_path()}
+    if n_threads:
+        env['GG_CORE_N_THREADS'] = str(n_threads)
+    p = subprocess.run([exe, 'config', 'show'], cwd=base, env=env, capture_output=True, text=True)
+    return next((ln for ln in p.stdout.splitlines() if ln.startswith('GG_CORE_N_THREADS=')), None)
+
+
+def sweep(exe, base, logdir, configs=SWEEP):
     """Default threads at 1/2/4/8 workers, then explicit 12/N threads."""
-    configs = [(1, None), (2, None), (4, None), (8, None), (2, 6), (4, 3), (8, 1)]
     results, ref = [], None
     for n, threads in configs:
         r = run_config(exe, base, f'{logdir}\\daemon-c{n}-t{threads or "auto"}.log', n, threads, ref)
         if isinstance(r, tuple):
             r, ref = r
+        r['config_show_threads'] = resolved_threads(exe, base, n, threads)
         results.append(r)
         print('CONC', r, flush=True)
         time.sleep(2)
