@@ -111,7 +111,17 @@ rollback_to_v0_10_0_rc1_identity:
 
 Retain the complete standalone v1.0.0 capability/support decisions in [#160](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/160) and full integrated release GO/NO-GO in [#161](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/161). Native CUDA and Metal, governed adaptive switching, exact broader model/task support, advanced inference/SDK, Linux/macOS installed security, Kubernetes observability, final documentation and signed public release artifacts require their own actual proof. This internal checkpoint **does not waive or defer their approved v1 scope**.
 
-## 7. First executable handoff
+## 7. G0 source-audit findings requiring explicit treatment
+
+These are verified source facts, not runtime test results:
+
+- **Version ambiguity:** at producer source `ae55c976`, `core-runtime/Cargo.toml` still declares package `version = "0.10.0-rc.1"`, despite later commits. Therefore **reported semantic version alone cannot distinguish the new internal build from the immutable published v0.10.0-rc.1**. G1 must verify `version --json`'s actual source commit and G2 must enforce source+binary/archive hash identity, not a release-name string. Use the independent internal checkpoint ID `CF-GGCORE-2026W46-C1` in evidence only. Any version-metadata correction is a separate source change requiring new qualification; never retag the public RC1.
+- **False-green legacy script:** `scripts/e2e-proof.ps1` is stale and cannot qualify G1. It displays a `v0.7.0` summary, labels cancellation supported without running a cancellation test, and treats absent/increment-free metrics as warnings. **Do not use its final "COREFORGE E2E requirements satisfied" output as proof.** Use real packaged authenticated IPC, cancellation, deadline, model-readiness, transport and negative-path receipts instead.
+- **Producer packaging controls exist:** `scripts/stage-windows-msvc-runtime.ps1`, `verify-windows-msvc-runtime.ps1`, and `test-windows-msvc-runtime.ps1` verify app-local Microsoft-signed runtime dependencies, but the verifier explicitly says a passing check on a developer host **is not** clean-Windows installed acceptance.
+- **Consumer branch divergence:** GitHub compare against CoreForge `main=65491248` shows #749 `7ad9e2d` **327 commits ahead / 3 behind**; #748 is one additional commit beyond #746 and #749 is another 66 beyond #748. The broad stack is not a bounded clean patch on current `main`; inspect and reconcile the active RC1 feature baseline before merging.
+- **Honest physical-test limit:** this source review does **not** run the Windows native compiler, packaged daemon, installer, security sandbox or Stable/Dev co-residency. Such proof must come from the authorized local VM with exact artifacts.
+
+## 8. First executable handoff
 
 Claude on the authorized **local Windows build VM** should start at **G1** once G0's exact ancestry/contract review is complete:
 
