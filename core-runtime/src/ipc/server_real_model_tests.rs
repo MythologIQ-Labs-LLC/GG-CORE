@@ -31,8 +31,15 @@ struct Daemon {
 }
 
 fn load_model() -> Option<GgufGenerator> {
-    if !Path::new(MODEL).exists() {
-        eprintln!("Skipping: model not found at {MODEL}");
+    // Source-only CI checks out without git-lfs: the path exists but holds an
+    // LFS pointer, so require the GGUF magic rather than mere existence.
+    let mut magic = [0u8; 4];
+    let is_gguf = std::fs::File::open(MODEL)
+        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))
+        .is_ok()
+        && &magic == b"GGUF";
+    if !is_gguf {
+        eprintln!("Skipping: real GGUF model not present at {MODEL}");
         return None;
     }
     let gguf = GgufConfig {
