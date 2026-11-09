@@ -1,30 +1,32 @@
 //! Bridge between engine TokenStream and IPC wire protocol.
 //!
-//! Adapts the connection write half to send StreamChunk messages
-//! as length-prefixed JSON frames.
+//! Adapts the connection's single [`ConnWriter`] to send StreamChunk
+//! messages as length-prefixed JSON frames.
 
 use std::sync::Arc;
 
-use tokio::io::AsyncWriteExt;
-use tokio::sync::Mutex;
+use tokio::io::AsyncWrite;
 use tokio_util::sync::CancellationToken;
 
+use super::conn_writer::ConnWriter;
 use super::handler::{HandlerError, StreamSender};
 use super::protocol::{encode_message, IpcMessage, RequestId};
 
-/// Adapts an IPC connection's write half to the StreamSender trait.
-///
-/// Wraps the write half in Arc<Mutex<>> for shared access and supports
+/// Adapts an IPC connection's writer to the StreamSender trait, with
 /// cancellation via CancellationToken.
 pub struct IpcStreamBridge<W> {
-    writer: Arc<Mutex<W>>,
+    writer: Arc<ConnWriter<W>>,
     request_id: RequestId,
     cancel: CancellationToken,
 }
 
 impl<W> IpcStreamBridge<W> {
     /// Create a new stream bridge.
-    pub fn new(writer: Arc<Mutex<W>>, request_id: RequestId, cancel: CancellationToken) -> Self {
+    pub fn new(
+        writer: Arc<ConnWriter<W>>,
+        request_id: RequestId,
+        cancel: CancellationToken,
+    ) -> Self {
         Self {
             writer,
             request_id,
@@ -48,35 +50,21 @@ impl<W> IpcStreamBridge<W> {
     }
 }
 
-impl<W: AsyncWriteExt + Unpin + Send + 'static> IpcStreamBridge<W> {
-    /// Write a length-prefixed frame to the underlying writer.
+impl<W: AsyncWrite + Unpin + Send + 'static> IpcStreamBridge<W> {
+    /// Write one frame. The cancellation re-check runs under the same writer
+    /// lock used by cancellation ACKs: a chunk that was waiting for the lock
+    /// must not be emitted after cancellation was acknowledged.
     async fn write_frame(&self, data: &[u8], error_terminal: bool) -> Result<(), HandlerError> {
-        let mut writer = self.writer.lock().await;
-        // Re-check under the same writer lock used by cancellation ACKs:
-        // a chunk that was waiting for the lock must not be emitted after
-        // cancellation was acknowledged on that connection.
-        if self.cancel.is_cancelled() && !error_terminal {
-            return Err(HandlerError::StreamSend("cancelled".into()));
-        }
-        let len = data.len() as u32;
-        writer
-            .write_all(&len.to_le_bytes())
+        let cancel = &self.cancel;
+        self.writer
+            .write_frame_if(data, || error_terminal || !cancel.is_cancelled())
             .await
-            .map_err(|e| HandlerError::StreamSend(e.to_string()))?;
-        writer
-            .write_all(data)
-            .await
-            .map_err(|e| HandlerError::StreamSend(e.to_string()))?;
-        writer
-            .flush()
-            .await
-            .map_err(|e| HandlerError::StreamSend(e.to_string()))?;
-        Ok(())
+            .map_err(|e| HandlerError::StreamSend(e.to_string()))
     }
 }
 
 #[async_trait::async_trait]
-impl<W: AsyncWriteExt + Unpin + Send + 'static> StreamSender for IpcStreamBridge<W> {
+impl<W: AsyncWrite + Unpin + Send + 'static> StreamSender for IpcStreamBridge<W> {
     async fn send(&self, message: IpcMessage) -> Result<(), HandlerError> {
         // Cancellation blocks further data, but must not suppress the final
         // error frame that tells the client its stream actually stopped.
@@ -96,14 +84,17 @@ impl<W: AsyncWriteExt + Unpin + Send + 'static> StreamSender for IpcStreamBridge
 mod tests {
     use super::*;
     use std::io::Cursor;
+    use std::time::Duration;
     use tokio::io::BufWriter;
+
+    const STALL: Duration = Duration::from_secs(5);
 
     #[tokio::test]
     async fn test_stream_bridge_send() {
         // Use a Vec-backed writer that doesn't need a reader
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let writer = Arc::new(Mutex::new(BufWriter::new(cursor)));
+        let writer = Arc::new(ConnWriter::new(BufWriter::new(cursor), STALL));
         let cancel = CancellationToken::new();
         let bridge = IpcStreamBridge::new(writer, RequestId(123), cancel);
 
@@ -114,7 +105,10 @@ mod tests {
 
     #[tokio::test]
     async fn cancelled_stream_can_send_terminal_frame() {
-        let writer = Arc::new(Mutex::new(BufWriter::new(Cursor::new(Vec::new()))));
+        let writer = Arc::new(ConnWriter::new(
+            BufWriter::new(Cursor::new(Vec::new())),
+            STALL,
+        ));
         let cancel = CancellationToken::new();
         cancel.cancel();
         let bridge = IpcStreamBridge::new(writer, RequestId(123), cancel);
@@ -125,8 +119,11 @@ mod tests {
 
     #[tokio::test]
     async fn cancellation_fences_data_that_was_waiting_on_writer_lock() {
-        let writer = Arc::new(Mutex::new(BufWriter::new(Cursor::new(Vec::new()))));
-        let held = writer.lock().await;
+        let writer = Arc::new(ConnWriter::new(
+            BufWriter::new(Cursor::new(Vec::new())),
+            STALL,
+        ));
+        let held = writer.hold().await;
         let cancel = CancellationToken::new();
         let bridge = Arc::new(IpcStreamBridge::new(
             Arc::clone(&writer),
@@ -149,7 +146,7 @@ mod tests {
     async fn test_stream_bridge_cancelled() {
         let buffer = Vec::new();
         let cursor = Cursor::new(buffer);
-        let writer = Arc::new(Mutex::new(BufWriter::new(cursor)));
+        let writer = Arc::new(ConnWriter::new(BufWriter::new(cursor), STALL));
         let cancel = CancellationToken::new();
         cancel.cancel();
 

@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use crate::engine::inference::InferenceError; // LD-5: the enum `run` returns
 #[cfg(feature = "gguf")]
-use crate::engine::{InferenceConfig, TokenStream};
+use crate::engine::{InferenceConfig, StreamBound, TokenStream};
 use crate::engine::{InferenceParams, InferenceResult};
 use crate::health::HealthChecker;
 use crate::ipc::{IpcHandler, IpcHandlerConfig, SessionAuth};
@@ -106,7 +106,11 @@ impl Runtime {
         if !verdict.allowed {
             return Err(InferenceError::SecurityRejected(REJECTION_MESSAGE.into()));
         }
-        let (sender, stream) = TokenStream::new(32);
+        // Bounded like the daemon path: an embedder that stops reading frees
+        // the blocking task within the stall bound (HOL plan, V2).
+        let timeout = std::time::Duration::from_millis(config.timeout_ms);
+        let bound = StreamBound::for_request(self.config.ipc_server.stream_stall, timeout);
+        let (sender, stream) = TokenStream::new(32, bound);
         let engine = self.inference_engine.clone();
         // Egress enforcement: the stream is detokenized + PII-sanitized in-runtime
         // and emitted as sanitized text (B-24b). Raw token ids never leave.
@@ -159,7 +163,10 @@ impl Runtime {
         IpcHandler::new(
             session_auth,
             queue.clone(),
-            IpcHandlerConfig::default(),
+            IpcHandlerConfig {
+                stream_stall: config.ipc_server.stream_stall,
+                ..Default::default()
+            },
             shutdown.clone(),
             health.clone(),
             registry.clone(),

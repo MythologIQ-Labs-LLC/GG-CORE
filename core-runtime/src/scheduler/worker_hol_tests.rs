@@ -1,24 +1,27 @@
-//! Head-of-line blocking reproduction (plan:
+//! Head-of-line blocking regression (plan:
 //! `docs/integration/V1_SCHEDULER_HOL_BLOCKING_PLAN.md`).
 //!
-//! The daemon runs one serial worker. A streaming request whose consumer
-//! stops reading (IPC pipe back-pressure fills the token channel) parks that
-//! worker inside an unbounded `TokenStreamSender` send, so every other
-//! request waits behind it, past the stream's own deadline. No model is
-//! needed: the worker's first send to the stalled consumer already blocks,
-//! with or without the `gguf` feature.
+//! The daemon runs one serial worker. Before Phase 1, a streaming request
+//! whose consumer stopped reading (IPC pipe back-pressure fills the token
+//! channel) parked that worker inside an unbounded `TokenStreamSender` send,
+//! so every other request waited behind it until the consumer disconnected.
+//! Every send is now bounded by the stream's stall bound. No model is needed:
+//! the worker's first send to the stalled consumer already blocks, with or
+//! without the `gguf` feature.
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use super::spawn_worker;
 use crate::engine::inference::InferenceEngine;
-use crate::engine::{InferenceConfig, InferenceParams, TokenStream};
+use crate::engine::{InferenceConfig, InferenceParams, StreamBound, TokenStream};
 use crate::scheduler::queue::{RequestQueue, RequestQueueConfig, ResponseRx};
 use crate::scheduler::Priority;
 
-/// Stream deadline far shorter than how long the test waits behind it.
-const STREAM_TIMEOUT_MS: u64 = 300;
+/// Stall bound of the stalled stream.
+const STALL: Duration = Duration::from_millis(200);
+/// Stream deadline, much longer than the stall bound.
+const STREAM_TIMEOUT: Duration = Duration::from_secs(30);
 /// How long an unrelated request is given to be answered.
 const PROMPT_ANSWER: Duration = Duration::from_secs(2);
 
@@ -44,12 +47,13 @@ fn start() -> Harness {
 }
 
 /// Enqueue a stream whose consumer never reads: capacity 1, already full.
-/// The returned receiver must stay alive for the stall to persist.
+/// The returned receiver stays alive, so only the bound can free the worker.
 async fn enqueue_stalled_stream(queue: &RequestQueue) -> TokenStream {
-    let (tx, rx) = TokenStream::new(1);
+    let bound = StreamBound::for_request(STALL, STREAM_TIMEOUT);
+    let (tx, rx) = TokenStream::new(1, bound);
     tx.token(0).await.expect("prefill the only slot");
     let config = InferenceConfig {
-        timeout_ms: STREAM_TIMEOUT_MS,
+        timeout_ms: STREAM_TIMEOUT.as_millis() as u64,
         ..Default::default()
     };
     queue
@@ -72,43 +76,14 @@ async fn enqueue_unrelated(queue: &RequestQueue) -> ResponseRx {
     rx
 }
 
-/// Characterization of today's behavior (passes on the unfixed scheduler).
-/// When the fix lands this test must fail; replace it with the ignored
-/// test below.
+/// An unrelated request is answered while a stream consumer is stalled,
+/// within the stall bound rather than the stream deadline or a disconnect.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn stalled_stream_consumer_blocks_unrelated_request_today() {
-    let h = start();
-    let stalled = enqueue_stalled_stream(&h.queue).await;
-    // Let the worker take the stream and park on the full channel.
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    let mut unrelated = enqueue_unrelated(&h.queue).await;
-
-    // Wait well past the stream's own deadline: still no answer.
-    let waited = tokio::time::timeout(PROMPT_ANSWER, &mut unrelated).await;
-    assert!(
-        waited.is_err(),
-        "HOL blocking no longer reproduces: switch to the ignored fixed-behavior test"
-    );
-
-    // Only the consumer going away releases the worker.
-    drop(stalled);
-    let answer = tokio::time::timeout(PROMPT_ANSWER, unrelated)
-        .await
-        .expect("worker released once the stalled consumer was dropped")
-        .expect("response sender kept");
-    assert!(answer.is_err(), "absent model must be an explicit error");
-    stop(h).await;
-}
-
-/// Required behavior after the fix: an unrelated request is answered while
-/// a stream consumer is stalled, and the stalled stream is ended by its own
-/// deadline rather than by the consumer disconnecting.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore = "fails until the HOL-blocking fix lands (V1_SCHEDULER_HOL_BLOCKING_PLAN)"]
 async fn stalled_stream_consumer_does_not_block_unrelated_request() {
     let h = start();
     let _stalled = enqueue_stalled_stream(&h.queue).await;
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let start = Instant::now();
     let unrelated = enqueue_unrelated(&h.queue).await;
 
     let answer = tokio::time::timeout(PROMPT_ANSWER, unrelated)
@@ -116,6 +91,26 @@ async fn stalled_stream_consumer_does_not_block_unrelated_request() {
         .expect("unrelated request starved behind a stalled stream consumer")
         .expect("response sender kept");
     assert!(answer.is_err(), "absent model must be an explicit error");
+    assert!(
+        start.elapsed() < STREAM_TIMEOUT / 10,
+        "freed by the stall bound"
+    );
+    stop(h).await;
+}
+
+/// The stalled stream is lost (never reported complete) and the worker keeps
+/// serving: a second stalled stream followed by a request is also bounded.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn repeated_stalled_consumers_each_hold_the_worker_only_for_the_bound() {
+    let h = start();
+    let _a = enqueue_stalled_stream(&h.queue).await;
+    let _b = enqueue_stalled_stream(&h.queue).await;
+    let unrelated = enqueue_unrelated(&h.queue).await;
+    let answer = tokio::time::timeout(PROMPT_ANSWER, unrelated)
+        .await
+        .expect("two stalled consumers must cost at most two stall bounds")
+        .expect("response sender kept");
+    assert!(answer.is_err());
     stop(h).await;
 }
 

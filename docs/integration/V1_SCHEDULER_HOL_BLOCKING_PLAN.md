@@ -165,3 +165,13 @@ The worker blocks in two independent ways.
 ## Validation
 - Run natively: `cargo fmt --check`, `clippy --all-targets --features onnx,gguf,ffi -D warnings`, and the scheduler/ipc tests in the `coreforge-build` VM (`ggv1-hol` paths only).
 - No GitHub Actions: draft PR, `[skip ci]` commits, `-no-ci` branch.
+
+## Implementation notes (Phase 1)
+Phase 1 is implemented on this branch. These notes record where the code refines the audited text without widening it:
+
+- **Cancel during a write.** Plan step 4 says "the cancel token is checked while it waits". In the code, cancellation (like the deadline) only decides whether the *next* frame starts: a frame write in progress is never aborted, because aborting part-way would desynchronize framing (V1). That write stays bounded by `stall`. The cancel check under the writer lock (`admit`) is unchanged.
+- **Deadline vs. stall on the token channel.** A token send that hits the request deadline returns `StreamSendError::Deadline`. It does not close the sender, so the final terminal is still delivered when capacity is free. Only a stall (`StreamSendError::Stalled`) closes the sender. Any send failure turns an `Ok` backend result into an error terminal (`stop_or_send_failure`), so a truncated stream never reads as `Complete`, including on the embedded path, which has no `should_stop`.
+- **Setting.** `GG_CORE_STREAM_STALL_MS` is carried in `IpcServerConfig::stream_stall`. That one field feeds both `IpcHandlerConfig` (daemon) and `Runtime::infer_stream` (embedded). `config validate` warns when the raw value is below the 100 ms floor.
+- **Telemetry.** The failure reason is the existing content-free error string ("stream consumer stalled"). No new metric label was added.
+- **Not covered by automated tests:** a daemon-level stalled-reader scenario against a real model, with a second client generating at the same time. The unit, connection and embedded real-model tests cover each bound, but that end-to-end scenario remains a manual VM check.
+

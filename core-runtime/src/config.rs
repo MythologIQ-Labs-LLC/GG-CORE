@@ -21,6 +21,7 @@
 //! | `GG_CORE_N_THREADS` | 0 | Inference threads (0 = auto) |
 //! | `GG_CORE_IPC_FRAME_LIMIT` | 16777216 | Max IPC frame size (bytes) |
 //! | `GG_CORE_MAX_CONNECTIONS` | 64 | Max concurrent IPC connections |
+//! | `GG_CORE_STREAM_STALL_MS` | 5000 | Longest wait for a non-reading stream client (min 100) |
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -48,6 +49,7 @@ pub struct EffectiveConfig {
     pub n_threads: u32,
     pub ipc_frame_limit: usize,
     pub max_connections: usize,
+    pub stream_stall_ms: u64,
 }
 
 /// GGUF-specific configuration loaded from env.
@@ -172,7 +174,12 @@ fn load_ipc_server_config() -> IpcServerConfig {
     const MIN_FRAME: usize = 4096; // floor: 4 KiB
     let max_frame_size = parse_usize("GG_CORE_IPC_FRAME_LIMIT", DEFAULT_FRAME);
     let max_frame_size = max_frame_size.max(MIN_FRAME);
-    IpcServerConfig { max_frame_size }
+    let stall = parse_u64("GG_CORE_STREAM_STALL_MS", 5_000).max(100);
+    let stream_stall = Duration::from_millis(stall);
+    IpcServerConfig {
+        max_frame_size,
+        stream_stall,
+    }
 }
 
 /// Load connection pool configuration from environment.
@@ -229,6 +236,7 @@ impl EnvConfig {
             n_threads: self.gguf.n_threads,
             ipc_frame_limit: self.ipc_server.max_frame_size,
             max_connections: self.connections.max_connections,
+            stream_stall_ms: self.ipc_server.stream_stall.as_millis() as u64,
         }
     }
 }

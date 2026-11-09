@@ -62,7 +62,7 @@ fn test_apply_egress_passthrough_without_pipeline() {
 async fn test_streaming_execute_rejects_injection() {
     let engine = InferenceEngine::new(4096); // no models registered
     let pipeline = blocking_redacting_pipeline();
-    let (tx, mut rx) = TokenStream::new(4);
+    let (tx, mut rx) = TokenStream::new(4, crate::engine::StreamBound::default());
     let request = StreamingQueuedRequest {
         id: 1,
         model_id: "test-model".into(),

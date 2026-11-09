@@ -6,6 +6,7 @@
 mod admission;
 mod auth;
 mod auth_session;
+mod conn_writer;
 mod connections;
 pub mod encoding;
 mod handler;
@@ -21,6 +22,7 @@ pub mod server;
 mod stream_bridge;
 
 pub use auth::{AuthError, SessionAuth, SessionToken};
+pub use conn_writer::{ConnWriter, WriteError};
 pub use connections::{
     ConnectionConfig, ConnectionGuard, ConnectionPool, IpcServerConfig, OwnedConnectionGuard,
 };

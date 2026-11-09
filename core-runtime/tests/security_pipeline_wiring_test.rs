@@ -115,7 +115,7 @@ async fn test_streaming_worker_rejects_injection_end_to_end() {
 
     // Enqueue a STREAMING injection request through the queue; the worker
     // loop must scan it and emit a final rejection frame promptly.
-    let (token_sender, mut stream) = TokenStream::new(32);
+    let (token_sender, mut stream) = TokenStream::new(32, gg_core::engine::StreamBound::default());
     queue
         .enqueue_streaming(
             "test-model".into(),

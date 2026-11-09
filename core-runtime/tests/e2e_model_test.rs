@@ -68,7 +68,8 @@ mod tests {
         let count_clone = token_count.clone();
 
         let result = rt.block_on(async {
-            let (sender, mut stream) = TokenStream::new(32);
+            let (sender, mut stream) =
+                TokenStream::new(32, gg_core::engine::StreamBound::default());
             let prompt = "Count from 1 to 5:";
 
             // Spawn streaming task. generate_stream sends only token frames;

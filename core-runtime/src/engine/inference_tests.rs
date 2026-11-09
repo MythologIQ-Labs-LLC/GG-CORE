@@ -289,7 +289,7 @@ async fn non_gguf_model_stream_reports_unsupported() {
 
     let engine = StdArc::new(engine_with_budget_model(256).await);
     let cfg = InferenceConfig::default();
-    let (sender, stream) = TokenStream::new(32);
+    let (sender, stream) = TokenStream::new(32, crate::engine::StreamBound::default());
     let eng = engine.clone();
     let gen = tokio::task::spawn_blocking(move || {
         eng.run_stream_sync("budget-model", "hi", &cfg, sender, None, None)

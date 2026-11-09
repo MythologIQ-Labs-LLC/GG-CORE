@@ -32,6 +32,7 @@ pub fn run_defaults() {
     println!("GG_CORE_N_THREADS=0");
     println!("GG_CORE_IPC_FRAME_LIMIT=16777216");
     println!("GG_CORE_MAX_CONNECTIONS=64");
+    println!("GG_CORE_STREAM_STALL_MS=5000");
 }
 
 /// Validate configuration for obvious misconfigurations.
@@ -52,6 +53,13 @@ pub fn run_validate() -> i32 {
         }
     }
 
+    if let Some(raw) = raw_stream_stall() {
+        if raw < 100 {
+            eprintln!("WARNING: GG_CORE_STREAM_STALL_MS ({raw}) is below 100; 100 is used");
+            warnings += 1;
+        }
+    }
+
     if cfg.resource_max_concurrent == 0 {
         eprintln!("WARNING: GG_CORE_MAX_CONCURRENT is 0; no requests will be processed");
         warnings += 1;
@@ -63,6 +71,11 @@ pub fn run_validate() -> i32 {
     } else {
         1
     }
+}
+
+/// The explicitly set stall value, before the 100 ms floor is applied.
+fn raw_stream_stall() -> Option<u64> {
+    std::env::var("GG_CORE_STREAM_STALL_MS").ok()?.parse().ok()
 }
 
 /// `GG_CORE_MAX_MEMORY_PER_CALL` as the runtime applies it.
@@ -99,6 +112,7 @@ fn print_config(cfg: &EffectiveConfig) {
     println!("GG_CORE_N_THREADS={}", cfg.n_threads);
     println!("GG_CORE_IPC_FRAME_LIMIT={}", cfg.ipc_frame_limit);
     println!("GG_CORE_MAX_CONNECTIONS={}", cfg.max_connections);
+    println!("GG_CORE_STREAM_STALL_MS={}", cfg.stream_stall_ms);
 }
 
 #[cfg(test)]
@@ -190,6 +204,7 @@ mod tests {
             n_threads: 0,
             ipc_frame_limit: 16_777_216,
             max_connections: 64,
+            stream_stall_ms: 5_000,
         };
         // Smoke-test: just call without panicking.
         print_config(&cfg);

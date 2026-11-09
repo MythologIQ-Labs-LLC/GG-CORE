@@ -558,7 +558,7 @@ async fn streaming_enqueue_succeeds_with_capacity() {
     };
     let queue = Arc::new(RequestQueue::new(config));
 
-    let (tx, _rx) = crate::engine::TokenStream::new(4);
+    let (tx, _rx) = crate::engine::TokenStream::new(4, crate::engine::StreamBound::default());
     let result = queue
         .enqueue_streaming("m".into(), "prompt".into(), InferenceConfig::default(), tx)
         .await;
@@ -596,7 +596,7 @@ async fn streaming_enqueue_rejects_when_queue_full() {
         .await
         .unwrap();
 
-    let (tx, _rx) = crate::engine::TokenStream::new(4);
+    let (tx, _rx) = crate::engine::TokenStream::new(4, crate::engine::StreamBound::default());
     let result = queue
         .enqueue_streaming("m".into(), "c".into(), InferenceConfig::default(), tx)
         .await;
@@ -623,7 +623,7 @@ async fn worker_rejects_streaming_when_concurrency_limit_exceeded() {
         shutdown.clone(),
     );
 
-    let (tx, mut rx) = crate::engine::TokenStream::new(4);
+    let (tx, mut rx) = crate::engine::TokenStream::new(4, crate::engine::StreamBound::default());
     queue
         .enqueue_streaming(
             "test-model".into(),
