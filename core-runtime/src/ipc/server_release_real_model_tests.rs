@@ -1,9 +1,6 @@
-//! Real-model release of an unloaded instance through the real connection
-//! loop and worker (MODEL_RELEASE_V1_PLAN A10, R4, S3).
-//!
-//! Requires ../models/qwen2.5-0.5b-instruct-q4_k_m.gguf. Skips when only a
-//! Git LFS pointer is present, but panics when GG_CORE_REQUIRE_REAL_MODEL=1.
-//! With GG_CORE_RELEASE_BUDGET_OUT set, writes {R, W, budget, n_ctx} JSON.
+//! Real-model release of an unloaded instance through the connection loop
+//! and worker (MODEL_RELEASE_V1_PLAN A10, R4, S3). Skips on a Git LFS pointer
+//! unless GG_CORE_REQUIRE_REAL_MODEL=1; GG_CORE_RELEASE_BUDGET_OUT gets JSON.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -11,11 +8,11 @@ use std::time::Duration;
 
 use tokio::io::DuplexStream;
 
+use super::handle_connection;
 use super::release::TEST_LOCK;
-use super::{handle_connection, read_frame};
+use super::release_stub::{receive, send};
 use crate::engine::gguf::{GgufConfig, GgufGenerator};
 use crate::engine::{InferenceParams, Model};
-use crate::ipc::conn_writer::write_framed;
 use crate::ipc::connections::{ConnectionConfig, ConnectionPool, IpcServerConfig};
 use crate::ipc::protocol::*;
 use crate::memory::ResourceLimitsConfig;
@@ -26,6 +23,7 @@ const TOKEN: &str = "release-real-model-integration-test-secret";
 const MODEL: &str = "../models/qwen2.5-0.5b-instruct-q4_k_m.gguf";
 const N_CTX: u32 = 512;
 const LONG: &str = "Write the numbers from 1 to 400, one per line.";
+const SHORT: &str = "What is 2 + 2? Answer briefly.";
 
 fn instance() -> Option<Arc<dyn Model>> {
     let mut magic = [0u8; 4];
@@ -35,10 +33,7 @@ fn instance() -> Option<Arc<dyn Model>> {
         && &magic == b"GGUF";
     if !is_gguf {
         let required = std::env::var("GG_CORE_REQUIRE_REAL_MODEL").as_deref() == Ok("1");
-        assert!(
-            !required,
-            "GG_CORE_REQUIRE_REAL_MODEL=1 but {MODEL} is not a GGUF file"
-        );
+        assert!(!required, "{MODEL} is not a GGUF file");
         eprintln!("Skipping: real GGUF model not present at {MODEL}");
         return None;
     }
@@ -53,7 +48,7 @@ fn instance() -> Option<Arc<dyn Model>> {
 
 /// `budget = R + W + (R - W) / 2`: one instance plus one request fits, two
 /// instances do not (plan §10/§11 arithmetic).
-fn budget(model: &dyn Model) -> (usize, usize, usize) {
+fn budget(model: &dyn Model) -> (usize, usize) {
     let r = model.memory_usage();
     let w = model
         .working_memory_estimate()
@@ -65,7 +60,7 @@ fn budget(model: &dyn Model) -> (usize, usize, usize) {
         std::fs::write(path, json).expect("write budget");
     }
     eprintln!("release budget: R={r} W={w} budget={budget}");
-    (r, w, budget)
+    (w, budget)
 }
 
 struct Daemon {
@@ -125,32 +120,13 @@ async fn connect(d: &Daemon, pipe: usize) -> DuplexStream {
         protocol_version: None,
     };
     send(&mut client, &hello).await;
-    assert!(matches!(
-        receive(&mut client).await,
-        IpcMessage::HandshakeAck { .. }
-    ));
+    let ack = receive(&mut client).await;
+    assert!(matches!(ack, IpcMessage::HandshakeAck { .. }), "{ack:?}");
     client
 }
 
-async fn send(client: &mut DuplexStream, message: &IpcMessage) {
-    let data = encode_message(message).expect("encode");
-    write_framed(client, &data).await.expect("send");
-}
-
-async fn receive(client: &mut DuplexStream) -> IpcMessage {
-    let bytes = tokio::time::timeout(Duration::from_secs(120), read_frame(client, 1 << 20))
-        .await
-        .expect("frame deadline")
-        .expect("frame");
-    decode_message(&bytes).expect("decode")
-}
-
-fn generate(id: u64, model: &str, max_tokens: usize, stream: bool) -> IpcMessage {
-    let prompt = if stream {
-        LONG
-    } else {
-        "What is 2 + 2? Answer briefly."
-    };
+fn generate(id: u64, model: &str, stream: bool) -> IpcMessage {
+    let (prompt, max_tokens) = if stream { (LONG, 400) } else { (SHORT, 8) };
     IpcMessage::InferenceRequest(InferenceRequest {
         request_id: RequestId(id),
         model_id: model.into(),
@@ -174,7 +150,7 @@ async fn release_wait(c: &mut DuplexStream, ms: u64) -> ModelReleaseWaitResponse
 }
 
 async fn infer_reply(c: &mut DuplexStream, id: u64, model: &str) -> InferenceResponse {
-    send(c, &generate(id, model, 8, false)).await;
+    send(c, &generate(id, model, false)).await;
     match receive(c).await {
         IpcMessage::InferenceResponse(r) => r,
         other => panic!("expected inference_response, got {other:?}"),
@@ -197,19 +173,24 @@ async fn drain_stream(stream: &mut DuplexStream) {
 async fn a_held_instance_is_released_only_after_its_stream_ends() {
     let _l = TEST_LOCK.lock().await;
     let Some(a) = instance() else { return };
-    let (_r, w, total) = budget(a.as_ref());
+    let (w, total) = budget(a.as_ref());
     let d = daemon(a, w, total).await;
+    let (mut stream, mut c) = hold_and_unload(&d).await;
+    refused_while_held(&d, &mut c).await;
+    // 7. Resume reading: the stream ends cleanly, served by `a` throughout.
+    drain_stream(&mut stream).await;
+    released_then_serves(&d, &mut c).await;
+    d.shutdown.cancel();
+}
 
-    // 1. A stream on `a` whose reader stops: back-pressure holds the model.
-    let mut stream = connect(&d, 1024).await;
-    send(&mut stream, &generate(1, "a", 400, true)).await;
-    assert!(matches!(
-        receive(&mut stream).await,
-        IpcMessage::StreamChunk(_)
-    ));
-
-    // 2-4. Unload succeeds; the held instance is listed once as unloading.
-    let mut c = connect(&d, 64 * 1024).await;
+/// Steps 1-4: a stream whose reader stops holds `a` by back-pressure; the
+/// unload succeeds and the held instance is listed once as unloading.
+async fn hold_and_unload(d: &Daemon) -> (DuplexStream, DuplexStream) {
+    let mut stream = connect(d, 1024).await;
+    send(&mut stream, &generate(1, "a", true)).await;
+    let first = receive(&mut stream).await;
+    assert!(matches!(first, IpcMessage::StreamChunk(_)), "{first:?}");
+    let mut c = connect(d, 64 * 1024).await;
     let unload = ModelUnloadRequest {
         model_id: "a".into(),
     };
@@ -220,41 +201,33 @@ async fn a_held_instance_is_released_only_after_its_stream_ends() {
         "{reply:?}"
     );
     assert_eq!(d.lifecycle.releasing_models().len(), 1);
+    (stream, c)
+}
 
-    // 5. A second instance does not fit while `a` is still held.
+/// Steps 5-6: a second instance does not fit, and `a` is not released.
+async fn refused_while_held(d: &Daemon, c: &mut DuplexStream) {
     let b = instance().expect("same fixture");
     let refused = d.lifecycle.load("b".into(), meta(), b).await;
     assert!(
         matches!(refused, Err(LifecycleError::ResourceExhausted(_))),
         "{refused:?}"
     );
-
-    // 6. Not released while held.
-    let held = release_wait(&mut c, 2_000).await;
+    let held = release_wait(c, 2_000).await;
     assert!(!held.released && held.pending_instances == 1, "{held:?}");
+}
 
-    // 7-8. Resume reading: the stream ends cleanly on `a`, then `a` is released.
-    drain_stream(&mut stream).await;
-    let done = release_wait(&mut c, 30_000).await;
+/// Steps 8-9 and S3: released; the unloaded id fails its lookup on the
+/// fallback reservation; `b` is then admitted and serves.
+async fn released_then_serves(d: &Daemon, c: &mut DuplexStream) {
+    let done = release_wait(c, 30_000).await;
     assert!(done.released && done.pending_instances == 0, "{done:?}");
     assert!(d.lifecycle.releasing_models().is_empty());
-
-    // S3: with nothing resident, a request for the unloaded id is admitted on
-    // the fallback reservation and fails its lookup.
-    let probe = infer_reply(&mut c, 2, "a").await;
-    assert_eq!(
-        probe.error_code,
-        Some(InferenceErrorCode::ModelNotLoaded),
-        "{probe:?}"
-    );
-
-    // 9. `b` is admitted after release and serves.
+    let probe = infer_reply(c, 2, "a").await;
+    let code = probe.error_code;
+    assert_eq!(code, Some(InferenceErrorCode::ModelNotLoaded), "{probe:?}");
     let b = instance().expect("same fixture");
-    d.lifecycle
-        .load("b".into(), meta(), b)
-        .await
-        .expect("b fits after release");
-    let served = infer_reply(&mut c, 3, "b").await;
+    let admitted = d.lifecycle.load("b".into(), meta(), b).await;
+    admitted.expect("b fits after release");
+    let served = infer_reply(c, 3, "b").await;
     assert!(served.error.is_none(), "{served:?}");
-    d.shutdown.cancel();
 }

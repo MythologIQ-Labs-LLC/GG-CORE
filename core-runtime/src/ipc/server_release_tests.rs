@@ -9,11 +9,10 @@ use std::time::{Duration, Instant};
 
 use tokio::io::DuplexStream;
 
+use super::handle_connection;
 use super::release::{LIVE_WAITS, TEST_LOCK};
-use super::release_stub::Blocking;
-use super::{handle_connection, read_frame};
+use super::release_stub::{receive, send, Blocking};
 use crate::engine::{InferenceParams, Model};
-use crate::ipc::conn_writer::write_framed;
 use crate::ipc::connections::{ConnectionConfig, ConnectionPool};
 use crate::ipc::protocol::*;
 use crate::memory::ResourceLimitsConfig;
@@ -86,19 +85,6 @@ async fn connect(d: &Daemon, auth: bool) -> (DuplexStream, tokio::task::JoinHand
         ));
     }
     (client, task)
-}
-
-async fn send(client: &mut DuplexStream, message: &IpcMessage) {
-    let data = encode_message(message).expect("encode");
-    write_framed(client, &data).await.expect("send");
-}
-
-async fn receive(client: &mut DuplexStream) -> IpcMessage {
-    let bytes = tokio::time::timeout(Duration::from_secs(10), read_frame(client, 1 << 20))
-        .await
-        .expect("frame deadline")
-        .expect("frame");
-    decode_message(&bytes).expect("decode")
 }
 
 fn generate(id: u64) -> IpcMessage {
@@ -174,40 +160,10 @@ async fn cancel_is_served_during_a_wait_which_then_reports_released() {
         "{reply:?}"
     );
 
-    let listed = listing(&mut c).await;
-    assert_eq!(
-        listed.models.len(),
-        1,
-        "held instance listed once: {listed:?}"
-    );
-    assert_eq!(listed.models[0].state, "unloading");
-    assert_eq!(
-        listed.models[0].name, "blocking-weights",
-        "never the model id"
-    );
-    assert_eq!(listed.total_memory_bytes, 4096);
+    assert_listed_once(&mut c).await;
 
     drop(d.holder); // only the in-flight request holds the model now
-    let start = Instant::now();
-    let cancel = IpcMessage::CancelRequest {
-        request_id: RequestId(7),
-    };
-    send(&mut c, &cancel).await;
-    let (mut acked, mut stopped, mut released) = (false, false, false);
-    while !(acked && stopped && released) {
-        match receive(&mut c).await {
-            IpcMessage::CancelResponse { cancelled, .. } => acked = cancelled,
-            IpcMessage::InferenceResponse(r) => {
-                stopped = r.error_code == Some(InferenceErrorCode::Cancelled);
-            }
-            IpcMessage::ModelReleaseWaitResponse(w) => {
-                assert!(w.released && w.pending_instances == 0, "{w:?}");
-                released = true;
-            }
-            other => panic!("unexpected frame {other:?}"),
-        }
-    }
-    assert!(start.elapsed() < Duration::from_secs(10));
+    cancel_and_await_release(&mut c).await;
     assert!(d.lifecycle.releasing_models().is_empty());
     assert!(listing(&mut c).await.models.is_empty());
     d.shutdown.cancel();
@@ -242,4 +198,44 @@ async fn a_pending_wait_ends_when_its_connection_does() {
         "wait outlived its connection"
     );
     d.shutdown.cancel();
+}
+
+/// The held instance appears exactly once, as unloading, by metadata name.
+async fn assert_listed_once(c: &mut DuplexStream) {
+    let listed = listing(c).await;
+    assert_eq!(
+        listed.models.len(),
+        1,
+        "held instance listed once: {listed:?}"
+    );
+    assert_eq!(listed.models[0].state, "unloading");
+    assert_eq!(
+        listed.models[0].name, "blocking-weights",
+        "never the model id"
+    );
+    assert_eq!(listed.total_memory_bytes, 4096);
+}
+
+/// Cancel the holding request; collect its three outcomes in any order.
+async fn cancel_and_await_release(c: &mut DuplexStream) {
+    let start = Instant::now();
+    let cancel = IpcMessage::CancelRequest {
+        request_id: RequestId(7),
+    };
+    send(c, &cancel).await;
+    let (mut acked, mut stopped, mut released) = (false, false, false);
+    while !(acked && stopped && released) {
+        match receive(c).await {
+            IpcMessage::CancelResponse { cancelled, .. } => acked = cancelled,
+            IpcMessage::InferenceResponse(r) => {
+                stopped = r.error_code == Some(InferenceErrorCode::Cancelled);
+            }
+            IpcMessage::ModelReleaseWaitResponse(w) => {
+                assert!(w.released && w.pending_instances == 0, "{w:?}");
+                released = true;
+            }
+            other => panic!("unexpected frame {other:?}"),
+        }
+    }
+    assert!(start.elapsed() < Duration::from_secs(10));
 }

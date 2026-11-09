@@ -1,7 +1,14 @@
-//! Test-only model for the release-wait tests: holds its request until the
-//! request is stopped, through the cancellable path the engine really uses.
+//! Test support for the release-wait tests: framing helpers, and a model
+//! that holds its request until the request is stopped, through the
+//! cancellable path the engine really uses.
 
 use std::time::Duration;
+
+use tokio::io::DuplexStream;
+
+use super::read_frame;
+use crate::ipc::conn_writer::write_framed;
+use crate::ipc::protocol::{decode_message, encode_message, IpcMessage};
 
 use crate::engine::{
     FinishReason, GenerationResult, InferenceCapability, InferenceConfig, InferenceError,
@@ -50,4 +57,19 @@ impl Model for Blocking {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+}
+
+pub(super) async fn send(client: &mut DuplexStream, message: &IpcMessage) {
+    let data = encode_message(message).expect("encode");
+    write_framed(client, &data).await.expect("send");
+}
+
+/// Next frame, with a generous deadline (real-model generation included).
+pub(super) async fn receive(client: &mut DuplexStream) -> IpcMessage {
+    let frame = read_frame(client, 1 << 20);
+    let bytes = tokio::time::timeout(Duration::from_secs(120), frame)
+        .await
+        .expect("frame deadline")
+        .expect("frame");
+    decode_message(&bytes).expect("decode")
 }
