@@ -232,3 +232,7 @@ mod streaming_tests;
 #[cfg(test)]
 #[path = "worker_stop_tests.rs"]
 mod stop_tests;
+
+#[cfg(test)]
+#[path = "worker_hol_tests.rs"]
+mod hol_tests;
