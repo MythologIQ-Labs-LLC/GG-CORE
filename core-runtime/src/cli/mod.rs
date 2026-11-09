@@ -23,6 +23,7 @@ pub mod models_cmd;
 pub mod models_lifecycle_cmd;
 pub mod status;
 pub mod status_format;
+pub mod typed_cmd;
 
 pub use health::{run_health, run_liveness, run_readiness};
 pub use ipc_client::{CliError, CliIpcClient};

@@ -12,8 +12,6 @@ use super::protocol::{
     WarmupResponse,
 };
 use crate::engine::InferenceEngine;
-#[cfg(feature = "gguf")]
-use crate::engine::TokenStream;
 use crate::health::HealthChecker;
 use crate::models::ModelRegistry;
 use crate::scheduler::Priority;
@@ -46,11 +44,17 @@ pub enum HandlerError {
 #[derive(Debug, Clone)]
 pub struct IpcHandlerConfig {
     pub require_auth: bool,
+    /// Longest a stream send or frame write may wait for a client that is
+    /// not reading (`GG_CORE_STREAM_STALL_MS`).
+    pub stream_stall: std::time::Duration,
 }
 
 impl Default for IpcHandlerConfig {
     fn default() -> Self {
-        Self { require_auth: true }
+        Self {
+            require_auth: true,
+            stream_stall: crate::engine::DEFAULT_STREAM_STALL,
+        }
     }
 }
 
@@ -88,8 +92,7 @@ pub struct IpcHandler {
     pub(super) model_lifecycle: Arc<crate::models::ModelLifecycle>,
     /// Path-validating loader bound to the runtime's base path (B-41, #106).
     pub(super) model_loader: Arc<crate::models::ModelLoader>,
-    /// Used by streaming path (gguf feature).
-    #[allow(dead_code)]
+    /// Streaming path (gguf feature) and typed capability listing.
     inference_engine: Arc<InferenceEngine>,
 }
 
@@ -155,6 +158,7 @@ impl IpcHandler {
                 let response = IpcMessage::HandshakeAck {
                     session_id: session_token.as_str().to_string(),
                     protocol_version: negotiated_version,
+                    features: vec![super::protocol_typed::TYPED_INFERENCE_FEATURE.to_string()],
                 };
                 Ok((response, Some(session_token)))
             }
@@ -163,6 +167,15 @@ impl IpcHandler {
                 self.require_auth(session).await?;
                 let response = self.handle_inference(request).await;
                 Ok((IpcMessage::InferenceResponse(response), None))
+            }
+
+            IpcMessage::TypedInferenceRequest(request) => {
+                // Connection servers route this beside the reader (cancellable);
+                // direct `process` callers get the same authenticated path.
+                self.require_auth(session).await?;
+                let cancel = tokio_util::sync::CancellationToken::new();
+                let response = self.handle_typed_controlled(request, cancel).await;
+                Ok((IpcMessage::TypedInferenceResponse(response), None))
             }
 
             IpcMessage::HealthCheck { check_type } => {
@@ -178,8 +191,10 @@ impl IpcHandler {
             }
 
             IpcMessage::ModelsRequest => {
-                // NO AUTH REQUIRED for model listing (orchestrator pattern, same as health/metrics)
-                let response = self.handle_models_request().await;
+                // NO AUTH REQUIRED for model listing (orchestrator pattern, same as health/metrics).
+                // Task capabilities (#171) are disclosed to authenticated sessions only.
+                let authenticated = self.require_auth(session).await.is_ok();
+                let response = self.handle_models_request(authenticated).await;
                 Ok((IpcMessage::ModelsResponse(response), None))
             }
 
@@ -291,10 +306,17 @@ impl IpcHandler {
         WarmupResponse::success(model_id, elapsed_ms)
     }
 
-    async fn handle_models_request(&self) -> ModelsListResponse {
+    async fn handle_models_request(&self, authenticated: bool) -> ModelsListResponse {
         let models = self.model_registry.list_models().await;
         let total_memory_bytes = models.iter().map(|m| m.memory_bytes).sum();
 
+        let mut capabilities = std::collections::HashMap::new();
+        for m in models.iter().filter(|_| authenticated) {
+            if let Some(id) = self.model_lifecycle.get_model_id(m.handle_id).await {
+                let caps = self.inference_engine.model_capabilities(&id).await;
+                capabilities.insert(m.handle_id, caps);
+            }
+        }
         let model_infos: Vec<ModelInfo> = models
             .into_iter()
             .map(|m| {
@@ -313,6 +335,12 @@ impl IpcHandler {
                     request_count: m.request_count,
                     avg_latency_ms,
                     loaded_at: format_system_time(m.loaded_at),
+                    capabilities: capabilities
+                        .remove(&m.handle_id)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|c| super::protocol_typed::capability_name(c).to_string())
+                        .collect(),
                 }
             })
             .collect();
@@ -366,114 +394,27 @@ impl IpcHandler {
             self.run_streaming_inference(request, sender, cancel).await
         }
     }
+}
 
-    /// Internal streaming implementation.
-    ///
-    /// Enqueues the request into the streaming queue so the worker loop
-    /// handles resource limits and telemetry. The handler reads tokens
-    /// from the receiver channel and relays them to IPC.
-    #[cfg(feature = "gguf")]
-    async fn run_streaming_inference(
-        &self,
-        request: InferenceRequest,
-        sender: &dyn StreamSender,
-        cancel: CancellationToken,
-    ) -> Result<(), HandlerError> {
-        let request_id = request.request_id;
-        let config = request.parameters.to_config();
-
-        let (token_sender, mut stream) = TokenStream::new(32);
-        let timeout = std::time::Duration::from_millis(config.timeout_ms);
-
-        // Enqueue into the streaming queue — worker picks it up.
-        self.queue
-            .enqueue_streaming_controlled(
-                request.model_id.clone(),
-                request.prompt.clone(),
-                config,
-                token_sender,
-                cancel.clone(),
-            )
-            .await
-            .map_err(|e| HandlerError::QueueFull(e.to_string()))?;
-
-        self.relay_stream(request_id, &mut stream, sender, cancel, timeout)
-            .await
-    }
-
-    /// Relay tokens from the stream receiver to the IPC sender.
-    #[cfg(feature = "gguf")]
-    async fn relay_stream(
-        &self,
-        request_id: super::protocol::RequestId,
-        stream: &mut TokenStream,
-        sender: &dyn StreamSender,
-        cancel: CancellationToken,
-        timeout: std::time::Duration,
-    ) -> Result<(), HandlerError> {
-        // One deadline for the whole request, never a reset after each chunk.
-        let deadline = tokio::time::sleep(timeout);
-        tokio::pin!(deadline);
-        loop {
-            tokio::select! {
-                biased;
-                _ = cancel.cancelled() => {
-                    let chunk = StreamChunk::error(request_id, "cancelled".into());
-                    let _ = sender.send(IpcMessage::StreamChunk(chunk)).await;
-                    break;
-                }
-                _ = &mut deadline => {
-                    cancel.cancel();
-                    let chunk = StreamChunk::error(request_id, "stream deadline exceeded".into());
-                    let _ = sender.send(IpcMessage::StreamChunk(chunk)).await;
-                    break;
-                }
-                item_opt = stream.next() => {
-                    match item_opt {
-                        Some(crate::engine::StreamItem::Token(token)) => {
-                            let chunk = StreamChunk::token(request_id, token);
-                            sender.send(IpcMessage::StreamChunk(chunk)).await?;
-                        }
-                        Some(crate::engine::StreamItem::Text(text)) => {
-                            // Security-enforced streaming (B-24b): sanitized text,
-                            // no raw token id.
-                            let chunk = StreamChunk::token_with_text(request_id, 0, text);
-                            sender.send(IpcMessage::StreamChunk(chunk)).await?;
-                        }
-                        Some(crate::engine::StreamItem::End(terminal)) => {
-                            let chunk = match terminal {
-                                crate::engine::StreamTerminal::Complete => {
-                                    StreamChunk::complete(request_id)
-                                }
-                                crate::engine::StreamTerminal::Rejected(m)
-                                | crate::engine::StreamTerminal::Error(m) => {
-                                    StreamChunk::error(request_id, m)
-                                }
-                            };
-                            sender.send(IpcMessage::StreamChunk(chunk)).await?;
-                            break;
-                        }
-                        None => {
-                            // Producer dropped without a terminal (worker
-                            // panic/abort): the client must still get a
-                            // final frame or it waits forever.
-                            let chunk = StreamChunk::error(
-                                request_id,
-                                "stream ended without a terminal".into(),
-                            );
-                            let _ = sender.send(IpcMessage::StreamChunk(chunk)).await;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
+impl IpcHandler {
+    /// Stall bound for stream sends and every frame write on a connection.
+    pub fn stream_stall(&self) -> std::time::Duration {
+        self.config.stream_stall
     }
 }
 
+#[path = "handler_control.rs"]
+mod handler_control;
+
+#[cfg(feature = "gguf")]
+#[path = "stream_relay.rs"]
+mod stream_relay;
+
 #[path = "handler_inference.rs"]
 mod inference_control;
+
+#[path = "handler_typed.rs"]
+mod typed_control;
 
 /// Map a worker error string to a structured `InferenceErrorCode`.
 ///

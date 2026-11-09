@@ -3,8 +3,10 @@
 //! Handles named pipe/Unix socket communication with authenticated callers.
 //! This is the ONLY external interface - no HTTP/REST/WebSocket allowed.
 
+mod admission;
 mod auth;
 mod auth_session;
+mod conn_writer;
 mod connections;
 pub mod encoding;
 mod handler;
@@ -14,11 +16,13 @@ mod listener;
 pub mod protocol;
 pub mod protocol_codec;
 pub mod protocol_model_types;
+pub mod protocol_typed;
 pub mod protocol_types;
 pub mod server;
 mod stream_bridge;
 
 pub use auth::{AuthError, SessionAuth, SessionToken};
+pub use conn_writer::{ConnWriter, WriteError};
 pub use connections::{
     ConnectionConfig, ConnectionGuard, ConnectionPool, IpcServerConfig, OwnedConnectionGuard,
 };

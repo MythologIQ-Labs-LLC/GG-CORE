@@ -112,8 +112,8 @@ impl InferenceEngine {
             .await
     }
 
-    /// Test convenience: `run_cancellable` plus a per-call memory budget
-    /// (`max_memory_bytes` enforced before calling into the model).
+    /// Test convenience: `run_cancellable` plus a per-call working budget
+    /// (passed to the backend; not compared against resident weights).
     #[cfg(test)]
     pub(crate) async fn run_cancellable_with_memory_limit(
         &self,
@@ -178,16 +178,9 @@ impl InferenceEngine {
         max_memory_bytes: Option<usize>,
         control: &StopControl,
     ) -> Result<InferenceResult, InferenceError> {
-        if let Some(budget) = max_memory_bytes {
-            let model_mem = model.memory_usage();
-            if model_mem > budget {
-                return Err(InferenceError::MemoryExceeded {
-                    used: model_mem,
-                    limit: budget,
-                });
-            }
-        }
-
+        // `max_memory_bytes` is the per-request working budget the worker
+        // already reserved; resident weights are accounted at load. It is
+        // passed to the backend, never compared against model weights.
         let mut config = params.to_config();
         config.max_memory_bytes = max_memory_bytes;
 
@@ -229,15 +222,6 @@ impl InferenceEngine {
     pub async fn has_model(&self, model_id: &str) -> bool {
         self.models.read().await.contains_key(model_id)
     }
-
-    /// Return the memory usage reported by a registered model, or None if not found.
-    pub async fn model_memory_usage(&self, model_id: &str) -> Option<usize> {
-        self.models
-            .read()
-            .await
-            .get(model_id)
-            .map(|m| m.memory_usage())
-    }
 }
 
 #[cfg(feature = "gguf")]
@@ -247,9 +231,19 @@ mod streaming;
 #[path = "inference_degraded.rs"]
 mod degraded_impl;
 
+#[path = "inference_memory.rs"]
+mod memory_report;
+
 #[cfg(test)]
 #[path = "inference_tests.rs"]
 mod tests;
+
+// Typed non-generative inference is crate-private until a capability-aware
+// authenticated IPC queue and uniform security pipeline are qualified.
+// Typed non-generative inference, reached only through the authenticated
+// typed IPC queue and worker security pipeline (#171).
+#[path = "inference_typed.rs"]
+mod typed;
 
 #[cfg(test)]
 #[path = "inference_chaos_tests.rs"]

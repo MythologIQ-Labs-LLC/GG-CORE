@@ -21,8 +21,8 @@ pub fn run_defaults() {
     println!("GG_CORE_MAX_CONTEXT=4096");
     println!("GG_CORE_MAX_QUEUE_DEPTH=256");
     println!("GG_CORE_MAX_CONTEXT_TOKENS=4096");
-    println!("GG_CORE_MAX_MEMORY_PER_CALL=1073741824");
-    println!("GG_CORE_MAX_TOTAL_MEMORY=2147483648");
+    println!("{}", per_call_line(None, 1024 * 1024 * 1024));
+    println!("GG_CORE_MAX_TOTAL_MEMORY=max(2147483648, 50% of physical RAM)");
     println!("GG_CORE_MAX_CONCURRENT=2");
     println!("GG_CORE_BATCH_MAX_REQUESTS=8");
     println!("GG_CORE_BATCH_MAX_TOKENS=4096");
@@ -32,6 +32,7 @@ pub fn run_defaults() {
     println!("GG_CORE_N_THREADS=0");
     println!("GG_CORE_IPC_FRAME_LIMIT=16777216");
     println!("GG_CORE_MAX_CONNECTIONS=64");
+    println!("GG_CORE_STREAM_STALL_MS=5000");
 }
 
 /// Validate configuration for obvious misconfigurations.
@@ -42,12 +43,21 @@ pub fn run_validate() -> i32 {
     let cfg = env.effective_config();
     let mut warnings = 0;
 
-    if cfg.resource_max_total_memory < cfg.resource_max_memory_per_call {
-        eprintln!(
-            "WARNING: GG_CORE_MAX_TOTAL_MEMORY ({}) < GG_CORE_MAX_MEMORY_PER_CALL ({})",
-            cfg.resource_max_total_memory, cfg.resource_max_memory_per_call
-        );
-        warnings += 1;
+    if let Some(ceiling) = env.per_call_ceiling {
+        if cfg.resource_max_total_memory < ceiling {
+            eprintln!(
+                "WARNING: GG_CORE_MAX_TOTAL_MEMORY ({}) < GG_CORE_MAX_MEMORY_PER_CALL ({})",
+                cfg.resource_max_total_memory, ceiling
+            );
+            warnings += 1;
+        }
+    }
+
+    if let Some(raw) = raw_stream_stall() {
+        if raw < 100 {
+            eprintln!("WARNING: GG_CORE_STREAM_STALL_MS ({raw}) is below 100; 100 is used");
+            warnings += 1;
+        }
     }
 
     if cfg.resource_max_concurrent == 0 {
@@ -63,6 +73,21 @@ pub fn run_validate() -> i32 {
     }
 }
 
+/// The explicitly set stall value, before the 100 ms floor is applied.
+fn raw_stream_stall() -> Option<u64> {
+    std::env::var("GG_CORE_STREAM_STALL_MS").ok()?.parse().ok()
+}
+
+/// `GG_CORE_MAX_MEMORY_PER_CALL` as the runtime applies it.
+fn per_call_line(ceiling: Option<usize>, fallback: usize) -> String {
+    match ceiling {
+        Some(c) => format!("GG_CORE_MAX_MEMORY_PER_CALL={c} (per-request ceiling)"),
+        None => format!(
+            "GG_CORE_MAX_MEMORY_PER_CALL=unset (no per-request ceiling; bounded by GG_CORE_MAX_TOTAL_MEMORY; fallback reservation {fallback})"
+        ),
+    }
+}
+
 fn print_config(cfg: &EffectiveConfig) {
     println!("GG_CORE_MAX_CONTEXT={}", cfg.max_context_length);
     println!("GG_CORE_MAX_QUEUE_DEPTH={}", cfg.queue_max_pending);
@@ -71,8 +96,11 @@ fn print_config(cfg: &EffectiveConfig) {
         cfg.queue_max_context_tokens
     );
     println!(
-        "GG_CORE_MAX_MEMORY_PER_CALL={}",
-        cfg.resource_max_memory_per_call
+        "{}",
+        per_call_line(
+            cfg.resource_per_call_ceiling,
+            cfg.resource_max_memory_per_call
+        )
     );
     println!("GG_CORE_MAX_TOTAL_MEMORY={}", cfg.resource_max_total_memory);
     println!("GG_CORE_MAX_CONCURRENT={}", cfg.resource_max_concurrent);
@@ -84,6 +112,7 @@ fn print_config(cfg: &EffectiveConfig) {
     println!("GG_CORE_N_THREADS={}", cfg.n_threads);
     println!("GG_CORE_IPC_FRAME_LIMIT={}", cfg.ipc_frame_limit);
     println!("GG_CORE_MAX_CONNECTIONS={}", cfg.max_connections);
+    println!("GG_CORE_STREAM_STALL_MS={}", cfg.stream_stall_ms);
 }
 
 #[cfg(test)]
@@ -164,6 +193,7 @@ mod tests {
             queue_max_pending: 256,
             queue_max_context_tokens: 4096,
             resource_max_memory_per_call: 1_073_741_824,
+            resource_per_call_ceiling: None,
             resource_max_total_memory: 2_147_483_648,
             resource_max_concurrent: 2,
             batch_max_requests: 8,
@@ -174,8 +204,36 @@ mod tests {
             n_threads: 0,
             ipc_frame_limit: 16_777_216,
             max_connections: 64,
+            stream_stall_ms: 5_000,
         };
         // Smoke-test: just call without panicking.
         print_config(&cfg);
+    }
+
+    #[test]
+    fn per_call_line_reports_unset_and_explicit_ceilings() {
+        let unset = per_call_line(None, 1_073_741_824);
+        assert!(
+            unset.contains("unset") && unset.contains("GG_CORE_MAX_TOTAL_MEMORY"),
+            "{unset}"
+        );
+        assert!(unset.contains("1073741824"), "fallback shown: {unset}");
+        let set = per_call_line(Some(5_000_000), 5_000_000);
+        assert_eq!(
+            set,
+            "GG_CORE_MAX_MEMORY_PER_CALL=5000000 (per-request ceiling)"
+        );
+    }
+
+    #[test]
+    fn validate_ignores_per_call_when_unset_and_loads_explicit_ceiling() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        clear_env();
+        std::env::set_var("GG_CORE_MAX_TOTAL_MEMORY", "2000000");
+        assert_eq!(config::load().per_call_ceiling, None);
+        assert_eq!(run_validate(), 0, "no ceiling: nothing to compare");
+        std::env::set_var("GG_CORE_MAX_MEMORY_PER_CALL", "3000000");
+        assert_eq!(config::load().per_call_ceiling, Some(3_000_000));
+        clear_env();
     }
 }

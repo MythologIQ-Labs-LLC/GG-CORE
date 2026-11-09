@@ -38,6 +38,7 @@ pub mod prefill;
 pub mod request_control;
 pub mod simd_tokenizer;
 mod streaming;
+mod streaming_bound;
 mod tokenizer;
 
 // --- Advanced modules (requires `advanced` feature, provided by TierSynergy) ---
@@ -81,7 +82,9 @@ pub use output::{FinishReason, GenerationResult, InferenceOutput};
 pub use prefill::{PrefillConfig, PrefillExecutor, PrefillResult};
 pub use request_control::StopControl;
 pub use simd_tokenizer::SimdTokenizer;
-pub use streaming::{StreamItem, StreamTerminal, TokenStream, TokenStreamSender};
+pub use streaming::STREAM_STALLED;
+pub use streaming::{StreamItem, StreamSendError, StreamTerminal, TokenStream, TokenStreamSender};
+pub use streaming_bound::{StreamBound, DEFAULT_STREAM_STALL, MIN_STREAM_STALL};
 pub use tokenizer::{TokenizerError, TokenizerWrapper};
 
 // Backend re-exports

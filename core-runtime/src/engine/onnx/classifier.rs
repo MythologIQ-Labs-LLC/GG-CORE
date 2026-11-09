@@ -48,10 +48,15 @@ impl OnnxClassifier {
         model: candle_onnx::onnx::ModelProto,
         tokenizer: super::tokenizer::OnnxTokenizer,
     ) -> Self {
+        // The shared v1 memory-admission budget reserves reported resident
+        // weights once at registration. A loaded classifier reporting zero
+        // defeats that budget, especially alongside another GGUF/ONNX model.
+        // Use the same graph-initializer estimate as OnnxEmbedder.
+        let estimate = super::tensor_ops::model_memory_estimate(&model);
         Self {
             model_id,
             labels,
-            memory_bytes: AtomicUsize::new(0),
+            memory_bytes: AtomicUsize::new(estimate),
             model: Some(model),
             tokenizer,
         }

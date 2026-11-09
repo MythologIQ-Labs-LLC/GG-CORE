@@ -40,8 +40,8 @@ pub use lifecycle::{LifecycleError, ModelLifecycle};
 pub use loader::{LoadError, MappedModel, ModelLoader, ModelMetadata, ModelPath};
 pub use manifest::{ModelArchitecture, ModelCapability, ModelManifest};
 pub use model_ops::{
-    load_model_from_path, prepare_model, register_prepared, unload_model, LoadedModel,
-    ModelOpError, PreparedModel,
+    load_model_from_path, prepare_model, prepare_model_admitted, register_prepared, unload_model,
+    LoadedModel, ModelOpError, PreparedModel,
 };
 pub use persistence::{PersistedModel, PersistenceError, RegistryPersistence, RegistryState};
 pub use pool::ModelTier as PoolModelTier;

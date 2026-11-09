@@ -23,12 +23,20 @@ pub enum LifecycleError {
 
     #[error("Load failed: {0}")]
     LoadFailed(String),
+
+    /// The model's resident bytes do not fit the total-memory budget
+    /// (`GG_CORE_MAX_TOTAL_MEMORY`, also the Windows Job Object cap).
+    #[error("Insufficient memory budget: {0} (raise GG_CORE_MAX_TOTAL_MEMORY or unload a model)")]
+    ResourceExhausted(String),
 }
 
 /// Bidirectional O(1) lookup between model_id and ModelHandle.
 struct LookupIndex {
     id_to_handle: HashMap<String, ModelHandle>,
     handle_to_id: HashMap<u64, String>,
+    /// Resident-weight budget per loaded model, released on unload once no
+    /// request still holds the model.
+    residents: HashMap<String, resident::Resident>,
 }
 
 impl LookupIndex {
@@ -36,6 +44,7 @@ impl LookupIndex {
         Self {
             id_to_handle: HashMap::new(),
             handle_to_id: HashMap::new(),
+            residents: HashMap::new(),
         }
     }
 
@@ -73,6 +82,8 @@ pub struct ModelLifecycle {
     registry: Arc<ModelRegistry>,
     engine: Arc<InferenceEngine>,
     index: Arc<RwLock<LookupIndex>>,
+    /// Resident-weight accounting (None: unlimited, embedded/test use).
+    limits: Option<crate::memory::ResourceLimits>,
 }
 
 impl ModelLifecycle {
@@ -81,7 +92,19 @@ impl ModelLifecycle {
             registry,
             engine,
             index: Arc::new(RwLock::new(LookupIndex::new())),
+            limits: None,
         }
+    }
+
+    /// Account every loaded model's resident bytes against `limits`.
+    pub fn with_resource_limits(mut self, limits: crate::memory::ResourceLimits) -> Self {
+        self.limits = Some(limits);
+        self
+    }
+
+    /// The resource limits loads are admitted against, if any.
+    pub fn resource_limits(&self) -> Option<&crate::memory::ResourceLimits> {
+        self.limits.as_ref()
     }
 
     /// Atomically load a model into both registry and engine.
@@ -94,17 +117,39 @@ impl ModelLifecycle {
         metadata: ModelMetadata,
         model: Arc<dyn Model>,
     ) -> Result<ModelHandle, LifecycleError> {
+        self.load_reserved(model_id, metadata, model, None).await
+    }
+
+    /// [`Self::load`] that adopts a reservation taken before backend
+    /// allocation (re-sized to the model's reported footprint). On any
+    /// refusal the model is dropped before its reservation is released.
+    pub async fn load_reserved(
+        &self,
+        model_id: String,
+        metadata: ModelMetadata,
+        model: Arc<dyn Model>,
+        reservation: Option<crate::memory::ResidentGuard>,
+    ) -> Result<ModelHandle, LifecycleError> {
         let mut index = self.index.write().await;
-
-        if index.contains_id(&model_id) {
-            return Err(LifecycleError::AlreadyLoaded(model_id));
+        let mut reservation = reservation;
+        let admitted = if index.contains_id(&model_id) {
+            Err(LifecycleError::AlreadyLoaded(model_id.clone()))
+        } else {
+            resident::admit(self.limits.as_ref(), &mut reservation, model.memory_usage())
+        };
+        if let Err(e) = admitted {
+            drop(model); // free backend memory before the budget returns
+            drop(reservation);
+            return Err(e);
         }
-
-        let memory = model.memory_usage();
-        let handle = self.registry.register(metadata, memory).await;
+        let handle = self.registry.register(metadata, model.memory_usage()).await;
         self.engine
-            .register_model(model_id.clone(), handle, model)
+            .register_model(model_id.clone(), handle, Arc::clone(&model))
             .await;
+        if let Some(guard) = reservation {
+            let entry = resident::Resident::new(model, guard);
+            index.residents.insert(model_id.clone(), entry);
+        }
         index.insert(model_id, handle);
 
         Ok(handle)
@@ -123,6 +168,10 @@ impl ModelLifecycle {
         self.engine.unregister_model(model_id).await;
         self.registry.unregister(handle).await;
         index.remove_by_id(model_id);
+        // Budget returns once in-flight requests release the model.
+        if let Some(entry) = index.residents.remove(model_id) {
+            entry.release();
+        }
 
         Ok(handle)
     }
@@ -163,6 +212,13 @@ impl ModelLifecycle {
     }
 }
 
+#[path = "lifecycle_resident.rs"]
+mod resident;
+
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "lifecycle_resident_tests.rs"]
+mod resident_tests;

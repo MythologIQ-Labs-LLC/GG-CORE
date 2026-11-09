@@ -8,6 +8,10 @@ use tokio::sync::{Mutex, Notify};
 
 use super::priority::{Priority, PriorityQueue};
 use super::streaming_queue::StreamingQueuedRequest;
+pub use typed::{TypedQueuedRequest, TypedResponseRx};
+
+#[path = "typed_queue.rs"]
+mod typed;
 use crate::engine::inference::InferenceResult;
 use crate::engine::InferenceParams;
 
@@ -41,6 +45,7 @@ impl Default for RequestQueueConfig {
 pub struct RequestQueue {
     queue: Arc<Mutex<PriorityQueue<QueuedRequest>>>,
     streaming: Arc<Mutex<VecDeque<StreamingQueuedRequest>>>,
+    typed: Arc<Mutex<VecDeque<TypedQueuedRequest>>>,
     next_id: AtomicU64,
     config: RequestQueueConfig,
     notify: Arc<Notify>,
@@ -51,6 +56,7 @@ impl RequestQueue {
         Self {
             queue: Arc::new(Mutex::new(PriorityQueue::new())),
             streaming: Arc::new(Mutex::new(VecDeque::new())),
+            typed: Arc::new(Mutex::new(VecDeque::new())),
             next_id: AtomicU64::new(1),
             config,
             notify: Arc::new(Notify::new()),
@@ -123,8 +129,9 @@ impl RequestQueue {
 
         let mut queue = self.queue.lock().await;
         let streaming = self.streaming.lock().await;
-        let total = queue.len() + streaming.len();
-        drop(streaming);
+        let typed = self.typed.lock().await;
+        let total = queue.len() + streaming.len() + typed.len();
+        drop((streaming, typed));
         if total >= self.config.max_pending {
             return Err(QueueError::QueueFull);
         }
@@ -177,7 +184,7 @@ impl RequestQueue {
             if let Some(req) = self.dequeue().await {
                 return Some(req);
             }
-            if self.streaming_len().await > 0 {
+            if self.streaming_len().await > 0 || self.typed_len().await > 0 {
                 return None;
             }
             self.notify.notified().await;
@@ -237,7 +244,10 @@ impl RequestQueue {
 
         let queue = self.queue.lock().await;
         let mut streaming = self.streaming.lock().await;
-        if queue.len() + streaming.len() >= self.config.max_pending {
+        let typed = self.typed.lock().await;
+        let pending = queue.len() + streaming.len() + typed.len();
+        drop(typed);
+        if pending >= self.config.max_pending {
             return Err(QueueError::QueueFull);
         }
 

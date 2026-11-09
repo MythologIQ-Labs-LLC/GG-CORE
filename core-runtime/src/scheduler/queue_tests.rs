@@ -16,7 +16,7 @@ mod tests {
     #[tokio::test]
     async fn controlled_stream_carries_cancel_and_deadline() {
         let q = small_queue();
-        let (tx, _rx) = TokenStream::new(4);
+        let (tx, _rx) = TokenStream::new(4, crate::engine::StreamBound::default());
         let cancel = tokio_util::sync::CancellationToken::new();
         q.enqueue_streaming_controlled(
             "m".into(),
@@ -37,7 +37,7 @@ mod tests {
     #[tokio::test]
     async fn expired_stream_is_skipped() {
         let q = small_queue();
-        let (tx, _rx) = TokenStream::new(4);
+        let (tx, _rx) = TokenStream::new(4, crate::engine::StreamBound::default());
         let config = InferenceConfig {
             timeout_ms: 1,
             ..Default::default()
@@ -98,8 +98,8 @@ mod tests {
         let q = small_queue(); // max_pending = 2
 
         // Enqueue 2 streaming requests => queue should be full
-        let (tx1, _rx1) = TokenStream::new(4);
-        let (tx2, _rx2) = TokenStream::new(4);
+        let (tx1, _rx1) = TokenStream::new(4, crate::engine::StreamBound::default());
+        let (tx2, _rx2) = TokenStream::new(4, crate::engine::StreamBound::default());
         q.enqueue_streaming("m".into(), "a".into(), InferenceConfig::default(), tx1)
             .await
             .unwrap();
@@ -119,7 +119,7 @@ mod tests {
         assert!(err.is_err());
 
         // Third streaming should also fail
-        let (tx3, _rx3) = TokenStream::new(4);
+        let (tx3, _rx3) = TokenStream::new(4, crate::engine::StreamBound::default());
         let err = q
             .enqueue_streaming("m".into(), "c".into(), InferenceConfig::default(), tx3)
             .await;
@@ -129,7 +129,7 @@ mod tests {
     #[tokio::test]
     async fn streaming_dequeue_returns_request() {
         let q = small_queue();
-        let (tx, _rx) = TokenStream::new(4);
+        let (tx, _rx) = TokenStream::new(4, crate::engine::StreamBound::default());
         let id = q
             .enqueue_streaming(
                 "model".into(),
@@ -149,8 +149,8 @@ mod tests {
     async fn dequeued_streaming_frees_capacity() {
         let q = small_queue(); // max_pending = 2
 
-        let (tx1, _rx1) = TokenStream::new(4);
-        let (tx2, _rx2) = TokenStream::new(4);
+        let (tx1, _rx1) = TokenStream::new(4, crate::engine::StreamBound::default());
+        let (tx2, _rx2) = TokenStream::new(4, crate::engine::StreamBound::default());
         q.enqueue_streaming("m".into(), "a".into(), InferenceConfig::default(), tx1)
             .await
             .unwrap();
@@ -162,7 +162,7 @@ mod tests {
         let _req = q.dequeue_streaming().await.unwrap();
 
         // Now there's space for one more
-        let (tx3, _rx3) = TokenStream::new(4);
+        let (tx3, _rx3) = TokenStream::new(4, crate::engine::StreamBound::default());
         let ok = q
             .enqueue_streaming("m".into(), "c".into(), InferenceConfig::default(), tx3)
             .await;
@@ -177,7 +177,7 @@ mod tests {
         });
         // 44 bytes / 4 = 11 > 10 max
         let big = "a".repeat(44);
-        let (tx, _rx) = TokenStream::new(4);
+        let (tx, _rx) = TokenStream::new(4, crate::engine::StreamBound::default());
         let err = q
             .enqueue_streaming("m".into(), big, InferenceConfig::default(), tx)
             .await;
@@ -198,7 +198,7 @@ mod tests {
             tokio::spawn(async move { q.wait_and_dequeue().await })
         };
         tokio::time::sleep(std::time::Duration::from_millis(50)).await; // park it
-        let (tx, _rx) = TokenStream::new(4);
+        let (tx, _rx) = TokenStream::new(4, crate::engine::StreamBound::default());
         q.enqueue_streaming("m".into(), "a".into(), InferenceConfig::default(), tx)
             .await
             .unwrap();

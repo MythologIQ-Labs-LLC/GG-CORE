@@ -77,3 +77,121 @@ fn load_and_classify() {
         Err(e) => panic!("unexpected error: {e:?}"),
     }
 }
+
+fn classifier_with_initializer_bytes(bytes: usize) -> OnnxClassifier {
+    // This synthetic ONNX is not intended for inference; it proves the exact
+    // resident bytes reported from graph initializer storage, rather than
+    // depending on an external or unlicensed model download.
+    let initializer = candle_onnx::onnx::TensorProto {
+        raw_data: vec![0u8; bytes],
+        ..Default::default()
+    };
+    let graph = candle_onnx::onnx::GraphProto {
+        initializer: vec![initializer],
+        ..Default::default()
+    };
+    let model = candle_onnx::onnx::ModelProto {
+        graph: Some(graph),
+        ..Default::default()
+    };
+    OnnxClassifier::with_model(
+        "accounting-classifier".into(),
+        vec!["NEGATIVE".into(), "POSITIVE".into()],
+        model,
+        super::super::tokenizer::OnnxTokenizer::HashFallback,
+    )
+}
+
+#[tokio::test]
+async fn loaded_classifier_reports_weight_bytes_and_clears_after_unload() {
+    use crate::engine::Model as _;
+    let mut classifier = classifier_with_initializer_bytes(4_096);
+    assert_eq!(
+        classifier.memory_usage(),
+        4_096,
+        "loaded classifier must never report zero for nonempty initializer"
+    );
+    classifier.unload().await.unwrap();
+    assert_eq!(classifier.memory_usage(), 0);
+}
+
+#[tokio::test]
+async fn classifier_memory_reservation_shares_budget_with_working_requests() {
+    use crate::engine::InferenceEngine;
+    use crate::engine::Model;
+    use crate::memory::{ResourceLimits, ResourceLimitsConfig};
+    use crate::models::{ModelLifecycle, ModelMetadata, ModelRegistry};
+    use std::sync::Arc;
+
+    let limits = ResourceLimits::new(ResourceLimitsConfig {
+        max_memory_per_call: 800,
+        max_total_memory: 6_000,
+        max_concurrent: 2,
+    });
+    let engine = Arc::new(InferenceEngine::new(4_096));
+    let registry = Arc::new(ModelRegistry::new());
+    let lifecycle = ModelLifecycle::new(registry, engine).with_resource_limits(limits.clone());
+    let classifier: Arc<dyn Model> = Arc::new(classifier_with_initializer_bytes(5_000));
+    lifecycle
+        .load(
+            "accounting-classifier".into(),
+            ModelMetadata {
+                name: "accounting-classifier".into(),
+                size_bytes: 5_000,
+            },
+            classifier,
+        )
+        .await
+        .expect("classifier must register when its weights fit");
+
+    assert_eq!(limits.current_memory(), 5_000);
+    let active = limits
+        .try_acquire(800)
+        .expect("classifier weights and one working reservation fit");
+    assert_eq!(limits.current_memory(), 5_800);
+    assert!(
+        limits.try_acquire(300).is_err(),
+        "second working reservation must not exceed total-memory cap"
+    );
+    assert_eq!(limits.current_memory(), 5_800);
+    drop(active);
+    lifecycle.unload("accounting-classifier").await.unwrap();
+    assert_eq!(limits.current_memory(), 0);
+}
+
+#[tokio::test]
+async fn oversized_classifier_is_refused_before_registration_without_leak() {
+    use crate::engine::InferenceEngine;
+    use crate::engine::Model;
+    use crate::memory::{ResourceLimits, ResourceLimitsConfig};
+    use crate::models::{ModelLifecycle, ModelMetadata, ModelRegistry};
+    use std::sync::Arc;
+
+    let limits = ResourceLimits::new(ResourceLimitsConfig {
+        max_memory_per_call: 500,
+        max_total_memory: 1_000,
+        max_concurrent: 2,
+    });
+    let lifecycle = ModelLifecycle::new(
+        Arc::new(ModelRegistry::new()),
+        Arc::new(InferenceEngine::new(4_096)),
+    )
+    .with_resource_limits(limits.clone());
+    let model: Arc<dyn Model> = Arc::new(classifier_with_initializer_bytes(1_001));
+    let result = lifecycle
+        .load(
+            "too-large-classifier".into(),
+            ModelMetadata {
+                name: "too-large-classifier".into(),
+                size_bytes: 1_001,
+            },
+            model,
+        )
+        .await;
+    assert!(matches!(
+        result,
+        Err(crate::models::LifecycleError::ResourceExhausted(_))
+    ));
+    assert!(!lifecycle.is_loaded("too-large-classifier").await);
+    assert_eq!(limits.current_memory(), 0);
+}

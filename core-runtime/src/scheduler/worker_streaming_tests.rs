@@ -23,7 +23,7 @@ async fn streaming_request_is_serviced_by_an_idle_worker() {
     // Let the worker reach its idle wait before any streaming work exists.
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    let (tx, rx) = TokenStream::new(8);
+    let (tx, rx) = TokenStream::new(8, crate::engine::StreamBound::default());
     queue
         .enqueue_streaming(
             "absent-model".into(),
@@ -57,7 +57,7 @@ async fn streaming_request_is_serviced_by_an_idle_worker() {
 #[tokio::test]
 async fn cancelled_queued_stream_reports_error_terminal() {
     let queue = Arc::new(RequestQueue::new(RequestQueueConfig::default()));
-    let (tx, rx) = TokenStream::new(8);
+    let (tx, rx) = TokenStream::new(8, crate::engine::StreamBound::default());
     let cancel = tokio_util::sync::CancellationToken::new();
     cancel.cancel();
     queue
@@ -90,7 +90,7 @@ async fn cancelled_queued_stream_reports_error_terminal() {
 #[tokio::test]
 async fn expired_queued_stream_reports_error_terminal() {
     let queue = Arc::new(RequestQueue::new(RequestQueueConfig::default()));
-    let (tx, rx) = TokenStream::new(8);
+    let (tx, rx) = TokenStream::new(8, crate::engine::StreamBound::default());
     let config = InferenceConfig {
         timeout_ms: 1,
         ..Default::default()

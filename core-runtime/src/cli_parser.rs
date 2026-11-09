@@ -12,6 +12,8 @@ USAGE:
 COMMANDS:
     serve        Run the IPC server (default when no command given)
     infer        Run inference on a model (supports streaming)
+    embed        Typed embedding over authenticated IPC (--model ID --text T ...)
+    classify     Typed text classification over authenticated IPC (--model ID --text T)
     health       Full health check (exit 0 if healthy, 1 if unhealthy)
     live         Liveness probe for Kubernetes (exit 0 if alive)
     ready        Readiness probe for Kubernetes (exit 0 if ready)
@@ -183,6 +185,8 @@ OPTIONS:
     --model <MODEL>      Model ID to use for inference
     --prompt <PROMPT>    Input prompt for generation
     --max-tokens <N>     Maximum tokens to generate (default: 256)
+    --chat-template ID   Opt-in model-specific prompt format: qwen2.5
+    --system TEXT        System instructions (requires --chat-template)
     --stream             Enable token-by-token streaming output
     --timeout-ms <MS>    Request deadline enforced by the daemon (default: 300000)
 
@@ -190,8 +194,14 @@ EXIT CODES:
     0  Inference completed successfully
     1  Inference failed or connection error
 
+DESCRIPTION:
+    Default: raw completion. Qwen2.5 ChatML is explicit opt-in only;
+    it does NOT inspect model metadata or change daemon security policy.
+    Reject reserved role-token syntax in chat message text.
+
 EXAMPLES:
     GG-CORE infer --model phi-3 --prompt \"Count to 5\" --stream
+    GG-CORE infer --model qwen --prompt \"Hello\" --chat-template qwen2.5 --stream
 "
     );
 }

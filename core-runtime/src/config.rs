@@ -10,9 +10,9 @@
 //! | `GG_CORE_MAX_CONTEXT` | 4096 | Max context length (tokens) |
 //! | `GG_CORE_MAX_QUEUE_DEPTH` | 256 | Max pending requests |
 //! | `GG_CORE_MAX_CONTEXT_TOKENS` | 4096 | Max context tokens per request |
-//! | `GG_CORE_MAX_MEMORY_PER_CALL` | 1073741824 | Max memory per call (bytes) |
-//! | `GG_CORE_MAX_TOTAL_MEMORY` | 2147483648 | Max total memory (bytes) |
-//! | `GG_CORE_MAX_CONCURRENT` | 2 | Max concurrent requests |
+//! | `GG_CORE_MAX_MEMORY_PER_CALL` | unset | Optional per-request working-memory ceiling (bytes). Unset: a request reserves its model's metadata-derived need, bounded only by the total; models without an estimate reserve a 1 GiB fallback (or this value when set) |
+//! | `GG_CORE_MAX_TOTAL_MEMORY` | max(2 GiB, 50% RAM) | Resident weights + working memory; Job Object cap (bytes) |
+//! | `GG_CORE_MAX_CONCURRENT` | 2 | Max concurrent requests = scheduler worker loops |
 //! | `GG_CORE_BATCH_MAX_REQUESTS` | 8 | Max requests per batch |
 //! | `GG_CORE_BATCH_MAX_TOKENS` | 4096 | Max tokens per batch |
 //! | `GG_CORE_SHUTDOWN_TIMEOUT` | 30 | Graceful shutdown timeout (secs) |
@@ -21,6 +21,7 @@
 //! | `GG_CORE_N_THREADS` | 0 | Inference threads (0 = auto) |
 //! | `GG_CORE_IPC_FRAME_LIMIT` | 16777216 | Max IPC frame size (bytes) |
 //! | `GG_CORE_MAX_CONNECTIONS` | 64 | Max concurrent IPC connections |
+//! | `GG_CORE_STREAM_STALL_MS` | 5000 | Longest wait for a non-reading stream client (min 100) |
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -36,6 +37,8 @@ pub struct EffectiveConfig {
     pub queue_max_pending: usize,
     pub queue_max_context_tokens: usize,
     pub resource_max_memory_per_call: usize,
+    /// Explicit per-request ceiling; `None` = bounded only by the total.
+    pub resource_per_call_ceiling: Option<usize>,
     pub resource_max_total_memory: usize,
     pub resource_max_concurrent: usize,
     pub batch_max_requests: usize,
@@ -46,6 +49,7 @@ pub struct EffectiveConfig {
     pub n_threads: u32,
     pub ipc_frame_limit: usize,
     pub max_connections: usize,
+    pub stream_stall_ms: u64,
 }
 
 /// GGUF-specific configuration loaded from env.
@@ -72,6 +76,8 @@ pub struct EnvConfig {
     pub max_context_length: usize,
     pub request_queue: RequestQueueConfig,
     pub resource_limits: ResourceLimitsConfig,
+    /// Explicit `GG_CORE_MAX_MEMORY_PER_CALL` (daemon per-request ceiling).
+    pub per_call_ceiling: Option<usize>,
     pub batch: BatchConfig,
     pub shutdown_timeout: Duration,
     pub session_timeout: Duration,
@@ -116,10 +122,21 @@ fn load_queue_config() -> RequestQueueConfig {
     }
 }
 
+/// The operator per-request ceiling: `Some` only when
+/// `GG_CORE_MAX_MEMORY_PER_CALL` is explicitly set (same parse and 1 MiB
+/// floor as the fallback reservation). Unset: no separate ceiling.
+pub fn per_call_ceiling_from_env() -> Option<usize> {
+    let value = std::env::var("GG_CORE_MAX_MEMORY_PER_CALL").ok()?;
+    Some(value.parse::<usize>().ok()?.max(1024 * 1024))
+}
+
 /// Load resource limits configuration from environment.
 fn load_resource_limits() -> ResourceLimitsConfig {
     let per_call = parse_usize("GG_CORE_MAX_MEMORY_PER_CALL", 1024 * 1024 * 1024);
-    let total = parse_usize("GG_CORE_MAX_TOTAL_MEMORY", 2 * 1024 * 1024 * 1024);
+    let total = parse_usize(
+        "GG_CORE_MAX_TOTAL_MEMORY",
+        crate::memory::host::default_total_memory(),
+    );
     let concurrent = parse_usize("GG_CORE_MAX_CONCURRENT", 2);
     let per_call = per_call.max(1024 * 1024); // floor: 1MB
     let total = total.max(per_call); // total >= per_call
@@ -157,7 +174,12 @@ fn load_ipc_server_config() -> IpcServerConfig {
     const MIN_FRAME: usize = 4096; // floor: 4 KiB
     let max_frame_size = parse_usize("GG_CORE_IPC_FRAME_LIMIT", DEFAULT_FRAME);
     let max_frame_size = max_frame_size.max(MIN_FRAME);
-    IpcServerConfig { max_frame_size }
+    let stall = parse_u64("GG_CORE_STREAM_STALL_MS", 5_000).max(100);
+    let stream_stall = Duration::from_millis(stall);
+    IpcServerConfig {
+        max_frame_size,
+        stream_stall,
+    }
 }
 
 /// Load connection pool configuration from environment.
@@ -185,6 +207,7 @@ pub fn load() -> EnvConfig {
         max_context_length,
         request_queue: load_queue_config(),
         resource_limits: load_resource_limits(),
+        per_call_ceiling: per_call_ceiling_from_env(),
         batch: load_batch_config(),
         shutdown_timeout: Duration::from_secs(shutdown_secs),
         session_timeout: Duration::from_secs(session_secs),
@@ -202,6 +225,7 @@ impl EnvConfig {
             queue_max_pending: self.request_queue.max_pending,
             queue_max_context_tokens: self.request_queue.max_context_tokens,
             resource_max_memory_per_call: self.resource_limits.max_memory_per_call,
+            resource_per_call_ceiling: self.per_call_ceiling,
             resource_max_total_memory: self.resource_limits.max_total_memory,
             resource_max_concurrent: self.resource_limits.max_concurrent,
             batch_max_requests: self.batch.max_batch_size,
@@ -212,155 +236,11 @@ impl EnvConfig {
             n_threads: self.gguf.n_threads,
             ipc_frame_limit: self.ipc_server.max_frame_size,
             max_connections: self.connections.max_connections,
+            stream_stall_ms: self.ipc_server.stream_stall.as_millis() as u64,
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::Mutex;
-
-    // Serialize env-mutating tests to avoid cross-test pollution.
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    const ENV_KEYS: &[&str] = &[
-        "GG_CORE_MAX_CONTEXT",
-        "GG_CORE_MAX_QUEUE_DEPTH",
-        "GG_CORE_MAX_CONTEXT_TOKENS",
-        "GG_CORE_MAX_MEMORY_PER_CALL",
-        "GG_CORE_MAX_TOTAL_MEMORY",
-        "GG_CORE_MAX_CONCURRENT",
-        "GG_CORE_BATCH_MAX_REQUESTS",
-        "GG_CORE_BATCH_MAX_TOKENS",
-        "GG_CORE_SHUTDOWN_TIMEOUT",
-        "GG_CORE_SESSION_TIMEOUT",
-        "GG_CORE_N_CTX",
-        "GG_CORE_N_THREADS",
-        "GG_CORE_IPC_FRAME_LIMIT",
-        "GG_CORE_MAX_CONNECTIONS",
-        "CORE_AUTH_TOKEN",
-    ];
-
-    fn clear_env_vars() {
-        for k in ENV_KEYS {
-            std::env::remove_var(k);
-        }
-    }
-
-    #[test]
-    fn test_defaults_are_sensible() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_env_vars();
-        let cfg = load();
-        assert_eq!(cfg.max_context_length, 4096);
-        assert_eq!(cfg.request_queue.max_pending, 256);
-        assert_eq!(cfg.request_queue.max_context_tokens, 4096);
-        assert_eq!(cfg.resource_limits.max_memory_per_call, 1024 * 1024 * 1024);
-        assert_eq!(cfg.resource_limits.max_total_memory, 2 * 1024 * 1024 * 1024);
-        assert_eq!(cfg.resource_limits.max_concurrent, 2);
-        assert_eq!(cfg.batch.max_batch_size, 8);
-        assert_eq!(cfg.batch.max_total_tokens, 4096);
-        assert_eq!(cfg.shutdown_timeout.as_secs(), 30);
-        assert_eq!(cfg.session_timeout.as_secs(), 3600);
-        assert_eq!(cfg.gguf.n_ctx, 2048);
-        assert_eq!(cfg.gguf.n_threads, 0);
-        assert_eq!(cfg.ipc_server.max_frame_size, 16 * 1024 * 1024);
-        assert_eq!(cfg.connections.max_connections, 64);
-    }
-
-    #[test]
-    fn test_ipc_frame_limit_override() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_env_vars();
-        std::env::set_var("GG_CORE_IPC_FRAME_LIMIT", "33554432"); // 32 MiB
-        std::env::set_var("GG_CORE_MAX_CONNECTIONS", "128");
-        let cfg = load();
-        assert_eq!(cfg.ipc_server.max_frame_size, 33_554_432);
-        assert_eq!(cfg.connections.max_connections, 128);
-        clear_env_vars();
-    }
-
-    #[test]
-    fn test_ipc_frame_limit_floor() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_env_vars();
-        std::env::set_var("GG_CORE_IPC_FRAME_LIMIT", "0");
-        let cfg = load();
-        assert!(
-            cfg.ipc_server.max_frame_size >= 4096,
-            "frame limit must have floor"
-        );
-        clear_env_vars();
-    }
-
-    #[test]
-    fn test_env_vars_override_defaults() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_env_vars();
-        std::env::set_var("GG_CORE_MAX_CONTEXT", "8192");
-        std::env::set_var("GG_CORE_MAX_QUEUE_DEPTH", "512");
-        std::env::set_var("GG_CORE_MAX_CONCURRENT", "4");
-        std::env::set_var("GG_CORE_SHUTDOWN_TIMEOUT", "60");
-        std::env::set_var("GG_CORE_N_CTX", "4096");
-        let cfg = load();
-        assert_eq!(cfg.max_context_length, 8192);
-        assert_eq!(cfg.request_queue.max_pending, 512);
-        assert_eq!(cfg.resource_limits.max_concurrent, 4);
-        assert_eq!(cfg.shutdown_timeout.as_secs(), 60);
-        assert_eq!(cfg.gguf.n_ctx, 4096);
-        clear_env_vars();
-    }
-
-    #[test]
-    fn test_invalid_env_falls_back_to_default() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_env_vars();
-        std::env::set_var("GG_CORE_MAX_CONTEXT", "not_a_number");
-        std::env::set_var("GG_CORE_MAX_QUEUE_DEPTH", "abc");
-        std::env::set_var("GG_CORE_N_CTX", "xyz");
-        let cfg = load();
-        assert_eq!(cfg.max_context_length, 4096);
-        assert_eq!(cfg.request_queue.max_pending, 256);
-        assert_eq!(cfg.gguf.n_ctx, 2048);
-        clear_env_vars();
-    }
-
-    #[test]
-    fn test_max_context_length_validation() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_env_vars();
-        std::env::set_var("GG_CORE_MAX_CONTEXT", "0");
-        let cfg = load();
-        assert!(
-            cfg.max_context_length >= 1,
-            "max_context_length must be > 0"
-        );
-
-        std::env::set_var("GG_CORE_MAX_CONTEXT", "9999999");
-        let cfg = load();
-        assert!(cfg.max_context_length <= 1_000_000, "must be clamped");
-        clear_env_vars();
-    }
-
-    #[test]
-    fn test_effective_config_contains_all_fields() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_env_vars();
-        let cfg = load();
-        let eff = cfg.effective_config();
-        assert!(eff.max_context_length > 0);
-        assert!(eff.queue_max_pending > 0);
-        assert!(eff.queue_max_context_tokens > 0);
-        assert!(eff.resource_max_memory_per_call > 0);
-        assert!(eff.resource_max_total_memory >= eff.resource_max_memory_per_call);
-        assert!(eff.resource_max_concurrent > 0);
-        assert!(eff.batch_max_requests > 0);
-        assert!(eff.batch_max_tokens > 0);
-        assert!(eff.shutdown_timeout_secs > 0);
-        assert!(eff.session_timeout_secs > 0);
-        assert!(eff.n_ctx >= 128);
-        assert!(eff.ipc_frame_limit > 0);
-        assert!(eff.max_connections > 0);
-    }
-}
+#[path = "config_tests.rs"]
+mod tests;

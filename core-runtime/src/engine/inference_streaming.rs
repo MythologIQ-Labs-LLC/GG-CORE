@@ -27,13 +27,7 @@ impl InferenceEngine {
         let result = self.stream_tokens(model_id, prompt, config, &sender, security, should_stop);
         // A cooperative cancellation/timeout must never be reported as a
         // successful complete generation, even if the backend returned Ok.
-        let result = if result.is_ok() && should_stop.is_some_and(|check| check()) {
-            Err(InferenceError::ExecutionFailed(
-                "stream cancelled or deadline exceeded".into(),
-            ))
-        } else {
-            result
-        };
+        let result = result.and_then(|()| stop_or_send_failure(&sender, should_stop));
         let terminal = match &result {
             Ok(()) => crate::engine::StreamTerminal::Complete,
             Err(e) => crate::engine::StreamTerminal::Error(e.to_string()),
@@ -79,5 +73,23 @@ impl InferenceEngine {
         generator
             .generate_stream(prompt, config, sender, should_stop, sanitizer.as_mut())
             .map_err(|e| InferenceError::ExecutionFailed(e.to_string()))
+    }
+}
+
+/// A cooperative cancellation/timeout, or a frame the consumer never
+/// received (stalled reader, deadline, gone), must never be reported as a
+/// successful complete generation, even if the backend returned `Ok`.
+fn stop_or_send_failure(
+    sender: &crate::engine::TokenStreamSender,
+    should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
+) -> Result<(), InferenceError> {
+    if should_stop.is_some_and(|check| check()) {
+        return Err(InferenceError::ExecutionFailed(
+            "stream cancelled or deadline exceeded".into(),
+        ));
+    }
+    match sender.failure() {
+        None => Ok(()),
+        Some(failure) => Err(InferenceError::ExecutionFailed(failure.to_string())),
     }
 }

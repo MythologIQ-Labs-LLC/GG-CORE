@@ -4,6 +4,7 @@
 //! configuration loading, IPC listener setup, and signal handling.
 
 mod auth_boot;
+mod chat_template;
 mod cli_parser;
 mod runtime_init;
 mod sandbox_boot;
@@ -44,6 +45,16 @@ async fn main() -> ExitCode {
             ExitCode::from(run_status(&sp, json).await as u8)
         }
         "infer" => ExitCode::from(runtime_init::run_inference(&args).await as u8),
+        "embed" | "classify" => {
+            use gg_core::ipc::protocol_typed::TypedTask;
+            let task = if command == "embed" {
+                TypedTask::Embedding
+            } else {
+                TypedTask::TextClassification
+            };
+            let rest = args.get(2..).unwrap_or_default();
+            ExitCode::from(gg_core::cli::typed_cmd::run_typed(task, rest).await as u8)
+        }
         "verify" => {
             eprintln!("Verify command not yet implemented. Use 'GG-CORE health'.");
             ExitCode::from(2u8)
@@ -92,6 +103,11 @@ async fn run_serve(args: &[String]) -> ExitCode {
         }
     }
     let runtime = Runtime::new(config);
+    // Optional operator per-request ceiling, set once before any preload or
+    // serving (unset: requests are bounded only by GG_CORE_MAX_TOTAL_MEMORY).
+    if let Some(ceiling) = gg_core::config::per_call_ceiling_from_env() {
+        let _ = runtime.resource_limits.set_per_call_ceiling(ceiling);
+    }
 
     // B-41 (#106): fail-loud startup preload through the canonical load path.
     if let Err(e) = runtime_init::preload_models(&runtime, &preload).await {

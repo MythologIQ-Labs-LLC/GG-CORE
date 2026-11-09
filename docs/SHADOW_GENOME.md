@@ -387,3 +387,57 @@ file for now-orphaned `use` lines before sealing. Relates to [[b29-onnx-dispatch
 ---
 
 _Shadow Genome tracks failures to prevent repetition. Each entry is a lesson._
+
+---
+
+## Failure Entry #3
+
+**Date:** 2026-11-08
+**Verdict ID:** WORKING_MEMORY_ESTIMATE_V1_AUDIT (VETO)
+**Failure Mode:** SECURITY_STUB / GHOST_PATH / ORPHAN
+
+### What failed
+The plan for a per-request working-memory estimate derived from GGUF metadata.
+
+### Why it failed
+- **V1:** the estimate assumed flash attention was on, but llama.cpp can resolve it, or force it, off. That under-reserves and breaks the plan's own fail-closed claim.
+- **V2:** the per-call limit semantics were left to a future owner decision.
+- **V3:** the CLI config surface was not covered.
+- **V4:** a baseline reservation was proposed without an owner.
+
+### Pattern to avoid
+- Before calling a resource estimate "fail-closed", enumerate every path where the backend can override the parameters the estimate assumes.
+- Never leave the default meaning of a limit undecided in a gated plan.
+- Every config change must include its CLI reporting and validation surface.
+
+### Remediation attempted
+Revision 2 (2026-11-08): the owner decided V2 (unset means bounded by the total); V1 now always carries the non-flash bound plus a measured acceptance gate; V3 added to scope; V4 dropped. Resubmission: PASS.
+
+---
+
+## Failure Entry #4
+
+**Date:** 2026-11-09
+**Verdict ID:** V1_SCHEDULER_HOL_BLOCKING_AUDIT (VETO, revision 1)
+**Failure Mode:** SECURITY_STUB / GHOST_PATH
+
+### What failed
+The plan to bound stream back-pressure and remove head-of-line blocking in the single scheduler worker.
+
+### Why it failed
+- **V1:** a timeout around a length-prefixed `write_all` can leave a partial frame on the wire, and the plan kept writing on that connection.
+- **V2:** the bound was added to one constructor, while the embedded `infer_stream` path kept the unbounded one.
+- **V3:** a new client-visible terminal was not in the producer contract.
+- **V4:** a CPU-thread default was changed with no mechanism and no owner decision.
+
+### Pattern to avoid
+- Never cancel a framed write and keep using the stream. A write timeout poisons the connection.
+- When bounding a shared primitive, bound the primitive itself, not one caller's construction of it.
+- Every change to a client-visible terminal updates the producer contract in the same change.
+
+### Remediation attempted
+Revisions 2–4 of the plan (see below). Revision 4: PASS.
+
+**Revision 2 (2026-11-09):** V2–V4 resolved. VETO again on **V5**: the poison flag covered only the stream bridge, while `server.rs` keeps a second frame writer over the same connection. Pattern: before you guard a shared resource, find *every* writer of it, not just the one in the failing path.
+
+**Revision 3 (2026-11-09):** V5 resolved. VETO on **V6**: frame writes bounded by the request deadline would poison the whole connection sooner than the published stall bound. Pattern: when one timeout has connection-wide consequences, it must be the documented one, never the per-request one.

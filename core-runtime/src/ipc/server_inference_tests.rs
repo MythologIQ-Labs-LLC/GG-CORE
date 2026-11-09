@@ -4,8 +4,9 @@
 //! stays pending until its caller stops it; a serial connection loop (the old
 //! behavior) would never read the cancel frame and would wait forever.
 
-use super::{handle_connection, read_frame, write_frame};
+use super::{handle_connection, read_frame};
 use crate::engine::InferenceParams;
+use crate::ipc::conn_writer::write_framed as write_frame;
 use crate::ipc::connections::{ConnectionConfig, ConnectionPool};
 use crate::ipc::protocol::{
     decode_message, encode_message, InferenceErrorCode, InferenceRequest, IpcMessage, RequestId,

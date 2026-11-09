@@ -3,11 +3,9 @@
 //! Model loading, context creation, and token generation
 //! via the llama-cpp-2 Rust bindings.
 
-use std::num::NonZeroU32;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
-use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
@@ -23,7 +21,8 @@ use crate::security::stream_sanitizer::StreamSanitizer;
 pub struct LlamaBackendInner {
     backend: &'static LlamaBackend,
     model: LlamaModel,
-    n_ctx: u32,
+    pub(super) shape: super::working_memory::ContextShape,
+    working_bytes: usize,
     n_threads: i32,
 }
 
@@ -62,13 +61,20 @@ impl LlamaBackendInner {
         let model_params = LlamaModelParams::default().with_n_gpu_layers(config.n_gpu_layers);
         let model = LlamaModel::load_from_file(backend, path, &model_params)
             .map_err(|e| InferenceError::ModelError(format!("load: {e}")))?;
+        let (shape, working_bytes) = super::working_memory::shape_for(&model, config.n_ctx);
         let n_threads = resolve_threads(config.n_threads);
         Ok(Self {
             backend,
             model,
-            n_ctx: config.n_ctx,
+            shape,
+            working_bytes,
             n_threads,
         })
+    }
+
+    /// Bytes one request's context can commit (admitted before llama.cpp).
+    pub fn working_memory_estimate(&self) -> usize {
+        self.working_bytes
     }
 
     pub fn model_size(&self) -> usize {
@@ -335,14 +341,8 @@ impl LlamaBackendInner {
     }
 
     pub(super) fn create_context(&self) -> Result<LlamaContext<'_>, InferenceError> {
-        // Use same thread count for both - simpler and avoids cache contention
-        // llama.cpp internally optimizes based on workload
-        let p = LlamaContextParams::default()
-            .with_n_ctx(NonZeroU32::new(self.n_ctx))
-            .with_n_threads(self.n_threads)
-            .with_n_threads_batch(self.n_threads);
         self.model
-            .new_context(self.backend, p)
+            .new_context(self.backend, self.shape.params(self.n_threads))
             .map_err(|e| InferenceError::ModelError(format!("ctx: {e}")))
     }
 

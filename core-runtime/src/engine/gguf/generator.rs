@@ -13,19 +13,16 @@ use crate::engine::{
 pub struct GgufGenerator {
     model_id: String,
     memory_bytes: AtomicUsize,
-    #[allow(dead_code)]
-    context_size: u32,
     #[cfg(feature = "gguf")]
     inner: Option<std::sync::Arc<super::backend::LlamaBackendInner>>,
 }
 
 impl GgufGenerator {
     /// Create a new generator (no model loaded yet).
-    pub fn new(model_id: String, context_size: u32) -> Self {
+    pub fn new(model_id: String, _context_size: u32) -> Self {
         Self {
             model_id,
             memory_bytes: AtomicUsize::new(0),
-            context_size,
             #[cfg(feature = "gguf")]
             inner: None,
         }
@@ -39,11 +36,9 @@ impl GgufGenerator {
         config: &super::GgufConfig,
     ) -> Result<Self, InferenceError> {
         let inner = super::backend::LlamaBackendInner::load(path, config)?;
-        let mem = inner.model_size();
         Ok(Self {
             model_id,
-            memory_bytes: AtomicUsize::new(mem),
-            context_size: config.n_ctx,
+            memory_bytes: AtomicUsize::new(inner.model_size()),
             inner: Some(std::sync::Arc::new(inner)),
         })
     }
@@ -211,6 +206,11 @@ impl crate::engine::Model for GgufGenerator {
 
     fn memory_usage(&self) -> usize {
         self.memory_bytes.load(Ordering::SeqCst)
+    }
+
+    #[cfg(feature = "gguf")]
+    fn working_memory_estimate(&self) -> Option<usize> {
+        self.inner.as_ref().map(|i| i.working_memory_estimate())
     }
 
     async fn infer(

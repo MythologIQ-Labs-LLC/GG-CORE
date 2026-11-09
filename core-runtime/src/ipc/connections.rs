@@ -24,12 +24,16 @@ impl Default for ConnectionConfig {
 pub struct IpcServerConfig {
     /// Maximum inbound frame size in bytes (default 16 MiB).
     pub max_frame_size: usize,
+    /// Longest a stream send or frame write may wait for a client that is
+    /// not reading (`GG_CORE_STREAM_STALL_MS`).
+    pub stream_stall: std::time::Duration,
 }
 
 impl Default for IpcServerConfig {
     fn default() -> Self {
         Self {
             max_frame_size: 16 * 1024 * 1024,
+            stream_stall: crate::engine::DEFAULT_STREAM_STALL,
         }
     }
 }

@@ -23,10 +23,37 @@ pub struct LoadedModel {
 }
 
 /// A validated, backend-loaded model awaiting lifecycle registration.
+///
+/// Field order matters: `model` drops before `reservation`, so an abandoned
+/// load (failed registration, cancelled caller) frees backend memory before
+/// its budget is returned.
 pub struct PreparedModel {
     pub model_id: String,
     pub metadata: ModelMetadata,
     pub model: Arc<dyn Model>,
+    /// Budget taken before backend allocation; resized at registration.
+    reservation: Option<crate::memory::ResidentGuard>,
+}
+
+#[cfg(test)]
+impl PreparedModel {
+    /// Test-only: a prepared model holding `reservation`.
+    pub(crate) fn for_test(
+        model_id: &str,
+        model: Arc<dyn Model>,
+        reservation: Option<crate::memory::ResidentGuard>,
+    ) -> Self {
+        let metadata = ModelMetadata {
+            name: model_id.into(),
+            size_bytes: model.memory_usage() as u64,
+        };
+        Self {
+            model_id: model_id.into(),
+            metadata,
+            model,
+            reservation,
+        }
+    }
 }
 
 /// Unified error for the standalone load/unload operations.
@@ -51,9 +78,29 @@ pub fn prepare_model(
     relative_path: &str,
     model_id: Option<String>,
 ) -> Result<PreparedModel, ModelOpError> {
+    prepare_model_admitted(loader, None, relative_path, model_id)
+}
+
+/// [`prepare_model`] that first **reserves** the model's file size against
+/// the total-memory budget, before any backend allocation. Concurrent loads
+/// therefore cannot jointly exceed the budget (and hit the Windows Job Object
+/// cap inside the backend); a load that does not fit fails explicitly. The
+/// reservation travels with the [`PreparedModel`]: it is released if backend
+/// load fails or the prepared model is dropped, and re-sized to the backend's
+/// reported footprint when `ModelLifecycle` registers it.
+pub fn prepare_model_admitted(
+    loader: &ModelLoader,
+    limits: Option<&crate::memory::ResourceLimits>,
+    relative_path: &str,
+    model_id: Option<String>,
+) -> Result<PreparedModel, ModelOpError> {
     let validated = loader.validate_path(relative_path)?;
     let metadata = loader.load_metadata(&validated)?;
     let id = model_id.unwrap_or_else(|| metadata.name.clone());
+    let reservation = match limits {
+        Some(limits) => Some(reserve_for_load(limits, metadata.size_bytes)?),
+        None => None,
+    };
 
     let model = load_model_dispatch(validated.as_path(), &id)
         .map_err(|e| ModelOpError::Backend(e.to_string()))?;
@@ -62,7 +109,18 @@ pub fn prepare_model(
         model_id: id,
         metadata,
         model,
+        reservation,
     })
+}
+
+fn reserve_for_load(
+    limits: &crate::memory::ResourceLimits,
+    size_bytes: u64,
+) -> Result<crate::memory::ResidentGuard, ModelOpError> {
+    let bytes = usize::try_from(size_bytes).unwrap_or(usize::MAX);
+    limits
+        .reserve_resident(bytes)
+        .map_err(|e| ModelOpError::Lifecycle(LifecycleError::ResourceExhausted(e.to_string())))
 }
 
 /// Register a prepared model atomically via the lifecycle coordinator.
@@ -70,11 +128,17 @@ pub async fn register_prepared(
     lifecycle: &Arc<ModelLifecycle>,
     prepared: PreparedModel,
 ) -> Result<LoadedModel, ModelOpError> {
+    let PreparedModel {
+        model_id,
+        metadata,
+        model,
+        reservation,
+    } = prepared;
     let handle = lifecycle
-        .load(prepared.model_id.clone(), prepared.metadata, prepared.model)
+        .load_reserved(model_id.clone(), metadata, model, reservation)
         .await?;
     Ok(LoadedModel {
-        model_id: prepared.model_id,
+        model_id,
         handle_id: handle.id(),
     })
 }
@@ -90,7 +154,8 @@ pub async fn load_model_from_path(
     relative_path: &str,
     model_id: Option<String>,
 ) -> Result<LoadedModel, ModelOpError> {
-    let prepared = prepare_model(loader, relative_path, model_id)?;
+    let prepared =
+        prepare_model_admitted(loader, lifecycle.resource_limits(), relative_path, model_id)?;
     register_prepared(lifecycle, prepared).await
 }
 

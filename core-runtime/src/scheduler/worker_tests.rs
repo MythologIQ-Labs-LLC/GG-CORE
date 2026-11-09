@@ -285,12 +285,22 @@ async fn tier1_context_check_allows_small_prompt() {
 
 // ---- Resource limits integration tests ----
 
-/// Build a ResourceLimits with a very tight total memory cap (below MockModel's 1024 bytes)
-/// but generous concurrency, so memory is the rejecting constraint.
+/// The per-request working reservation (`max_memory_per_call`) cannot fit
+/// the total budget, so memory is the rejecting constraint.
 fn limits_memory_exceeded() -> ResourceLimits {
     ResourceLimits::new(ResourceLimitsConfig {
-        max_memory_per_call: 512, // per-call cap below 1024 bytes reported by MockModel
-        max_total_memory: 1024 * 1024, // total is fine
+        max_memory_per_call: 512,
+        max_total_memory: 256, // below one working reservation
+        max_concurrent: 16,
+    })
+}
+
+/// Working budget (512) smaller than MockModel's 1024 resident bytes, with
+/// ample total: the old per-call weights comparison refused this request.
+fn limits_weights_exceed_working_budget() -> ResourceLimits {
+    ResourceLimits::new(ResourceLimitsConfig {
+        max_memory_per_call: 512,
+        max_total_memory: 1024 * 1024,
         max_concurrent: 16,
     })
 }
@@ -302,6 +312,40 @@ fn limits_concurrency_exceeded() -> ResourceLimits {
         max_total_memory: usize::MAX,
         max_concurrent: 0, // no slots available
     })
+}
+
+/// Regression (2026-11-07): models larger than the per-call working budget
+/// are served; resident weights are not charged per request.
+#[tokio::test]
+async fn worker_serves_model_larger_than_working_budget() {
+    let (queue, engine) = setup().await;
+    let shutdown = tokio_util::sync::CancellationToken::new();
+    let worker = spawn_worker_with_registry(
+        queue.clone(),
+        engine,
+        None,
+        None,
+        Some(limits_weights_exceed_working_budget()),
+        None,
+        shutdown.clone(),
+    );
+    let (_id, rx) = queue
+        .enqueue_with_response(
+            "test-model".into(),
+            "hi".into(),
+            InferenceParams::default(),
+            Priority::Normal,
+        )
+        .await
+        .unwrap();
+    let result = tokio::time::timeout(std::time::Duration::from_secs(2), rx)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(result.is_ok(), "must not refuse by weights: {result:?}");
+    shutdown.cancel();
+    queue.wake();
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(1), worker).await;
 }
 
 #[tokio::test]
@@ -514,7 +558,7 @@ async fn streaming_enqueue_succeeds_with_capacity() {
     };
     let queue = Arc::new(RequestQueue::new(config));
 
-    let (tx, _rx) = crate::engine::TokenStream::new(4);
+    let (tx, _rx) = crate::engine::TokenStream::new(4, crate::engine::StreamBound::default());
     let result = queue
         .enqueue_streaming("m".into(), "prompt".into(), InferenceConfig::default(), tx)
         .await;
@@ -552,7 +596,7 @@ async fn streaming_enqueue_rejects_when_queue_full() {
         .await
         .unwrap();
 
-    let (tx, _rx) = crate::engine::TokenStream::new(4);
+    let (tx, _rx) = crate::engine::TokenStream::new(4, crate::engine::StreamBound::default());
     let result = queue
         .enqueue_streaming("m".into(), "c".into(), InferenceConfig::default(), tx)
         .await;
@@ -579,7 +623,7 @@ async fn worker_rejects_streaming_when_concurrency_limit_exceeded() {
         shutdown.clone(),
     );
 
-    let (tx, mut rx) = crate::engine::TokenStream::new(4);
+    let (tx, mut rx) = crate::engine::TokenStream::new(4, crate::engine::StreamBound::default());
     queue
         .enqueue_streaming(
             "test-model".into(),
