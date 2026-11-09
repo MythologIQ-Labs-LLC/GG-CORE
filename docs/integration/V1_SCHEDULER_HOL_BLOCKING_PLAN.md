@@ -369,3 +369,13 @@ ust199`);
   - `backend_dispatch_config_tests.rs` (5 tests): the cores ÷ workers policy for 1/2/4/8, written out independently; the explicit override for 1/2/4/8; `worker_loops`; and the wrapper equivalence;
   - `config_tests.rs::explicit_thread_env_override_is_honoured`, under the existing `ENV_LOCK`.
 
+- **VM validation (Addendum B, `1112378`):**
+  - **Rust 1.97** (`C:\host\rust197`, real Qwen fixture staged):
+    - fmt is clean;
+    - clippy `-D warnings` is clean for default, `advanced`, `ffi`, `onnx`, `gguf` and `onnx,gguf,ffi`;
+    - tests: `onnx,gguf,ffi` 1523 passed, 0 failed, 1 ignored; default `--lib` 757 passed.
+  - **Rust 1.99.1** (`E:\w\rust199`):
+    - fmt is clean;
+    - clippy `-D warnings` is clean for default, `advanced`, `ffi`, `onnx` and `gguf`;
+    - tests: default 1441, `advanced` 1576 (3 ignored), `onnx,gguf,ffi` 1523 (1 ignored), with 0 failures in each.
+  - **Benchmark:** re-run; see §4 of `V1_SCHEDULER_HOL_BENCHMARKS.md`.

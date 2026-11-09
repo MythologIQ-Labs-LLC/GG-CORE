@@ -128,3 +128,21 @@ These figures come from one VM on one day. They are evidence for #177 and #161, 
 
 - **No change to admission, leaks or memory.** There were zero refusals, zero allocation failures, flat idle memory, and the same unload return as §2.
 - **Larger models at 3 threads.** At N = 4 each Phi-3.5 (3.8B) request is somewhat slower than under the old 12-thread contexts (up to 10.9 s against 9.4 s), while typed requests and N = 2 generations got faster. Splitting cores trades per-request speed for fairness and aggregate throughput, as intended. Operators who prefer per-request speed for large models can set `GG_CORE_N_THREADS`.
+
+## 4. Re-run after Addendum B (source-compatible API)
+**Build:** #179 at `1112378` (Addendum B on top of §3), `gg-core-cli` release build under Rust 1.97, `onnx,gguf`, exe sha256 `50219962…2d6b0e`. Same VM, harness (`run.py … policy`), workload and models as §3. Addendum B changes no runtime behaviour on the daemon path, so this run checks reproducibility, not an improvement.
+
+| N | Resolved threads per context | Aggregate tok/s, §4 (§3) | Decode tok/s per request | TTFT p50 / p95 ms, §4 (§3 p95) | Total p50 / p95 ms, §4 (§3 p95) | Identical | Peak private |
+|---|---|---|---|---|---|---|---|
+| 1 | 12 (auto) | 78.6 (93.4) | 108.9 | 429 / 463 (460) | 1 584 / 1 691 (1 463) | 16/16 | 0.49 GiB |
+| 2 | 6 (auto) | 123.8 (102.2) | 88.5 | 556 / 606 (1 023) | 1 999 / 2 105 (2 956) | 16/16 | 0.90 GiB |
+| 4 | 3 (auto) | 165.3 (160.2) | 62.3 | 780 / 918 (1 011) | 2 838 / 3 115 (3 172) | 16/16 | 1.71 GiB |
+| 8 | 1 (auto) | 147.6 (163.3) | 27.2 | 1 767 / 2 094 (1 858) | 6 560 / 6 757 (6 025) | 24/24 | 3.31 GiB |
+| 4 | 12 (explicit) | 112.2 (109.7) | 39.6 | 1 139 / 1 272 (1 336) | 4 411 / 4 504 (4 593) | 16/16 | 1.72 GiB |
+
+**Findings:**
+- **Correctness reproduced.** Every stream in every row is byte-identical to the serial baseline (88/88 concurrent, 40/40 serial), with 0 errors. Peak private bytes match §3 within 1 %.
+- **The policy's advantage reproduces.** Across §1, §3 and §4, the auto split at N ≥ 2 (102–166 tok/s) is above every default-thread run (85–100 tok/s) and every oversubscribed override run (110–112 tok/s).
+- **Run-to-run variance is larger than one run suggests.** The identical N = 1 configuration measured 82.5, 93.4 and 78.6 tok/s across §1, §3 and §4 (about ±9 %). N = 8 measured 163.3 and then 147.6. Differences under about 15 % between single runs are not significant.
+- **N = 4 is the most consistent best value on this VM** (160.2 and 165.3 tok/s). N = 8 uses 8 of 12 cores (7.4 busy) because of the integer split.
+- **Not covered:** repeated runs for confidence intervals, Linux, macOS and GPU.
