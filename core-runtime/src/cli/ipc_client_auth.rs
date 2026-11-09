@@ -22,6 +22,20 @@ impl CliIpcClient {
         self.exchange_data(&mut stream, request).await
     }
 
+    /// Connect, authenticate, then exchange two request/response pairs on
+    /// the same session (e.g. unload, then wait for its release).
+    pub async fn send_receive_authenticated_pair(
+        &self,
+        first: &[u8],
+        second: &[u8],
+    ) -> Result<(Vec<u8>, Vec<u8>), CliError> {
+        let mut stream = self.connect_authenticated().await?;
+        self.handshake_on(&mut stream).await?;
+        let a = self.exchange_data(&mut stream, first).await?;
+        let b = self.exchange_data(&mut stream, second).await?;
+        Ok((a, b))
+    }
+
     /// Perform the token handshake on an already-connected stream so the
     /// daemon binds a session to it. Fails loud on a rejected token.
     pub(super) async fn handshake_on<S>(&self, stream: &mut S) -> Result<(), CliError>

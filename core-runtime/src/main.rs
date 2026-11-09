@@ -166,13 +166,7 @@ async fn run_models_cmd(args: &[String]) -> ExitCode {
                 gg_core::cli::models_lifecycle_cmd::run_load(&sp, path, model_id).await as u8,
             )
         }
-        "unload" => {
-            let Some(id) = args.get(3) else {
-                eprintln!("Usage: GG-CORE models unload <model-id>");
-                return ExitCode::FAILURE;
-            };
-            ExitCode::from(gg_core::cli::models_lifecycle_cmd::run_unload(&sp, id).await as u8)
-        }
+        "unload" => run_unload_cmd(args, &sp).await,
         _ => {
             eprintln!("Unknown models subcommand: {}", sub);
             cli_parser::print_command_help("models");
@@ -199,4 +193,35 @@ async fn run_config_cmd(args: &[String]) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// Parse `--name <u64>` from `args`; `Ok(None)` when the flag is absent.
+fn flag_u64(args: &[String], name: &str) -> Result<Option<u64>, String> {
+    let Some(i) = args.iter().position(|a| a == name) else {
+        return Ok(None);
+    };
+    let value = args
+        .get(i + 1)
+        .ok_or_else(|| format!("{name} needs a value"))?;
+    value
+        .parse()
+        .map(Some)
+        .map_err(|_| format!("{name} must be a non-negative integer, got '{value}'"))
+}
+
+/// `models unload <id> [--wait-ms N]`.
+async fn run_unload_cmd(args: &[String], sp: &str) -> ExitCode {
+    let Some(id) = args.get(3).filter(|a| !a.starts_with("--")) else {
+        eprintln!("Usage: GG-CORE models unload <model-id> [--wait-ms N]");
+        return ExitCode::FAILURE;
+    };
+    let code = match flag_u64(args, "--wait-ms") {
+        Ok(Some(ms)) => gg_core::cli::models_release_cmd::run_unload_with_wait(sp, id, ms).await,
+        Ok(None) => gg_core::cli::models_lifecycle_cmd::run_unload(sp, id).await,
+        Err(e) => {
+            eprintln!("models unload: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    ExitCode::from(code as u8)
 }

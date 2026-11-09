@@ -356,6 +356,10 @@ pub enum IpcMessage {
     TypedInferenceRequest(super::protocol_typed::TypedInferenceRequest),
     #[serde(rename = "typed_inference_response")]
     TypedInferenceResponse(super::protocol_typed::TypedInferenceResponse),
+    #[serde(rename = "model_release_wait_request")]
+    ModelReleaseWaitRequest(super::protocol_release_types::ModelReleaseWaitRequest),
+    #[serde(rename = "model_release_wait_response")]
+    ModelReleaseWaitResponse(super::protocol_release_types::ModelReleaseWaitResponse),
     #[serde(rename = "error")]
     Error { code: u32, message: String },
 }

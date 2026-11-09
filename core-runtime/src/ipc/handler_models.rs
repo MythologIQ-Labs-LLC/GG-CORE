@@ -60,4 +60,17 @@ impl IpcHandler {
             Err(e) => ModelUnloadResponse::error(request.model_id, e.to_string()),
         }
     }
+
+    /// Append unloaded instances whose memory is still held, as
+    /// `unloading`. Read after the registry: an instance is pushed to the
+    /// release tracker before it leaves the registry, and entries already
+    /// seen in `models` (same never-reused handle) are skipped, so each held
+    /// instance is listed exactly once.
+    pub(super) fn append_releasing(&self, models: &mut Vec<crate::models::LoadedModelInfo>) {
+        for info in self.model_lifecycle.releasing_models() {
+            if !models.iter().any(|m| m.handle_id == info.handle_id) {
+                models.push(info);
+            }
+        }
+    }
 }

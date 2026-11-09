@@ -179,9 +179,11 @@ def check_active_cancel():
 
 
 def check_switch_after_cancel():
-    """Cancel, then switch models immediately: the native generation loop may
-    still be winding down to its next checkpoint, and that must not break the
-    unload → load path a consumer uses to change models."""
+    """Cancel, then switch models: the native generation loop may still be
+    winding down to its next checkpoint, so its memory budget can still be
+    held when the unload answers. The consumer waits for the release of the
+    unloaded instance before loading (a load may otherwise be refused while
+    the old instance is still charged)."""
     c = Client()
     try:
         c.auth()
@@ -189,6 +191,9 @@ def check_switch_after_cancel():
         c.send({"type": "model_unload_request", "model_id": MODEL_ID})
         frame = c.recv()
         assert frame.get("type") == "model_unload_response" and frame.get("success") is True, frame
+        c.send({"type": "model_release_wait_request", "model_id": MODEL_ID, "wait_ms": 60000})
+        frame = c.recv()
+        assert frame.get("type") == "model_release_wait_response" and frame.get("released") is True, frame
         c.send({"type": "model_load_request", "path": MODEL_REL, "model_id": MODEL_ID})
         frame = c.recv()
         assert frame.get("type") == "model_load_response" and frame.get("success") is True, frame
@@ -201,7 +206,7 @@ def check_switch_after_cancel():
         assert frame.get("type") == "inference_response" and not frame.get("error"), frame
     finally:
         c.close()
-    print("PASS: model unload and reload immediately after cancellation", flush=True)
+    print("PASS: model unload, verified release and reload after cancellation", flush=True)
 
 
 def check_deadline():

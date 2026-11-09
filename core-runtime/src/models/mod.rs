@@ -36,7 +36,7 @@ pub mod version;
 pub use backend_dispatch::{load_model_dispatch, load_model_dispatch_for_workers, BackendChoice};
 pub use drain::{DrainError, FlightGuard, FlightTracker};
 pub use history::{VersionHistory, VersionHistoryEntry, VersionSource};
-pub use lifecycle::{LifecycleError, ModelLifecycle};
+pub use lifecycle::{LifecycleError, ModelLifecycle, MAX_RELEASE_WAIT};
 pub use loader::{LoadError, MappedModel, ModelLoader, ModelMetadata, ModelPath};
 pub use manifest::{ModelArchitecture, ModelCapability, ModelManifest};
 pub use model_ops::{

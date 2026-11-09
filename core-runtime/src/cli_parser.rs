@@ -234,7 +234,7 @@ USAGE:
 SUBCOMMANDS:
     list [--json]         List loaded models
     load <path> [--id ID] Load a model (authenticated; base-path relative)
-    unload <model-id>     Unload a loaded model (authenticated)
+    unload <id> [--wait-ms N]  Unload; optionally wait for its memory release
 
 OPTIONS:
     --json         Output in JSON format (list)
