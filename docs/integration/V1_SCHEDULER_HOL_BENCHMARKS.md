@@ -87,3 +87,44 @@ These figures come from one VM on one day. They are evidence for #177 and #161, 
 - Admission at the memory limit under concurrency (see the #174/#176 qualification).
 - Prompts longer than the fixtures, or contexts other than 4096.
 - Repeated runs for variance: this is a single run per configuration.
+
+## 3. Per-context thread policy (Addendum A), re-measured
+**Build:** `feat/v1-thread-policy-20261109-no-ci` at `cd5f550` (stacked on `51d0fa4`), `gg-core-cli` release build, `onnx,gguf`. Same VM (12 vCPU, 24 GiB), harness (`run.py … policy-all`), models and workload as sections 1 and 2.
+**VM gate before measuring:** fmt and clippy (`onnx,gguf,ffi`, `-D warnings`) clean; `cargo test --features onnx,gguf,ffi` 1516 passed, 0 failed, 1 ignored (pre-existing); default `--lib` 753 passed.
+`GG_CORE_N_THREADS` is unset unless stated, and each row's resolved count was read from `gg-core-cli config show` under the same environment.
+
+| `GG_CORE_MAX_CONCURRENT` | Resolved threads per context (`config show`) | Aggregate tok/s | Before: default threads (§1) | Before: explicit 12/N (§1) | Decode tok/s per request | TTFT p50 / p95 ms | Total p50 / p95 ms | Identical | Peak private |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 12 (auto) | 93.4 | 82.5 | — | 136.0 | 358 / 460 | 1 322 / 1 463 | 16/16 | 0.49 GiB |
+| 2 | 6 (auto) | **102.2** | 85.0 | 106.3 | 81.1 | 670 / 1 023 | 2 349 / 2 956 | 16/16 | 0.90 GiB |
+| 4 | 3 (auto) | **160.2** | 94.9 | 149.4 | 64.8 | 845 / 1 011 | 2 935 / 3 172 | 16/16 | 1.70 GiB |
+| 8 | 1 (auto) | **163.3** | 99.9 | 160.2 | 31.5 | 1 625 / 1 858 | 5 729 / 6 025 | 24/24 | 3.31 GiB |
+| 4 | 12 (explicit override) | 109.7 | 94.9 | — | 39.7 | 1 126 / 1 336 | 4 327 / 4 593 | 16/16 | 1.72 GiB |
+
+**Findings:**
+- **Acceptance gate (plan Addendum A): met.**
+  - Every stream in every row is byte-identical to the serial baseline (88 of 88 concurrent streams, plus 40 of 40 per-daemon serial passes). No request failed.
+  - Aggregate throughput at N ≥ 2 is above the earlier default-thread rows: **+20 % (N=2), +69 % (N=4), +63 % (N=8)**. It is within run-to-run noise of the earlier explicit 12/N rows, which the policy reproduces by construction.
+- **Run-to-run variance is about 13 %.** N = 1 runs the identical configuration as in §1 (12 threads), yet measured 93.4 tok/s against 82.5. Treat differences of that size as noise. Each row is still a single run.
+- **Latency.**
+  - N = 4: p95 TTFT fell from 1 484 ms to 1 011 ms, and p95 total from 5 667 ms to 3 172 ms.
+  - N = 8: p95 TTFT fell from 3 998 ms to 1 858 ms, and p95 total from 11 124 ms to 6 025 ms.
+  - N = 2: p95 total fell from 3 454 ms to 2 956 ms. p95 TTFT rose from 911 ms to 1 023 ms; with 16 samples, p95 is the second-highest value, so this is within noise but is reported as measured.
+- **Override honoured.** `GG_CORE_N_THREADS=12` at N = 4 resolves to 12 per context, as `config show` reports. It reproduces the oversubscribed behaviour: 109.7 tok/s and p95 TTFT 1 336 ms, against 160.2 tok/s and 1 011 ms for the auto value.
+- **Memory unchanged.** Peak private bytes match §1 within 1 % at every N. The thread count does not change admitted working memory, as the plan's security review states.
+- **N = 8 uses 8 of 12 cores** (1 thread × 8 contexts, 7.3 cores busy), because integer division leaves 4 cores idle. It is still the highest-throughput row. A remainder-distributing split is a possible later refinement and is not part of this change.
+
+### Multi-model under the policy (default total 12 GiB)
+| | `max_concurrent=2` (6 threads per GGUF context) | `max_concurrent=4` (3 threads per GGUF context) |
+|---|---|---|
+| All 5 models loaded / admission refusals | 5/5 / **0** | 5/5 / **0** |
+| Failed requests | 0 / 24 | 0 / 24 |
+| Peak private bytes (mixed load) | 5.67 GiB (47 %) | 7.49 GiB (62 %) |
+| Allocation failures (daemon log) | 0 | 0 |
+| Idle: all five resident → after mixed load → end | 2 442 → 2 469 → 2 465 MiB | 2 442 → 2 470 → 2 468 MiB |
+| Phi-3.5 unloaded (×2 cycles); reload and infer | 1 206 / 1 208 MiB; ok | 1 207 / 1 210 MiB; ok |
+| Phi-3.5 generation latency (before, §2) | 6.3–10.4 s (8.1–16.2 s) | 9.6–10.9 s (7.8–9.4 s) |
+| DistilBERT classify latency (before, §2) | 1.1–3.1 s (0.8–8.5 s) | 0.09–0.9 s (0.1–1.6 s) |
+
+- **No change to admission, leaks or memory.** There were zero refusals, zero allocation failures, flat idle memory, and the same unload return as §2.
+- **Larger models at 3 threads.** At N = 4 each Phi-3.5 (3.8B) request is somewhat slower than under the old 12-thread contexts (up to 10.9 s against 9.4 s), while typed requests and N = 2 generations got faster. Splitting cores trades per-request speed for fairness and aggregate throughput, as intended. Operators who prefer per-request speed for large models can set `GG_CORE_N_THREADS`.
