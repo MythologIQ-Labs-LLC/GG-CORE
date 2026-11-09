@@ -330,3 +330,7 @@ mod inference_tests;
 #[cfg(test)]
 #[path = "server_poison_tests.rs"]
 mod poison_tests;
+
+#[cfg(all(test, feature = "gguf"))]
+#[path = "server_real_model_tests.rs"]
+mod real_model_tests;

@@ -70,20 +70,26 @@ mod tests {
         assert!(first.is_some());
         tokio::time::sleep(Duration::from_secs(20)).await;
 
-        let mut frames = 1usize;
-        let terminal = loop {
-            match tokio::time::timeout(Duration::from_secs(10), stream.next()).await {
-                Ok(Some(StreamItem::End(t))) => break Some(t),
-                Ok(Some(_)) => frames += 1,
-                Ok(None) => break None,
-                Err(_) => panic!("stream neither ended nor resumed"),
-            }
-        };
+        let (rest, terminal) = drain(&mut stream).await;
+        let frames = rest + 1;
         eprintln!("frames delivered before the stall: {frames}; terminal: {terminal:?}");
         assert!(
             !matches!(terminal, Some(StreamTerminal::Complete)),
             "a stalled stream resumed and reported Complete"
         );
         assert!(frames <= 40, "only the buffered frames may be delivered");
+    }
+
+    /// Frames until the terminal (or the end of the stream).
+    async fn drain(stream: &mut gg_core::engine::TokenStream) -> (usize, Option<StreamTerminal>) {
+        let mut frames = 0usize;
+        loop {
+            match tokio::time::timeout(Duration::from_secs(10), stream.next()).await {
+                Ok(Some(StreamItem::End(t))) => return (frames, Some(t)),
+                Ok(Some(_)) => frames += 1,
+                Ok(None) => return (frames, None),
+                Err(_) => panic!("stream neither ended nor resumed"),
+            }
+        }
     }
 }

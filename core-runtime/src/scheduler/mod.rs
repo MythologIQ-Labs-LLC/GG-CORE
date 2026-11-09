@@ -17,6 +17,7 @@ pub mod thread_pool;
 pub mod thread_pool_types;
 pub mod worker;
 pub(crate) mod worker_ingress;
+mod worker_pool;
 pub(crate) mod worker_streaming;
 pub(crate) mod worker_typed;
 #[cfg(test)]

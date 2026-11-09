@@ -153,6 +153,12 @@ impl ResourceLimits {
     pub fn max_memory_per_call(&self) -> usize {
         self.inner.config.max_memory_per_call
     }
+
+    /// Maximum concurrent requests (`GG_CORE_MAX_CONCURRENT`); also the
+    /// number of scheduler worker loops.
+    pub fn max_concurrent(&self) -> usize {
+        self.inner.config.max_concurrent
+    }
 }
 
 /// RAII guard that releases resources when dropped.

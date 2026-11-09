@@ -1,13 +1,13 @@
-//! Single worker loop: dequeue requests and execute inference.
+//! Worker execution: dequeue requests and execute inference.
 //!
-//! All inference (regular and streaming) goes through this worker.
-//! The IPC handler enqueues requests and awaits responses.
+//! All inference (regular, streaming and typed) goes through the worker
+//! loops in `worker_pool`. The IPC handler enqueues requests and awaits
+//! responses.
 
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 
 use super::queue::{QueuedRequest, RequestQueue};
-use super::worker_streaming;
 use crate::engine::inference::{InferenceError, InferenceResult};
 use crate::engine::InferenceEngine;
 use crate::memory::ResourceLimits;
@@ -29,6 +29,8 @@ pub fn spawn_worker(
 }
 
 /// Spawn with optional registry, resource limits, and security pipeline.
+/// Runs `max_concurrent` worker loops (1 without resource limits); see
+/// `worker_pool`.
 pub fn spawn_worker_with_registry(
     queue: Arc<RequestQueue>,
     engine: Arc<InferenceEngine>,
@@ -38,58 +40,17 @@ pub fn spawn_worker_with_registry(
     security: Option<Arc<SecurityPipeline>>,
     shutdown: tokio_util::sync::CancellationToken,
 ) -> JoinHandle<()> {
-    tokio::spawn(async move {
-        worker_loop(
-            &queue,
-            &engine,
-            lifecycle.as_deref(),
-            registry.as_deref(),
-            resource_limits.as_ref(),
-            security.as_deref(),
-            shutdown,
-        )
-        .await;
-    })
+    let ctx = super::worker_pool::WorkerCtx {
+        engine,
+        lifecycle,
+        registry,
+        limits: resource_limits,
+        security,
+    };
+    super::worker_pool::spawn(queue, ctx, shutdown)
 }
 
-async fn worker_loop(
-    queue: &RequestQueue,
-    engine: &Arc<InferenceEngine>,
-    lifecycle: Option<&ModelLifecycle>,
-    registry: Option<&ModelRegistry>,
-    resource_limits: Option<&ResourceLimits>,
-    security: Option<&SecurityPipeline>,
-    shutdown: tokio_util::sync::CancellationToken,
-) {
-    loop {
-        // Check streaming queue first (non-blocking), then wait on main.
-        if let Some(sreq) = queue.dequeue_streaming().await {
-            worker_streaming::execute(engine, resource_limits, security, sreq).await;
-            continue;
-        }
-        if let Some(treq) = queue.dequeue_typed().await {
-            super::worker_typed::execute(engine, resource_limits, security, treq).await;
-            continue;
-        }
-        tokio::select! {
-            biased;
-            () = shutdown.cancelled() => {
-                tracing::info!("worker: shutdown signal received");
-                break;
-            }
-            req_opt = queue.wait_and_dequeue() => {
-                if let Some(request) = req_opt {
-                    execute_request(
-                        engine, lifecycle, registry,
-                        resource_limits, security, request,
-                    ).await;
-                }
-            }
-        }
-    }
-}
-
-async fn execute_request(
+pub(super) async fn execute_request(
     engine: &Arc<InferenceEngine>,
     lifecycle: Option<&ModelLifecycle>,
     registry: Option<&ModelRegistry>,

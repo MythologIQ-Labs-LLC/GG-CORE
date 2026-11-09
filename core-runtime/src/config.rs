@@ -12,7 +12,7 @@
 //! | `GG_CORE_MAX_CONTEXT_TOKENS` | 4096 | Max context tokens per request |
 //! | `GG_CORE_MAX_MEMORY_PER_CALL` | unset | Optional per-request working-memory ceiling (bytes). Unset: a request reserves its model's metadata-derived need, bounded only by the total; models without an estimate reserve a 1 GiB fallback (or this value when set) |
 //! | `GG_CORE_MAX_TOTAL_MEMORY` | max(2 GiB, 50% RAM) | Resident weights + working memory; Job Object cap (bytes) |
-//! | `GG_CORE_MAX_CONCURRENT` | 2 | Max concurrent requests |
+//! | `GG_CORE_MAX_CONCURRENT` | 2 | Max concurrent requests = scheduler worker loops |
 //! | `GG_CORE_BATCH_MAX_REQUESTS` | 8 | Max requests per batch |
 //! | `GG_CORE_BATCH_MAX_TOKENS` | 4096 | Max tokens per batch |
 //! | `GG_CORE_SHUTDOWN_TIMEOUT` | 30 | Graceful shutdown timeout (secs) |
