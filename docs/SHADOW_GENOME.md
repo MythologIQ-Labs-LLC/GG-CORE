@@ -412,3 +412,32 @@ The plan for a per-request working-memory estimate derived from GGUF metadata.
 
 ### Remediation attempted
 Revision 2 (2026-11-08): the owner decided V2 (unset means bounded by the total); V1 now always carries the non-flash bound plus a measured acceptance gate; V3 added to scope; V4 dropped. Resubmission: PASS.
+
+---
+
+## Failure Entry #4
+
+**Date:** 2026-11-09
+**Verdict ID:** V1_SCHEDULER_HOL_BLOCKING_AUDIT (VETO, revision 1)
+**Failure Mode:** SECURITY_STUB / GHOST_PATH
+
+### What failed
+The plan to bound stream back-pressure and remove head-of-line blocking in the single scheduler worker.
+
+### Why it failed
+- **V1:** a timeout around a length-prefixed `write_all` can leave a partial frame on the wire, and the plan kept writing on that connection.
+- **V2:** the bound was added to one constructor, while the embedded `infer_stream` path kept the unbounded one.
+- **V3:** a new client-visible terminal was not in the producer contract.
+- **V4:** a CPU-thread default was changed with no mechanism and no owner decision.
+
+### Pattern to avoid
+- Never cancel a framed write and keep using the stream. A write timeout poisons the connection.
+- When bounding a shared primitive, bound the primitive itself, not one caller's construction of it.
+- Every change to a client-visible terminal updates the producer contract in the same change.
+
+### Remediation attempted
+Revisions 2–4 of the plan (see below). Revision 4: PASS.
+
+**Revision 2 (2026-11-09):** V2–V4 resolved. VETO again on **V5**: the poison flag covered only the stream bridge, while `server.rs` keeps a second frame writer over the same connection. Pattern: before you guard a shared resource, find *every* writer of it, not just the one in the failing path.
+
+**Revision 3 (2026-11-09):** V5 resolved. VETO on **V6**: frame writes bounded by the request deadline would poison the whole connection sooner than the published stall bound. Pattern: when one timeout has connection-wide consequences, it must be the documented one, never the per-request one.
