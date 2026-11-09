@@ -301,3 +301,49 @@ Deferred to merge (parallel v1 branches), as for the other v1 tribunals. Shadow 
 
 ## Ledger
 Deferred to merge (parallel v1 branches), as for the other v1 tribunals.
+
+---
+
+# AUDIT REPORT: Revision 7 (Addendum B, source-compatible public API)
+
+**Tribunal Date:** 2026-11-09
+**Target:** plan revision 7 (sha256 `9e852f911c08124521123bfeafabdfe9e430de526964e7a5e6685db35074c246`); current implementation #179 at `f54fca3`
+**Risk Grade:** L2
+**Auditor:** The QoreLogic Judge
+**VERDICT:** PASS
+
+## Finding against the revision-6 implementation (motivates this revision)
+- `f54fca3` changes three items that `gg_core::models` re-exports on `origin/main` (`mod.rs:36,42-43`):
+  - `load_model_dispatch`;
+  - `prepare_model_admitted`;
+  - `load_model_from_path`.
+- Each gains a positional `workers` argument, so every downstream Rust caller fails to compile.
+- Revision 6 named this as a "public API change" but did not justify breaking it, and #179 claims no semver exemption.
+- Revision 7 restores the exact signatures. This tribunal confirms that the restoration is complete and that nothing else public changed shape:
+  - the other public additions (`engine::gguf::threads`, `ResourceLimits::worker_loops`) are additive;
+  - `include/gg_core.h`, `ffi/` signatures and the Python API are unchanged against `origin/main`.
+
+## Passes
+- **Security: PASS.**
+  - The wrappers are pure delegations with `workers = 1`, which reproduces the pre-#179 thread value exactly.
+  - There is no new input, IPC surface, dependency or unsafe code.
+  - The divided default is reachable only through the explicitly named `*_for_workers` variants, which only the daemon calls.
+- **Ghost path: PASS.**
+  - Every caller is enumerated: daemon preload, IPC load, FFI, Python, `prepare_model`, tests, doc test and guide.
+  - The contract and the guide name the opt-in variants.
+- **Razor: PASS.**
+  - Each wrapper is ≤ 8 lines; `model_ops.rs` has a stated fallback if it would exceed 250 lines; the compat test is ≤ 80 lines.
+  - Every function is ≤ 40 lines with nesting ≤ 3.
+- **Dependencies: PASS.** None added.
+- **Orphans: PASS.**
+  - Each wrapper is exercised by `tests/public_api_compat_test.rs` and by its existing callers.
+  - Each `*_for_workers` variant has a daemon caller.
+- **Macro architecture: PASS.**
+  - One body per operation; the wrappers hold no logic.
+  - One worker-count source (`ResourceLimits::worker_loops`) and one thread policy (`threads::per_context`).
+  - Env-mutating tests stay under the single existing `config_tests.rs` lock that already guards the `gguf.n_threads` assertions, so no new cross-test race is introduced.
+
+**Scope of this PASS:** Addendum B (revision 7) may be implemented on #179's branch. The Addendum B validation list (Rust 1.97 and 1.99.1, and the benchmark re-run) is the acceptance gate.
+
+## Ledger
+Deferred to merge (parallel v1 branches), as for the other v1 tribunals.

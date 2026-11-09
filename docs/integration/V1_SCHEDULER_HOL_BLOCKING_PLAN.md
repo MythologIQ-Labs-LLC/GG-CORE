@@ -19,6 +19,8 @@
 
 **Revision 6 (2026-11-09):** responds to the revision-5 VETO (V7). The divided default applies only where the worker pool actually bounds concurrency. The daemon passes its loop count explicitly into `model_ops`. Embedded FFI/Python and public Rust `model_ops` callers choose `workers` themselves (FFI/Python pass 1) and keep one worker's worth of threads, because embedded `Runtime::infer`/`infer_stream` are not bounded by `max_concurrent`.
 
+**Revision 7 (2026-11-09):** an owner-approved independent review of #179 (head `f54fca3`) requires the public Rust API to stay source-compatible. Addendum B keeps the three existing signatures as single-context wrappers and adds explicitly named worker-aware variants. Only the daemon calls those variants. Revision 6's policy and numbers are unchanged.
+
 ## Observed
 On the v1 integration daemon, with explicit memory limits and CPU GGUF:
 - A worker-path request queued behind an active stream waited until the stream ended (about 17 s).
@@ -300,3 +302,58 @@ Phase 1 is implemented on this branch. These notes record where the code refines
 | default | 1434 | 0 | 0 |
 | `advanced` | 1569 | 0 | 3 |
 | `onnx,gguf,ffi` | 1516 | 0 | 1 (pre-existing) |
+
+## Addendum B: source-compatible public API (revision 7, 2026-11-09)
+
+**Risk grade: L2.** This changes the public API shape only. It does not change the thread policy, IPC, memory admission or containment. **Gate: a `/ql-audit` PASS is required before implementation.**
+**Trigger:** an owner-approved independent review of #179 at `f54fca3`. Revision 6 added a trailing `workers: usize` to three public functions re-exported from `gg_core::models`, which breaks every downstream Rust caller at compile time. GG-CORE has no semver exemption for that.
+
+### Design
+1. **The existing public signatures are restored byte-for-byte as compatibility wrappers.** Each one calls its worker-aware variant with `workers = 1`, which is the single-context, embedded behaviour every caller had before #179:
+   - `models::load_model_dispatch(model_path, model_id)`;
+   - `models::prepare_model_admitted(loader, limits, relative_path, model_id)`;
+   - `models::load_model_from_path(loader, lifecycle, relative_path, model_id)`.
+
+   The thread count resolved through them is exactly the pre-#179 value, `min(logical, 16)`, or `GG_CORE_N_THREADS` when that is > 0.
+2. **New, explicitly named worker-aware variants** take a trailing `workers: usize` and hold the bodies:
+   - `load_model_dispatch_for_workers`;
+   - `prepare_model_admitted_for_workers`;
+   - `load_model_from_path_for_workers`.
+
+   The suffix names what the argument is for: the number of worker loops the loaded model will serve. All three are re-exported from `gg_core::models` beside the originals.
+3. **Callers:**
+   - Only the daemon passes its real worker-loop count, via `ResourceLimits::worker_loops`: `runtime_init::preload_models` calls `load_model_from_path_for_workers`, and `ipc/handler_models.rs` calls `prepare_model_admitted_for_workers`.
+   - FFI, Python, `prepare_model`, the tests, `tests/doc_examples.rs` and the `USAGE_GUIDE.md` example return to the original signatures with no workers argument, as they were before #179.
+4. **Docs:** the producer contract §Concurrency and `USAGE_GUIDE.md` name the `*_for_workers` variants as the daemon-equivalent opt-in for Rust embedders that run their own bounded pool.
+
+### Tests
+- **External-consumer compatibility:** `core-runtime/tests/public_api_compat_test.rs` is an integration test, so it links `gg_core` exactly as a downstream crate does. It:
+  - binds each original function to a function pointer with the exact pre-#179 signature (`fn(&Path, &str) -> Result<Arc<dyn Model>, InferenceError>`, and so on), so any signature change fails to compile;
+  - calls `load_model_from_path`, `prepare_model_admitted` and `load_model_dispatch` with the original arguments on a missing model and asserts an explicit error with no registry state.
+- **Daemon thread policy** (`backend_dispatch_config_tests.rs`): for workers 1/2/4/8, `gguf_load_config` with auto threads equals `max(1, min(logical, 16) / workers)`, written out independently of `threads.rs`. `ResourceLimits::worker_loops` with `max_concurrent` N yields N.
+- **Override honoured:**
+  - `gguf_load_config` with `GgufEnvConfig { n_threads: 5 }` yields 5 for workers 1/2/4/8;
+  - env path: in `config_tests.rs`, under that file's existing `ENV_LOCK` (it already serialises every test that asserts `gguf.n_threads`), `GG_CORE_N_THREADS=5` gives `load_gguf_config().n_threads == 5` and `threads::per_context_for_host(5, 4) == 5`. The variable is removed before the lock is released. `gguf_load_config` itself stays private to `models`;
+  - `threads::describe` reports "explicit".
+- **Wrapper equivalence:** the original `load_model_dispatch` and `load_model_dispatch_for_workers(…, 1)` return the same error on the same missing or invalid input. They share one body.
+
+### Security and containment review
+- **Unchanged from revision 6.** The wrappers add no behaviour: each is a one-line delegation with `workers = 1`. There is no new input, IPC surface, dependency or unsafe code.
+- **Compatibility posture improves.** Existing embedders recompile unchanged and keep their exact thread behaviour. The divided default is reachable only through a name that states it.
+
+### Razor
+- Each wrapper is ≤ 8 lines.
+- `model_ops.rs` (231) becomes about 245 lines and stays ≤ 250. If it would exceed 250, its inline `#[cfg(test)]` module moves to `model_ops_tests.rs`.
+- `backend_dispatch.rs` (223) becomes about 233 lines.
+- `public_api_compat_test.rs` is ≤ 80 lines.
+- Every function is ≤ 40 lines with nesting ≤ 3.
+
+### Validation
+- In the offline VM:
+  - `cargo fmt --check` and `clippy --all-targets -D warnings` (default, `advanced`, `ffi`, `onnx`, `gguf`) on **both** Rust 1.97 (`C:\host
+ust197`) and Rust 1.99.1 (`E:\w
+ust199`);
+  - `cargo test --features onnx,gguf,ffi` on both toolchains, plus default and `advanced` on 1.99.1;
+  - the concurrency benchmark (`run.py … policy-all`) re-run and compared with §3 of `V1_SCHEDULER_HOL_BENCHMARKS.md`.
+- No GitHub Actions: #179 stays a draft, with `[skip ci]` commits and one push.
+
