@@ -86,14 +86,12 @@ pub async fn preload_models(
     runtime: &Runtime,
     models: &[(String, Option<String>)],
 ) -> Result<(), String> {
+    // GGUF auto threads split across the daemon's worker loops (Addendum A).
+    let workers = gg_core::memory::ResourceLimits::worker_loops(Some(&runtime.resource_limits));
     for (path, id) in models {
-        match gg_core::models::load_model_from_path(
-            &runtime.model_loader,
-            &runtime.model_lifecycle,
-            path,
-            id.clone(),
-        )
-        .await
+        let (loader, lifecycle) = (&runtime.model_loader, &runtime.model_lifecycle);
+        match gg_core::models::load_model_from_path(loader, lifecycle, path, id.clone(), workers)
+            .await
         {
             Ok(loaded) => eprintln!(
                 "Preloaded model '{}' (handle {})",

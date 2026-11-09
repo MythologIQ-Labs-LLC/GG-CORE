@@ -91,7 +91,7 @@ fn dispatch_routes_onnx_manifest_to_onnx_loader() {
     );
     std::fs::write(dir.join("manifest.json"), manifest_json).unwrap();
 
-    let err = load_model_dispatch(&model_path, "m");
+    let err = load_model_dispatch(&model_path, "m", 1);
     // Default features: the ONNX loader stub proves it routed to ONNX.
     assert!(err_message(err).contains("ONNX support not compiled in"));
 }
@@ -111,7 +111,7 @@ fn present_but_malformed_manifest_fails_closed() {
     let model_path = dir.join("model.gguf");
     std::fs::write(&model_path, b"gguf bytes").unwrap();
     std::fs::write(dir.join("manifest.json"), b"{ this is not json").unwrap();
-    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    let msg = err_message(load_model_dispatch(&model_path, "m", 1));
     assert!(msg.contains("invalid manifest JSON"), "got: {msg}");
 }
 
@@ -127,7 +127,7 @@ fn manifest_with_unusable_sha256_fails_closed() {
             "sha256":"abc","size_bytes":10,"architecture":"gguf","license":"MIT"}"#,
     )
     .unwrap();
-    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    let msg = err_message(load_model_dispatch(&model_path, "m", 1));
     assert!(msg.contains("sha256 must be 64 hex"), "got: {msg}");
 }
 
@@ -146,7 +146,7 @@ fn dispatch_routes_no_manifest_to_gguf_loader() {
     std::fs::create_dir_all(&dir).unwrap();
     let _ = std::fs::remove_file(dir.join("manifest.json")); // ensure absent
 
-    let err = load_model_dispatch(&dir.join("model.gguf"), "m");
+    let err = load_model_dispatch(&dir.join("model.gguf"), "m", 1);
     // No manifest → GGUF default; the GGUF loader stub proves the route.
     assert!(err_message(err).contains("GGUF support not compiled in"));
 }
@@ -156,7 +156,7 @@ fn manifest_free_onnx_requires_explicit_manifest() {
     let dir = fresh_dir("onnx_no_manifest");
     let model_path = dir.join("model.onnx");
     std::fs::write(&model_path, b"irrelevant onnx input").unwrap();
-    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    let msg = err_message(load_model_dispatch(&model_path, "m", 1));
     assert!(
         msg.contains("requires a validated sibling manifest"),
         "got: {msg}"
@@ -168,7 +168,7 @@ fn manifest_free_safetensors_never_falls_back_to_gguf() {
     let dir = fresh_dir("safetensors_no_manifest");
     let model_path = dir.join("model.safetensors");
     std::fs::write(&model_path, b"irrelevant safetensors input").unwrap();
-    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    let msg = err_message(load_model_dispatch(&model_path, "m", 1));
     assert!(
         msg.contains("requires a validated sibling manifest"),
         "got: {msg}"
@@ -191,7 +191,7 @@ fn explicit_safetensors_manifest_is_rejected_before_backend_work() {
         serde_json::to_string(&m).unwrap(),
     )
     .unwrap();
-    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    let msg = err_message(load_model_dispatch(&model_path, "m", 1));
     assert!(
         msg.contains("unsupported model backend: SafeTensors"),
         "got: {msg}"
@@ -211,7 +211,7 @@ fn gguf_embedding_only_manifest_is_not_accepted_as_text_generation() {
         serde_json::to_string(&m).unwrap(),
     )
     .unwrap();
-    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    let msg = err_message(load_model_dispatch(&model_path, "m", 1));
     assert!(msg.contains("unsupported GGUF capabilities"), "got: {msg}");
 }
 
@@ -231,7 +231,7 @@ fn gguf_declared_generation_plus_embedding_is_not_silently_accepted() {
         serde_json::to_string(&m).unwrap(),
     )
     .unwrap();
-    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    let msg = err_message(load_model_dispatch(&model_path, "m", 1));
     assert!(msg.contains("unsupported GGUF capabilities"), "got: {msg}");
 }
 
@@ -251,7 +251,7 @@ fn onnx_generation_is_not_advertised_as_serving_supported() {
         serde_json::to_string(&m).unwrap(),
     )
     .unwrap();
-    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    let msg = err_message(load_model_dispatch(&model_path, "m", 1));
     assert!(msg.contains("no ONNX-servable capability"), "got: {msg}");
 }
 
@@ -272,7 +272,7 @@ fn verified_gguf_text_generation_manifest_still_reaches_backend() {
         serde_json::to_string(&m).unwrap(),
     )
     .unwrap();
-    let msg = err_message(load_model_dispatch(&model_path, "m"));
+    let msg = err_message(load_model_dispatch(&model_path, "m", 1));
     assert!(msg.contains("GGUF support not compiled in"), "got: {msg}");
 }
 

@@ -18,7 +18,7 @@
 //! | `GG_CORE_SHUTDOWN_TIMEOUT` | 30 | Graceful shutdown timeout (secs) |
 //! | `GG_CORE_SESSION_TIMEOUT` | 3600 | Session timeout (secs) |
 //! | `GG_CORE_N_CTX` | 2048 | GGUF context window size |
-//! | `GG_CORE_N_THREADS` | 0 | Inference threads (0 = auto) |
+//! | `GG_CORE_N_THREADS` | 0 | Threads per GGUF context; 0 = auto: daemon `max(1, min(logical, 16) / GG_CORE_MAX_CONCURRENT)`, embedded `min(logical, 16)` |
 //! | `GG_CORE_IPC_FRAME_LIMIT` | 16777216 | Max IPC frame size (bytes) |
 //! | `GG_CORE_MAX_CONNECTIONS` | 64 | Max concurrent IPC connections |
 //! | `GG_CORE_STREAM_STALL_MS` | 5000 | Longest wait for a non-reading stream client (min 100) |

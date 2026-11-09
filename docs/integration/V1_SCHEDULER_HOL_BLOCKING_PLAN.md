@@ -272,3 +272,21 @@ Phase 1 is implemented on this branch. These notes record where the code refines
 - In the `coreforge-build` VM (`ggv1*` paths only, after the owner session's "VM free"): the full test suite, then the benchmark harness.
 - No GitHub Actions. The PR stays a draft.
 
+
+### Implementation notes (Addendum A)
+- **Implemented as specified (revision 6).**
+  - `engine/gguf/threads.rs` (79 lines) holds `per_context`, `per_context_for_host` and `describe`. `MAX_AUTO_THREADS` is module-private, so cbindgen does not export it into `gg_core.h`.
+  - `ResourceLimits::worker_loops` is used by `worker_pool::spawn`, `runtime_init::preload_models` and `ipc/handler_models.rs`.
+  - `load_model_dispatch`, `prepare_model_admitted` and `load_model_from_path` take `workers`.
+  - FFI and Python pass 1, as do `prepare_model` and the tests. `resolve_threads` delegates to the policy.
+- **Test location.** The dispatch config tests moved from an inline module into `models/backend_dispatch_config_tests.rs`, so `backend_dispatch.rs` stays at 223 lines and the pre-existing 417-line `backend_dispatch_tests.rs` does not grow. The embedded-unchanged check (`workers = 1` equals `min(logical, 16)`) is there.
+- **Public API change.** `models::load_model_from_path` and `models::load_model_dispatch` gain a trailing `workers: usize` argument. The `USAGE_GUIDE.md` embedded example and `tests/doc_examples.rs` pass 1.
+- **Razor.**
+  - Every function is ≤ 40 lines with nesting ≤ 3.
+  - `runtime_init.rs` went from 316 to 314 lines and `backend.rs` from 678 to 671.
+- **Host validation.** On Windows, without `protoc` or a llama.cpp toolchain:
+  - `cargo fmt --check`: clean.
+  - `clippy --all-targets --features ffi -D warnings`: clean, apart from the pre-existing host-toolchain `fetch_update` deprecation in `memory/resident.rs`, which is allowed here and absent on the VM's Rust 1.97.
+  - `cargo test --features ffi --lib`: 753 passed.
+  - `doc_examples`: 3 passed.
+  - The GGUF/ONNX build and the measurements run in the VM.

@@ -135,12 +135,12 @@ pub fn read_sibling_manifest(model_path: &Path) -> Result<Option<ModelManifest>,
 }
 
 /// Map the already parsed daemon settings into actual model-load settings.
-/// This stays pure so the contract can be tested without mutating the test
-/// process's environment or loading a large native GGUF fixture.
-fn gguf_load_config(env: &crate::config::GgufEnvConfig) -> GgufConfig {
+/// `workers` = contexts the caller's path can run at once (thread policy,
+/// HOL plan Addendum A). Pure, so it is testable without a native fixture.
+fn gguf_load_config(env: &crate::config::GgufEnvConfig, workers: usize) -> GgufConfig {
     GgufConfig {
         n_ctx: env.n_ctx,
-        n_threads: env.n_threads,
+        n_threads: crate::engine::gguf::threads::per_context_for_host(env.n_threads, workers),
         ..GgufConfig::default()
     }
 }
@@ -149,10 +149,12 @@ fn gguf_load_config(env: &crate::config::GgufEnvConfig) -> GgufConfig {
 /// legacy sibling `manifest.json`. A parsed manifest's declared `sha256` is verified against
 /// the file BEFORE any backend reads it, and the file's identity is re-checked
 /// AFTER the backend loaded it by path, so a substitution in between fails the
-/// load (nothing is registered; the model is dropped).
+/// load (nothing is registered; the model is dropped). `workers` sizes the
+/// GGUF auto thread split: the daemon's loop count, or 1 for embedded paths.
 pub fn load_model_dispatch(
     model_path: &Path,
     model_id: &str,
+    workers: usize,
 ) -> Result<Arc<dyn Model>, InferenceError> {
     let manifest = read_sibling_manifest(model_path)?;
     let choice = choose_backend(manifest);
@@ -201,7 +203,7 @@ pub fn load_model_dispatch(
             // Both manifest-free and verified GGUF models use the same
             // configured loader, with no model-family-specific behavior.
             let env = crate::config::load_gguf_config();
-            let gguf = gguf_load_config(&env);
+            let gguf = gguf_load_config(&env, workers);
             load_gguf_model(model_path, model_id, &gguf)
         }
         BackendChoice::Unsupported(_) => unreachable!("unsupported backend rejected before load"),
@@ -216,21 +218,6 @@ pub fn load_model_dispatch(
 #[path = "backend_dispatch_tests.rs"]
 mod tests;
 
-/// The daemon's advertised context and thread env settings must actually
-/// reach the native GGUF loader, not just its diagnostic output.
 #[cfg(test)]
-mod gguf_config_dispatch_tests {
-    use super::*;
-
-    #[test]
-    fn configured_context_and_threads_reach_the_model_loader() {
-        let runtime = crate::config::GgufEnvConfig {
-            n_ctx: 8192,
-            n_threads: 6,
-        };
-        let load = gguf_load_config(&runtime);
-        assert_eq!(load.n_ctx, 8192);
-        assert_eq!(load.n_threads, 6);
-        assert_eq!(load.n_gpu_layers, 0);
-    }
-}
+#[path = "backend_dispatch_config_tests.rs"]
+mod config_tests;

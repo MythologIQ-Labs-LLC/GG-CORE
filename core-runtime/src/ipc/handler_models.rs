@@ -23,9 +23,11 @@ impl IpcHandler {
         let loader = std::sync::Arc::clone(&self.model_loader);
         let ModelLoadRequest { path, model_id } = request;
         let limits = self.model_lifecycle.resource_limits().cloned();
+        // The daemon's worker loops run on these same limits (Addendum A).
+        let workers = crate::memory::ResourceLimits::worker_loops(limits.as_ref());
 
         let prepared = match spawn_blocking(move || {
-            model_ops::prepare_model_admitted(&loader, limits.as_ref(), &path, model_id)
+            model_ops::prepare_model_admitted(&loader, limits.as_ref(), workers, &path, model_id)
         })
         .await
         {

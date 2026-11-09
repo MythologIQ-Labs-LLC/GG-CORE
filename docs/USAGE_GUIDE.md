@@ -66,7 +66,7 @@ default build and is on by default.
 | `GG_CORE_SHUTDOWN_TIMEOUT` | 30 | Graceful drain timeout (s) |
 | `GG_CORE_SESSION_TIMEOUT` | 3600 | Auth session timeout (s) |
 | `GG_CORE_N_CTX` | 2048 | GGUF context window |
-| `GG_CORE_N_THREADS` | 0 (auto) | Inference threads |
+| `GG_CORE_N_THREADS` | 0 (auto) | Threads per GGUF context. Auto: the daemon splits `min(logical, 16)` across `GG_CORE_MAX_CONCURRENT` workers (at least 1 each); embedded use keeps `min(logical, 16)`. A value > 0 is used per context unchanged |
 | `GG_CORE_IPC_FRAME_LIMIT` | 16 MiB | Max IPC frame |
 | `GG_CORE_MAX_CONNECTIONS` | 64 | Max concurrent IPC connections |
 
@@ -143,6 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &runtime.model_lifecycle,
         "models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
         Some("local-model".into()),
+        1, // workers: embedded calls are not pool-bounded (see GG_CORE_N_THREADS)
     )
     .await?;
 

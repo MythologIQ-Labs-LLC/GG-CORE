@@ -47,7 +47,9 @@ pub unsafe extern "C" fn core_model_load(
     let model_id = metadata.name.clone();
 
     // Dispatch on an optional sibling manifest.json (ONNX) else GGUF default.
-    let model = match crate::models::load_model_dispatch(validated.as_path(), &model_id) {
+    // workers = 1: embedded inference is not bounded by max_concurrent, so
+    // GGUF auto threads stay min(logical, 16) (HOL plan Addendum A, V7).
+    let model = match crate::models::load_model_dispatch(validated.as_path(), &model_id, 1) {
         Ok(m) => m,
         Err(e) => {
             set_last_error(format!("model load: {}", e));

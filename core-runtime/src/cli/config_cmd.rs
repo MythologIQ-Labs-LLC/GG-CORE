@@ -7,6 +7,7 @@
 //! without requiring an IPC connection to a running server.
 
 use crate::config::{self, EffectiveConfig};
+use crate::engine::gguf::threads::describe;
 
 /// Print effective config as key-value pairs to stdout.
 pub fn run_show() {
@@ -29,7 +30,7 @@ pub fn run_defaults() {
     println!("GG_CORE_SHUTDOWN_TIMEOUT=30");
     println!("GG_CORE_SESSION_TIMEOUT=3600");
     println!("GG_CORE_N_CTX=2048");
-    println!("GG_CORE_N_THREADS=0");
+    println!("GG_CORE_N_THREADS=0 (auto: min(logical, 16) / GG_CORE_MAX_CONCURRENT, at least 1)");
     println!("GG_CORE_IPC_FRAME_LIMIT=16777216");
     println!("GG_CORE_MAX_CONNECTIONS=64");
     println!("GG_CORE_STREAM_STALL_MS=5000");
@@ -109,7 +110,8 @@ fn print_config(cfg: &EffectiveConfig) {
     println!("GG_CORE_SHUTDOWN_TIMEOUT={}", cfg.shutdown_timeout_secs);
     println!("GG_CORE_SESSION_TIMEOUT={}", cfg.session_timeout_secs);
     println!("GG_CORE_N_CTX={}", cfg.n_ctx);
-    println!("GG_CORE_N_THREADS={}", cfg.n_threads);
+    let threads = describe(cfg.n_threads, cfg.resource_max_concurrent);
+    println!("GG_CORE_N_THREADS={threads}");
     println!("GG_CORE_IPC_FRAME_LIMIT={}", cfg.ipc_frame_limit);
     println!("GG_CORE_MAX_CONNECTIONS={}", cfg.max_connections);
     println!("GG_CORE_STREAM_STALL_MS={}", cfg.stream_stall_ms);

@@ -78,7 +78,7 @@ pub fn prepare_model(
     relative_path: &str,
     model_id: Option<String>,
 ) -> Result<PreparedModel, ModelOpError> {
-    prepare_model_admitted(loader, None, relative_path, model_id)
+    prepare_model_admitted(loader, None, 1, relative_path, model_id)
 }
 
 /// [`prepare_model`] that first **reserves** the model's file size against
@@ -87,10 +87,13 @@ pub fn prepare_model(
 /// cap inside the backend); a load that does not fit fails explicitly. The
 /// reservation travels with the [`PreparedModel`]: it is released if backend
 /// load fails or the prepared model is dropped, and re-sized to the backend's
-/// reported footprint when `ModelLifecycle` registers it.
+/// reported footprint when `ModelLifecycle` registers it. `workers` sizes
+/// the GGUF auto thread split (the daemon passes its worker-loop count;
+/// callers whose inference is not pool-bounded pass 1).
 pub fn prepare_model_admitted(
     loader: &ModelLoader,
     limits: Option<&crate::memory::ResourceLimits>,
+    workers: usize,
     relative_path: &str,
     model_id: Option<String>,
 ) -> Result<PreparedModel, ModelOpError> {
@@ -102,7 +105,7 @@ pub fn prepare_model_admitted(
         None => None,
     };
 
-    let model = load_model_dispatch(validated.as_path(), &id)
+    let model = load_model_dispatch(validated.as_path(), &id, workers)
         .map_err(|e| ModelOpError::Backend(e.to_string()))?;
 
     Ok(PreparedModel {
@@ -147,15 +150,17 @@ pub async fn register_prepared(
 ///
 /// `model_id` overrides the default id (the model file stem). Backend
 /// dispatch runs on the calling thread; async contexts serving other traffic
-/// should use [`prepare_model`] under `spawn_blocking` instead.
+/// should use [`prepare_model`] under `spawn_blocking` instead. `workers`:
+/// see [`prepare_model_admitted`].
 pub async fn load_model_from_path(
     loader: &ModelLoader,
     lifecycle: &Arc<ModelLifecycle>,
     relative_path: &str,
     model_id: Option<String>,
+    workers: usize,
 ) -> Result<LoadedModel, ModelOpError> {
-    let prepared =
-        prepare_model_admitted(loader, lifecycle.resource_limits(), relative_path, model_id)?;
+    let limits = lifecycle.resource_limits();
+    let prepared = prepare_model_admitted(loader, limits, workers, relative_path, model_id)?;
     register_prepared(lifecycle, prepared).await
 }
 
@@ -184,7 +189,7 @@ mod tests {
     async fn traversal_path_is_rejected_before_any_backend_work() {
         let loader = ModelLoader::new(std::path::PathBuf::from("."));
         let lifecycle = test_lifecycle();
-        let err = load_model_from_path(&loader, &lifecycle, "../../etc/passwd", None)
+        let err = load_model_from_path(&loader, &lifecycle, "../../etc/passwd", None, 1)
             .await
             .unwrap_err();
         assert!(matches!(err, ModelOpError::Path(_)), "got: {err}");
@@ -195,7 +200,7 @@ mod tests {
     async fn nul_byte_path_is_rejected() {
         let loader = ModelLoader::new(std::path::PathBuf::from("."));
         let lifecycle = test_lifecycle();
-        let err = load_model_from_path(&loader, &lifecycle, "models/a\0b.gguf", None)
+        let err = load_model_from_path(&loader, &lifecycle, "models/a\0b.gguf", None, 1)
             .await
             .unwrap_err();
         assert!(matches!(err, ModelOpError::Path(_)));
@@ -207,7 +212,7 @@ mod tests {
         std::fs::create_dir_all(dir.path().join("models")).unwrap();
         let loader = ModelLoader::new(dir.path().to_path_buf());
         let lifecycle = test_lifecycle();
-        let err = load_model_from_path(&loader, &lifecycle, "models/absent.gguf", None)
+        let err = load_model_from_path(&loader, &lifecycle, "models/absent.gguf", None, 1)
             .await
             .unwrap_err();
         assert!(matches!(err, ModelOpError::Path(LoadError::NotFound(_))));

@@ -28,6 +28,7 @@ async fn embedded_rust_example_compiles_and_fails_loud_without_model() {
         &runtime.model_lifecycle,
         "models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
         Some("local-model".into()),
+        1,
     )
     .await;
     assert!(load_result.is_err());

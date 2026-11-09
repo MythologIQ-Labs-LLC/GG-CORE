@@ -43,14 +43,11 @@ pub(super) fn spawn(
     ctx: WorkerCtx,
     shutdown: CancellationToken,
 ) -> JoinHandle<()> {
-    let loops = ctx
-        .limits
-        .as_ref()
-        .map_or(1, ResourceLimits::max_concurrent);
+    let loops = ResourceLimits::worker_loops(ctx.limits.as_ref());
     let ctx = Arc::new(ctx);
     tokio::spawn(async move {
         let mut set = JoinSet::new();
-        for _ in 0..loops.max(1) {
+        for _ in 0..loops {
             let (queue, ctx, shutdown) = (queue.clone(), ctx.clone(), shutdown.clone());
             set.spawn(async move { worker_loop(&queue, &ctx, shutdown).await });
         }
