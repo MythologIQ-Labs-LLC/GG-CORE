@@ -1,6 +1,6 @@
-# Draft upstream report: committed memory retained after `llama_init_from_model` fails at compute-buffer reservation
+# Upstream report: committed memory retained after `llama_init_from_model` fails at compute-buffer reservation
 
-**Status: DRAFT, not filed.** Filing upstream (`ggml-org/llama.cpp`, and/or `utilityai/llama-cpp-rs` for the vendored copy) is an outward-facing action that awaits owner approval.
+**Status: FILED 2026-11-09** as [utilityai/llama-cpp-rs#1194](https://github.com/utilityai/llama-cpp-rs/issues/1194) (against the vendored copy; not yet re-tested on current `ggml-org/llama.cpp` master). Not fixed upstream.
 
 **Scope of the GG-CORE mitigation:** GG-CORE #176 prevents GG-CORE from *reaching* this path by refusing requests whose metadata-derived working memory does not fit, before any native allocation. **That does not fix the upstream behaviour**, which still occurs whenever a caller lets llama.cpp hit an allocation limit at the same stage.
 
