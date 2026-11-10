@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/gg-core-logo.png" alt="GG-CORE logo" width="190">
+  <img src="docs/assets/gg-core-banner.webp" alt="GG-CORE: Local Inference Runtime, powering CoreForge" width="600">
 </p>
 
 <h1 align="center">GG-CORE</h1>
