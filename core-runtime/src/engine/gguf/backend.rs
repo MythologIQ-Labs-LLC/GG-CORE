@@ -17,6 +17,8 @@ use llama_cpp_2::token::LlamaToken;
 use crate::engine::{FinishReason, GenerationResult, InferenceConfig, InferenceError};
 use crate::security::stream_sanitizer::StreamSanitizer;
 
+use super::prefill_pacer::PrefillPacer;
+
 /// Holds the loaded llama-cpp-2 model and a handle to the process backend.
 pub struct LlamaBackendInner {
     backend: &'static LlamaBackend,
@@ -413,13 +415,12 @@ fn decode(ctx: &mut LlamaContext<'_>, batch: &mut LlamaBatch) -> Result<(), Infe
         .map_err(|e| InferenceError::ModelError(format!("decode: {e}")))
 }
 
-/// Upper bound on one prompt-prefill decode chunk when the request can be
-/// cancelled (further capped by the context's physical batch). Cancellation
-/// and deadlines are honored between chunks, so this bounds the prefill work
-/// a stopped request can still perform: about 1 s for a 0.5B Q4 model on the
-/// 8-vCPU build VM. A 256-token cap halved that but cost ~20% prefill
-/// throughput on a 2,500-token prompt; the caller is answered at the
-/// deadline or cancel either way, so throughput wins.
+/// Largest prompt-prefill decode chunk when the request can be stopped
+/// (further capped by the context's physical batch). Cancellation and
+/// deadlines are honored only between chunks, and one 512-token chunk took
+/// 1.2 to 12.5 s on the qualification VM (N7, #184), so cancellable prefill
+/// sizes its chunks with `PrefillPacer` and only reaches this cap on a host
+/// fast enough to decode it within the pacer's budget.
 pub(super) const PREFILL_CHECKPOINT_TOKENS: usize = 512;
 
 fn stop_requested(should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>) -> bool {
@@ -460,7 +461,9 @@ pub(super) fn decode_range(
 }
 
 /// `decode_range` with an optional smaller chunk cap and a stop check that
-/// runs before every chunk. Returns `Ok(false)` if stopped early.
+/// runs before every chunk. With a stop check (and not `logits_all`), chunks
+/// are time-budgeted by `PrefillPacer`; otherwise they are the fixed cap. Returns
+/// `Ok(false)` if stopped early.
 pub(super) fn decode_range_checked(
     ctx: &mut LlamaContext<'_>,
     tokens: &[LlamaToken],
@@ -474,8 +477,68 @@ pub(super) fn decode_range_checked(
     }
     let begin = usize::try_from(start_pos)
         .map_err(|_| InferenceError::InputValidation("negative decode position".into()))?;
+    let batch_cap = decode_batch_cap(ctx, begin, tokens.len(), logits_all, chunk_cap)?;
+    // All-position logits need the range in one decode, so it is never paced.
+    let paced = should_stop.is_some() && !logits_all;
+    let pacer = paced.then(|| PrefillPacer::new(batch_cap));
+    decode_paced(
+        ctx,
+        tokens,
+        begin,
+        logits_all,
+        batch_cap,
+        pacer,
+        should_stop,
+    )
+}
+
+/// The chunk loop of `decode_range_checked`: `pacer` sizes chunks when
+/// present, otherwise every chunk is `batch_cap`.
+pub(super) fn decode_paced(
+    ctx: &mut LlamaContext<'_>,
+    tokens: &[LlamaToken],
+    begin: usize,
+    logits_all: bool,
+    batch_cap: usize,
+    mut pacer: Option<PrefillPacer>,
+    should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
+) -> Result<bool, InferenceError> {
+    let mut offset = 0;
+    while offset < tokens.len() {
+        if stop_requested(should_stop) {
+            return Ok(false);
+        }
+        let remaining = tokens.len() - offset;
+        let len = pacer.map_or(batch_cap.min(remaining), |p| p.next_len(remaining));
+        let last = offset + len == tokens.len();
+        let started = std::time::Instant::now();
+        decode_chunk(
+            ctx,
+            &tokens[offset..offset + len],
+            begin + offset,
+            logits_all,
+            last,
+        )?;
+        if let Some(p) = pacer.as_mut() {
+            p.record(len, started.elapsed());
+        }
+        offset += len;
+    }
+    Ok(true)
+}
+
+/// Validate a decode range against the live context and return the largest
+/// chunk it may use: both logical and physical decode capacity (the default
+/// llama context can report a larger logical n_batch than physical n_ubatch).
+fn decode_batch_cap(
+    ctx: &LlamaContext<'_>,
+    begin: usize,
+    len: usize,
+    logits_all: bool,
+    chunk_cap: Option<usize>,
+) -> Result<usize, InferenceError> {
     let end = begin
-        .checked_add(tokens.len())
+        .checked_add(len)
         .ok_or_else(|| InferenceError::InputValidation("decode position overflow".into()))?;
     if end > ctx.n_ctx() as usize {
         return Err(InferenceError::InputValidation(format!(
@@ -483,8 +546,6 @@ pub(super) fn decode_range_checked(
             ctx.n_ctx()
         )));
     }
-    // Bound to both logical and physical decode capacity. The default llama
-    // context can report a larger logical n_batch than physical n_ubatch.
     let native_cap = ctx.n_batch().min(ctx.n_ubatch()) as usize;
     let batch_cap = chunk_cap.map_or(native_cap, |cap| cap.min(native_cap));
     if batch_cap == 0 {
@@ -492,30 +553,33 @@ pub(super) fn decode_range_checked(
             "llama.cpp returned a zero-sized decode batch".into(),
         ));
     }
-    if logits_all && tokens.len() > batch_cap {
+    if logits_all && len > batch_cap {
         return Err(InferenceError::InputValidation(
             "all-position logits require a single decode batch".into(),
         ));
     }
-    for (chunk_index, chunk) in tokens.chunks(batch_cap).enumerate() {
-        if stop_requested(should_stop) {
-            return Ok(false);
-        }
-        let offset = chunk_index * batch_cap;
-        let mut batch = LlamaBatch::new(chunk.len(), 1);
-        for (i, &tok) in chunk.iter().enumerate() {
-            let index = offset + i;
-            let pos = i32::try_from(begin + index).map_err(|_| {
-                InferenceError::InputValidation("decode position exceeds i32".into())
-            })?;
-            let logits = logits_all || index + 1 == tokens.len();
-            batch
-                .add(tok, pos, &[0], logits)
-                .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
-        }
-        decode(ctx, &mut batch)?;
+    Ok(batch_cap)
+}
+
+/// Decode one chunk at absolute position `pos0`. Only the final token of the
+/// whole range (`last`) gets logits unless `logits_all` is set.
+fn decode_chunk(
+    ctx: &mut LlamaContext<'_>,
+    chunk: &[LlamaToken],
+    pos0: usize,
+    logits_all: bool,
+    last: bool,
+) -> Result<(), InferenceError> {
+    let mut batch = LlamaBatch::new(chunk.len(), 1);
+    for (i, &tok) in chunk.iter().enumerate() {
+        let pos = i32::try_from(pos0 + i)
+            .map_err(|_| InferenceError::InputValidation("decode position exceeds i32".into()))?;
+        let logits = logits_all || (last && i + 1 == chunk.len());
+        batch
+            .add(tok, pos, &[0], logits)
+            .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
     }
-    Ok(true)
+    decode(ctx, &mut batch)
 }
 
 fn build_sampler(config: &InferenceConfig, n_vocab: i32) -> LlamaSampler {
@@ -669,3 +733,7 @@ mod lifetime_tests;
 #[cfg(test)]
 #[path = "backend_cancel_tests.rs"]
 mod cancel_tests;
+
+#[cfg(test)]
+#[path = "backend_cancel_latency_tests.rs"]
+mod cancel_latency_tests;

@@ -7,6 +7,8 @@ pub mod adaptive_speculative;
 #[cfg(feature = "gguf")]
 pub mod backend;
 mod generator;
+#[cfg(feature = "gguf")]
+mod prefill_pacer;
 #[cfg(all(feature = "gguf", feature = "advanced"))]
 pub mod speculative_session;
 pub mod threads;

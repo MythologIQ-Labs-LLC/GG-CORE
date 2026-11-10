@@ -120,8 +120,9 @@ fn real_model_cancelled_prefill_does_not_disturb_concurrent_request() {
     let backend =
         Arc::new(LlamaBackendInner::load(&path, &cfg).expect("real Qwen fixture must load"));
     let other_prompt = format!("Repeat the first sentence of this note: {}", FOX.repeat(40));
-    // Same cancellable prefill chunking as the concurrent run, so greedy
-    // outputs are comparable bit for bit.
+    // Same cancellable (time-paced) prefill path as the concurrent run. Chunk
+    // sizes can differ between the two runs; greedy output did not depend on
+    // them in the N7 characterization (#184).
     let never = || false;
     let reference = backend
         .generate_cancellable(&other_prompt, &greedy(8), Some(&never))
