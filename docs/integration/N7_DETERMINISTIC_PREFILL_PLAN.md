@@ -302,3 +302,16 @@ These figures were computed by `scripts/qualification/n7_prefill_schedule_model.
 1. The recorder is a `#[cfg(test)]` hook inside `decode_chunked`. It is reached through `LlamaBackendInner::prefill` by real `generate_cancellable` and `generate_stream` calls, so the production wiring is exercised.
 2. The `GG_CORE_REQUIRE_REAL_MODEL` gate also covers `real_model_long_prompt_beyond_batch` (`backend.rs:617-628`).
 3. The default-worker assumption is verified in code and in the logged run (see above).
+
+### Revision 3 implementation note: integer table (audit condition 1, 2026-11-12)
+
+The shipped integer formula (`prefill_schedule::fits`, 2× fixed-point ms, exact comparison with no division) moves some transitions by a few positions compared with the float table above. The code is the source of truth, and the plan table is regenerated from it:
+
+| Bucket | Transitions (start position → chunk) |
+| --- | --- |
+| 1 | 0→64 |
+| 2 | 0→128, 3111→64 |
+| 4 | 0→256, 2123→128, 9497→64 |
+| 8 | 0→256, 5646→128, 16297→64 |
+
+Worst-chunk and cost figures are unchanged to within one chunk.

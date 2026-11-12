@@ -79,6 +79,12 @@ Never include live authentication tokens, model contents, PII or complete prompt
 
 **At publication:** tag the qualified merge SHA, allow the tag-triggered release workflow to build/qualify/publish, then download the published archives on trusted hosts, verify `SHA256SUMS`, run `version --json` and a real-model first-run test. Do not close #130 until that post-publication acceptance exists.
 
+**Prefill split compatibility (N7 successor, #184):**
+- **What changed:** plain prompt prefill now decodes in a deterministic, position-based chunk schedule (`engine/gguf/prefill_schedule.rs`), whether or not the request can be cancelled. Previously the split was a native 512-token batch, or time-paced in the C2 candidate.
+- **Effect on output:** for prompts longer than one chunk, greedy output can differ from RC1/C1/C2. It is reproducible for the same model file, thread bucket ({1}, {2-3}, {4-7}, {8+}), prompt and sampling, under any load or concurrency.
+- **Embedded vs daemon:** these can land in different buckets on one host. Embedded auto threads are `min(logical,16)`; the daemon divides that by its worker count. Their output can therefore differ.
+- **Rollback:** rolling back to C2 or RC1 restores the previous split.
+
 **Rollback:** stop the consuming host's GG-CORE child process, return to the previously approved exact binary and recorded config/model combination, validate hash/version, reload its one permitted model, and repeat readiness plus inference. Do not force-update users by moving a tag or silently following `main`. A defective prerelease should be superseded by a **new immutable version/tag**, not replaced in place.
 
 ## Maintenance policy: what merits returning to GG-CORE?

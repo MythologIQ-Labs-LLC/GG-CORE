@@ -6,8 +6,8 @@
 //! success). These tests prove that prefill stops at a decode-chunk
 //! checkpoint, that the failure is explicit, that a cancelled request does
 //! not disturb a concurrent one, and that the model serves the next request.
-//! Model-gated like the other `real_model_` tests: early-returns without the
-//! real `models/qwen2.5-0.5b-instruct-q4_k_m.gguf` (an LFS pointer is skipped).
+//! Model-gated through `test_fixture::real_model` (skips without the real
+//! fixture unless `GG_CORE_REQUIRE_REAL_MODEL=1`).
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -18,20 +18,10 @@ use crate::engine::gguf::{GgufConfig, GgufGenerator};
 use crate::engine::inference::{InferenceEngine, InferenceError as RunError, InferenceParams};
 use crate::engine::{FinishReason, InferenceConfig, Model};
 
-const FIXTURE: &str = "../models/qwen2.5-0.5b-instruct-q4_k_m.gguf";
 const FOX: &str = "The brown fox walks beside a clear river under a quiet blue sky. ";
 
 fn fixture() -> Option<(std::path::PathBuf, GgufConfig)> {
-    let path = std::path::PathBuf::from(FIXTURE);
-    let mut magic = [0u8; 4];
-    let is_gguf = std::fs::File::open(&path)
-        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))
-        .is_ok()
-        && &magic == b"GGUF";
-    if !is_gguf {
-        eprintln!("SKIP: real GGUF fixture not present at {path:?}");
-        return None;
-    }
+    let path = crate::engine::gguf::test_fixture::real_model()?.to_path_buf();
     let cfg = GgufConfig {
         n_ctx: 4096,
         n_threads: 4,
@@ -120,12 +110,11 @@ fn real_model_cancelled_prefill_does_not_disturb_concurrent_request() {
     let backend =
         Arc::new(LlamaBackendInner::load(&path, &cfg).expect("real Qwen fixture must load"));
     let other_prompt = format!("Repeat the first sentence of this note: {}", FOX.repeat(40));
-    // Same cancellable (time-paced) prefill path as the concurrent run. Chunk
-    // sizes can differ between the two runs; greedy output did not depend on
-    // them in the N7 characterization (#184).
-    let never = || false;
+    // Reference without a stop check: prefill follows the same deterministic
+    // schedule with or without one (#184), so the concurrent, cancellable
+    // run below must decode the same split and produce the same text.
     let reference = backend
-        .generate_cancellable(&other_prompt, &greedy(8), Some(&never))
+        .generate_cancellable(&other_prompt, &greedy(8), None)
         .expect("reference run")
         .text;
 

@@ -17,7 +17,7 @@ use llama_cpp_2::token::LlamaToken;
 use crate::engine::{FinishReason, GenerationResult, InferenceConfig, InferenceError};
 use crate::security::stream_sanitizer::StreamSanitizer;
 
-use super::prefill_pacer::PrefillPacer;
+use super::prefill::{decode_prompt, decode_range, stop_requested, PrefillShape, StopCheck};
 
 /// Holds the loaded llama-cpp-2 model and a handle to the process backend.
 pub struct LlamaBackendInner {
@@ -141,7 +141,7 @@ impl LlamaBackendInner {
         ensure_prompt_room(&ctx, tokens.len())?;
         // llama.cpp rejects any single decode larger than ctx.n_batch(). A stop
         // between prefill chunks ends the stream; the caller reports the reason.
-        if !decode_prompt(&mut ctx, &tokens, is_cancelled)? {
+        if !self.prefill(&mut ctx, &tokens, is_cancelled)? {
             return Ok(());
         }
         let limit =
@@ -342,6 +342,22 @@ impl LlamaBackendInner {
         Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
 
+    /// Plain prompt prefill on the deterministic schedule, stop or no stop
+    /// (`prefill_schedule`): the split depends only on this model, the
+    /// thread bucket and the prompt.
+    pub(super) fn prefill(
+        &self,
+        ctx: &mut LlamaContext<'_>,
+        tokens: &[LlamaToken],
+        should_stop: StopCheck<'_>,
+    ) -> Result<bool, InferenceError> {
+        let shape = PrefillShape {
+            threads: u32::try_from(self.n_threads).unwrap_or(1),
+            model_bytes: self.model.size(),
+        };
+        decode_prompt(ctx, tokens, shape, should_stop)
+    }
+
     pub(super) fn create_context(&self) -> Result<LlamaContext<'_>, InferenceError> {
         self.model
             .new_context(self.backend, self.shape.params(self.n_threads))
@@ -357,7 +373,7 @@ impl LlamaBackendInner {
         is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<(Vec<LlamaToken>, FinishReason), InferenceError> {
         ensure_prompt_room(ctx, tokens.len())?;
-        if !decode_prompt(ctx, tokens, is_cancelled)? {
+        if !self.prefill(ctx, tokens, is_cancelled)? {
             return Ok((Vec::new(), FinishReason::Cancelled));
         }
         let mut batch = LlamaBatch::new(1, 1);
@@ -410,21 +426,12 @@ fn add_one(batch: &mut LlamaBatch, tok: LlamaToken, pos: i32) -> Result<(), Infe
         .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))
 }
 
-fn decode(ctx: &mut LlamaContext<'_>, batch: &mut LlamaBatch) -> Result<(), InferenceError> {
+pub(super) fn decode(
+    ctx: &mut LlamaContext<'_>,
+    batch: &mut LlamaBatch,
+) -> Result<(), InferenceError> {
     ctx.decode(batch)
         .map_err(|e| InferenceError::ModelError(format!("decode: {e}")))
-}
-
-/// Largest prompt-prefill decode chunk when the request can be stopped
-/// (further capped by the context's physical batch). Cancellation and
-/// deadlines are honored only between chunks, and one 512-token chunk took
-/// 1.2 to 12.5 s on the qualification VM (N7, #184), so cancellable prefill
-/// sizes its chunks with `PrefillPacer` and only reaches this cap on a host
-/// fast enough to decode it within the pacer's budget.
-pub(super) const PREFILL_CHECKPOINT_TOKENS: usize = 512;
-
-fn stop_requested(should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>) -> bool {
-    should_stop.is_some_and(|f| f())
 }
 
 fn cancelled_result() -> GenerationResult {
@@ -433,153 +440,6 @@ fn cancelled_result() -> GenerationResult {
         tokens_generated: 0,
         finish_reason: FinishReason::Cancelled,
     }
-}
-
-/// Prefill a prompt with cooperative stop checkpoints between decode chunks.
-/// Returns `Ok(false)` when stopped before the prompt was fully decoded; the
-/// context is then incomplete and must be discarded by the caller.
-pub(super) fn decode_prompt(
-    ctx: &mut LlamaContext<'_>,
-    tokens: &[LlamaToken],
-    should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
-) -> Result<bool, InferenceError> {
-    let cap = should_stop.map(|_| PREFILL_CHECKPOINT_TOKENS);
-    decode_range_checked(ctx, tokens, 0, false, cap, should_stop)
-}
-
-/// Decode a token range in batches bounded by the live llama.cpp context.
-/// The last overall token receives logits for sampling. For all-position
-/// speculative logits, too many tokens fail cleanly instead of returning
-/// stale logits from a prior batch or triggering a native assert.
-pub(super) fn decode_range(
-    ctx: &mut LlamaContext<'_>,
-    tokens: &[LlamaToken],
-    start_pos: i32,
-    logits_all: bool,
-) -> Result<(), InferenceError> {
-    decode_range_checked(ctx, tokens, start_pos, logits_all, None, None).map(|_| ())
-}
-
-/// `decode_range` with an optional smaller chunk cap and a stop check that
-/// runs before every chunk. With a stop check (and not `logits_all`), chunks
-/// are time-budgeted by `PrefillPacer`; otherwise they are the fixed cap. Returns
-/// `Ok(false)` if stopped early.
-pub(super) fn decode_range_checked(
-    ctx: &mut LlamaContext<'_>,
-    tokens: &[LlamaToken],
-    start_pos: i32,
-    logits_all: bool,
-    chunk_cap: Option<usize>,
-    should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
-) -> Result<bool, InferenceError> {
-    if tokens.is_empty() {
-        return Ok(true);
-    }
-    let begin = usize::try_from(start_pos)
-        .map_err(|_| InferenceError::InputValidation("negative decode position".into()))?;
-    let batch_cap = decode_batch_cap(ctx, begin, tokens.len(), logits_all, chunk_cap)?;
-    // All-position logits need the range in one decode, so it is never paced.
-    let paced = should_stop.is_some() && !logits_all;
-    let pacer = paced.then(|| PrefillPacer::new(batch_cap));
-    decode_paced(
-        ctx,
-        tokens,
-        begin,
-        logits_all,
-        batch_cap,
-        pacer,
-        should_stop,
-    )
-}
-
-/// The chunk loop of `decode_range_checked`: `pacer` sizes chunks when
-/// present, otherwise every chunk is `batch_cap`.
-pub(super) fn decode_paced(
-    ctx: &mut LlamaContext<'_>,
-    tokens: &[LlamaToken],
-    begin: usize,
-    logits_all: bool,
-    batch_cap: usize,
-    mut pacer: Option<PrefillPacer>,
-    should_stop: Option<&(dyn Fn() -> bool + Send + Sync)>,
-) -> Result<bool, InferenceError> {
-    let mut offset = 0;
-    while offset < tokens.len() {
-        if stop_requested(should_stop) {
-            return Ok(false);
-        }
-        let remaining = tokens.len() - offset;
-        let len = pacer.map_or(batch_cap.min(remaining), |p| p.next_len(remaining));
-        let last = offset + len == tokens.len();
-        let started = std::time::Instant::now();
-        decode_chunk(
-            ctx,
-            &tokens[offset..offset + len],
-            begin + offset,
-            logits_all,
-            last,
-        )?;
-        if let Some(p) = pacer.as_mut() {
-            p.record(len, started.elapsed());
-        }
-        offset += len;
-    }
-    Ok(true)
-}
-
-/// Validate a decode range against the live context and return the largest
-/// chunk it may use: both logical and physical decode capacity (the default
-/// llama context can report a larger logical n_batch than physical n_ubatch).
-fn decode_batch_cap(
-    ctx: &LlamaContext<'_>,
-    begin: usize,
-    len: usize,
-    logits_all: bool,
-    chunk_cap: Option<usize>,
-) -> Result<usize, InferenceError> {
-    let end = begin
-        .checked_add(len)
-        .ok_or_else(|| InferenceError::InputValidation("decode position overflow".into()))?;
-    if end > ctx.n_ctx() as usize {
-        return Err(InferenceError::InputValidation(format!(
-            "decode would exceed the {}-token context window",
-            ctx.n_ctx()
-        )));
-    }
-    let native_cap = ctx.n_batch().min(ctx.n_ubatch()) as usize;
-    let batch_cap = chunk_cap.map_or(native_cap, |cap| cap.min(native_cap));
-    if batch_cap == 0 {
-        return Err(InferenceError::ModelError(
-            "llama.cpp returned a zero-sized decode batch".into(),
-        ));
-    }
-    if logits_all && len > batch_cap {
-        return Err(InferenceError::InputValidation(
-            "all-position logits require a single decode batch".into(),
-        ));
-    }
-    Ok(batch_cap)
-}
-
-/// Decode one chunk at absolute position `pos0`. Only the final token of the
-/// whole range (`last`) gets logits unless `logits_all` is set.
-fn decode_chunk(
-    ctx: &mut LlamaContext<'_>,
-    chunk: &[LlamaToken],
-    pos0: usize,
-    logits_all: bool,
-    last: bool,
-) -> Result<(), InferenceError> {
-    let mut batch = LlamaBatch::new(chunk.len(), 1);
-    for (i, &tok) in chunk.iter().enumerate() {
-        let pos = i32::try_from(pos0 + i)
-            .map_err(|_| InferenceError::InputValidation("decode position exceeds i32".into()))?;
-        let logits = logits_all || (last && i + 1 == chunk.len());
-        batch
-            .add(tok, pos, &[0], logits)
-            .map_err(|e| InferenceError::ModelError(format!("batch: {e}")))?;
-    }
-    decode(ctx, &mut batch)
 }
 
 fn build_sampler(config: &InferenceConfig, n_vocab: i32) -> LlamaSampler {
@@ -615,17 +475,10 @@ mod real_model_regression_tests {
 
     #[test]
     fn real_model_long_prompt_beyond_batch() {
-        // The fixture may be an LFS pointer in source-only CI. The release
-        // acceptance script separately requires a real downloaded model.
-        let path = Path::new("../models/qwen2.5-0.5b-instruct-q4_k_m.gguf");
-        let Ok(metadata) = std::fs::metadata(path) else {
-            eprintln!("SKIP: real GGUF fixture not installed");
+        // Skips on an LFS pointer unless GG_CORE_REQUIRE_REAL_MODEL=1.
+        let Some(path) = super::super::test_fixture::real_model() else {
             return;
         };
-        if metadata.len() < 1_000_000 {
-            eprintln!("SKIP: GGUF fixture is an LFS pointer");
-            return;
-        }
 
         let gguf = GgufConfig {
             n_ctx: 2048,
