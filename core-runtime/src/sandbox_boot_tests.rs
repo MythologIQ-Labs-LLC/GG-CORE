@@ -64,3 +64,21 @@ fn off_mode_reports_without_applying() {
     let msg = apply_daemon_sandbox(SandboxMode::Off, &RuntimeConfig::default()).unwrap();
     assert!(msg.contains("OFF"));
 }
+
+/// #182: the Job Object / cgroup cap is the explicit total, never raised to
+/// the 1 GiB per-call fallback.
+#[test]
+fn sandbox_memory_cap_equals_explicit_total_below_fallback() {
+    let total = std::ffi::OsString::from("268435456");
+    let mem = gg_core::config::memory::resolve(Some(&total), None, 8 << 30).unwrap();
+    let rc = RuntimeConfig {
+        resource_limits: mem.to_resource_limits(2),
+        ..Default::default()
+    };
+    for mode in [SandboxMode::Enforce, SandboxMode::Seccomp] {
+        assert_eq!(
+            daemon_sandbox_config(mode, &rc).max_memory_bytes,
+            268_435_456
+        );
+    }
+}

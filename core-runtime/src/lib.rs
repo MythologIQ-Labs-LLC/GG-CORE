@@ -33,6 +33,8 @@ pub mod scheduler;
 pub mod security;
 pub mod shutdown;
 pub mod telemetry;
+#[cfg(test)]
+pub(crate) mod test_env;
 
 // A/B testing module (v0.5.0)
 pub mod ab_testing;
