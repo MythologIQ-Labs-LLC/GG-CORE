@@ -117,7 +117,7 @@ else:
     if args[:2] == ["status", "--json"]:
         print(json.dumps({"health":"ready"}))
     elif args[:3] == ["models", "list", "--json"]:
-        print(json.dumps({"models":[{"name":model,"capabilities":["text_generation"]}] if model != "none" else []}))
+        print(json.dumps({"models":[{"name":"model","capabilities":["text_generation"]}] if model != "none" else []}))
     elif args[:2] == ["models", "unload"]:
         marker.write_text("none\\n" + token)
     elif args[:2] == ["models", "load"]:
