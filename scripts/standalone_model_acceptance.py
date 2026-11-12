@@ -227,8 +227,8 @@ def execute(args):
         if os.name == "nt":
             address = "\\\\.\\pipe\\ggc-accept-" + uuid.uuid4().hex
         else:
-            # Unix socket paths have a small fixed length limit; don't place them in HOME.
-            address = "/tmp/ggc-" + uuid.uuid4().hex[:12] + ".sock"
+            # Use the mode-0700 temporary directory, not shared /tmp directly.
+            address = str(Path(temp) / "gg.sock")
         env = clean_environment(address, secrets.token_hex(32), args.n_ctx)
         version_out = run_cli(binary, base, env, ["version", "--json"])
         try:
