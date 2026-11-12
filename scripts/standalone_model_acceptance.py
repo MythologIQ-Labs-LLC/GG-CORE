@@ -154,7 +154,7 @@ def await_ready(binary, base, env, daemon, seconds):
     raise AcceptanceFailure("daemon failed to become ready within startup deadline")
 
 
-def check_list(binary, base, env, model_id):
+def check_list(binary, base, env, model_name):
     raw = run_cli(binary, base, env, ["models", "list", "--json"])
     try:
         doc = json.loads(raw)
@@ -162,7 +162,7 @@ def check_list(binary, base, env, model_id):
         raise AcceptanceFailure("models list did not emit JSON") from exc
     models = doc.get("models") if isinstance(doc, dict) else None
     require(isinstance(models, list), "models list missing models array")
-    matched = next((m for m in models if isinstance(m, dict) and m.get("name") == model_id), None)
+    matched = next((m for m in models if isinstance(m, dict) and m.get("name") == model_name), None)
     require(matched is not None, "preloaded model absent from model list")
     return matched
 
@@ -247,7 +247,7 @@ def execute(args):
                 run_cli(binary, base, env, ["live"])
                 status = run_cli(binary, base, env, ["status", "--json"])
                 require(isinstance(json.loads(status), dict), "status is not JSON object")
-                loaded = check_list(binary, base, env, args.model_id)
+                loaded = check_list(binary, base, env, Path(args.model).stem)
                 caps = loaded.get("capabilities", [])
                 require(isinstance(caps, list), "model capabilities not a list")
                 # A missing capability list on older runtimes is not a positive capability claim.
@@ -268,7 +268,7 @@ def execute(args):
                         ["models", "load", args.model, "--id", args.model_id],
                         timeout=args.startup_timeout)
                 run_cli(binary, base, env, ["ready"])
-                check_list(binary, base, env, args.model_id)
+                check_list(binary, base, env, Path(args.model).stem)
                 recovery = check_task(binary, base, env, args)
                 require(daemon.poll() is None, "daemon died during acceptance checks")
             finally:
