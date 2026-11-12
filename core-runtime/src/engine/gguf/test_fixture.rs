@@ -34,3 +34,44 @@ pub(super) fn real_model() -> Option<&'static Path> {
     eprintln!("SKIP: real GGUF fixture not present at {path:?}");
     None
 }
+
+static REAL_MODEL_SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Hold for the whole of a timing-sensitive or CPU-loading real-model test
+/// so CPU load from one never overlaps another's timing (review finding 2).
+pub(super) fn serial() -> std::sync::MutexGuard<'static, ()> {
+    REAL_MODEL_SERIAL.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Stops the spinner threads when dropped, also when the test panics.
+struct Spinners {
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    threads: Vec<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for Spinners {
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.threads.drain(..).for_each(|t| drop(t.join()));
+    }
+}
+
+/// Run `f` on this thread while 8 other threads saturate the CPU.
+pub(super) fn under_load<T>(f: impl FnOnce() -> T) -> T {
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let threads = (0..8)
+        .map(|_| {
+            let stop = std::sync::Arc::clone(&stop);
+            std::thread::spawn(move || {
+                let mut x = 0u64;
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    x = std::hint::black_box(
+                        x.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1),
+                    );
+                }
+            })
+        })
+        .collect();
+    let _spinners = Spinners { stop, threads };
+    f()
+}

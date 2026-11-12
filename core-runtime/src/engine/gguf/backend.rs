@@ -123,8 +123,8 @@ impl LlamaBackendInner {
 
     /// Stream tokens one at a time through a channel.
     ///
-    /// When `is_cancelled` is provided, it is checked once per token.
-    /// If set, streaming stops early.
+    /// When `is_cancelled` is provided, it is checked before every prefill
+    /// chunk and once per token. If set, streaming stops early.
     pub fn generate_stream(
         &self,
         prompt: &str,
@@ -351,11 +351,15 @@ impl LlamaBackendInner {
         tokens: &[LlamaToken],
         should_stop: StopCheck<'_>,
     ) -> Result<bool, InferenceError> {
-        let shape = PrefillShape {
+        decode_prompt(ctx, tokens, self.prefill_shape(), should_stop)
+    }
+
+    /// What this backend's prefill schedule depends on.
+    pub(super) fn prefill_shape(&self) -> PrefillShape {
+        PrefillShape {
             threads: u32::try_from(self.n_threads).unwrap_or(1),
             model_bytes: self.model.size(),
-        };
-        decode_prompt(ctx, tokens, shape, should_stop)
+        }
     }
 
     pub(super) fn create_context(&self) -> Result<LlamaContext<'_>, InferenceError> {

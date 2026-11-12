@@ -1,6 +1,6 @@
-//! Unit tests for the deterministic prefill schedule. The expected values
-//! were computed from the same integer formula by the plan's model script
-//! (`scripts/qualification/n7_prefill_schedule_model.py`, Revision 3).
+//! Unit tests for the deterministic prefill schedule. Expected values come
+//! from the same integer formula, as printed by
+//! `scripts/qualification/n7_prefill_schedule_model.py --integer`.
 
 use super::*;
 
@@ -112,4 +112,19 @@ fn sequences_are_fixed_per_configuration() {
     let b1 = sequence(2516, 1, REF, 512);
     assert_eq!((b1.len(), b1[39]), (40, 20));
     assert!(b1[..39].iter().all(|&s| s == 64));
+}
+
+#[test]
+fn plan_positions_match_per_bucket() {
+    let positions = [0, 2047, 2048, 4095, 4096, 9500, 13_926, 16_383];
+    let expected: [(u32, [usize; 8]); 4] = [
+        (1, [64, 64, 64, 64, 64, 64, 64, 64]),
+        (2, [128, 128, 128, 64, 64, 64, 64, 64]),
+        (4, [256, 256, 256, 128, 128, 64, 64, 64]),
+        (8, [256, 256, 256, 256, 256, 128, 128, 64]),
+    ];
+    for (threads, want) in expected {
+        let got = positions.map(|p| chunk(p, threads, REF, 512));
+        assert_eq!(got, want, "threads {threads}");
+    }
 }

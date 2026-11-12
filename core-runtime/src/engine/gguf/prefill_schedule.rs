@@ -44,7 +44,8 @@ const SIZES: [usize; 4] = [512, 256, 128, 64];
 
 /// `[T0 × 2, T16 × 2]` in ms per thread bucket (rows: 1, 2, 4, 8 threads)
 /// and chunk size (columns: `SIZES`). Doubling keeps the two-run mean
-/// integral; generated from c184 by the plan's model script.
+/// integral; printed from c184 by
+/// `scripts/qualification/n7_prefill_schedule_model.py --integer`.
 const TABLE: [[[u128; 2]; 4]; 4] = [
     [[9906, 37294], [4907, 16798], [2669, 7996], [1322, 3918]],
     [[5319, 16384], [2613, 7830], [1354, 4246], [714, 2434]],

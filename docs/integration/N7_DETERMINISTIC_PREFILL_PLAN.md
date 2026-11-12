@@ -315,3 +315,16 @@ The shipped integer formula (`prefill_schedule::fits`, 2× fixed-point ms, exact
 | 8 | 0→256, 5646→128, 16297→64 |
 
 Worst-chunk and cost figures are unchanged to within one chunk.
+
+### Implementation review remediation (2026-11-12)
+
+The independent review of `4b3d92c5` was APPROVE WITH CONDITIONS. The follow-up commit addresses all seven findings:
+
+- **Streaming path:** a recorder test now covers `generate_stream`.
+- **Test isolation:** `under_load` is panic-safe through a drop guard. All real-model tests take one serial lock, so CPU load never overlaps a timed test.
+- **Bucket coverage:** the always-on test now covers all four thread buckets with multi-chunk prompts.
+- **Qualification job:** it sets **both** `GG_CORE_REQUIRE_REAL_MODEL=1` and `GG_N7_MEASURE=1`, so the determinism matrix and the characterization run in acceptance item 1.
+- **Model script:** `n7_prefill_schedule_model.py --integer` prints the exact integer `TABLE` and transitions, which are the source of the unit-test expectations.
+- **Single-thread tail test:** it asserts that the decoded chunks are a prefix of the planned split.
+- **Plan positions:** a unit test covers the plan's position table for each bucket.
+- **Docs:** the stale `generate_stream` doc comment is fixed.

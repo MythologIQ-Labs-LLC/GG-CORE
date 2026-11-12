@@ -148,6 +148,26 @@ fn decode_chunk(
     decode(ctx, &mut batch)
 }
 
+/// The split the schedule must produce for an `n`-token prompt on `backend`
+/// (test oracle for the recorder).
+#[cfg(test)]
+pub(super) fn planned_split(backend: &super::backend::LlamaBackendInner, n: usize) -> Vec<usize> {
+    let ctx = backend.create_context().expect("context");
+    let cap = MAX_PREFILL_CHUNK.min(ctx.n_batch().min(ctx.n_ubatch()) as usize);
+    let shape = backend.prefill_shape();
+    let (mut pos, mut out) = (0, Vec::new());
+    while pos < n {
+        let len = prefill_schedule::chunk(pos, shape.threads, shape.model_bytes, cap).min(n - pos);
+        out.push(len);
+        pos += len;
+    }
+    out
+}
+
+#[cfg(test)]
+#[path = "prefill_split_tests.rs"]
+mod split_tests;
+
 /// Test-only record of the chunk lengths `decode_chunked` actually decodes
 /// on this thread, observed on the production call path (audit residual 1).
 #[cfg(test)]
