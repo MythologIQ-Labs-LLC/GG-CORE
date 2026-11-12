@@ -1,8 +1,7 @@
 //! Real-model regression: cancellation and deadlines during prompt PREFILL.
 //!
-//! A ~2,500-token prompt spends seconds in prefill before the first token, so
-//! a per-token check alone let a cancelled or expired request keep running
-//! for the whole prefill (and the IPC non-streaming path then returned a
+//! A ~2,500-token prompt spends seconds in prefill, so a per-token check alone
+//! let a stopped request run the whole prefill (and IPC then returned a
 //! success). These tests prove that prefill stops at a decode-chunk
 //! checkpoint, that the failure is explicit, that a cancelled request does
 //! not disturb a concurrent one, and that the model serves the next request.
@@ -177,6 +176,7 @@ fn params(max_tokens: usize, timeout_ms: Option<u64>) -> InferenceParams {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[allow(clippy::await_holding_lock)] // serial guard across this test's own runtime
 async fn real_model_nonstream_deadline_and_cancel_fail_explicitly() {
     let Some((path, cfg, _serial)) = fixture() else {
         return;

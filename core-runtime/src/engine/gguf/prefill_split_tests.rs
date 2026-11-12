@@ -114,6 +114,7 @@ fn real_model_n7_determinism_matrix() {
 /// The streaming entry point decodes the same planned split (the recorder
 /// is per thread, so it wraps the whole blocking generation).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[allow(clippy::await_holding_lock)] // serial guard across this test's own runtime
 async fn real_model_stream_prefill_follows_the_schedule() {
     let Some(path) = real_model() else {
         return;
