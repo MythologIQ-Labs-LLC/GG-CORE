@@ -128,7 +128,7 @@ fn zero_is_refused_never_unlimited() {
 
 #[test]
 fn malformed_values_are_refused_for_both_variables() {
-    let overflow = format!("{}0", usize::MAX);
+    let overflow = (usize::MAX as u128 + 1).to_string();
     let bad = [
         "",
         "abc",

@@ -16,7 +16,7 @@ fn args(list: &[&str]) -> Vec<String> {
 
 #[test]
 fn no_flags_and_no_env_means_no_preload() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::remove_var(PRELOAD_MODELS_ENV);
     assert_eq!(parse_serve_models(&args(&[])).unwrap(), vec![]);
 }
@@ -61,7 +61,7 @@ fn unknown_argument_is_rejected() {
 
 #[test]
 fn env_fallback_parses_comma_separated_paths() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var(PRELOAD_MODELS_ENV, "models/a.gguf, models/b.gguf,");
     let models = parse_serve_models(&args(&[])).unwrap();
     std::env::remove_var(PRELOAD_MODELS_ENV);
@@ -76,7 +76,7 @@ fn env_fallback_parses_comma_separated_paths() {
 
 #[test]
 fn explicit_flags_win_over_env() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var(PRELOAD_MODELS_ENV, "models/env.gguf");
     let models = parse_serve_models(&args(&["--model", "models/flag.gguf"])).unwrap();
     std::env::remove_var(PRELOAD_MODELS_ENV);

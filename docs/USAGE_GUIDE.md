@@ -59,9 +59,9 @@ default build and is on by default.
 | `GG_CORE_MAX_QUEUE_DEPTH` | 256 | Max pending requests |
 | `GG_CORE_MAX_CONTEXT_TOKENS` | 4096 | Max context tokens per request |
 | `GG_CORE_MAX_MEMORY_PER_CALL` | unset | Optional per-request ceiling (bytes, >= 1 MiB, <= total). Unset: bounded by the total; requests without an estimate reserve min(1 GiB, total) |
-| `GG_CORE_MAX_TOTAL_MEMORY` | max(2 GiB, 50% RAM) | Exact total ceiling (bytes, >= 1 MiB); never raised; Windows Job Object cap |
+| `GG_CORE_MAX_TOTAL_MEMORY` | max(2 GiB, 50% RAM) | Exact total ceiling (bytes, >= 1 MiB); never raised; Windows Job Object cap unless `GG_CORE_SANDBOX=off` |
 
-Explicit values must be plain decimal byte counts of at least 1 MiB, and the per-call value may not exceed the total; an invalid or contradictory value makes `serve`, `config show` and `config validate` fail instead of running with a different limit. On Windows the total is also the Job Object memory cap; on Linux it is an OS (cgroup) cap only with `GG_CORE_SANDBOX=enforce` (default seccomp mode enforces it through GG-CORE admission only); macOS has no OS cap. These variables govern the standalone daemon and CLI; embedded Rust/FFI/Python hosts pass their own `ResourceLimitsConfig`.
+Explicit values must be plain decimal byte counts of at least 1 MiB, and the per-call value may not exceed the total; an invalid or contradictory value makes `serve`, `config show` and `config validate` fail instead of running with a different limit. On Windows the total is also the Job Object memory cap (unless `GG_CORE_SANDBOX=off`); on Linux it is an OS (cgroup) cap only with `GG_CORE_SANDBOX=enforce` (default seccomp mode enforces it through GG-CORE admission only); macOS has no OS cap. These variables govern the standalone daemon and CLI; embedded Rust/FFI/Python hosts pass their own `ResourceLimitsConfig`.
 
 | `GG_CORE_MAX_CONCURRENT` | 2 | Concurrent request gate |
 | `GG_CORE_BATCH_MAX_REQUESTS` | 8 | Max requests per batch |

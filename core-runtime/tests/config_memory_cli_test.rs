@@ -33,6 +33,7 @@ fn run(args: &[&str], vars: &[(&str, &str)]) -> Output {
     while child.try_wait().expect("wait").is_none() {
         if start.elapsed() > Duration::from_secs(60) {
             let _ = child.kill();
+            let _ = child.wait();
             panic!("{args:?} {vars:?} did not exit: it kept running");
         }
         std::thread::sleep(Duration::from_millis(50));
@@ -54,7 +55,7 @@ fn invalid_settings() -> Vec<Vec<(&'static str, &'static str)>> {
         vec![(P, "0")],
         vec![(T, "abc")],
         vec![(P, "not-a-number")],
-        vec![(T, "184467440737095516150")],
+        vec![(T, "18446744073709551616")],
         vec![(P, "10")],
     ]
 }

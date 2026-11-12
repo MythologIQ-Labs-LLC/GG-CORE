@@ -204,7 +204,7 @@ The most important runtime settings are:
 | `GG_CORE_N_CTX` | `2048` | Native GGUF model context. Set to `4096` for long prompts, with sufficient model/host memory. |
 | `GG_CORE_MAX_QUEUE_DEPTH` | `256` | Maximum pending requests. |
 | `GG_CORE_MAX_CONCURRENT` | `2` | Concurrent request resource gate. |
-| `GG_CORE_MAX_TOTAL_MEMORY` | max(2 GiB, 50% RAM) | Exact ceiling for governed runtime memory in bytes (resident weights + working memory); never raised. Windows Job Object cap. |
+| `GG_CORE_MAX_TOTAL_MEMORY` | max(2 GiB, 50% RAM) | Exact ceiling for governed runtime memory in bytes (resident weights + working memory); never raised. Windows Job Object cap unless `GG_CORE_SANDBOX=off`. |
 | `GG_CORE_MAX_MEMORY_PER_CALL` | unset | Optional per-request ceiling in bytes, at most the total. Invalid or contradictory memory values abort startup. |
 | `GG_CORE_IPC_FRAME_LIMIT` | `16777216` | Maximum framed IPC message size. |
 | `GG_CORE_MAX_CONNECTIONS` | `64` | Concurrent IPC connection limit. |

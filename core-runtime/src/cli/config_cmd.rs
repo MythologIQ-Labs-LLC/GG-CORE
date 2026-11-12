@@ -227,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_ignores_per_call_when_unset_and_loads_explicit_ceiling() {
+    fn validate_per_call_unset_within_and_above_total() {
         let _lock = env_guard();
         clear_env();
         std::env::set_var("GG_CORE_MAX_TOTAL_MEMORY", "2000000");

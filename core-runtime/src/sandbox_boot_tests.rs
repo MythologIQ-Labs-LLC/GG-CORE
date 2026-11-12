@@ -9,7 +9,7 @@ static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn unset_env_uses_platform_default() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::remove_var(SANDBOX_ENV);
     let mode = sandbox_mode_from_env().unwrap();
     if cfg!(windows) {
@@ -23,7 +23,7 @@ fn unset_env_uses_platform_default() {
 
 #[test]
 fn explicit_modes_parse_case_insensitively() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     for (v, expected) in [
         ("enforce", SandboxMode::Enforce),
         ("SECCOMP", SandboxMode::Seccomp),
@@ -37,7 +37,7 @@ fn explicit_modes_parse_case_insensitively() {
 
 #[test]
 fn invalid_mode_is_rejected_loudly() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var(SANDBOX_ENV, "lenient");
     let err = sandbox_mode_from_env().unwrap_err();
     assert!(err.contains("lenient"));

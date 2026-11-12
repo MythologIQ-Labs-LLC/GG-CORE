@@ -92,7 +92,7 @@ fn parse_explicit(
 ) -> Result<Option<usize>, MemoryConfigError> {
     let Some(raw) = raw else { return Ok(None) };
     let invalid = |reason| MemoryConfigError::Invalid { var, reason };
-    let text = raw.to_str().ok_or(invalid("not valid UTF-8"))?;
+    let text = raw.to_str().ok_or_else(|| invalid("not valid UTF-8"))?;
     if text.is_empty() {
         return Err(invalid("empty value"));
     }
