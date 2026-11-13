@@ -33,7 +33,7 @@ fn wait_request() -> IpcMessage {
 /// wait that stays pending while request 7 runs.
 async fn connect_holding(
     handler: &Arc<IpcHandler>,
-    pool: &ConnectionPool,
+    pool: &Arc<ConnectionPool>,
 ) -> (DuplexStream, tokio::task::JoinHandle<()>) {
     let guard = pool.try_acquire_owned().expect("slot");
     let (mut client, server) = tokio::io::duplex(BUFFER);
