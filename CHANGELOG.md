@@ -4,7 +4,9 @@ All notable changes to GG-CORE (Greatest Good - Contained Offline Restricted Exe
 
 ## [Unreleased]
 
-_No additional changes beyond the untagged RC candidate below._
+### Changed (model release wait, #183)
+- `gg-core-cli models unload <id> --wait-ms N` exits `0` only when the model's memory was released, and `4` when the wait expires with instances still held. It exits `1` when a release receipt names another model or is self-contradictory. Plain `models unload <id>` is unchanged.
+- **Rust source compatibility:** `ipc::protocol_types::IpcMessage` is now `#[non_exhaustive]`. This is a one-time source break for external crates that match it exhaustively; add a wildcard arm. Later frame types are then not breaking (#112). The wire format is unchanged.
 
 ## [0.10.0-rc.1] - 2026-11-04
 

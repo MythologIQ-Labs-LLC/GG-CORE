@@ -21,6 +21,7 @@ pub mod ipc_client;
 pub mod ipc_client_auth;
 pub mod models_cmd;
 pub mod models_lifecycle_cmd;
+pub mod models_release_cmd;
 pub mod status;
 pub mod status_format;
 pub mod typed_cmd;

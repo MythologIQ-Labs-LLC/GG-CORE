@@ -6,6 +6,7 @@
 
 pub use super::protocol_codec::*;
 pub use super::protocol_model_types::*;
+pub use super::protocol_release_types::*;
 pub use super::protocol_types::*;
 
 #[cfg(test)]

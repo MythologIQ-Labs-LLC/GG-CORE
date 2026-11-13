@@ -56,3 +56,30 @@ async fn original_async_load_fails_loud_with_no_registry_state() {
     assert!(result.is_err());
     assert_eq!(runtime.model_registry.count().await, 0);
 }
+
+/// MODEL_RELEASE_V1_PLAN A12: the release work leaves the unload API, its
+/// wire structs and the CLI entry point exactly as before.
+#[tokio::test]
+async fn unload_api_and_wire_structs_are_unchanged() {
+    use gg_core::ipc::protocol::{ModelUnloadRequest, ModelUnloadResponse};
+    // Signature check only: the future is built, never polled.
+    let _unpolled = gg_core::cli::models_lifecycle_cmd::run_unload("no-socket", "m");
+    let request = ModelUnloadRequest {
+        model_id: "m".into(),
+    };
+    let ModelUnloadResponse {
+        success,
+        model_id,
+        error,
+    } = ModelUnloadResponse::success(request.model_id);
+    assert!(success && model_id == "m" && error.is_none());
+
+    let runtime = Runtime::new(RuntimeConfig {
+        auth_token: "compat-unused".into(),
+        ..Default::default()
+    });
+    let lifecycle: &gg_core::models::ModelLifecycle = &runtime.model_lifecycle;
+    assert!(lifecycle.unload("absent").await.is_err());
+    let unloaded = gg_core::models::unload_model(&runtime.model_lifecycle, "absent").await;
+    assert!(unloaded.is_err());
+}

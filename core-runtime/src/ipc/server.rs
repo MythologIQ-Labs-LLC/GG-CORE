@@ -64,6 +64,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
     let write_half = Arc::new(ConnWriter::new(write_half, handler.stream_stall()));
     let mut session: Option<super::auth::SessionToken> = None;
     let active_requests: ActiveRequests = Arc::new(Mutex::new(HashMap::new()));
+    let release_waits = release::ReleaseWaits::default();
 
     loop {
         // A poisoned writer (stalled or failed frame write) ends the
@@ -222,6 +223,11 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                 }
             }
 
+            IpcMessage::ModelReleaseWaitRequest(req) => {
+                let sess = session.as_ref();
+                release::start(&handler, sess, &write_half, &release_waits, req).await;
+            }
+
             // Non-streaming: use standard request/response processing
             _ => match handler.process(&request_bytes, session.as_ref()).await {
                 Ok((response_bytes, new_session)) => {
@@ -252,6 +258,7 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
     for cancel in active_requests.lock().await.values() {
         cancel.cancel();
     }
+    release_waits.close();
     if write_half.is_poisoned() {
         write_half.shutdown().await;
     }
@@ -319,6 +326,9 @@ pub use super::listener::run_server;
 #[path = "server_requests.rs"]
 mod requests;
 
+#[path = "server_release.rs"]
+mod release;
+
 #[cfg(all(test, feature = "gguf"))]
 #[path = "server_control_tests.rs"]
 mod control_tests;
@@ -334,3 +344,19 @@ mod poison_tests;
 #[cfg(all(test, feature = "gguf"))]
 #[path = "server_real_model_tests.rs"]
 mod real_model_tests;
+
+#[cfg(test)]
+#[path = "server_release_stub.rs"]
+mod release_stub;
+
+#[cfg(test)]
+#[path = "server_release_daemon.rs"]
+mod release_daemon;
+
+#[cfg(test)]
+#[path = "server_release_tests.rs"]
+mod release_tests;
+
+#[cfg(all(test, feature = "gguf"))]
+#[path = "server_release_real_model_tests.rs"]
+mod release_real_model_tests;
