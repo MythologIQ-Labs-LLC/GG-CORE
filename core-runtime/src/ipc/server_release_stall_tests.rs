@@ -5,6 +5,7 @@
 //! Driven through the real `handle_connection` with a small duplex buffer.
 
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tokio::io::{DuplexStream, ReadHalf, WriteHalf};
@@ -12,10 +13,12 @@ use tokio::io::{DuplexStream, ReadHalf, WriteHalf};
 use super::handle_connection;
 use super::read_frame;
 use super::release::{LIVE_WAITS, TEST_LOCK};
-use super::release_daemon::{daemon_with, generate, Daemon, TOKEN};
+use super::release_daemon::{daemon_with, generate, TOKEN};
 use super::release_stub::{receive, send};
 use crate::ipc::conn_writer::write_framed;
+use crate::ipc::connections::ConnectionPool;
 use crate::ipc::protocol::*;
+use crate::ipc::IpcHandler;
 
 const STALL: Duration = Duration::from_millis(300);
 /// Holds the handshake ack and the unload reply (both read by the client)
@@ -28,10 +31,13 @@ fn wait_request() -> IpcMessage {
 
 /// Authenticate, hold `m` with request 7, unload it, then start a release
 /// wait that stays pending while request 7 runs.
-async fn connect_holding(d: &Daemon) -> (DuplexStream, tokio::task::JoinHandle<()>) {
-    let guard = d.pool.try_acquire_owned().expect("slot");
+async fn connect_holding(
+    handler: &Arc<IpcHandler>,
+    pool: &ConnectionPool,
+) -> (DuplexStream, tokio::task::JoinHandle<()>) {
+    let guard = pool.try_acquire_owned().expect("slot");
     let (mut client, server) = tokio::io::duplex(BUFFER);
-    let task = tokio::spawn(handle_connection(server, d.handler.clone(), guard, 1 << 20));
+    let task = tokio::spawn(handle_connection(server, handler.clone(), guard, 1 << 20));
     let hello = IpcMessage::Handshake {
         token: TOKEN.into(),
         protocol_version: None,
@@ -103,7 +109,7 @@ async fn blocked_inline_reply_ends_the_connection_within_the_stall_bound() {
     let _l = TEST_LOCK.lock().await;
     let d = daemon_with(STALL).await;
     drop(d.holder); // only request 7 holds `m` now
-    let (client, task) = connect_holding(&d).await;
+    let (client, task) = connect_holding(&d.handler, &d.pool).await;
     eventually("release wait pending", || {
         LIVE_WAITS.load(Ordering::SeqCst) == 1
     })
@@ -125,9 +131,8 @@ async fn blocked_inline_reply_ends_the_connection_within_the_stall_bound() {
         elapsed >= STALL,
         "the reader really blocked on an inline reply"
     );
-    let lifecycle = d.lifecycle.clone();
     eventually("teardown released m", || {
-        lifecycle.releasing_models().is_empty()
+        d.lifecycle.releasing_models().is_empty()
     })
     .await;
     eventually("release wait ended", || {
