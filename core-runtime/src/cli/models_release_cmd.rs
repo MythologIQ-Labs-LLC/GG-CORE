@@ -47,9 +47,11 @@ pub async fn run_unload_with_wait(socket_path: &str, model_id: &str, wait_ms: u6
             eprintln!("Unload failed for '{}': {}", r.model_id, why);
             1
         }
-        (Ok(IpcMessage::ModelUnloadResponse(r)), Ok(IpcMessage::ModelReleaseWaitResponse(w)))
-            if r.model_id == model_id =>
-        {
+        (Ok(IpcMessage::ModelUnloadResponse(r)), Ok(IpcMessage::ModelReleaseWaitResponse(w))) => {
+            if r.model_id != model_id {
+                eprintln!("Unexpected model unload response identity");
+                return 1;
+            }
             report(model_id, &w)
         }
         _ => {
