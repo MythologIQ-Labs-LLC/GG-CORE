@@ -64,6 +64,8 @@
 mod tests {
     use super::super::protocol_types::IpcMessage as M;
 
+    // Same `{ .. }` patterns as the doctest, including for unit variants.
+    #[allow(clippy::unneeded_struct_pattern)]
     fn kind(message: &M) -> u8 {
         match message {
             M::Handshake { .. } => 0,
