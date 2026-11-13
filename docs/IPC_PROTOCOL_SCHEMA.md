@@ -291,6 +291,8 @@ open; only authentication failures terminate it.
 
 **CLI semantics (standalone model release wait):** `models unload <id> --wait-ms N` exits `0` only when `released:true`. A timed-out wait reporting `released:false` exits `4` and prints the remaining instance count to stderr, so scripts cannot mistake pending memory for reclaimed memory. Exit `1` is unload/auth/protocol failure; exit `3` is connection failure. The legacy `models unload <id>` command without `--wait-ms` retains its original exit contract. These are CLI exit codes, not new IPC protocol error codes.
 
+**Response ordering:** multiple release-wait requests should **not** be pipelined on the same authenticated connection. The server permits at most one active wait; while it is pending, another wait receives `error{code:409}`, but that rejection frame can appear before or after the first wait's response. The 409 error has no request ID. Clients needing independently concurrent waits should use separate authenticated connections and must not assume FIFO response ordering.
+
 ### Observability (unauthenticated, orchestrator pattern)
 
 - `{ "type": "prometheus_request" }` → `{ "type": "prometheus_response", "text": "<prometheus text format>" }`
