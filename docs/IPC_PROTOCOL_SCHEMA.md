@@ -287,7 +287,9 @@ open; only authentication failures terminate it.
 { "type": "model_release_wait_response", "model_id": "local-model", "released": false, "pending_instances": 1 }
 ```
 
-`released: true` means no unloaded instance of that id is still held: its last reference was dropped, backend destructors ran and the memory budget was returned (also true for an id with nothing pending). It is not a claim that the operating system reclaimed every page. The wait runs beside the connection reader, so `cancel_request` and disconnects are still served while it is pending; it ends without a response if the connection closes. At most one wait may be pending per connection (`error{code:409}` otherwise); without a completed handshake it answers `error{code:401}` and the connection stays open.
+`released: true` means no unloaded instance of that id is still held: its last reference was dropped, backend destructors ran and the memory budget was returned (also true for an id with nothing pending). It is not a claim that the operating system reclaimed every page. The wait runs beside the connection reader, so `cancel_request` and disconnects are still served while it is pending; it ends without a response if the connection closes. At most one wait may be pending per connection through completion of its response frame (`error{code:409}` otherwise); without a completed handshake it answers `error{code:401}` and the connection stays open.
+
+**CLI semantics (standalone model release wait):** `models unload <id> --wait-ms N` exits `0` only when `released:true`. A timed-out wait reporting `released:false` exits `4` and prints the remaining instance count to stderr, so scripts cannot mistake pending memory for reclaimed memory. Exit `1` is unload/auth/protocol failure; exit `3` is connection failure. The legacy `models unload <id>` command without `--wait-ms` retains its original exit contract. These are CLI exit codes, not new IPC protocol error codes.
 
 ### Observability (unauthenticated, orchestrator pattern)
 
