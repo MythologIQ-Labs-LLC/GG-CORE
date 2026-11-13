@@ -31,8 +31,8 @@ fn wait_request() -> IpcMessage {
     IpcMessage::ModelReleaseWaitRequest(ModelReleaseWaitRequest::new("m", 10_000))
 }
 
-/// Authenticate, hold `m` with request 7 (confirmed by its extra reference
-/// on `held`, not by a sleep), unload it, then start a release wait that
+/// Authenticate, hold `m` with request 7 (confirmed by the reference it adds
+/// to `held`, not by a sleep), unload it, then start a release wait that
 /// stays pending while request 7 runs.
 async fn connect_holding(
     handler: &Arc<IpcHandler>,
@@ -51,9 +51,10 @@ async fn connect_holding(
         receive(&mut client).await,
         IpcMessage::HandshakeAck { .. }
     ));
+    let before = Arc::strong_count(held);
     send(&mut client, &generate(7)).await;
-    // Lifecycle registry + `held` + the running request 7.
-    eventually("request 7 holds m", || Arc::strong_count(held) > 2).await;
+    // Request 7 running adds a reference to the loaded model.
+    eventually("request 7 holds m", || Arc::strong_count(held) > before).await;
     let unload = IpcMessage::ModelUnloadRequest(ModelUnloadRequest {
         model_id: "m".into(),
     });
