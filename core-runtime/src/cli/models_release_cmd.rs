@@ -47,8 +47,10 @@ pub async fn run_unload_with_wait(socket_path: &str, model_id: &str, wait_ms: u6
             eprintln!("Unload failed for '{}': {}", r.model_id, why);
             1
         }
-        (Ok(IpcMessage::ModelUnloadResponse(_)), Ok(IpcMessage::ModelReleaseWaitResponse(w))) => {
-            report(&w)
+        (Ok(IpcMessage::ModelUnloadResponse(r)), Ok(IpcMessage::ModelReleaseWaitResponse(w)))
+            if r.model_id == model_id =>
+        {
+            report(model_id, &w)
         }
         _ => {
             eprintln!("Unexpected response from GG-CORE server");
@@ -57,7 +59,14 @@ pub async fn run_unload_with_wait(socket_path: &str, model_id: &str, wait_ms: u6
     }
 }
 
-fn report(w: &ModelReleaseWaitResponse) -> i32 {
+fn report(expected_model_id: &str, w: &ModelReleaseWaitResponse) -> i32 {
+    // A release receipt must identify precisely the model requested and
+    // agree on whether any unloaded instances remain. Otherwise a broken
+    // or out-of-order reply must never be interpreted as memory reclamation.
+    if w.model_id != expected_model_id || w.released != (w.pending_instances == 0) {
+        eprintln!("Inconsistent model release response");
+        return 1;
+    }
     if w.released {
         println!("Unloaded model '{}': released", w.model_id);
         0
@@ -93,12 +102,24 @@ mod tests {
     #[test]
     fn release_completed_returns_zero() {
         let w = ModelReleaseWaitResponse::new("m", true, 0);
-        assert_eq!(report(&w), 0);
+        assert_eq!(report("m", &w), 0);
     }
 
     #[test]
     fn expired_wait_with_held_instance_returns_nonzero() {
         let w = ModelReleaseWaitResponse::new("m", false, 1);
-        assert_eq!(report(&w), 4);
+        assert_eq!(report("m", &w), 4);
+    }
+
+    #[test]
+    fn wrong_model_cannot_claim_released() {
+        let w = ModelReleaseWaitResponse::new("different-model", true, 0);
+        assert_eq!(report("m", &w), 1);
+    }
+
+    #[test]
+    fn contradictory_release_receipts_fail_closed() {
+        assert_eq!(report("m", &ModelReleaseWaitResponse::new("m", true, 1)), 1);
+        assert_eq!(report("m", &ModelReleaseWaitResponse::new("m", false, 0)), 1);
     }
 }
