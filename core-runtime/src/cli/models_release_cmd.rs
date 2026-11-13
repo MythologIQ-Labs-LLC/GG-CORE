@@ -5,8 +5,10 @@
 //! unloaded instance on the same authenticated connection (#137).
 //!
 //! "Released" means the last reference was dropped, backend destructors ran
-//! and the memory budget was returned. Exit codes: 0 unloaded (released or
-//! still pending), 1 unload/auth/protocol failure, 3 connection failure.
+//! and the memory budget was returned. Exit codes: 0 released, 1
+//! unload/auth/protocol failure, 3 connection failure, 4 still pending
+//! after the requested wait. Plain `models unload` (without --wait-ms)
+//! keeps its historical exit-code contract.
 
 use std::time::Duration;
 
@@ -58,13 +60,16 @@ pub async fn run_unload_with_wait(socket_path: &str, model_id: &str, wait_ms: u6
 fn report(w: &ModelReleaseWaitResponse) -> i32 {
     if w.released {
         println!("Unloaded model '{}': released", w.model_id);
+        0
     } else {
-        println!(
+        eprintln!(
             "Unloaded model '{}': release pending: {} instance(s) still held by in-flight requests",
             w.model_id, w.pending_instances
         );
+        // A caller using --wait-ms is awaiting memory release, not merely
+        // unload acknowledgement. Never report shell success until released.
+        4
     }
-    0
 }
 
 fn connection_error(e: CliError) -> i32 {
@@ -78,5 +83,22 @@ fn connection_error(e: CliError) -> i32 {
             eprintln!("Error: {}", other);
             1
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn release_completed_returns_zero() {
+        let w = ModelReleaseWaitResponse::new("m", true, 0);
+        assert_eq!(report(&w), 0);
+    }
+
+    #[test]
+    fn expired_wait_with_held_instance_returns_nonzero() {
+        let w = ModelReleaseWaitResponse::new("m", false, 1);
+        assert_eq!(report(&w), 4);
     }
 }
