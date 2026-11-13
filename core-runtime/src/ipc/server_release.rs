@@ -123,3 +123,7 @@ pub(super) static TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_
 #[cfg(test)]
 #[path = "server_release_order_tests.rs"]
 mod order_tests;
+
+#[cfg(test)]
+#[path = "server_release_stall_tests.rs"]
+mod stall_tests;

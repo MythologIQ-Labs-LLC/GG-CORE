@@ -71,10 +71,10 @@ When pending, the CLI prints the remaining instance count to stderr; the same un
 - **R1a test** (new, in the release tests, driven through the real `handle_connection`):
   - **Setup:** a duplex stream with a small outbound buffer and a client that stops reading; `stream_stall` set to 300 ms through `RuntimeConfig.ipc_server`. The client authenticates and starts a held non-streaming request on the `Blocking` stub model. It starts a release wait for that model, then floods duplicate waits until the outbound buffer is full and the reader blocks on a 409. Finally it sends `cancel_request` for the held request.
   - **Assertion:** within the stall bound plus a margin (≤ 3 s), the connection task ends with the writer poisoned. The held request is cancelled: the model's instance is released and `lifecycle` shows no `unloading` ghost. `LIVE_WAITS` returns to its prior value. No task outlives the connection.
-  - **Recorded measurement:** time from `cancel_request` to connection end, at the configured 300 ms and documented for the default 5 s.
+  - **Recorded measurement:** time from the start of the duplicate-wait flood (the client has stopped reading) to connection end, at the configured 300 ms stall. The default 5 s bound is documented, not measured. The mechanism is the same, at about 5 s instead of 0.3 s.
 - **`#[non_exhaustive]` on `IpcMessage`:**
   - Every exhaustive `match` on `IpcMessage` outside `core-runtime/src` must gain a wildcard arm: integration tests, benches and any other workspace crate, found by compiling.
-  - `tests/public_api_compat_test.rs` gains `ipc_message_is_non_exhaustive_for_external_crates`, an external-crate match with a wildcard arm. It compiles only because the arm exists; a comment states the policy.
+  - *(Superseded by audit condition C4: the doctest pair in `ipc::protocol_compat` plus an in-crate exhaustive guard replace this test.)* `tests/public_api_compat_test.rs` gains `ipc_message_is_non_exhaustive_for_external_crates`, an external-crate match with a wildcard arm. It compiles only because the arm exists; a comment states the policy.
   - **Docs:** `IPC_PROTOCOL_SCHEMA.md`, `RELEASE_SUPPORT_AND_MAINTENANCE.md` (Rust source compatibility note) and `CHANGELOG.md` record the one-time break and the policy.
 - **R1 and R2:** the existing candidate code on this branch is kept as is (head `221289b7`), subject to the gates below.
 - **Gates (replace items 1–2 above):**
@@ -111,3 +111,13 @@ When pending, the CLI prints the remaining instance count to stderr; the same un
   - A passing doctest uses a wildcard match.
   - A `compile_fail,E0004` doctest matches every current variant with no wildcard. Doctests compile as an external crate.
   - **Fuzz crate check:** `core-runtime/fuzz` targets do not reference `IpcMessage`. Benches only construct variants. A scan of `tests/` found no exhaustive match; the compile confirms it.
+
+## Independent review (2026-11-13): APPROVE WITH CONDITIONS, no production defects
+- **Verified:** `pending` is cleared and `LIVE_WAITS` is balanced on every path; the order test is deterministic; the extractions are verbatim; the CLI exit codes reach the shell; the doctest's 28 variants match `IpcMessage` exactly; `flood.abort()` is safe; the docs match the source.
+- **Fixes:**
+  1. The stall test no longer sleeps 300 ms. It waits until request 7 holds `m`, observed as the strong count on the daemon's holder, and drops the holder only after the release wait has started.
+  2. An in-crate `#[cfg(test)]` exhaustive match in `protocol_compat` breaks the build when a variant is added. That keeps the `compile_fail,E0004` doctest attributable to `#[non_exhaustive]` rather than to a stale list.
+  3. The stall test asserts `elapsed < stall + 1 s`, so one stall and not several.
+  4. The stall test asserts 1 to 3 whole 409 frames. With a 256-byte buffer the reader blocked on the fourth, so the cancel was never read. The comment is reworded.
+  5. The superseded Revision 2 bullet and the measurement description are corrected.
+  6. The stall test is declared from `server_release.rs`, so `server.rs` grows by 4 lines instead of 8. The 3 lines added to `protocol_types.rs` (the attribute and its doc) are accepted.
