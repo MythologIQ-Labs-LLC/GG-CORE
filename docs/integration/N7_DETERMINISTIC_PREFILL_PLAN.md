@@ -328,3 +328,120 @@ The independent review of `4b3d92c5` was APPROVE WITH CONDITIONS. The follow-up 
 - **Single-thread tail test:** it asserts that the decoded chunks are a prefix of the planned split.
 - **Plan positions:** a unit test covers the plan's position table for each bucket.
 - **Docs:** the stale `generate_stream` doc comment is fixed.
+
+## Revision 4: multi-model recalibration and the sub-64 remainder (2026-11-12, owner-approved "recalibrate"; re-issued after audit R4-1 VETO)
+
+Evidence §4 reported Phi-3.5 at about 50% over prediction at 4 threads and an 11.9 s chunk at 1 thread. The follow-up experiments trace both to the final sub-64 remainder, not to the model-size scaling.
+
+### Findings
+**Raw data:** `N7_PREFILL_CALIBRATION_mcal.txt` and `N7_PREFILL_CALIBRATION_shape.txt`.
+
+- **Bulk chunks (sizes 64–512).**
+  - **Coverage:** `mcal` covers Qwen2.5-0.5B, SmolLM2-1.7B and Phi-3.5-mini (Q4_K_M, provenance-verified), at threads 1/2/4/8 and positions 0/3481/6963.
+    - Position 0 has 2 repetitions; the other positions have 1.
+  - **Accuracy:** measured against the existing table × model-bytes prediction, the worst measured/predicted ratio is:
+
+    | Model | Mean of repetitions | Worst single run |
+    |---|---|---|
+    | Qwen | ≤1.14 | ≤1.20 |
+    | Phi | ≤1.03 | ≤1.06 |
+    | SmolLM2 at 4/8 threads | ≤1.08 | ≤1.09 / ≤0.98 |
+    | SmolLM2 at 1/2 threads | 1.62 / 1.42 | up to 2.02 |
+
+  - **Effect on the choice:** in all 36 model × bucket × position cells, the chosen chunk either measures ≤1000 ms or is the 64 floor because 64 is predicted over budget. All SmolLM2 1/2-thread cells are at the floor, so the under-prediction never changes a choice in the calibrated range.
+  - **Scaling unchanged:** a slope term scaled by `n_layer·n_embd` changed no ratio by more than 0.03 and is not adopted.
+- **Sub-64 chunks leave llama.cpp's batched matrix path.**
+  - **Per-token cost** is about 2× the cost in a 64-token chunk. At pos ≈2600, 63 tokens against 64:
+
+    | Model | 1 thread | 2 threads | 4 threads | 8 threads |
+    |---|---|---|---|---|
+    | Phi | 8360 / 4366 ms | 4538 / 2336 | 2428 / 1221 | 1497 / 740 |
+
+    SmolLM2 and Qwen behave the same way at every thread count.
+  - **Logits are not the cause** (`lastchunk`): 61 tokens took 2453 ms with logits and 2512 without.
+- **Fitted bound:** a piece of `p < 64` tokens costs at most `(p + 6)/24` of a 64-token chunk at the same position, `T64`.
+  - **Data:** all 3 models × threads 1/2/4/8, sizes 1–63.
+    - The 1/2/8-thread points are the worst of 2 runs.
+    - The 4-thread points are best of 2, the only values recorded.
+    - `T64` is the best measured run, which is the conservative direction.
+  - **Margin:** the smallest bound/measured ratio is **1.20** (Phi, 8 threads, 24 tokens). The smallest intercept that holds every point at denominator 24 is 3.95, against the 6 used.
+  - The audit's R4-1 finding 2 (SmolLM2 violates `(p+4)/30`) is resolved.
+
+### Design change: equalized remainder pieces
+- **Signature.** `chunk(pos, remaining, threads, model_bytes, cap) -> usize` returns the length to decode, in `1..=remaining`.
+  - `remaining == 0` is a caller bug: `debug_assert!(remaining > 0)`, with a release result of 0. The loop in `decode_chunked` never calls it with 0.
+  - Bulk choice `s` is unchanged, then clamped to `remaining`.
+- **Remainder rule.** Applies only when `remaining < MIN_CHUNK.min(cap)`, which can happen only for the last part of a prompt:
+  - `p = clamp(p_max, 1, s)`, `q = ceil(remaining / p)`, chunk `= ceil(remaining / q)`;
+  - this gives the fewest pieces under `p_max`, made near-equal, so no 1–3-token pieces with high fixed cost appear;
+  - each later piece re-evaluates at its own position, so the function stays pure.
+- **`p_max`.** Uses the existing 64-column integer terms: `N = (T0·SPAN + slope·pos)·bytes`, saturating, and `D = 2·SPAN·REF`.
+  - `N == 0`: unbounded.
+  - `N ≥ BUDGET·D` (that is, `!fits(64)`): `p_max = 18`, the largest `p` with `(p+6)/24 ≤ 1`.
+  - otherwise: `p_max = (24·BUDGET·D) / N − 6`, a single exact integer division. Because `N < BUDGET·D`, the quotient is ≥24 and the subtraction cannot underflow.
+  - **Overflow:** `24·BUDGET·D = 3.24e17 < 2^59` is a constant. `N` may saturate to `u128::MAX`, which takes the `!fits` branch.
+- **Invariant, on the prediction:** every remainder piece has a predicted cost ≤ `max(BUDGET, T64(pos))`. Measured cost can exceed this where `T64` under-predicts (SmolLM2 at 1/2 threads). Acceptance item 2 measures it.
+- **Not adopted:**
+  - merging the remainder into the previous chunk, which at least doubles the worst chunk;
+  - sub-64 bulk chunks, which double the cost per token.
+- **Unchanged:** the 64 floor, `TABLE`, the buckets, `BUDGET` and `decode_range` (fixed cap; the closure becomes `|_, _| cap`).
+
+### Exact effect on splits (Qwen reference bytes, cap 512; computed with the integer rule)
+**Unchanged:** every 2516-token split (the packaged gate prompt, evidence §3), and every split at 4 and 8 threads.
+
+**Changed (the determinism matrix cells to re-run are 568@1, 100@1 and 568@2):**
+
+| Threads | Prompt tokens | Old split | New split |
+|---|---|---|---|
+| 1 | 568 | 8×64, 56 | 8×64, 19, 19, 18 |
+| 1 | 100 | 64, 36 | 64, 18, 18 |
+| 1 | 63 | 63 | 21, 21, 21 |
+| 2 | 568 | 4×128, 56 | 4×128, 28, 28 |
+| 2 | 63 | 63 | 32, 31 |
+
+**Other models:**
+- Phi-3.5, 1 and 4 threads, 2877 tokens: the final 61 becomes 16, 15, 15, 15.
+- SmolLM2, 4 threads: the final 61 becomes 21, 20, 20.
+
+**Tests that change:**
+- Two `sequence` expected values change:
+  - `sequence(63, 1, REF, 512)`: `[63]` becomes `[21, 21, 21]`;
+  - `sequence(100, 1, REF, 512)`: `[64, 36]` becomes `[64, 18, 18]`.
+- Every `chunk(...)` call site gains `remaining`: the `sequence` helper, `planned_split` and the `decode_prompt` closure.
+- The `decode_chunked` size closure becomes `Fn(usize, usize) -> usize`.
+
+**Tests that stay:** all other tests keep their expected values, because their `remaining` is at least 64 or they are 2516-token or 4/8-thread sequences. This covers:
+- `reference_model_transitions_match_the_integer_model`;
+- the bulk `chunk` assertions;
+- the cap, saturation and zero-byte tests;
+- `sequence(1, 4)`, `sequence(100, 4)` and the 2516-token sequences.
+
+The bulk assertions pass `remaining = usize::MAX`.
+
+### Acceptance (Revision 4)
+1. **Unit tests:**
+   - Expected values come from `n7_prefill_schedule_model.py --integer`, extended with the remainder rule.
+   - New tests:
+     - the changed splits above, exactly;
+     - Phi bytes, 4 threads, 2877 tokens ends 16, 15, 15, 15;
+     - `remaining ≥ MIN_CHUNK` gives the unchanged bulk rule;
+     - `cap < 64` is respected;
+     - `u64::MAX` bytes gives `p_max` 18;
+     - a sweep over `remaining` 1..=600 and positions confirms each length is in `1..=remaining`, and each piece below 64 is ≤ `p_max`, or ≤ `cap` when `cap` is smaller.
+2. **Cross-model measurement** (`GG_N7_MEASURE=1`): Phi-3.5 and SmolLM2, 1 and 4 threads, the 2877-token prompt.
+   - The worst decoded chunk is ≤ 1.2 × max(1000 ms, the worst 64-token chunk measured in the same run).
+   - The split and greedy output are identical with no load and under 8-thread load.
+3. **Determinism matrix:** re-run all 12 cells, including the changed 568@1, 100@1 and 568@2. Each split equals the planned split, and output is identical with no stop, with a stop and under load.
+4. **VM gate:**
+   - fmt;
+   - clippy for all 5 feature sets;
+   - the 3 test suites with `GG_CORE_REQUIRE_REAL_MODEL=1`;
+   - the release build.
+5. **Packaged stop tail with Qwen:**
+   - worst tail ≤1.2 s;
+   - throughput no worse than C2 + 10% or fixed-512 + 10%.
+6. **Claims:**
+   - one Windows CPU host and Q4_K_M only;
+   - model bytes 0.49–2.4 GB;
+   - the sub-64 bound is measured at 1/2/4/8 threads at one position (≈2300–2600);
+   - the 64-floor tail on large models at low thread counts is reported, not gated. On Phi it is about 1.2 s at 4 threads, and up to about 6.4 s at 1 thread at position 7k.

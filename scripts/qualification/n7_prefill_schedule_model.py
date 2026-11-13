@@ -1,4 +1,4 @@
-"""N7 deterministic prefill schedule model (plan Revision 3).
+"""N7 deterministic prefill schedule model (plan Revisions 3 and 4).
 
 Usage: python -I n7_prefill_schedule_model.py CAL_FILE [--integer]
 
@@ -69,6 +69,32 @@ def integer_mode():
             if c != prev:
                 trans.append((p, c)); prev = c
         print(f"integer bucket {t}: transitions {trans}")
+    # Revision 4: sub-64 remainder pieces, p_max = 24*B*D/N - 6 (18 if !fits).
+    d = 2 * span * ref
+    def pmax(p, t, b):
+        a, c = t0x2[(64, t)], t16x2[(64, t)]
+        n = (a * span + (c - a) * p) * b
+        return 10**9 if n == 0 else 18 if n >= 1000 * d else 24 * 1000 * d // n - 6
+    def seq(n, t, b=ref):
+        pos, out = 0, []
+        while pos < n:
+            rem = n - pos; s = min(ichunk(p=pos, t=t) if b == ref else bulk(pos, t, b), rem)
+            if rem < 64:
+                piece = max(1, min(pmax(pos, t, b), s)); q = -(-rem // piece); s = -(-rem // q)
+            out.append(s); pos += s
+        return out
+    def bulk(p, t, b):
+        for z in SIZES:
+            a, c = t0x2[(z, t)], t16x2[(z, t)]
+            if (a * span + (c - a) * p) * b <= budget_x2 * span * ref:
+                return z
+        return 64
+    for t in [1, 2, 4, 8]:
+        for n in [2516, 568, 100, 63]:
+            print(f"rev4 bucket {t} n={n}: {seq(n, t)}")
+    for name, b in [("phi35", 2_392_493_952), ("smollm2", 1_053_827_072)]:
+        for t in [1, 4]:
+            print(f"rev4 {name} bucket {t} n=2877 tail: {seq(2877, t, b)[-6:]}")
 
 if "--integer" in sys.argv:
     integer_mode()

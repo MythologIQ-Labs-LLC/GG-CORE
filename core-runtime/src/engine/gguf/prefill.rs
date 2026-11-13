@@ -44,7 +44,8 @@ pub(super) fn decode_prompt(
         return Ok(true);
     }
     let cap = decode_batch_cap(ctx, 0, tokens.len(), false, Some(MAX_PREFILL_CHUNK))?;
-    let size = |pos| prefill_schedule::chunk(pos, shape.threads, shape.model_bytes, cap);
+    let size =
+        |pos, left| prefill_schedule::chunk(pos, left, shape.threads, shape.model_bytes, cap);
     decode_chunked(ctx, tokens, 0, false, &size, should_stop)
 }
 
@@ -64,17 +65,17 @@ pub(super) fn decode_range(
     let begin = usize::try_from(start_pos)
         .map_err(|_| InferenceError::InputValidation("negative decode position".into()))?;
     let cap = decode_batch_cap(ctx, begin, tokens.len(), logits_all, None)?;
-    decode_chunked(ctx, tokens, begin, logits_all, &|_| cap, None).map(|_| ())
+    decode_chunked(ctx, tokens, begin, logits_all, &|_, _| cap, None).map(|_| ())
 }
 
-/// The chunk loop: `size(position)` gives each chunk's length (clamped to
-/// what remains), and `should_stop` runs before every chunk.
+/// The chunk loop: `size(position, remaining)` gives each chunk's length
+/// (clamped to what remains), and `should_stop` runs before every chunk.
 fn decode_chunked(
     ctx: &mut LlamaContext<'_>,
     tokens: &[LlamaToken],
     begin: usize,
     logits_all: bool,
-    size: &dyn Fn(usize) -> usize,
+    size: &dyn Fn(usize, usize) -> usize,
     should_stop: StopCheck<'_>,
 ) -> Result<bool, InferenceError> {
     let mut offset = 0;
@@ -82,7 +83,8 @@ fn decode_chunked(
         if stop_requested(should_stop) {
             return Ok(false);
         }
-        let len = size(begin + offset).clamp(1, tokens.len() - offset);
+        let left = tokens.len() - offset;
+        let len = size(begin + offset, left).clamp(1, left);
         #[cfg(test)]
         recorder::record(len);
         let last = offset + len == tokens.len();
@@ -157,7 +159,7 @@ pub(super) fn planned_split(backend: &super::backend::LlamaBackendInner, n: usiz
     let shape = backend.prefill_shape();
     let (mut pos, mut out) = (0, Vec::new());
     while pos < n {
-        let len = prefill_schedule::chunk(pos, shape.threads, shape.model_bytes, cap).min(n - pos);
+        let len = prefill_schedule::chunk(pos, n - pos, shape.threads, shape.model_bytes, cap);
         out.push(len);
         pos += len;
     }

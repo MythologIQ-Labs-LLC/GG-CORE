@@ -88,3 +88,43 @@ The design holds against the source:
 2. **Underflow guard.** A test or const check must assert `T16 >= T0` for every size and bucket, so the subtraction cannot underflow.
 3. **No retune loop.** If a gate fails, re-deriving constants needs a fresh calibration batch and a re-audit, and the original failure stays recorded for the owner.
 4. **Embedded/daemon split.** Document that embedded `Runtime::infer` and the daemon run in different buckets on the same host (12 threads is bucket 8; 6 threads is bucket 4), so their greedy text can differ.
+
+---
+
+# AUDIT REPORT: Revision 4, first issue (R4-1)
+
+**Risk:** L2. **Auditor:** The QoreLogic Judge (independent subagent). **VERDICT: VETO.**
+
+1. **HIGH: reference splits change.** The claim that reference splits are unchanged was false: the rule changes 568@1 (and 63@1), and acceptance item 1 contradicted itself.
+2. **HIGH: the shape data violates the bound.** `(p+4)/30` fails on SmolLM2 at 4 threads (sizes 8, 12, 15 and 33).
+3. **MEDIUM: no thread coverage.** There was no sub-64 data at 1, 2 or 8 threads.
+4. **MEDIUM: integer form.** The integer form was ambiguous, and the overflow wording was wrong.
+5. **LOW: `remaining == 0`.** Its behaviour was undefined.
+6. **LOW: mean ratios only.** The ratios were means, with no worst-run figures.
+7. **LOW: overstated invariant.** The invariant was stated as a measured property; it holds only for the prediction.
+
+---
+
+# AUDIT REPORT: Revision 4, re-issued (R4-2)
+
+**Target:** plan sha256 `3fba934e22c504d9099467febcffc72f3bedccb375fcba695aadcd3ca2db6e16`. **Risk:** L2. **Auditor:** The QoreLogic Judge (independent subagent; reimplemented the rule independently). **VERDICT: PASS WITH CONDITIONS.**
+
+## Verified
+- **Split table:** reproduces exactly (changed and unchanged cells, Phi and SmolLM2 tails).
+- **Bound:** `(p+6)/24` holds on all 15 shape lines. The minimum margin is 1.1997 (Phi, 8 threads, 24 tokens); the needed intercept is 3.946.
+- **Integer form:** sound, with no overflow or underflow. A cap/bytes/threads/position/remaining sweep always returns a length in `1..=min(remaining, cap)`.
+- **Purity:** the function stays pure.
+- **Razor:** the code fits the Section 4 limits.
+- **Bulk claims:** reproduce from `mcal`.
+
+## Findings
+1. **LOW: zero slack at 2516@1.** At 1 thread, `p_max` is exactly 20 (quotient 26.86), equal to the remainder.
+2. **LOW: ratio table incomplete.** Worst-run ratios were missing for some rows. Now filled in: Phi 1.06; SmolLM2 4 threads 1.09, 8 threads 0.98.
+3. **LOW: bound measured at one position only.** Positions 2300–2600; the claim stays scoped to that range.
+4. **INFO: remainder cost.** On Phi at 4 threads the remainder pieces cost about 2.7 s in total, against 2.4 s for one chunk, and the worst piece drops from 2.4 s to about 0.7 s.
+
+## Binding conditions
+- **C1.** A unit test pins `p_max(2496, 1, REF) == 20`, and that 2516@1 still ends with 20, marked as the boundary.
+- **C2.** Acceptance item 2 also reports each remainder piece's measured time against `(p+6)/24 × T64`, using the same run's 64-chunk. A piece over the bound is reported, not absorbed by the 1.2× allowance.
+- **C3.** The determinism re-run covers all 12 cells. Changed output hashes for 568@1, 100@1 and 568@2 are recorded as expected changes, not regressions.
+- **C4.** The ratio table is completed before implementation. **Done**, in this plan hash.

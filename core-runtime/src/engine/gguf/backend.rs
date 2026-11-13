@@ -594,3 +594,7 @@ mod cancel_tests;
 #[cfg(test)]
 #[path = "backend_cancel_latency_tests.rs"]
 mod cancel_latency_tests;
+
+#[cfg(test)]
+#[path = "prefill_cross_model_tests.rs"]
+mod cross_model_tests;
