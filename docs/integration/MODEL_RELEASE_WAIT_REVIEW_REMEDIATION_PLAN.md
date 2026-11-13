@@ -4,7 +4,7 @@
 **Source:** draft #183 `cddb8bbddda3853f9aac3684e2f3b4a70858f0c1`.
 **Candidate branch:** `fix/model-release-review-remediation-20261112-no-ci`.
 **Scope:** only the two verified behavioral issues in the prior independent review. No new model lifecycle authority, native backend, dependencies, network APIs or release.
-**Separate owner disposition:** source-compatibility change to public exhaustive `IpcMessage` still unresolved, tracked on #112.
+**Separate owner disposition:** resolved 2026-11-13. `IpcMessage` becomes `#[non_exhaustive]` (see Owner dispositions), recorded on #112.
 
 ## Finding R1: reply-order race
 
@@ -50,7 +50,64 @@ When pending, the CLI prints the remaining instance count to stderr; the same un
 2. **Source tests:** rustfmt; Clippy warnings-as-errors for default, advanced, ffi, onnx and gguf; default/advanced/full (onnx,gguf,ffi) test suites. The new tests run without real model fixtures; the existing real-model suite must run with `GG_CORE_REQUIRE_REAL_MODEL=1` on the qualifying host.
 3. **Packaged IPC:** authenticated concurrent model hold → unload → timeout pending (exit **4**) → release → retry wait/confirm exit **0**. Check wrong-token refusal, one terminal reply per operation, re-entry after previous frame, cancellation during wait, slot/ResidentGuard release and no ghost `unloading` entry. Retain measured bytes/handles acceptance from #183.
 4. **Integration with current #195/#193:** Do not assume a clean merge from PR badges. On the offline build host make a disposable merge tree (order: qualified #195, qualified #193, then #183+this remediation), capture exact source SHAs, run all gates and compare compatibility and resource behavior. Preserve ancestor `55d9fd0` and C2 binary unchanged.
-5. **External Rust source compatibility:** #183 introduces variants into public exhaustive `IpcMessage`. The existing downstream compile regression does **not** test exhaustively matching that enum. Resolve #112 policy intentionally, with an external-consumer compile receipt, before asserting v1 source compatibility. Do not quietly mark this point as fixed by the behavioral remediation.
+5. **External Rust source compatibility (resolved by owner disposition 2, below):** #183 introduces variants into public exhaustive `IpcMessage`. The existing downstream compile regression does **not** test exhaustively matching that enum. Resolve #112 policy intentionally, with an external-consumer compile receipt, before asserting v1 source compatibility. Do not quietly mark this point as fixed by the behavioral remediation.
 6. **Authority:** do not open an overlapping second PR, run paid GitHub Actions, merge protected `main`, sign, tag, publish or change CoreForge pins without explicit authorization. This document is not a claim of PASS, native test execution, or release GO.
 
 **Completion condition:** revised L2 PASS; independent source review; verified real binary tests and integration receipts for one exact immutable head; owner acceptance of any remaining public-contract deviation; then fold the qualified diff into existing #183 rather than creating a competing PR.
+
+## Owner dispositions (2026-11-13, recorded from the owner's answers in session)
+1. **R1a: accept the bound and add a test.** A same-connection cancel can wait behind a blocked inline reply for at most `GG_CORE_STREAM_STALL_MS` (default 5 s, minimum 100 ms).
+   - **Restated after audit L2-R2-1 (finding 4).** "At most the bound" holds for a client that stops reading entirely. An inline write first waits behind frames already queued for the connection, each bounded by the stall. So a client that keeps reading slowly can delay its own control frames by the number of queued frames times the bound. Once the bound is reached, a queued `cancel_request` is never read: teardown cancels the request, and no `cancel_response` is sent.
+   - This applies to every inline reply the reader writes, not only the duplicate-wait 409: `cancel_response`, 400/401/409 errors and ordinary handler responses. It is a pre-existing connection-wide property, not one introduced by #183.
+   - When the bound is reached, `ConnWriter` poisons the connection. The reader loop exits on `write_half.closed()`, and the exit path cancels every active request and calls `release_waits.close()`.
+   - No spawned 409 responder is added.
+2. **Finding 3: `IpcMessage` becomes `#[non_exhaustive]` in this change.** This is a single source break before v1.0.0.
+   - `main` already broke exhaustive matches against `v0.10.0-rc.1` by adding `TypedInferenceRequest` and `TypedInferenceResponse` (#171). #183 adds `ModelReleaseWaitRequest` and `ModelReleaseWaitResponse`.
+   - After this change, adding a variant is source-compatible for external crates, which must use a wildcard arm. The attribute does not restrict constructing variants.
+   - Recorded on #112.
+3. **R2: exit 4 accepted.** `models unload ID --wait-ms N` exits 0 only when `released:true`. It exits 4 when the wait expires with memory still held, and 1 on a wrong-model or contradictory receipt. Plain `models unload` is unchanged.
+
+## Revision 2 (implementation scope after the dispositions)
+- **R1a test** (new, in the release tests, driven through the real `handle_connection`):
+  - **Setup:** a duplex stream with a small outbound buffer and a client that stops reading; `stream_stall` set to 300 ms through `RuntimeConfig.ipc_server`. The client authenticates and starts a held non-streaming request on the `Blocking` stub model. It starts a release wait for that model, then floods duplicate waits until the outbound buffer is full and the reader blocks on a 409. Finally it sends `cancel_request` for the held request.
+  - **Assertion:** within the stall bound plus a margin (≤ 3 s), the connection task ends with the writer poisoned. The held request is cancelled: the model's instance is released and `lifecycle` shows no `unloading` ghost. `LIVE_WAITS` returns to its prior value. No task outlives the connection.
+  - **Recorded measurement:** time from `cancel_request` to connection end, at the configured 300 ms and documented for the default 5 s.
+- **`#[non_exhaustive]` on `IpcMessage`:**
+  - Every exhaustive `match` on `IpcMessage` outside `core-runtime/src` must gain a wildcard arm: integration tests, benches and any other workspace crate, found by compiling.
+  - `tests/public_api_compat_test.rs` gains `ipc_message_is_non_exhaustive_for_external_crates`, an external-crate match with a wildcard arm. It compiles only because the arm exists; a comment states the policy.
+  - **Docs:** `IPC_PROTOCOL_SCHEMA.md`, `RELEASE_SUPPORT_AND_MAINTENANCE.md` (Rust source compatibility note) and `CHANGELOG.md` record the one-time break and the policy.
+- **R1 and R2:** the existing candidate code on this branch is kept as is (head `221289b7`), subject to the gates below.
+- **Gates (replace items 1–2 above):**
+  - L2 audit of this revision;
+  - fmt and clippy `-D warnings` for 5 feature sets;
+  - the default, advanced and full suites with `GG_CORE_REQUIRE_REAL_MODEL=1` on the offline VM;
+  - the release build;
+  - the packaged CLI exit-code check (0 when released, 4 when pending), using the existing #183 packaged acceptance harness where available;
+  - independent review.
+- **Unchanged:** no wire-format change, no new dependencies, no change to authentication, ancestry from `cddb8bbd` preserved, and no second PR. The qualified diff is folded into #183.
+
+## Audit L2-R2-1 (independent Judge, 2026-11-13): PASS WITH CONDITIONS
+- **Verified:**
+  - The R1 fix is correct on every path (closed before reply, encode failure, write Ok/Io/Stalled/Poisoned). A task outlives its connection only while its reply write is in progress, which the writer stall bounds.
+  - The order test is deterministic and exercises the race.
+  - The R2 CLI mapping and receipt validation are correct, and plain unload is unchanged.
+  - The R1a facts hold against the source.
+  - Scope is clean.
+- **Conditions and disposition:**
+
+| Condition | Required | Disposition |
+|---|---|---|
+| C1 | Razor | The order test is split into helpers under 40 lines. The `cli_parser.rs` help text moves to `cli_help.rs` (229 lines). |
+| C2 | Restate the R1a bound | Done above and in `IPC_PROTOCOL_SCHEMA.md`. |
+| C3 | Fix the R1a test design | Done (see below). |
+| C4 | Prove `#[non_exhaustive]` | Done (see below). |
+| C5 | Doc corrections | The `server_release.rs` doc gains the writer-stall qualification; `MODEL_RELEASE_V1_PLAN.md` §3.4 gets a supersession note; `CHANGELOG.md` and `RELEASE_SUPPORT_AND_MAINTENANCE.md` are updated; the #112 status lines are corrected. |
+| C6 | Owner dispositions untouched | Untouched. |
+
+- **C3, the R1a test:** new `server_release_stall_tests.rs` with a shared `server_release_daemon.rs` (`daemon_with(stall)`).
+  - **Setup:** the test drops `holder`, unloads, and reads the unload reply before it stops reading. It uses a 256-byte duplex and a stall of 300 ms. The flood and the cancel come from a spawned task that tolerates write errors.
+  - **Assertions:** the connection ends within 3 s and no earlier than the stall; `releasing_models()` is empty; `LIVE_WAITS` returns to 0; only 409 frames reach the client, with no `cancel_response`.
+- **C4, `#[non_exhaustive]`:** new module `ipc::protocol_compat`.
+  - A passing doctest uses a wildcard match.
+  - A `compile_fail,E0004` doctest matches every current variant with no wildcard. Doctests compile as an external crate.
+  - **Fuzz crate check:** `core-runtime/fuzz` targets do not reference `IpcMessage`. Benches only construct variants. A scan of `tests/` found no exhaustive match; the compile confirms it.

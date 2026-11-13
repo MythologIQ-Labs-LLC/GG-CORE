@@ -4,7 +4,8 @@
 //! shared writer, so the reader keeps serving `cancel_request` (including a
 //! cancel for the very request holding the model) and sees disconnects. At
 //! most one wait is pending per connection, and every wait ends when its
-//! connection does, so pending waits never exceed live connections.
+//! connection does (within the writer-stall bound if its reply is being
+//! written), so pending waits never exceed live connections.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;

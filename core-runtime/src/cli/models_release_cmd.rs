@@ -122,6 +122,9 @@ mod tests {
     #[test]
     fn contradictory_release_receipts_fail_closed() {
         assert_eq!(report("m", &ModelReleaseWaitResponse::new("m", true, 1)), 1);
-        assert_eq!(report("m", &ModelReleaseWaitResponse::new("m", false, 0)), 1);
+        assert_eq!(
+            report("m", &ModelReleaseWaitResponse::new("m", false, 0)),
+            1
+        );
     }
 }

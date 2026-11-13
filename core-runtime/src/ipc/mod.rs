@@ -15,6 +15,7 @@ mod health_handler;
 mod listener;
 pub mod protocol;
 pub mod protocol_codec;
+pub mod protocol_compat;
 pub mod protocol_model_types;
 pub mod protocol_release_types;
 pub mod protocol_typed;

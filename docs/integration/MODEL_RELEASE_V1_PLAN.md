@@ -102,7 +102,7 @@ Wire format of the new pair, which is additive in protocol V1:
   1. It sends the unload, then `model_release_wait_request`, on the same authenticated connection.
   2. Its client timeout is `N + 5 s`, using the existing `CliIpcClient::with_timeout`.
   3. It prints `released` or `release pending: N instance(s) still held by in-flight requests`.
-  4. It exits 0 in both cases and 1 on failure. The existing `run_unload` keeps its signature.
+  4. It exits 0 in both cases and 1 on failure. The existing `run_unload` keeps its signature. **Superseded (owner disposition 2026-11-13, `MODEL_RELEASE_WAIT_REVIEW_REMEDIATION_PLAN.md`):** `released:false` now exits 4.
 - `--wait-ms` is parsed in `main.rs`.
 
 ### 3.5 Unchanged on purpose

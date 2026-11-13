@@ -288,8 +288,11 @@ pub struct HealthCheckResponse {
     pub report: Option<HealthReport>,
 }
 
+/// Every IPC frame type. `#[non_exhaustive]` for external crates (#112);
+/// see [`crate::ipc::protocol_compat`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum IpcMessage {
     #[serde(rename = "handshake")]
     Handshake {

@@ -293,6 +293,8 @@ open; only authentication failures terminate it.
 
 **Response ordering:** multiple release-wait requests should **not** be pipelined on the same authenticated connection. The server permits at most one active wait; while it is pending, another wait receives `error{code:409}`, but that rejection frame can appear before or after the first wait's response. The 409 error has no request ID. Clients needing independently concurrent waits should use separate authenticated connections and must not assume FIFO response ordering.
 
+**Clients that stop reading (all message types):** the daemon writes inline replies (`cancel_response`, `error` frames and ordinary responses) from the connection's reader. If the client stops reading, the reader waits on that reply, behind any frames already queued for the connection, each bounded by `GG_CORE_STREAM_STALL_MS` (default 5 000 ms). A client that stops reading entirely therefore delays its own later frames by at most that bound. A client that keeps reading slowly can delay them by the number of queued frames times the bound. When a write reaches the bound, the connection is closed. Requests the reader had not yet read, such as a queued `cancel_request`, are never answered: closing the connection cancels all of its requests and release waits instead.
+
 ### Observability (unauthenticated, orchestrator pattern)
 
 - `{ "type": "prometheus_request" }` → `{ "type": "prometheus_response", "text": "<prometheus text format>" }`

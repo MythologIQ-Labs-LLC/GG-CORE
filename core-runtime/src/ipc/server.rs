@@ -350,8 +350,16 @@ mod real_model_tests;
 mod release_stub;
 
 #[cfg(test)]
+#[path = "server_release_daemon.rs"]
+mod release_daemon;
+
+#[cfg(test)]
 #[path = "server_release_tests.rs"]
 mod release_tests;
+
+#[cfg(test)]
+#[path = "server_release_stall_tests.rs"]
+mod release_stall_tests;
 
 #[cfg(all(test, feature = "gguf"))]
 #[path = "server_release_real_model_tests.rs"]
