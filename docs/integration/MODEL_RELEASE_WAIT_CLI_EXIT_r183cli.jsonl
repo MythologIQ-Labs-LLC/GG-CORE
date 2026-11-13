@@ -1,0 +1,13 @@
+{"model_sha256":"74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db","exe_sha256":"d11b3b6aff0f1475afd1fc6f13355345cb07f3cfc7b3a9b609b4667903e73f73","kind":"identity"}
+{"pipes":"\\\\.\\pipe\\gg183-1655c20f320b45d38f4f05572c12c6b1","want":"gg183-1655c20f320b45d38f4f05572c12c6b1","exitCode":null,"sock":"\\\\.\\pipe\\gg183-1655c20f320b45d38f4f05572c12c6b1","ready":true,"exited":false,"kind":"daemon","errTail":"Sandbox: ENFORCE (Windows Job Object: memory cap, single process; no syscall or network filter) / IPC server listening on \\\\.\\pipe\\gg183-1655c20f320b45d38f4f05572c12c6b1 (pending instances 16)"}
+{"kind":"hold","firstFrame":"stream_chunk"}
+{"args":"models unload qwen --wait-ms 2000","kind":"unload_wait_pending","stdout":"","exit":4,"stderr":"Unloaded model \u0027qwen\u0027: release pending: 1 instance(s) still held by in-flight requests","expect":4}
+{"args":"models list --json","exit":0,"stdout":"{ \"models\": [ { \"handle_id\": 1, \"name\": \"model\", \"format\": \"unknown\", \"size_bytes\": 491400032, \"memory_bytes\": 485452288, \"state\": \"unloading\", \"request_count\": 0, \"avg_latency_ms\": 0.0, \"loaded_at\": \"2026-11-13T18:24:06Z\" } ], \"total_memory_bytes\": 485452288 }","stderr":"","kind":"list_during_release"}
+{"frames":860,"final":"final error=","kind":"hold_drained"}
+{"args":"models unload qwen --wait-ms 5000","kind":"unload_wait_after_drain","stdout":"","exit":1,"stderr":"Unload failed for \u0027qwen\u0027: lifecycle: Model not loaded: qwen","expect":"released, exit 1 (already unloaded)"}
+{"args":"models load models/qwen/model.gguf --id qwen","kind":"wrong_token_load","stdout":"","exit":1,"stderr":"Error: Protocol error: authentication failed: Authentication error: Invalid handshake token","expect":1}
+{"args":"models load models/qwen/model.gguf --id qwen","kind":"load","stdout":"Loaded model \u0027qwen\u0027 (handle 2)","exit":0,"stderr":"","expect":0}
+{"args":"models unload qwen","kind":"plain_unload","stdout":"Unloaded model \u0027qwen\u0027","exit":0,"stderr":"","expect":0}
+{"args":"models load models/qwen/model.gguf --id qwen","kind":"load_again","stdout":"Loaded model \u0027qwen\u0027 (handle 3)","exit":0,"stderr":"","expect":0}
+{"args":"models unload qwen --wait-ms 30000","kind":"unload_wait_released","stdout":"Unloaded model \u0027qwen\u0027: released","exit":0,"stderr":"","expect":0}
+{"kind":"alive","alive":true}
