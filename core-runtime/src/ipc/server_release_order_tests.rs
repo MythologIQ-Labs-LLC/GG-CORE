@@ -41,17 +41,12 @@ async fn second_release_wait_is_refused_while_first_reply_is_write_blocked() {
     )
     .await;
 
-    tokio::time::timeout(Duration::from_secs(2), async {
-        while LIVE_WAITS.load(Ordering::SeqCst) == 0 {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("first wait ran");
-
-    // Give the first task the opportunity to reach its blocked write.
-    // Before the fix it cleared pending here, before writing the reply.
-    tokio::time::sleep(Duration::from_millis(30)).await;
+    // Observe the precise point after the lifecycle wait finished and
+    // before the response tries to acquire the held writer. No clock races.
+    tokio::time::timeout(Duration::from_secs(2), waits.reply_ready.notified())
+        .await
+        .expect("first wait reached its reply");
+    assert_eq!(LIVE_WAITS.load(Ordering::SeqCst), 1);
     assert!(
         waits.pending.load(Ordering::SeqCst),
         "the first wait must remain pending until its frame is written"
@@ -73,7 +68,13 @@ async fn second_release_wait_is_refused_while_first_reply_is_write_blocked() {
     });
     // The second request must be rejected without spawning another wait,
     // even if its rejection frame itself is blocked by the shared writer.
-    tokio::time::sleep(Duration::from_millis(30)).await;
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while waits.duplicate_rejections.load(Ordering::SeqCst) != 1 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the second wait was refused");
     assert_eq!(LIVE_WAITS.load(Ordering::SeqCst), 1);
     drop(held_writer);
 
