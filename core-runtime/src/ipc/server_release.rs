@@ -103,8 +103,9 @@ impl<W: AsyncWriteExt + Unpin + Send + 'static> Wait<W> {
             let body = ModelReleaseWaitResponse::new(request.model_id, released, pending);
             if let Ok(bytes) = encode_message(&IpcMessage::ModelReleaseWaitResponse(body)) {
                 // Keep the one-wait gate held until the reply is fully written.
-                // A second wait has no request ID on the wire and must not
-                // overtake a response stalled behind this connection's writer.
+                // This prevents two successful waits from overlapping. A
+                // separate 409 rejection can still arrive in either order;
+                // clients must not pipeline release waits on one connection.
                 let _ = self.writer.write_frame(&bytes).await;
             }
         }
