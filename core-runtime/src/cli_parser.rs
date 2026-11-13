@@ -236,6 +236,12 @@ SUBCOMMANDS:
     load <path> [--id ID] Load a model (authenticated; base-path relative)
     unload <id> [--wait-ms N]  Unload; optionally wait for its memory release
 
+EXIT CODES (unload --wait-ms):
+    0  Memory released
+    1  Unload/auth/protocol failure
+    3  Connection failure
+    4  Release still pending after wait
+
 OPTIONS:
     --json         Output in JSON format (list)
 
