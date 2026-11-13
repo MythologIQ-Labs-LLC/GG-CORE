@@ -62,7 +62,7 @@ async fn second_release_wait_is_refused_while_first_reply_is_write_blocked() {
             Some(&second_session),
             &second_writer,
             &second_waits,
-            ModelReleaseWaitRequest::new("never-loaded", 0),
+            ModelReleaseWaitRequest::new("second-model-must-not-run", 0),
         )
         .await;
     });
@@ -100,6 +100,39 @@ async fn second_release_wait_is_refused_while_first_reply_is_write_blocked() {
     }
     second.await.expect("rejection task finished");
     assert_eq!((release_responses, duplicate_rejections), (1, 1));
+
+    // The gate must reopen when the first reply has fully been written.
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while waits.pending.load(Ordering::SeqCst)
+            || LIVE_WAITS.load(Ordering::SeqCst) != 0
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("first reply completed");
+    start(
+        &handler,
+        Some(&session),
+        &writer,
+        &waits,
+        ModelReleaseWaitRequest::new("third-model-can-run", 0),
+    )
+    .await;
+    let bytes = tokio::time::timeout(
+        Duration::from_secs(3),
+        super::super::read_frame(&mut reader, 4096),
+    )
+    .await
+    .expect("third reply deadline")
+    .expect("third reply frame");
+    match decode_message(&bytes).expect("third reply decode") {
+        IpcMessage::ModelReleaseWaitResponse(w) => {
+            assert_eq!(w.model_id, "third-model-can-run");
+            assert!(w.released && w.pending_instances == 0);
+        }
+        other => panic!("gate did not reopen: {other:?}"),
+    }
     waits.close();
     tokio::time::timeout(Duration::from_secs(2), async {
         while LIVE_WAITS.load(Ordering::SeqCst) != 0 {
