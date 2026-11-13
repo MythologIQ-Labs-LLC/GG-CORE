@@ -14,7 +14,7 @@ Previously, `Wait::run` set `pending=false` immediately after `wait_released` co
 
 **Regression:** `server_release_order_tests.rs` holds the live writer lock while an authenticated `model_release_wait_request` completes. Test-only event notifications observe the moment a first result is ready and a second request is rejected; no arbitrary sleeps are needed. It must observe exactly one release response for the first model, one 409 for a different second model, and then a successful third wait after the writer drains.
 
-**Risk:** a 409 frame may itself wait for the shared writer; ensure stall poison closes the connection as before. Verify release-wait `LIVE_WAITS` and per-connection `pending` are fully cleared after completion, never permitting a second pending worker on the same connection.
+**Risk:** a 409 frame may itself wait for the shared writer and can arrive before or after the first successful wait response. This change guarantees only that **two successful waits cannot overlap**, not FIFO order of all frame types. The wire 409 lacks a request ID, so clients must not pipeline release waits; independent concurrent waits require separate authenticated connections. Ensure stall poison closes the connection as before. Verify release-wait `LIVE_WAITS` and per-connection `pending` are fully cleared after completion, never permitting a second pending worker on the same connection.
 
 ## Finding R2: false CLI success for a timed-out release wait
 
