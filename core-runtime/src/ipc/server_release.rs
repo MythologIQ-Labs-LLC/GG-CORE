@@ -26,6 +26,12 @@ pub(super) static LIVE_WAITS: AtomicUsize = AtomicUsize::new(0);
 pub(super) struct ReleaseWaits {
     pending: Arc<AtomicBool>,
     closed: CancellationToken,
+    /// Per-connection observation of the first wait reaching its reply.
+    #[cfg(test)]
+    reply_ready: Arc<tokio::sync::Notify>,
+    /// Number of duplicate waits refused while a reply is still pending.
+    #[cfg(test)]
+    duplicate_rejections: Arc<AtomicUsize>,
 }
 
 impl ReleaseWaits {
@@ -54,6 +60,8 @@ pub(super) async fn start<W: AsyncWriteExt + Unpin + Send + 'static>(
         return;
     }
     if waits.pending.swap(true, Ordering::SeqCst) {
+        #[cfg(test)]
+        waits.duplicate_rejections.fetch_add(1, Ordering::SeqCst);
         let err = r#"{"type":"error","code":409,"message":"release wait already pending"}"#;
         let _ = writer.write_frame(err.as_bytes()).await;
         return;
@@ -63,6 +71,8 @@ pub(super) async fn start<W: AsyncWriteExt + Unpin + Send + 'static>(
         writer: Arc::clone(writer),
         pending: Arc::clone(&waits.pending),
         closed: waits.closed.clone(),
+        #[cfg(test)]
+        reply_ready: Arc::clone(&waits.reply_ready),
     };
     tokio::spawn(task.run(request));
 }
@@ -72,6 +82,8 @@ struct Wait<W> {
     writer: Arc<ConnWriter<W>>,
     pending: Arc<AtomicBool>,
     closed: CancellationToken,
+    #[cfg(test)]
+    reply_ready: Arc<tokio::sync::Notify>,
 }
 
 impl<W: AsyncWriteExt + Unpin + Send + 'static> Wait<W> {
@@ -83,6 +95,10 @@ impl<W: AsyncWriteExt + Unpin + Send + 'static> Wait<W> {
             () = self.closed.cancelled() => None,
             outcome = wait => Some(outcome),
         };
+        // Test-only signal: the result is known and the reply has not yet
+        // acquired the connection writer. No production timing dependency.
+        #[cfg(test)]
+        self.reply_ready.notify_one();
         if let Some((released, pending)) = outcome {
             let body = ModelReleaseWaitResponse::new(request.model_id, released, pending);
             if let Ok(bytes) = encode_message(&IpcMessage::ModelReleaseWaitResponse(body)) {
