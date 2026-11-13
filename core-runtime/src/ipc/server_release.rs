@@ -83,13 +83,16 @@ impl<W: AsyncWriteExt + Unpin + Send + 'static> Wait<W> {
             () = self.closed.cancelled() => None,
             outcome = wait => Some(outcome),
         };
-        self.pending.store(false, Ordering::SeqCst);
         if let Some((released, pending)) = outcome {
             let body = ModelReleaseWaitResponse::new(request.model_id, released, pending);
             if let Ok(bytes) = encode_message(&IpcMessage::ModelReleaseWaitResponse(body)) {
+                // Keep the one-wait gate held until the reply is fully written.
+                // A second wait has no request ID on the wire and must not
+                // overtake a response stalled behind this connection's writer.
                 let _ = self.writer.write_frame(&bytes).await;
             }
         }
+        self.pending.store(false, Ordering::SeqCst);
         LIVE_WAITS.fetch_sub(1, Ordering::SeqCst);
     }
 }
@@ -98,3 +101,7 @@ impl<W: AsyncWriteExt + Unpin + Send + 'static> Wait<W> {
 /// and real-model daemon tests (so CPU contention cannot skew their timing).
 #[cfg(test)]
 pub(super) static TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+#[cfg(test)]
+#[path = "server_release_order_tests.rs"]
+mod order_tests;
