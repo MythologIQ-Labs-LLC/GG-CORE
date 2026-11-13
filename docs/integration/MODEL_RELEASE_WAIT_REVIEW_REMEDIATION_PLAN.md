@@ -30,7 +30,7 @@ Original `MODEL_RELEASE_V1_PLAN.md` §3.4 **explicitly specified exit 0 for both
 | Unload/auth/protocol failure | 1 |
 | IPC connection failure | 3 |
 
-When pending, the CLI prints the remaining instance count to stderr; the same unmodified IPC response continues to carry `released:false, pending_instances`. The existing plain unload semantics and public function signatures are not changed. Update CLI help and protocol documentation. **L2 auditor and owner must accept this CLI behavior change before promoting it.**
+When pending, the CLI prints the remaining instance count to stderr; the same unmodified IPC response continues to carry `released:false, pending_instances`. The CLI validates that the unload acknowledgement and release receipt refer to the requested model, and that `released` exactly agrees with whether `pending_instances` is zero. Mismatched or contradictory replies fail closed with exit `1` and cannot claim memory release. The existing plain unload semantics and public function signatures are not changed. Update CLI help and protocol documentation. **L2 auditor and owner must accept this CLI behavior change before promoting it.**
 
 ## Required audit and qualification gates
 
