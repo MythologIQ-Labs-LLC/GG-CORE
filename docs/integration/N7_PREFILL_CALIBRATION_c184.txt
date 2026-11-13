@@ -1,0 +1,105 @@
+# batch c184, source 55d9fd0 + calibration-only test, Qwen2.5-0.5B Q4_K_M sha256 74a4da8c...a9db, Windows Server 2025 VM 12 vCPU, rustc 1.99.1; raw stderr sha256 a20000966fb6c165ff3adba679240ef5d754858d5bdcbc44096b967a92e2b952
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=0 chunk=16 ms=299
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=0 chunk=32 ms=361
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=0 chunk=64 ms=646
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=0 chunk=128 ms=1452
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=0 chunk=256 ms=2522
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=0 chunk=512 ms=5043
+CAL n_ctx=8192 threads=1 bulk_prefill_tokens=6963 ms=103844
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=6963 chunk=16 ms=957
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=6963 chunk=32 ms=1899
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=6963 chunk=64 ms=1274
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=6963 chunk=128 ms=2564
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=6963 chunk=256 ms=5103
+CAL n_ctx=8192 threads=1 model_bytes=485452288 pos=6963 chunk=512 ms=10491
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=0 chunk=16 ms=189
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=0 chunk=32 ms=204
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=0 chunk=64 ms=358
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=0 chunk=128 ms=679
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=0 chunk=256 ms=1285
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=0 chunk=512 ms=2656
+CAL n_ctx=8192 threads=2 bulk_prefill_tokens=6963 ms=52964
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=6963 chunk=16 ms=525
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=6963 chunk=32 ms=1050
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=6963 chunk=64 ms=834
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=6963 chunk=128 ms=1414
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=6963 chunk=256 ms=2669
+CAL n_ctx=8192 threads=2 model_bytes=485452288 pos=6963 chunk=512 ms=5226
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=0 chunk=16 ms=128
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=0 chunk=32 ms=121
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=0 chunk=64 ms=203
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=0 chunk=128 ms=375
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=0 chunk=256 ms=759
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=0 chunk=512 ms=1547
+CAL n_ctx=8192 threads=4 bulk_prefill_tokens=6963 ms=30811
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=6963 chunk=16 ms=276
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=6963 chunk=32 ms=550
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=6963 chunk=64 ms=547
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=6963 chunk=128 ms=878
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=6963 chunk=256 ms=1482
+CAL n_ctx=8192 threads=4 model_bytes=485452288 pos=6963 chunk=512 ms=2737
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=0 chunk=16 ms=115
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=0 chunk=32 ms=128
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=0 chunk=64 ms=208
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=0 chunk=128 ms=314
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=0 chunk=256 ms=604
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=0 chunk=512 ms=1252
+CAL n_ctx=8192 threads=8 bulk_prefill_tokens=6963 ms=23049
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=6963 chunk=16 ms=180
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=6963 chunk=32 ms=344
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=6963 chunk=64 ms=440
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=6963 chunk=128 ms=645
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=6963 chunk=256 ms=1091
+CAL n_ctx=8192 threads=8 model_bytes=485452288 pos=6963 chunk=512 ms=2100
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=0 chunk=16 ms=283
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=0 chunk=32 ms=355
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=0 chunk=64 ms=676
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=0 chunk=128 ms=1217
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=0 chunk=256 ms=2385
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=0 chunk=512 ms=4863
+CAL n_ctx=16384 threads=1 bulk_prefill_tokens=13926 ms=289160
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=13926 chunk=16 ms=1748
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=13926 chunk=32 ms=3480
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=13926 chunk=64 ms=1959
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=13926 chunk=128 ms=3998
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=13926 chunk=256 ms=8399
+CAL n_ctx=16384 threads=1 model_bytes=485452288 pos=13926 chunk=512 ms=18647
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=0 chunk=16 ms=163
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=0 chunk=32 ms=187
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=0 chunk=64 ms=356
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=0 chunk=128 ms=675
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=0 chunk=256 ms=1328
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=0 chunk=512 ms=2663
+CAL n_ctx=16384 threads=2 bulk_prefill_tokens=13926 ms=139653
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=13926 chunk=16 ms=904
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=13926 chunk=32 ms=1787
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=13926 chunk=64 ms=1217
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=13926 chunk=128 ms=2123
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=13926 chunk=256 ms=3915
+CAL n_ctx=16384 threads=2 model_bytes=485452288 pos=13926 chunk=512 ms=8192
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=0 chunk=16 ms=126
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=0 chunk=32 ms=126
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=0 chunk=64 ms=201
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=0 chunk=128 ms=373
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=0 chunk=256 ms=780
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=0 chunk=512 ms=1483
+CAL n_ctx=16384 threads=4 bulk_prefill_tokens=13926 ms=76020
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=13926 chunk=16 ms=474
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=13926 chunk=32 ms=964
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=13926 chunk=64 ms=851
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=13926 chunk=128 ms=1292
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=13926 chunk=256 ms=2282
+CAL n_ctx=16384 threads=4 model_bytes=485452288 pos=13926 chunk=512 ms=4935
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=0 chunk=16 ms=114
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=0 chunk=32 ms=150
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=0 chunk=64 ms=179
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=0 chunk=128 ms=325
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=0 chunk=256 ms=582
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=0 chunk=512 ms=1170
+CAL n_ctx=16384 threads=8 bulk_prefill_tokens=13926 ms=55325
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=13926 chunk=16 ms=305
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=13926 chunk=32 ms=600
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=13926 chunk=64 ms=729
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=13926 chunk=128 ms=901
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=13926 chunk=256 ms=1597
+CAL n_ctx=16384 threads=8 model_bytes=485452288 pos=13926 chunk=512 ms=3009

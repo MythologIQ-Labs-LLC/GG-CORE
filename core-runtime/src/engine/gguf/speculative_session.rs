@@ -19,7 +19,8 @@ use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 
-use super::backend::{decode_range, LlamaBackendInner};
+use super::backend::LlamaBackendInner;
+use super::prefill::decode_range;
 use crate::engine::speculative_types::VerifyResult;
 use crate::engine::InferenceError;
 

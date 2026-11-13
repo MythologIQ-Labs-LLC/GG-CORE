@@ -80,12 +80,43 @@ pub(super) async fn execute_request(
     };
     let start = std::time::Instant::now();
     let max_memory = resource_limits.map(ResourceLimits::max_memory_per_call);
-    let result = run_blocking(engine, &request, control, max_memory).await;
+    let result = run_blocking(engine, &request, control.clone(), max_memory).await;
     let latency_ms = start.elapsed().as_millis() as u64;
+    trace_stop_release(&result, &control, request.id, latency_ms);
 
     let result = apply_egress(security, &model_id, result);
     record_result(&result, &model_id, latency_ms, lifecycle, registry).await;
     send_response(request, result.map_err(|e| e.to_string()));
+}
+
+/// N7 (#184) stop trace: the compute worker is released for a request that
+/// ended as cancelled or deadline-exceeded. `queue_id` matches the handler's
+/// `stop answered to caller` event, so the two timestamps give the time the
+/// backend kept computing after the caller was answered. Both stop conditions
+/// are reported because the handler raises the cancel flag for a deadline
+/// too. Covers the non-streaming path only; no prompt or caller data.
+fn trace_stop_release(
+    result: &InferResult,
+    control: &crate::engine::StopControl,
+    queue_id: u64,
+    run_ms: u64,
+) {
+    let stopped = matches!(
+        result,
+        Err(InferenceError::Cancelled | InferenceError::DeadlineExceeded { .. })
+    );
+    if !stopped {
+        return;
+    }
+    tracing::info!(
+        target: "gg_core::stop",
+        queue_id,
+        cancel_flag = control.is_cancelled(),
+        deadline_passed = control.is_expired(),
+        overdue_ms = control.overdue().map(|d| d.as_millis() as u64),
+        run_ms,
+        "worker released after stop"
+    );
 }
 
 /// Ingress scan. Returns the request when admitted; on rejection sends the
