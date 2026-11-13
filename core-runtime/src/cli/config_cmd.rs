@@ -9,10 +9,24 @@
 use crate::config::{self, EffectiveConfig};
 use crate::engine::gguf::threads::describe;
 
-/// Print effective config as key-value pairs to stdout.
+/// Print effective config as key-value pairs to stdout (see [`try_show`]).
 pub fn run_show() {
-    let cfg = config::load().effective_config();
-    print_config(&cfg);
+    let _ = try_show();
+}
+
+/// Print effective config; on an invalid memory limit print the error to
+/// stderr, no values, and return 1.
+pub fn try_show() -> i32 {
+    match config::try_load() {
+        Ok(env) => {
+            print_config(&env.effective_config());
+            0
+        }
+        Err(e) => {
+            eprintln!("ERROR: {e}");
+            1
+        }
+    }
 }
 
 /// Print default config values (no env overrides) to stdout.
@@ -40,19 +54,16 @@ pub fn run_defaults() {
 ///
 /// Returns 0 if valid, 1 if any warnings are found.
 pub fn run_validate() -> i32 {
-    let env = config::load();
-    let cfg = env.effective_config();
-    let mut warnings = 0;
-
-    if let Some(ceiling) = env.per_call_ceiling {
-        if cfg.resource_max_total_memory < ceiling {
-            eprintln!(
-                "WARNING: GG_CORE_MAX_TOTAL_MEMORY ({}) < GG_CORE_MAX_MEMORY_PER_CALL ({})",
-                cfg.resource_max_total_memory, ceiling
-            );
-            warnings += 1;
+    // Memory limits are resolved strictly: an invalid value or a per-call
+    // ceiling above the total is refused before any limit could be relaxed.
+    let cfg = match config::try_load() {
+        Ok(env) => env.effective_config(),
+        Err(e) => {
+            eprintln!("ERROR: {e}");
+            return 1;
         }
-    }
+    };
+    let mut warnings = 0;
 
     if let Some(raw) = raw_stream_stall() {
         if raw < 100 {
@@ -120,9 +131,7 @@ fn print_config(cfg: &EffectiveConfig) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    use crate::test_env::env_guard;
 
     const ENV_KEYS: &[&str] = &[
         "GG_CORE_MAX_CONTEXT",
@@ -147,31 +156,21 @@ mod tests {
 
     #[test]
     fn test_validate_passes_with_defaults() {
-        let _lock = ENV_LOCK.lock().unwrap();
+        let _lock = env_guard();
         clear_env();
         let code = run_validate();
         assert_eq!(code, 0, "default config should pass validation");
     }
 
     #[test]
-    fn test_validate_fails_when_total_lt_per_call() {
-        let _lock = ENV_LOCK.lock().unwrap();
+    fn validate_rejects_per_call_above_total() {
+        let _lock = env_guard();
         clear_env();
-        // Set total below per_call floor: config clamps total >= per_call, so
-        // we set per_call very high and total lower.
         std::env::set_var("GG_CORE_MAX_MEMORY_PER_CALL", "2000000000");
-        // GG_CORE_MAX_TOTAL_MEMORY left unset defaults to 2GB which is
-        // then clamped to >= per_call, so the clamp may hide the issue.
-        // Test using a config where total is explicitly smaller but both are
-        // above the 1MB floor, making the test reflect domain logic.
         std::env::set_var("GG_CORE_MAX_TOTAL_MEMORY", "500000000");
-        // config.rs clamps total = total.max(per_call), so after loading the
-        // effective total will equal per_call. Validate should see them equal
-        // and pass. This verifies the code path without false negatives.
         let code = run_validate();
-        // After clamping total >= per_call, validate should pass.
-        assert_eq!(code, 0);
         clear_env();
+        assert_eq!(code, 1, "#182: contradictory limits must not pass");
     }
 
     #[test]
@@ -179,7 +178,7 @@ mod tests {
         // config.rs clamps concurrent = concurrent.max(1), so setting 0
         // yields effective value 1. Validate sees 1 (not 0) and passes.
         // This tests the guard is transparent to end users.
-        let _lock = ENV_LOCK.lock().unwrap();
+        let _lock = env_guard();
         clear_env();
         std::env::set_var("GG_CORE_MAX_CONCURRENT", "0");
         let code = run_validate();
@@ -228,14 +227,20 @@ mod tests {
     }
 
     #[test]
-    fn validate_ignores_per_call_when_unset_and_loads_explicit_ceiling() {
-        let _lock = ENV_LOCK.lock().unwrap();
+    fn validate_per_call_unset_within_and_above_total() {
+        let _lock = env_guard();
         clear_env();
         std::env::set_var("GG_CORE_MAX_TOTAL_MEMORY", "2000000");
-        assert_eq!(config::load().per_call_ceiling, None);
-        assert_eq!(run_validate(), 0, "no ceiling: nothing to compare");
+        let unset = config::try_load().unwrap().per_call_ceiling;
+        let unset_code = run_validate();
+        std::env::set_var("GG_CORE_MAX_MEMORY_PER_CALL", "1500000");
+        let set = config::try_load().unwrap().per_call_ceiling;
+        let set_code = run_validate();
         std::env::set_var("GG_CORE_MAX_MEMORY_PER_CALL", "3000000");
-        assert_eq!(config::load().per_call_ceiling, Some(3_000_000));
+        let above_code = run_validate();
         clear_env();
+        assert_eq!((unset, unset_code), (None, 0));
+        assert_eq!((set, set_code), (Some(1_500_000), 0));
+        assert_eq!(above_code, 1, "per-call above total is refused");
     }
 }

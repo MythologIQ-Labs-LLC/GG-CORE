@@ -10,14 +10,12 @@ use gg_core::{Runtime, RuntimeConfig};
 use crate::chat_template::{format_prompt, ChatTemplate};
 use gg_core::cli::CliIpcClient;
 
-/// Load runtime configuration from environment.
-///
-/// The standalone daemon requires a loaded model to report ready (B-41,
-/// issue #106): liveness stays unconditional, but readiness is withheld
-/// until at least one servable model is registered.
-pub fn load_config() -> RuntimeConfig {
-    let env = gg_config::load();
-    RuntimeConfig {
+/// Load runtime config + per-call ceiling; an invalid memory limit is an
+/// error, never a relaxed limit (#182). Readiness requires a loaded model
+/// (B-41, #106); liveness stays unconditional.
+pub fn load_config() -> Result<(RuntimeConfig, Option<usize>), gg_config::ConfigError> {
+    let env = gg_config::try_load()?;
+    let runtime = RuntimeConfig {
         base_path: env.base_path,
         auth_token: env.auth_token,
         session_timeout: env.session_timeout,
@@ -33,7 +31,8 @@ pub fn load_config() -> RuntimeConfig {
         connections: env.connections,
         ipc_server: env.ipc_server,
         ..Default::default()
-    }
+    };
+    Ok((runtime, env.per_call_ceiling))
 }
 
 /// Environment variable naming comma-separated model paths to preload.

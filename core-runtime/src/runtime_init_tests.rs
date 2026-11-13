@@ -16,7 +16,7 @@ fn args(list: &[&str]) -> Vec<String> {
 
 #[test]
 fn no_flags_and_no_env_means_no_preload() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::remove_var(PRELOAD_MODELS_ENV);
     assert_eq!(parse_serve_models(&args(&[])).unwrap(), vec![]);
 }
@@ -61,7 +61,7 @@ fn unknown_argument_is_rejected() {
 
 #[test]
 fn env_fallback_parses_comma_separated_paths() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var(PRELOAD_MODELS_ENV, "models/a.gguf, models/b.gguf,");
     let models = parse_serve_models(&args(&[])).unwrap();
     std::env::remove_var(PRELOAD_MODELS_ENV);
@@ -76,7 +76,7 @@ fn env_fallback_parses_comma_separated_paths() {
 
 #[test]
 fn explicit_flags_win_over_env() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var(PRELOAD_MODELS_ENV, "models/env.gguf");
     let models = parse_serve_models(&args(&["--model", "models/flag.gguf"])).unwrap();
     std::env::remove_var(PRELOAD_MODELS_ENV);
@@ -85,6 +85,21 @@ fn explicit_flags_win_over_env() {
 
 #[test]
 fn daemon_config_requires_model_for_readiness() {
-    let config = load_config();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    std::env::remove_var("GG_CORE_MAX_TOTAL_MEMORY");
+    std::env::remove_var("GG_CORE_MAX_MEMORY_PER_CALL");
+    let (config, ceiling) = load_config().unwrap();
     assert!(config.health.require_model_loaded);
+    assert_eq!(ceiling, None);
+}
+
+#[test]
+fn daemon_config_refuses_per_call_above_explicit_total() {
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    std::env::set_var("GG_CORE_MAX_TOTAL_MEMORY", "268435456");
+    std::env::set_var("GG_CORE_MAX_MEMORY_PER_CALL", "536870912");
+    let result = load_config();
+    std::env::remove_var("GG_CORE_MAX_TOTAL_MEMORY");
+    std::env::remove_var("GG_CORE_MAX_MEMORY_PER_CALL");
+    assert!(result.is_err(), "#182: no silent total increase");
 }
