@@ -25,7 +25,12 @@ fn prompt() -> String {
 }
 
 /// Recorded chunk lengths and each chunk's wall time for one prefill.
+/// One untimed prefill first pays the fresh context's compute-buffer
+/// allocation and weight page-in, so the first timed chunk is not inflated.
 fn timed_split(backend: &LlamaBackendInner, tokens: &[LlamaToken]) -> Vec<(usize, u128)> {
+    let mut warm = backend.create_context().expect("context");
+    assert!(backend.prefill(&mut warm, tokens, None).expect("warm-up"));
+    drop(warm);
     let mut ctx = backend.create_context().expect("context");
     let marks = Mutex::new(Vec::new());
     let mark = || {
@@ -56,8 +61,16 @@ fn greedy(backend: &LlamaBackendInner, text: &str) -> (String, Vec<usize>) {
 /// Report every remainder piece against `(p + 6) / 24` of the run's last
 /// 64-token chunk (audit R4-2 C2) and gate the worst chunk.
 fn check(name: &str, threads: u32, chunks: &[(usize, u128)]) {
-    let floor = chunks.iter().filter(|c| c.0 == 64).map(|c| c.1).max();
+    let worst64 = chunks.iter().filter(|c| c.0 == 64).map(|c| c.1).max();
     let last64 = chunks.iter().rev().find(|c| c.0 == 64).map(|c| c.1);
+    assert!(
+        chunks.iter().any(|c| c.0 < 64),
+        "{name}: no remainder piece"
+    );
+    assert!(
+        last64.is_some(),
+        "{name}: no 64-token chunk to bound against"
+    );
     let worst = chunks.iter().map(|c| c.1).max().unwrap_or(0);
     for &(p, ms) in chunks.iter().filter(|c| c.0 < 64) {
         let bound = last64.map(|t| (p as u128 + 6) * t / 24);
@@ -66,8 +79,8 @@ fn check(name: &str, threads: u32, chunks: &[(usize, u128)]) {
             "N7X piece model={name} threads={threads} p={p} ms={ms} bound_ms={bound:?} over={over}"
         );
     }
-    let limit = 1000.max(floor.unwrap_or(0)) * 12 / 10;
-    eprintln!("N7X model={name} threads={threads} chunks={} worst_ms={worst} worst64_ms={floor:?} limit_ms={limit}", chunks.len());
+    let limit = 1000.max(worst64.unwrap_or(0)) * 12 / 10;
+    eprintln!("N7X model={name} threads={threads} chunks={} worst_ms={worst} worst64_ms={worst64:?} limit_ms={limit}", chunks.len());
     assert!(
         worst <= limit,
         "{name} t={threads}: worst chunk {worst} ms > {limit} ms"

@@ -28,7 +28,8 @@
 //! 64 tokens leave llama.cpp's batched path and cost about twice as much per
 //! token, so they are used only for a final remainder, split into near-equal
 //! pieces whose predicted cost stays within `max(BUDGET_MS, T64)` (plan
-//! Revision 4, batches `mcal` and `shape`). Model-bytes scaling is measured
+//! Revision 4, batches `mcal` and `shape`; the sub-64 bound is measured at
+//! positions 2300 to 2600 only). Model-bytes scaling is measured
 //! for Q4_K_M models of 0.49 to 2.4 GB on one host. Other quantizations, GPU
 //! offload and contexts beyond 16k are unqualified.
 
@@ -45,7 +46,8 @@ const SPAN: u128 = 13_926;
 /// Candidate chunk sizes, largest first; `TABLE` columns follow this order.
 const SIZES: [usize; 4] = [512, 256, 128, 64];
 /// Sub-64 piece cost bound `(p + PIECE_OFFSET) / PIECE_DENOM` of a 64-token
-/// chunk, fitted on worst runs at 1/2/4/8 threads (minimum margin 1.20).
+/// chunk at the same position (batch `shape`: worst of 2 runs at 1/2/8
+/// threads, best of 2 at 4 threads; minimum margin 1.20).
 const PIECE_OFFSET: usize = 6;
 const PIECE_DENOM: usize = 24;
 

@@ -154,13 +154,17 @@ fn sub_64_remainders_split_into_equal_pieces() {
     assert_eq!(tail(2877, 4, PHI, 44), [16, 15, 15, 15]);
     assert_eq!(tail(2877, 1, PHI, 44), [16, 15, 15, 15]);
     assert_eq!(tail(2877, 4, SMOLLM2, 33), [21, 20, 20]);
+    // The measured prompt tokenizes to 2877 on Phi-3.5 and 2518 on SmolLM2.
+    assert_eq!(tail(2518, 1, SMOLLM2, 39), [11, 11]);
+    assert_eq!(tail(2518, 4, SMOLLM2, 28), [22]);
 }
 
 #[test]
 fn packaged_gate_prompt_tail_is_at_the_piece_boundary() {
     // Audit R4-2 condition C1: at 1 thread the 2516-token prompt's final 20
     // tokens sit exactly at `piece_limit` (quotient 26.86, floored to 26).
-    // Any change to TABLE, the budget or the piece bound splits this tail.
+    // Any change that lowers the limit splits this tail; the exact pin below
+    // flags every change to TABLE, the budget or the piece bound.
     assert_eq!(piece_limit(bucket(1), 2496, REF), 20);
     assert_eq!(sequence(2516, 1, REF, 512).last(), Some(&20));
 }
@@ -186,22 +190,30 @@ fn piece_limit_saturates_and_respects_caps() {
 
 #[test]
 fn every_length_is_within_remaining_cap_and_piece_limit() {
-    for bytes in [0, REF, PHI, u64::MAX] {
-        for threads in [1, 2, 4, 8] {
-            for pos in [0, 2496, 6963, 16_383] {
-                for cap in [1, 7, 16, 63, 64, 100, 512] {
-                    for remaining in 1..=600 {
-                        let len = chunk(pos, remaining, threads, bytes, cap);
-                        assert!((1..=remaining.min(cap)).contains(&len));
-                        if remaining < MIN_CHUNK.min(cap) {
-                            let limit = piece_limit(bucket(threads), pos, bytes);
-                            assert!(len <= limit.max(1), "p={pos} r={remaining}");
-                        } else {
-                            assert_eq!(len, bulk(pos, threads, bytes, cap).min(remaining));
-                        }
-                    }
-                }
-            }
+    let configs = [0, REF, PHI, u64::MAX].into_iter().flat_map(|bytes| {
+        [1, 2, 4, 8]
+            .into_iter()
+            .flat_map(move |threads| [0, 2496, 6963, 16_383].map(move |pos| (bytes, threads, pos)))
+    });
+    for (bytes, threads, pos) in configs {
+        for (cap, remaining) in [1, 7, 16, 63, 64, 100, 512]
+            .into_iter()
+            .flat_map(|cap| (1..=600).map(move |r| (cap, r)))
+        {
+            assert_len(bytes, threads, pos, cap, remaining);
         }
+    }
+}
+
+/// One sweep point: the length is in range, a sub-64 remainder piece is
+/// within `piece_limit`, and anything else is the bulk choice.
+fn assert_len(bytes: u64, threads: u32, pos: usize, cap: usize, remaining: usize) {
+    let len = chunk(pos, remaining, threads, bytes, cap);
+    assert!((1..=remaining.min(cap)).contains(&len));
+    if remaining < MIN_CHUNK.min(cap) {
+        let limit = piece_limit(bucket(threads), pos, bytes);
+        assert!(len <= limit.max(1), "p={pos} r={remaining}");
+    } else {
+        assert_eq!(len, bulk(pos, threads, bytes, cap).min(remaining));
     }
 }
