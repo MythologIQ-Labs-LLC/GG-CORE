@@ -243,3 +243,7 @@ mod resident_tests;
 #[cfg(test)]
 #[path = "lifecycle_release_tests.rs"]
 mod release_tests;
+
+#[cfg(test)]
+#[path = "lifecycle_transition_tests.rs"]
+mod transition_tests;
