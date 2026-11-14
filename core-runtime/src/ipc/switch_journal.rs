@@ -45,6 +45,11 @@ impl SwitchJournal {
 
     pub(super) fn reserve(&self, request: ModelSwitchRequest) -> Admission {
         let mut records = self.lock();
+        // Make status lookup and replay semantics agree at the TTL boundary.
+        // Active operations are never expired.
+        records.retain(|_, entry| {
+            entry.finished_at.is_none_or(|time| time.elapsed() < COMPLETED_TTL)
+        });
         if let Some(entry) = records.get(&request.operation_id) {
             return if entry.request == request {
                 Admission::Repeat(entry.status.clone())
@@ -53,12 +58,7 @@ impl SwitchJournal {
             };
         }
         if records.len() >= MAX_RECORDS {
-            records.retain(|_, record| {
-                record.finished_at.is_none_or(|time| time.elapsed() < COMPLETED_TTL)
-            });
-            if records.len() >= MAX_RECORDS {
-                return Admission::Capacity;
-            }
+            return Admission::Capacity;
         }
         let status = ModelSwitchStatusResponse::new(
             request.operation_id.clone(),
@@ -111,8 +111,10 @@ impl SwitchJournal {
                 restored_handle,
             } => (
                 ModelSwitchPhase::RolledBackUnverified,
-                Some(restored_handle),
-                Some(safe_detail(&cause)),
+                None, // B was not loaded; this is A's restored handle, not B's.
+                Some(safe_detail(&format!(
+                    "{cause}; source restored as handle {restored_handle} (not smoke-verified)"
+                ))),
             ),
             SwitchOutcome::RollbackFailed {
                 cause,
