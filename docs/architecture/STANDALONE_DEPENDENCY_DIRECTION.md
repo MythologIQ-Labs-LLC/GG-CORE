@@ -14,15 +14,14 @@
 
 ```mermaid
 flowchart TD
-    GG[GG-CORE standalone inference runtime]
-    GG --> Contract[Versioned local IPC and embedded Rust/C/Python interfaces]
-    Contract --> CoreForge[CoreForge downstream consumer]
-    Contract --> Other[Other compatible applications]
-    GG --> Acceptance[Standalone GG-CORE test and release acceptance]
-    CoreForge --> ConsumerGate[CoreForge integration and product acceptance]
+    CoreForge[CoreForge downstream consumer] -->|depends on| GG[GG-CORE upstream runtime]
+    Other[Other downstream applications] -->|depends on| GG
+    GG --> Contract[Stable local IPC and embedded interfaces]
+    GG --> Acceptance[Independent GG-CORE qualification and release]
+    CoreForge --> ConsumerGate[Separate CoreForge integration and product acceptance]
 ```
 
-Arrows describe *GG-CORE interfaces provided to consumers*. The dependency direction, expressed as imports/consumption, is **CoreForge depends on GG-CORE**, never the reverse. CoreForge has no authority to approve, publish, or change GG-CORE releases.
+Arrows marked **depends on** explicitly describe the import/dependency direction: **CoreForge depends on GG-CORE**, never the reverse. GG-CORE owns its public interfaces and independent release gate. CoreForge has no authority to approve, publish, or change GG-CORE releases.
 
 ## Documentation and evidence scope
 
