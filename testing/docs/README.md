@@ -159,4 +159,4 @@ jobs:
 | Classification P95 | <100ms    | <20ms     | <5ms      |
 | Memory Ratio       | <1.5x     | <1.35x    | <1.25x    |
 
-See [`../docs/CONCEPT.md`](../docs/CONCEPT.md) for detailed performance goals.
+See [`../docs/CONCEPT.md`](../../docs/CONCEPT.md) for detailed performance goals.
