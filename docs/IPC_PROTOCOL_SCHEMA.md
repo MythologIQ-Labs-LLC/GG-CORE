@@ -425,9 +425,9 @@ These fields are present in `status --json` output but return placeholder values
 
 ## Contract Compliance
 
-This schema is FROZEN for COREFORGE integration. Any breaking changes require:
+This protocol is GG-CORE's **independent upstream IPC contract** for any authenticated local client, including downstream CoreForge. It is not owned or frozen by CoreForge. Breaking changes require the governed GG-CORE protocol compatibility decision and:
 
-1. Version bump (v0.7.0+)
+1. Appropriate negotiated protocol-version change (current frame protocol V1)
 2. Migration notes with field diffs
 3. Backward compatibility period (2 minor versions)
 
