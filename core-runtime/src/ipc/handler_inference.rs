@@ -63,12 +63,15 @@ impl IpcHandler {
                 Arc::clone(&flag),
             )
             .await;
-        let rx = match enqueued {
-            Ok((_queue_id, rx)) => rx,
+        let (queue_id, rx) = match enqueued {
+            Ok((queue_id, rx)) => (queue_id, rx),
             Err(e) => return enqueue_failure(id, e),
         };
         let stop = |error: InferenceError| {
             flag.store(true, Ordering::Release);
+            // N7 (#184) stop trace; the worker logs its release with the same
+            // `queue_id`. The error text names the stop kind only.
+            tracing::info!(target: "gg_core::stop", request_id = ?id, queue_id, error = %error, "stop answered to caller");
             stopped(id, error)
         };
         let expiry = async {

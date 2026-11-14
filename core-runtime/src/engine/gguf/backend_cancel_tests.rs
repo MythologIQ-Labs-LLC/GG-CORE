@@ -1,43 +1,34 @@
 //! Real-model regression: cancellation and deadlines during prompt PREFILL.
 //!
-//! A ~2,500-token prompt spends seconds in prefill before the first token, so
-//! a per-token check alone let a cancelled or expired request keep running
-//! for the whole prefill (and the IPC non-streaming path then returned a
+//! A ~2,500-token prompt spends seconds in prefill, so a per-token check alone
+//! let a stopped request run the whole prefill (and IPC then returned a
 //! success). These tests prove that prefill stops at a decode-chunk
 //! checkpoint, that the failure is explicit, that a cancelled request does
 //! not disturb a concurrent one, and that the model serves the next request.
-//! Model-gated like the other `real_model_` tests: early-returns without the
-//! real `models/qwen2.5-0.5b-instruct-q4_k_m.gguf` (an LFS pointer is skipped).
+//! Gated by `test_fixture::real_model` (`GG_CORE_REQUIRE_REAL_MODEL=1` fails).
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, MutexGuard};
 use std::time::{Duration, Instant};
 
 use super::LlamaBackendInner;
-use crate::engine::gguf::{GgufConfig, GgufGenerator};
+use crate::engine::gguf::{test_fixture, GgufConfig, GgufGenerator};
 use crate::engine::inference::{InferenceEngine, InferenceError as RunError, InferenceParams};
 use crate::engine::{FinishReason, InferenceConfig, Model};
 
-const FIXTURE: &str = "../models/qwen2.5-0.5b-instruct-q4_k_m.gguf";
 const FOX: &str = "The brown fox walks beside a clear river under a quiet blue sky. ";
 
-fn fixture() -> Option<(std::path::PathBuf, GgufConfig)> {
-    let path = std::path::PathBuf::from(FIXTURE);
-    let mut magic = [0u8; 4];
-    let is_gguf = std::fs::File::open(&path)
-        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))
-        .is_ok()
-        && &magic == b"GGUF";
-    if !is_gguf {
-        eprintln!("SKIP: real GGUF fixture not present at {path:?}");
-        return None;
-    }
+/// Fixture, config and serial guard (held for the test: timing baselines).
+fn fixture() -> Option<(PathBuf, GgufConfig, MutexGuard<'static, ()>)> {
+    let path = test_fixture::real_model()?.to_path_buf();
+    let serial = test_fixture::serial();
     let cfg = GgufConfig {
         n_ctx: 4096,
         n_threads: 4,
         n_gpu_layers: 0,
     };
-    Some((path, cfg))
+    Some((path, cfg, serial))
 }
 
 fn long_prompt() -> String {
@@ -70,7 +61,7 @@ fn baseline(backend: &LlamaBackendInner, prompt: &str) -> Duration {
 
 #[test]
 fn real_model_prefill_cancel_stops_at_chunk_checkpoint() {
-    let Some((path, cfg)) = fixture() else {
+    let Some((path, cfg, _serial)) = fixture() else {
         return;
     };
     let backend = LlamaBackendInner::load(&path, &cfg).expect("real Qwen fixture must load");
@@ -114,17 +105,17 @@ fn real_model_prefill_cancel_stops_at_chunk_checkpoint() {
 
 #[test]
 fn real_model_cancelled_prefill_does_not_disturb_concurrent_request() {
-    let Some((path, cfg)) = fixture() else {
+    let Some((path, cfg, _serial)) = fixture() else {
         return;
     };
     let backend =
         Arc::new(LlamaBackendInner::load(&path, &cfg).expect("real Qwen fixture must load"));
     let other_prompt = format!("Repeat the first sentence of this note: {}", FOX.repeat(40));
-    // Same cancellable prefill chunking as the concurrent run, so greedy
-    // outputs are comparable bit for bit.
-    let never = || false;
+    // Reference without a stop check: prefill follows the same deterministic
+    // schedule with or without one (#184), so the concurrent, cancellable
+    // run below must decode the same split and produce the same text.
     let reference = backend
-        .generate_cancellable(&other_prompt, &greedy(8), Some(&never))
+        .generate_cancellable(&other_prompt, &greedy(8), None)
         .expect("reference run")
         .text;
 
@@ -185,8 +176,9 @@ fn params(max_tokens: usize, timeout_ms: Option<u64>) -> InferenceParams {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[allow(clippy::await_holding_lock)] // serial guard across this test's own runtime
 async fn real_model_nonstream_deadline_and_cancel_fail_explicitly() {
-    let Some((path, cfg)) = fixture() else {
+    let Some((path, cfg, _serial)) = fixture() else {
         return;
     };
     let engine = engine_with_fixture(&path, &cfg).await;

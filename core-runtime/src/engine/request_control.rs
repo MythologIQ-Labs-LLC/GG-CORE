@@ -54,6 +54,12 @@ impl StopControl {
         self.deadline.is_some_and(|d| Instant::now() >= d)
     }
 
+    /// How far past its deadline the request is, if it has expired.
+    pub fn overdue(&self) -> Option<Duration> {
+        let late = Instant::now().checked_duration_since(self.deadline?)?;
+        Some(late)
+    }
+
     /// Checkpoint test used by the backend.
     pub fn should_stop(&self) -> bool {
         self.is_cancelled() || self.is_expired()
