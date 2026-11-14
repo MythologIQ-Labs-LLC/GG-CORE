@@ -4,10 +4,10 @@
 
 ## Invariant
 
-**GG-CORE is the independent upstream inference runtime. CoreForge is one optional downstream consumer of GG-CORE.**
+**GG-CORE is the independent upstream inference runtime. CoreForge is a downstream application that uses GG-CORE as its primary local inference engine; other compatible applications may consume GG-CORE independently.**
 
 - **GG-CORE owns:** the inference engine and model backends, model loading and lifecycle, authenticated local IPC, Rust/C/Python interfaces, resource controls, security boundaries, tests, platform/build support, portable artifacts, signing, and the standalone version/release gate.
-- **CoreForge owns:** its own application UI, workflow/persona logic, user experience, process supervision and installed-product choices. It can consume a GG-CORE version through a documented contract. Other applications have the same opportunity.
+- **CoreForge owns:** its own application UI, workflow/persona logic, user experience, process supervision and installed-product choices. It integrates an exact, qualified GG-CORE release through its local sidecar contract and presents that local inference capability as native in its UI. Other applications have the same opportunity.
 - **Dependency is one way:** `CoreForge → GG-CORE`. The reverse `GG-CORE → CoreForge` is **not** permitted as a build-time, runtime, product-scope, integration-test, or release-blocking dependency.
 - **No release coupling:** a GG-CORE release candidate must install, authenticate, load a permitted model, infer, report status, and be qualified **without** CoreForge code, configuration, installation or presence. A CoreForge adoption test is performed in the consumer's release flow, not as a prerequisite for the GG-CORE upstream release.
 - **No implied network API:** GG-CORE uses authenticated local named pipes or Unix sockets, not HTTP/REST/WebSocket, cloud provider routing or automatic downloads. Any downstream host can choose its own external providers independently.
@@ -27,7 +27,7 @@ Arrows marked **depends on** explicitly describe the import/dependency direction
 
 | Surface | Rule |
 | --- | --- |
-| README, architecture, quickstarts, current runbooks | Describe GG-CORE's standalone product first, with CoreForge only as an example downstream consumer where useful |
+| README, architecture, quickstarts, current runbooks | Describe GG-CORE's standalone product first; when CoreForge is mentioned, identify it as a downstream consumer using GG-CORE as its primary local inference engine |
 | `CLAUDE.md` and current agent prompts | No CoreForge build, UI, installer, persona, version pin, or acceptance requirement in the GG-CORE workstream |
 | `docs/integration/COREFORGE_PRODUCER_CONTRACT.md` | Historical/consumer-specific *GG-CORE-to-CoreForge* contract; supplementary, not canonical standalone architecture |
 | Historical reports, governance records, dated security and performance evidence | Preserve the original project terminology for traceability, and prefix a supersession note if readers could mistake it for current ownership or support |
