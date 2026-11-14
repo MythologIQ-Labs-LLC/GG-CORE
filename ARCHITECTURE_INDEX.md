@@ -28,8 +28,8 @@ model and security support. CoreForge-specific personas, tools, external
 providers, UX and installed acceptance belong to the downstream application.
 
 The owning document for this direction is
-[standalone dependency direction](docs/architecture/STANDALONE_DEPENDENCY_DIRECTION.md).
-The [standalone runtime architecture](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md)
+`docs/architecture/STANDALONE_DEPENDENCY_DIRECTION.md`.
+The `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md`
 owns GG-CORE internal design. The
 [CoreForge producer contract](docs/integration/COREFORGE_PRODUCER_CONTRACT.md)
 is a consumer-specific integration reference, **not** GG-CORE's architecture
@@ -39,7 +39,7 @@ or unverified model/backend support is implied.
 ## Governance rules
 
 1. **Identify the owner:** Read the single register at
-   [docs/README.md](docs/README.md), then the accepted contract or ADR and
+   `docs/README.md`, then the accepted contract or ADR and
    its exact revision. Do not promote proposals, historical records or
    aspirational plans into implemented or accepted claims.
 2. **Detect drift:** When code, diagrams, tests, a release artifact and the
