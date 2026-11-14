@@ -33,22 +33,30 @@ pub enum ExecutionTarget {
     Metal,
 }
 
+/// A task/execution-target pair is indivisible: never infer a Cartesian
+/// product such as GPU embeddings from CPU embeddings plus GPU generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServingPath {
+    pub task: InferenceTask,
+    pub target: ExecutionTarget,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeBackendCapabilities {
     pub schema_version: u16,
     pub backend: BackendKind,
     /// Loader-recognized formats, not every architecture or model family.
     pub model_formats: Vec<String>,
-    /// Tasks with compiled code paths. This is NOT a packaged-support claim.
-    pub compiled_tasks: Vec<InferenceTask>,
-    /// Targets reachable by the current serving code, not probed devices.
-    pub execution_targets: Vec<ExecutionTarget>,
+    /// Task+accelerator paths reachable in the compiled serving code.
+    /// This is NOT a packaged-support claim.
+    pub compiled_paths: Vec<ServingPath>,
     /// Whether the compiled source implements token streaming for this backend.
     pub supports_streaming: bool,
     pub supports_kv_cache: bool,
-    /// No v1 cell is certified by a build-time declaration. Installed product
-    /// qualification must be evaluated against pinned external evidence.
-    pub qualified_tasks: Vec<InferenceTask>,
+    /// Only exact task+accelerator cells may be qualified by separate
+    /// pinned real-model installed evidence. Empty until supplied by a
+    /// trusted runtime evidence registry, never derived from Cargo flags.
+    pub qualified_paths: Vec<ServingPath>,
 }
 
 /// Only backends with compiled implementation paths are declared.
@@ -64,11 +72,13 @@ pub fn compiled_backend_capabilities() -> Vec<RuntimeBackendCapabilities> {
             schema_version: CAPABILITY_SCHEMA_VERSION,
             backend: BackendKind::Gguf,
             model_formats: vec!["gguf".to_string()],
-            compiled_tasks: vec![InferenceTask::TextGeneration],
-            execution_targets: vec![ExecutionTarget::Cpu],
+            compiled_paths: vec![ServingPath {
+                task: InferenceTask::TextGeneration,
+                target: ExecutionTarget::Cpu,
+            }],
             supports_streaming: true,
             supports_kv_cache: true,
-            qualified_tasks: Vec::new(),
+            qualified_paths: Vec::new(),
         });
     }
     if cfg!(feature = "onnx") {
@@ -76,11 +86,19 @@ pub fn compiled_backend_capabilities() -> Vec<RuntimeBackendCapabilities> {
             schema_version: CAPABILITY_SCHEMA_VERSION,
             backend: BackendKind::Onnx,
             model_formats: vec!["onnx".to_string()],
-            compiled_tasks: vec![InferenceTask::Embedding, InferenceTask::Classification],
-            execution_targets: vec![ExecutionTarget::Cpu],
+            compiled_paths: vec![
+                ServingPath {
+                    task: InferenceTask::Embedding,
+                    target: ExecutionTarget::Cpu,
+                },
+                ServingPath {
+                    task: InferenceTask::Classification,
+                    target: ExecutionTarget::Cpu,
+                },
+            ],
             supports_streaming: false,
             supports_kv_cache: false,
-            qualified_tasks: Vec::new(),
+            qualified_paths: Vec::new(),
         });
     }
     backends
@@ -94,8 +112,11 @@ mod tests {
     fn no_false_acceleration_or_release_claims() {
         for capabilities in compiled_backend_capabilities() {
             assert_eq!(capabilities.schema_version, CAPABILITY_SCHEMA_VERSION);
-            assert_eq!(capabilities.execution_targets, vec![ExecutionTarget::Cpu]);
-            assert!(capabilities.qualified_tasks.is_empty());
+            assert!(capabilities
+                .compiled_paths
+                .iter()
+                .all(|path| path.target == ExecutionTarget::Cpu));
+            assert!(capabilities.qualified_paths.is_empty());
         }
     }
 
@@ -103,7 +124,9 @@ mod tests {
     fn onnx_generation_and_unsupported_bitnet_are_not_advertised() {
         let catalog = compiled_backend_capabilities();
         assert!(catalog.iter().all(|c| c.backend != BackendKind::Onnx
-            || !c.compiled_tasks.contains(&InferenceTask::TextGeneration)));
+            || !c.compiled_paths.iter().any(|path| {
+                path.task == InferenceTask::TextGeneration
+            })));
         assert!(catalog.iter().all(|c| c.backend == BackendKind::Gguf
             || c.backend == BackendKind::Onnx));
     }
@@ -129,11 +152,13 @@ mod tests {
             schema_version: CAPABILITY_SCHEMA_VERSION,
             backend: BackendKind::Gguf,
             model_formats: vec!["gguf".into()],
-            compiled_tasks: vec![InferenceTask::TextGeneration],
-            execution_targets: vec![ExecutionTarget::Cpu],
+            compiled_paths: vec![ServingPath {
+                task: InferenceTask::TextGeneration,
+                target: ExecutionTarget::Cpu,
+            }],
             supports_streaming: true,
             supports_kv_cache: true,
-            qualified_tasks: Vec::new(),
+            qualified_paths: Vec::new(),
         };
         let json = serde_json::to_string(&input).expect("serialize");
         assert!(json.contains("\"schema_version\":1"));
