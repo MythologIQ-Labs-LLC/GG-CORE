@@ -616,7 +616,7 @@ The evidence record for this README is [`docs/README_VERIFICATION.md`](docs/READ
 | Document | Purpose | Authority |
 | --- | --- | --- |
 | [Runtime architecture](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md) | Code-grounded system and trust-boundary overview | Current living architecture |
-| [Dependency direction](docs/architecture/STANDALONE_DEPENDENCY_DIRECTION.md) | GG-CORE upstream, CoreForge optional downstream; independent release and qualification | Binding owner product boundary |
+| [Dependency direction](docs/architecture/STANDALONE_DEPENDENCY_DIRECTION.md) | GG-CORE upstream, CoreForge primary local-inference consumer; independent release and qualification | Binding owner product boundary |
 | [CI and release workflow status](docs/architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md) | Exact workflow triggers, current artifact checks and pending Windows signing gate | Live workflow YAML remains authoritative |
 | [Feature index](docs/FEATURE_INDEX.md) | Feature, source, design citation, and direct test binding | Current evidence inventory |
 | [Changelog](CHANGELOG.md) | Release and unreleased change chronology | Release history |
