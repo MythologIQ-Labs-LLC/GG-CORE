@@ -97,4 +97,9 @@ Never include live authentication tokens, model contents, PII or complete prompt
 | Performance or new model/backend request | Track in [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136), [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137) or the future-backend issues; do not silently expand RC support |
 | Downstream app integrates external providers, UI or tools | Handle in the consuming application's repository, not GG-CORE |
 
+**Rust source compatibility of `IpcMessage` (#112, owner disposition 2026-11-13):**
+- **RC baseline:** the enum was exhaustive in `v0.10.0-rc.1`. `main` then added two frame types (#171), and #183 adds two more.
+- **Change:** the enum is now `#[non_exhaustive]`. External crates must match it with a wildcard arm (`ipc::protocol_compat` doctests enforce this), and later frame types are not source-breaking.
+- **Scope:** this covers the IPC enum only. The wider embedded API contract stays open in #112.
+
 **Deferred by design, not lost:** [#112](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/112)–[#114](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/114) (stable embedded API/versioned distribution/conformance), [#115](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/115) (ONNX generation research), [#48](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/48)–[#51](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/51) (capability schema/hardware selection/BitNet), and [#70](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/70) (research). These remain open rather than being falsely marked complete. Do not expand the initial RC to satisfy them.

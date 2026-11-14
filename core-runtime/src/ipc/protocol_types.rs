@@ -288,8 +288,11 @@ pub struct HealthCheckResponse {
     pub report: Option<HealthReport>,
 }
 
+/// Every IPC frame type. `#[non_exhaustive]` for external crates (#112);
+/// see [`crate::ipc::protocol_compat`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum IpcMessage {
     #[serde(rename = "handshake")]
     Handshake {
@@ -356,6 +359,10 @@ pub enum IpcMessage {
     TypedInferenceRequest(super::protocol_typed::TypedInferenceRequest),
     #[serde(rename = "typed_inference_response")]
     TypedInferenceResponse(super::protocol_typed::TypedInferenceResponse),
+    #[serde(rename = "model_release_wait_request")]
+    ModelReleaseWaitRequest(super::protocol_release_types::ModelReleaseWaitRequest),
+    #[serde(rename = "model_release_wait_response")]
+    ModelReleaseWaitResponse(super::protocol_release_types::ModelReleaseWaitResponse),
     #[serde(rename = "error")]
     Error { code: u32, message: String },
 }

@@ -84,6 +84,8 @@ pub struct ModelLifecycle {
     index: Arc<RwLock<LookupIndex>>,
     /// Resident-weight accounting (None: unlimited, embedded/test use).
     limits: Option<crate::memory::ResourceLimits>,
+    /// Unloaded instances whose memory is still held.
+    releases: release::ReleaseTracker,
 }
 
 impl ModelLifecycle {
@@ -93,6 +95,7 @@ impl ModelLifecycle {
             engine,
             index: Arc::new(RwLock::new(LookupIndex::new())),
             limits: None,
+            releases: release::ReleaseTracker::default(),
         }
     }
 
@@ -146,10 +149,8 @@ impl ModelLifecycle {
         self.engine
             .register_model(model_id.clone(), handle, Arc::clone(&model))
             .await;
-        if let Some(guard) = reservation {
-            let entry = resident::Resident::new(model, guard);
-            index.residents.insert(model_id.clone(), entry);
-        }
+        let entry = resident::Resident::new(model, reservation);
+        index.residents.insert(model_id.clone(), entry);
         index.insert(model_id, handle);
 
         Ok(handle)
@@ -157,7 +158,9 @@ impl ModelLifecycle {
 
     /// Atomically unload a model from both registry and engine.
     ///
-    /// Holds write lock for the entire duration to prevent races.
+    /// Holds write lock for the entire duration to prevent races. The
+    /// instance is recorded as releasing *before* it leaves the registry, so
+    /// a concurrent listing never misses memory that is still held.
     pub async fn unload(&self, model_id: &str) -> Result<ModelHandle, LifecycleError> {
         let mut index = self.index.write().await;
 
@@ -165,15 +168,25 @@ impl ModelLifecycle {
             .get_handle(model_id)
             .ok_or_else(|| LifecycleError::NotLoaded(model_id.into()))?;
 
+        let resident = index.residents.remove(model_id);
+        let (done, watch) = resident::release_channel();
+        if let Some(info) = self.registry_info(handle).await {
+            self.releases.push(model_id.to_string(), info, watch);
+        }
         self.engine.unregister_model(model_id).await;
         self.registry.unregister(handle).await;
         index.remove_by_id(model_id);
         // Budget returns once in-flight requests release the model.
-        if let Some(entry) = index.residents.remove(model_id) {
-            entry.release();
+        if let Some(entry) = resident {
+            entry.release(done);
         }
 
         Ok(handle)
+    }
+
+    async fn registry_info(&self, handle: ModelHandle) -> Option<super::LoadedModelInfo> {
+        let models = self.registry.list_models().await;
+        models.into_iter().find(|m| m.handle_id == handle.id())
     }
 
     /// O(1) lookup: model_id -> ModelHandle.
@@ -215,6 +228,10 @@ impl ModelLifecycle {
 #[path = "lifecycle_resident.rs"]
 mod resident;
 
+#[path = "lifecycle_release.rs"]
+mod release;
+pub use release::MAX_RELEASE_WAIT;
+
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]
 mod tests;
@@ -222,3 +239,7 @@ mod tests;
 #[cfg(test)]
 #[path = "lifecycle_resident_tests.rs"]
 mod resident_tests;
+
+#[cfg(test)]
+#[path = "lifecycle_release_tests.rs"]
+mod release_tests;

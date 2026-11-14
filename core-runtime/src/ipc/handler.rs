@@ -307,7 +307,8 @@ impl IpcHandler {
     }
 
     async fn handle_models_request(&self, authenticated: bool) -> ModelsListResponse {
-        let models = self.model_registry.list_models().await;
+        let mut models = self.model_registry.list_models().await;
+        self.append_releasing(&mut models);
         let total_memory_bytes = models.iter().map(|m| m.memory_bytes).sum();
 
         let mut capabilities = std::collections::HashMap::new();
