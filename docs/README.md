@@ -1,54 +1,28 @@
-# Documentation
+# GG-CORE documentation
 
-## Structure
+GG-CORE is a **standalone, offline-first inference runtime**. Documentation must distinguish the **published `v0.10.0-rc.1` prerelease**, protected `main`, and **unmerged v1 development branches**. A compiled module is not a packaged, installed or hardware-qualified capability.
 
-```
-docs/
-├── analysis/          # Performance analysis and comparisons
-├── build/             # Build configuration and troubleshooting
-├── security/          # Security documentation and threat model
-├── testing/           # Test plans and validation reports
-└── *.md               # Core documentation
-```
+## Start here
 
-## Core Documentation
+| Resource | What it covers |
+| --- | --- |
+| [Root README](../README.md) | Standalone build, serve, authenticated IPC, Rust/C/Python consumers |
+| [Living runtime architecture](architecture/CORE_RUNTIME_ARCHITECTURE.md) | Security boundary, daemon and embedded paths, model-loading versus inference diagrams |
+| [Architecture plan](ARCHITECTURE_PLAN.md) | Historical file tree, interface and governance plan; current source and living architecture win on drift |
+| [CI and release workflow boundaries](architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md) | Existing workflow triggers, packaged real-model acceptance, and the unimplemented v1 Windows Authenticode gate |
+| [IPC schema](IPC_PROTOCOL_SCHEMA.md) | Length-prefixed authenticated local protocol; follow exact source and version compatibility |
+| [Release support and maintenance](RELEASE_SUPPORT_AND_MAINTENANCE.md) | Verified published RC1, installed-platform caveats, hash checks, rollback |
+| [Feature index](FEATURE_INDEX.md) | Source-to-direct-test mapping, **not** a blanket shipped-product compatibility claim |
+| [README verification](README_VERIFICATION.md) | Claims versus evidence, including historical records clearly marked superseded |
+| [Roadmap](../ROADMAP.md) | Standalone v1 targets and work-state distinctions |
+| [Security policy](../SECURITY.md) | Vulnerability reporting and supported security boundaries |
+| [Threat model](security/THREAT_MODEL.md) | Trust boundary and attack-surface analysis |
+| [Benchmarks](BENCHMARKS.md) | Historical results and exact measurement limitations |
 
-| Document | Description |
-|----------|-------------|
-| [CONCEPT.md](CONCEPT.md) | Design philosophy, anti-goals, performance targets |
-| [USAGE_GUIDE.md](USAGE_GUIDE.md) | API reference and usage patterns |
-| [DEPENDENCY_ANALYSIS.md](DEPENDENCY_ANALYSIS.md) | Dependency audit and licensing |
-| [RUST_ENTERPRISE_ANALYSIS.md](RUST_ENTERPRISE_ANALYSIS.md) | Rust adoption in enterprise |
-| [HONEST_ASSESSMENT.md](HONEST_ASSESSMENT.md) | Transparent claims evaluation |
+## Current work, not in the published RC
 
-## Security
+- [#137 model switching](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137): source-qualified in-process Windows cold switching; authenticated IPC/status extension remains **not native-qualified** and must prove task-level readiness, multi-client behavior and repeated-cycle resource stability.
+- [#49 capabilities](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/49): source-qualified authenticated read-only capability snapshot; zero release-qualified cells until pinned installed-model evidence.
+- [#161 standalone v1 release](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/161): integrates owner-approved scope, platform/model acceptance, and authentic Windows GG-CORE binary signing. No CoreForge-specific product gate.
 
-| Document | Description |
-|----------|-------------|
-| [security/THREAT_MODEL.md](security/THREAT_MODEL.md) | STRIDE analysis, attack trees, audit recommendations |
-| [security/SECURITY_ANALYSIS_REPORT.md](security/SECURITY_ANALYSIS_REPORT.md) | CVE remediations and test coverage |
-| [security/SECURITY_REVIEW.md](security/SECURITY_REVIEW.md) | Initial security review findings |
-| [security/SECURITY_IMPLEMENTATION_SUMMARY.md](security/SECURITY_IMPLEMENTATION_SUMMARY.md) | Security feature implementation |
-
-## Testing
-
-| Document | Description |
-|----------|-------------|
-| [testing/TIER1_*.md](testing/) | Baseline validation (sandbox works) |
-| [testing/TIER2_*.md](testing/) | Competitive performance validation |
-| [testing/TIER3_*.md](testing/) | Advanced optimization results |
-
-## Build
-
-| Document | Description |
-|----------|-------------|
-| [build/GGUF_BUILD_TROUBLESHOOTING.md](build/GGUF_BUILD_TROUBLESHOOTING.md) | GGUF backend build instructions |
-| [build/OPTIMIZATION_VERIFICATION.md](build/OPTIMIZATION_VERIFICATION.md) | Build optimization verification |
-
-## Analysis
-
-| Document | Description |
-|----------|-------------|
-| [analysis/COMPARATIVE_ANALYSIS.md](analysis/COMPARATIVE_ANALYSIS.md) | Runtime comparison |
-| [analysis/OLLAMA_COMPARISON_ANALYSIS.md](analysis/OLLAMA_COMPARISON_ANALYSIS.md) | Ollama feature comparison |
-| [analysis/BASELINE_METRICS.md](analysis/BASELINE_METRICS.md) | Baseline performance metrics |
+The original analysis, security, build, testing and historical audit records remain in their respective directories. They are research or dated evidence, not substitutes for the live source, exact SHA CI, published assets, or installed-product qualification.
