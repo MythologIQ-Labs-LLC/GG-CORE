@@ -1,7 +1,9 @@
 //! Runtime configuration loading from environment variables.
 //!
 //! All configuration values are loaded from `GG_CORE_*` environment variables
-//! with sensible defaults. Invalid values fall back to defaults without crashing.
+//! with sensible defaults. Most invalid values fall back to defaults; the two
+//! memory limits are strict (see [`memory`]): an invalid or contradictory
+//! value is an error from [`try_load`], never a silently relaxed limit.
 //!
 //! # Environment Variables
 //!
@@ -10,8 +12,8 @@
 //! | `GG_CORE_MAX_CONTEXT` | 4096 | Max context length (tokens) |
 //! | `GG_CORE_MAX_QUEUE_DEPTH` | 256 | Max pending requests |
 //! | `GG_CORE_MAX_CONTEXT_TOKENS` | 4096 | Max context tokens per request |
-//! | `GG_CORE_MAX_MEMORY_PER_CALL` | unset | Optional per-request working-memory ceiling (bytes). Unset: a request reserves its model's metadata-derived need, bounded only by the total; models without an estimate reserve a 1 GiB fallback (or this value when set) |
-//! | `GG_CORE_MAX_TOTAL_MEMORY` | max(2 GiB, 50% RAM) | Resident weights + working memory; Job Object cap (bytes) |
+//! | `GG_CORE_MAX_MEMORY_PER_CALL` | unset | Optional per-request working-memory ceiling (bytes, >= 1 MiB, <= total). Unset: a request reserves its model's metadata-derived need, bounded only by the total; models without an estimate reserve min(1 GiB, total) (or this value when set) |
+//! | `GG_CORE_MAX_TOTAL_MEMORY` | max(2 GiB, 50% RAM) | Exact ceiling for resident weights + working memory (bytes, >= 1 MiB); also the Windows Job Object cap (unless `GG_CORE_SANDBOX=off`). Never raised |
 //! | `GG_CORE_MAX_CONCURRENT` | 2 | Max concurrent requests = scheduler worker loops |
 //! | `GG_CORE_BATCH_MAX_REQUESTS` | 8 | Max requests per batch |
 //! | `GG_CORE_BATCH_MAX_TOKENS` | 4096 | Max tokens per batch |
@@ -29,6 +31,10 @@ use std::time::Duration;
 use crate::ipc::{ConnectionConfig, IpcServerConfig};
 use crate::memory::ResourceLimitsConfig;
 use crate::scheduler::{BatchConfig, RequestQueueConfig};
+
+#[path = "config_memory.rs"]
+pub mod memory;
+pub use memory::{ConfigError, MemoryConfigError, MemoryLimits};
 
 /// Effective runtime configuration summary (serializable).
 #[derive(Debug, Clone)]
@@ -122,30 +128,13 @@ fn load_queue_config() -> RequestQueueConfig {
     }
 }
 
-/// The operator per-request ceiling: `Some` only when
-/// `GG_CORE_MAX_MEMORY_PER_CALL` is explicitly set (same parse and 1 MiB
-/// floor as the fallback reservation). Unset: no separate ceiling.
+/// Deprecated: the explicit `GG_CORE_MAX_MEMORY_PER_CALL`, `None` when unset.
+///
+/// # Panics
+/// When the variable is set but invalid (it used to read as "no ceiling").
+#[deprecated(note = "use `config::try_load()?.per_call_ceiling`")]
 pub fn per_call_ceiling_from_env() -> Option<usize> {
-    let value = std::env::var("GG_CORE_MAX_MEMORY_PER_CALL").ok()?;
-    Some(value.parse::<usize>().ok()?.max(1024 * 1024))
-}
-
-/// Load resource limits configuration from environment.
-fn load_resource_limits() -> ResourceLimitsConfig {
-    let per_call = parse_usize("GG_CORE_MAX_MEMORY_PER_CALL", 1024 * 1024 * 1024);
-    let total = parse_usize(
-        "GG_CORE_MAX_TOTAL_MEMORY",
-        crate::memory::host::default_total_memory(),
-    );
-    let concurrent = parse_usize("GG_CORE_MAX_CONCURRENT", 2);
-    let per_call = per_call.max(1024 * 1024); // floor: 1MB
-    let total = total.max(per_call); // total >= per_call
-    let concurrent = concurrent.max(1);
-    ResourceLimitsConfig {
-        max_memory_per_call: per_call,
-        max_total_memory: total,
-        max_concurrent: concurrent,
-    }
+    memory::per_call_ceiling_strict()
 }
 
 /// Load batch configuration from environment.
@@ -191,8 +180,21 @@ fn load_connection_config() -> ConnectionConfig {
 
 /// Load all configuration from environment variables.
 ///
-/// Missing or invalid values fall back to safe defaults without panicking.
+/// # Panics
+/// When a memory limit is invalid or contradictory (see [`try_load`]):
+/// this signature cannot report the error, and substituting a different
+/// limit is exactly what #182 forbids. New callers should use [`try_load`].
 pub fn load() -> EnvConfig {
+    try_load().unwrap_or_else(|e| panic!("invalid GG-CORE configuration: {e}"))
+}
+
+/// Load all configuration from environment variables.
+///
+/// Memory limits are strict and return [`ConfigError`]; other missing or
+/// invalid values fall back to safe defaults.
+pub fn try_load() -> Result<EnvConfig, ConfigError> {
+    let mem = memory::from_env()?;
+    let concurrent = parse_usize("GG_CORE_MAX_CONCURRENT", 2).max(1);
     let auth_token = std::env::var("CORE_AUTH_TOKEN").unwrap_or_default();
     let max_context_length = parse_usize("GG_CORE_MAX_CONTEXT", 4096);
     let max_context_length = max_context_length.clamp(1, 1_000_000);
@@ -201,20 +203,20 @@ pub fn load() -> EnvConfig {
     let shutdown_secs = shutdown_secs.max(1);
     let session_secs = session_secs.max(1);
 
-    EnvConfig {
+    Ok(EnvConfig {
         base_path: PathBuf::from("."),
         auth_token,
         max_context_length,
         request_queue: load_queue_config(),
-        resource_limits: load_resource_limits(),
-        per_call_ceiling: per_call_ceiling_from_env(),
+        resource_limits: mem.to_resource_limits(concurrent),
+        per_call_ceiling: mem.per_call_ceiling,
         batch: load_batch_config(),
         shutdown_timeout: Duration::from_secs(shutdown_secs),
         session_timeout: Duration::from_secs(session_secs),
         gguf: load_gguf_config(),
         ipc_server: load_ipc_server_config(),
         connections: load_connection_config(),
-    }
+    })
 }
 
 impl EnvConfig {

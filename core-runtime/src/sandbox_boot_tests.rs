@@ -9,7 +9,7 @@ static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn unset_env_uses_platform_default() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::remove_var(SANDBOX_ENV);
     let mode = sandbox_mode_from_env().unwrap();
     if cfg!(windows) {
@@ -23,7 +23,7 @@ fn unset_env_uses_platform_default() {
 
 #[test]
 fn explicit_modes_parse_case_insensitively() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     for (v, expected) in [
         ("enforce", SandboxMode::Enforce),
         ("SECCOMP", SandboxMode::Seccomp),
@@ -37,7 +37,7 @@ fn explicit_modes_parse_case_insensitively() {
 
 #[test]
 fn invalid_mode_is_rejected_loudly() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var(SANDBOX_ENV, "lenient");
     let err = sandbox_mode_from_env().unwrap_err();
     assert!(err.contains("lenient"));
@@ -63,4 +63,22 @@ fn daemon_config_never_sets_a_cumulative_cpu_budget() {
 fn off_mode_reports_without_applying() {
     let msg = apply_daemon_sandbox(SandboxMode::Off, &RuntimeConfig::default()).unwrap();
     assert!(msg.contains("OFF"));
+}
+
+/// #182: the Job Object / cgroup cap is the explicit total, never raised to
+/// the 1 GiB per-call fallback.
+#[test]
+fn sandbox_memory_cap_equals_explicit_total_below_fallback() {
+    let total = std::ffi::OsString::from("268435456");
+    let mem = gg_core::config::memory::resolve(Some(&total), None, 8 << 30).unwrap();
+    let rc = RuntimeConfig {
+        resource_limits: mem.to_resource_limits(2),
+        ..Default::default()
+    };
+    for mode in [SandboxMode::Enforce, SandboxMode::Seccomp] {
+        assert_eq!(
+            daemon_sandbox_config(mode, &rc).max_memory_bytes,
+            268_435_456
+        );
+    }
 }

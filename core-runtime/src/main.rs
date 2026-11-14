@@ -69,6 +69,26 @@ async fn main() -> ExitCode {
     }
 }
 
+/// Strict daemon configuration (#182): an invalid or contradictory memory
+/// limit aborts startup before auth, model preload, sandbox and IPC bind.
+fn daemon_config() -> Option<(gg_core::RuntimeConfig, Option<usize>)> {
+    match runtime_init::load_config() {
+        Ok(resolved) => Some(resolved),
+        Err(e) => {
+            eprintln!("serve: invalid configuration: {e}");
+            None
+        }
+    }
+}
+
+/// Optional operator per-request ceiling, set once before any preload or
+/// serving (unset: requests are bounded only by GG_CORE_MAX_TOTAL_MEMORY).
+fn install_per_call_ceiling(runtime: &Runtime, ceiling: Option<usize>) {
+    if let Some(ceiling) = ceiling {
+        let _ = runtime.resource_limits.set_per_call_ceiling(ceiling);
+    }
+}
+
 async fn run_serve(args: &[String]) -> ExitCode {
     let preload = match runtime_init::parse_serve_models(args) {
         Ok(models) => models,
@@ -93,7 +113,9 @@ async fn run_serve(args: &[String]) -> ExitCode {
     }
     eprintln!("FIPS 140-3 self-tests: PASSED");
 
-    let config = runtime_init::load_config();
+    let Some((config, per_call_ceiling)) = daemon_config() else {
+        return ExitCode::FAILURE;
+    };
     // RC acceptance: fail secure on a missing credential (see auth_boot).
     match auth_boot::auth_policy(&config.auth_token) {
         Ok(policy) => eprintln!("{}", auth_boot::describe(policy, &config.auth_token)),
@@ -103,11 +125,7 @@ async fn run_serve(args: &[String]) -> ExitCode {
         }
     }
     let runtime = Runtime::new(config);
-    // Optional operator per-request ceiling, set once before any preload or
-    // serving (unset: requests are bounded only by GG_CORE_MAX_TOTAL_MEMORY).
-    if let Some(ceiling) = gg_core::config::per_call_ceiling_from_env() {
-        let _ = runtime.resource_limits.set_per_call_ceiling(ceiling);
-    }
+    install_per_call_ceiling(&runtime, per_call_ceiling);
 
     // B-41 (#106): fail-loud startup preload through the canonical load path.
     if let Err(e) = runtime_init::preload_models(&runtime, &preload).await {
@@ -184,10 +202,7 @@ async fn run_models_cmd(args: &[String]) -> ExitCode {
 async fn run_config_cmd(args: &[String]) -> ExitCode {
     let sub = args.get(2).map(|s| s.as_str()).unwrap_or("show");
     match sub {
-        "show" => {
-            gg_core::cli::config_cmd::run_show();
-            ExitCode::SUCCESS
-        }
+        "show" => ExitCode::from(gg_core::cli::config_cmd::try_show() as u8),
         "defaults" => {
             gg_core::cli::config_cmd::run_defaults();
             ExitCode::SUCCESS
