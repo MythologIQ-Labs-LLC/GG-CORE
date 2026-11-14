@@ -8,6 +8,7 @@ GG-CORE is a **standalone, offline-first inference runtime**. Documentation must
 | --- | --- |
 | [Root README](../README.md) | Standalone build, serve, authenticated IPC, Rust/C/Python consumers |
 | [Living runtime architecture](architecture/CORE_RUNTIME_ARCHITECTURE.md) | Security boundary, daemon and embedded paths, model-loading versus inference diagrams |
+| [Standalone dependency direction](architecture/STANDALONE_DEPENDENCY_DIRECTION.md) | GG-CORE producer, CoreForge and others downstream; acceptance ownership |
 | [Architecture plan](ARCHITECTURE_PLAN.md) | Historical file tree, interface and governance plan; current source and living architecture win on drift |
 | [CI and release workflow boundaries](architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md) | Existing workflow triggers, packaged real-model acceptance, and the unimplemented v1 Windows Authenticode gate |
 | [IPC schema](IPC_PROTOCOL_SCHEMA.md) | Length-prefixed authenticated local protocol; follow exact source and version compatibility |
