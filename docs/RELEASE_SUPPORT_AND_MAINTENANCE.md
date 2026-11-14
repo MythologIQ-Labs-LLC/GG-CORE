@@ -77,13 +77,13 @@ Never include live authentication tokens, model contents, PII or complete prompt
 
 ## Release finalization and rollback
 
-**Before first tag:** exact candidate SHA must have green Rust, CodeQL, and the nonpublishing Release job with installed real-GGUF inference on all three platforms; independent archive checks; owner verification of private vulnerability reporting; and explicit publication authorization. A docs-only merge still changes the commit and reopens the qualification SHA gate.
+**Before any new release tag:** the exact new candidate source needs the appropriate Rust, CodeQL, standalone installed-real-model, security and artifact gates, plus owner GO. The v0.10.0-rc.1 tag was published on 2026-11-05 and must not be moved. For **v1 Windows packages**, GG-CORE-owned executable and DLL Authenticode signing and post-sign verification are additionally required; the current release YAML does not implement this.
 
-**At publication:** tag the qualified merge SHA, allow the tag-triggered release workflow to build/qualify/publish, then download the published archives on trusted hosts, verify `SHA256SUMS`, run `version --json` and a real-model first-run test. Do not close #130 until that post-publication acceptance exists.
+**For subsequent publication:** only after all new gates are implemented and passed, tag the exact qualified source with explicit owner authorization. Inspect final signed Windows bytes, download the published archives on trusted clean hosts, verify `SHA256SUMS`, run `version --json` and real-model first-run acceptance. Preserve the completed historical #130 release record rather than treating it as an unexecuted first publication.
 
 **Prefill split compatibility (N7 successor, #184):**
 - **What changed:** plain prompt prefill now decodes in a deterministic, position-based chunk schedule (`engine/gguf/prefill_schedule.rs`), whether or not the request can be cancelled. Previously the split was a native 512-token batch, or time-paced in the C2 candidate.
-- **Effect on output:** for prompts longer than one chunk, greedy output can differ from RC1/C1/C2. It is reproducible for the same model file, thread bucket ({1}, {2-3}, {4-7}, {8+}), prompt and sampling, under any load or concurrency.
+- **Effect on output:** for prompts longer than one chunk, greedy output can differ from RC1/C1/C2. In the reported Windows qualification matrix, pinned model, prompt, thread bucket ({1}, {2-3}, {4-7}, {8+}), sampling and chunk schedule reproduced output across the tested idle/load and concurrency cases; this is **not** a universal platform, GPU, model-family or quantization guarantee.
 - **Embedded vs daemon:** these can land in different buckets on one host. Embedded auto threads are `min(logical,16)`; the daemon divides that by its worker count. Their output can therefore differ.
 - **Rollback:** rolling back to C2 or RC1 restores the previous split.
 
