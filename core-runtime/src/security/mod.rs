@@ -1,4 +1,4 @@
-//! Security module for COREFORGE CORE
+//! Security module for the standalone GG-CORE inference runtime
 //!
 //! This module provides comprehensive security features including:
 //! - Prompt injection protection
