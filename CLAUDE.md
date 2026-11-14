@@ -70,7 +70,7 @@ core-runtime/
 │   ├── scheduler/          # Queue, priority, batching
 │   ├── engine/             # Inference, tokenizer, streaming
 │   │   └── moe/            # Mixture of Experts (router, executor, combiner)
-│   ├── models/             # Loader, registry, hot swap, versioning
+│   ├── models/             # Loader, registry, lifecycle, backend dispatch (live switching unmerged)
 │   ├── memory/             # Pool, GPU, cache
 │   ├── telemetry/          # Prometheus metrics, OpenTelemetry spans
 │   ├── ab_testing/         # A/B testing (traffic splitting, metrics)
