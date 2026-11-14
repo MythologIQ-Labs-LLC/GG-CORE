@@ -28,6 +28,10 @@ pub enum LifecycleError {
     /// (`GG_CORE_MAX_TOTAL_MEMORY`, also the Windows Job Object cap).
     #[error("Insufficient memory budget: {0} (raise GG_CORE_MAX_TOTAL_MEMORY or unload a model)")]
     ResourceExhausted(String),
+
+    /// The model id now names a different instance than the caller expected.
+    #[error("Stale model handle: {0}")]
+    StaleHandle(String),
 }
 
 /// Bidirectional O(1) lookup between model_id and ModelHandle.
@@ -74,9 +78,7 @@ impl LookupIndex {
     }
 }
 
-/// Unified model lifecycle coordinator.
-///
-/// All model loads and unloads go through this to keep
+/// Unified model lifecycle coordinator: every load and unload keeps
 /// ModelRegistry and InferenceEngine atomically in sync.
 pub struct ModelLifecycle {
     registry: Arc<ModelRegistry>,
@@ -86,6 +88,8 @@ pub struct ModelLifecycle {
     limits: Option<crate::memory::ResourceLimits>,
     /// Unloaded instances whose memory is still held.
     releases: release::ReleaseTracker,
+    /// Operator authority and recorded sources (`lifecycle_operations.rs`).
+    ops: operations::OpsState,
 }
 
 impl ModelLifecycle {
@@ -96,6 +100,7 @@ impl ModelLifecycle {
             index: Arc::new(RwLock::new(LookupIndex::new())),
             limits: None,
             releases: release::ReleaseTracker::default(),
+            ops: operations::OpsState::default(),
         }
     }
 
@@ -110,10 +115,8 @@ impl ModelLifecycle {
         self.limits.as_ref()
     }
 
-    /// Atomically load a model into both registry and engine.
-    ///
-    /// Holds write lock for the entire duration to prevent TOCTOU
-    /// races on concurrent loads of the same model_id.
+    /// Atomically load a model into both registry and engine, under the
+    /// index write lock (no TOCTOU race on concurrent loads of one id).
     pub async fn load(
         &self,
         model_id: String,
@@ -162,26 +165,7 @@ impl ModelLifecycle {
     /// instance is recorded as releasing *before* it leaves the registry, so
     /// a concurrent listing never misses memory that is still held.
     pub async fn unload(&self, model_id: &str) -> Result<ModelHandle, LifecycleError> {
-        let mut index = self.index.write().await;
-
-        let handle = index
-            .get_handle(model_id)
-            .ok_or_else(|| LifecycleError::NotLoaded(model_id.into()))?;
-
-        let resident = index.residents.remove(model_id);
-        let (done, watch) = resident::release_channel();
-        if let Some(info) = self.registry_info(handle).await {
-            self.releases.push(model_id.to_string(), info, watch);
-        }
-        self.engine.unregister_model(model_id).await;
-        self.registry.unregister(handle).await;
-        index.remove_by_id(model_id);
-        // Budget returns once in-flight requests release the model.
-        if let Some(entry) = resident {
-            entry.release(done);
-        }
-
-        Ok(handle)
+        self.unload_matching(model_id, None).await
     }
 
     async fn registry_info(&self, handle: ModelHandle) -> Option<super::LoadedModelInfo> {
@@ -209,10 +193,8 @@ impl ModelLifecycle {
         self.index.read().await.id_to_handle.len()
     }
 
-    /// Validate that a handle exists in both the lookup index and the registry.
-    ///
-    /// Returns `false` if the handle is stale (present in one but not the other,
-    /// or absent from both).
+    /// Whether a handle exists in both the lookup index and the registry
+    /// (`false` when stale: present in one only, or in neither).
     pub async fn validate_handle(&self, handle: &ModelHandle) -> bool {
         let in_index = self
             .index
@@ -231,6 +213,10 @@ mod resident;
 #[path = "lifecycle_release.rs"]
 mod release;
 pub use release::MAX_RELEASE_WAIT;
+
+#[path = "lifecycle_operations.rs"]
+mod operations;
+pub use operations::{ModelSource, OperationGuard};
 
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]

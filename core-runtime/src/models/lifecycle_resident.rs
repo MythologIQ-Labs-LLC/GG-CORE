@@ -82,6 +82,11 @@ impl Resident {
         Self { model, guard }
     }
 
+    /// Budget bytes this resident currently charges (0 when unlimited).
+    pub(super) fn charged_bytes(&self) -> usize {
+        self.guard.as_ref().map_or(0, ResidentGuard::bytes)
+    }
+
     /// Return the budget once no request holds the model any more, then
     /// signal `done`. Must be called after the engine dropped its own
     /// reference.
