@@ -230,7 +230,7 @@ Tier 1 validation has been completed for the COREFORGE CORE Runtime infrastructu
 3. **Alternative:** Use pre-built bindings
 4. **Alternative:** Use alternative GGUF crate (candle-gguf, ggml)
 
-**Documentation:** See [`GGUF_BUILD_TROUBLESHOOTING.md`](GGUF_BUILD_TROUBLESHOOTING.md) for detailed resolution steps and 4 alternative approaches.
+**Documentation:** See [`GGUF_BUILD_TROUBLESHOOTING.md`](../build/GGUF_BUILD_TROUBLESHOOTING.md) for detailed resolution steps and 4 alternative approaches.
 
 **Impact:**
 
@@ -315,7 +315,7 @@ core-runtime/fixtures/
 ### Immediate Actions
 
 1. **Resolve GGUF Backend Build Issue**
-   - See [`GGUF_BUILD_TROUBLESHOOTING.md`](GGUF_BUILD_TROUBLESHOOTING.md) for detailed steps
+   - See [`GGUF_BUILD_TROUBLESHOOTING.md`](../build/GGUF_BUILD_TROUBLESHOOTING.md) for detailed steps
    - Option A: Run with administrative privileges to create symlink (recommended)
    - Option B: Use alternative LLVM distribution with DLL files
    - Option C: Use pre-built llama-cpp-sys-2 bindings
@@ -324,7 +324,7 @@ core-runtime/fixtures/
 2. **Download GGUF Model**
    - Manually download phi3-mini-q4km.gguf (~2.3 GB)
    - Place in `core-runtime/fixtures/models/gguf/`
-   - Use [`core-runtime/scripts/download_models.ps1`](core-runtime/scripts/download_models.ps1) for automation
+   - Use [`core-runtime/scripts/download_models.ps1`](../../core-runtime/scripts/download_models.ps1) for automation
 
 3. **Run GGUF Integration Tests**
    - Build with GGUF feature (after resolving build issue)
