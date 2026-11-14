@@ -6,7 +6,7 @@
 
 `core-runtime/src/models/backend_capabilities.rs` defines serializable, versioned, typed metadata and `compiled_backend_capabilities()`.
 
-The function exposes **compiled** GGUF text generation and, when the `onnx` feature is present, ONNX embedding/classification implementations. It emits only `Cpu` as a real execution target in this source baseline: GPU modules detect devices or have mock/unimplemented execution, but have no qualified serving offload path. It does **not** invent ONNX text generation, BitNet execution, or installed-model compatibility. All `qualified_tasks` are empty because only a separate, exact-artifact acceptance matrix can confer shipped support.
+The function exposes **compiled** GGUF text generation and, when the `onnx` feature is present, ONNX embedding/classification implementations. It emits only `Cpu` as a real execution target in this source baseline: GPU modules detect devices or have mock/unimplemented execution, but have no qualified serving offload path. It does **not** invent ONNX text generation, BitNet execution, or installed-model compatibility. All `qualified_paths` are empty because only a separate, exact-artifact acceptance matrix can confer shipped support.
 
 A compiled library method, a source test, a real model operation through authenticated IPC, and a release-qualified installed product are **four distinct evidence levels**. This manifest deliberately records only the first, and never asserts the others.
 
@@ -14,7 +14,7 @@ Unit tests assert:
 - no CUDA/Metal or qualified task is falsely advertised;
 - no unsupported ONNX generation or BitNet;
 - advertised compiled backend set matches Cargo feature flags;
-- schema v1 round-trips in JSON without invented accelerators.
+- schema v1 round-trips in JSON without invented accelerators; selection rejects schema drift and refuses GPU execution when only a CPU task has qualified, even if a future build has a GPU-compiled path.
 
 ## Integration design, not yet built
 
@@ -35,3 +35,11 @@ Unit tests assert:
 - **GPU/speculation:** advance only after native CUDA/Metal is real. A Cargo feature or device-detection result does not establish inference acceleration.
 
 No HTTP, network listener, cloud fallback, signing or release action is authorized by this work.
+
+## Selection prototype (source-only, non-serving)
+
+`core-runtime/src/models/backend_selection.rs` provides `select_qualified_backend`, a fail-closed **eligibility check**, not runtime routing. It requires an exact `ServingPath { task, target }` in **both** compiled and independently qualified paths, exact schema version, optional explicit backend pin, and streaming support. No presumed Cartesian product between model tasks and accelerators. Unknown qualification, unsupported target, unqualified streaming, backend pin mismatch, ambiguous eligible candidates, or schema drift returns a refusal. Tests use **synthetic qualified entries** to verify policy behavior; such entries are NOT installed qualification evidence.
+
+Before calling this from the daemon, the authenticated controller must obtain an evidence-bound **per-model** support snapshot, including model/hash/format/task/hardware and current reservations, then enforce its local host policy. The current static catalog intentionally qualifies **no** cells and therefore selects nothing. This keeps incomplete capabilities from being advertised as usable or auto-selected.
+
+**Security note:** `qualified_paths` is currently an ordinary publicly constructible Rust field. It is not cryptographically attested. Never accept client-supplied `RuntimeBackendCapabilities` as a qualification authority; the eventual IPC response must be created from a trusted server-side registry of reviewed, exact-model acceptance receipts. A malicious caller can otherwise fabricate an eligible cell.
