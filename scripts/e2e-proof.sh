@@ -1,7 +1,7 @@
 #!/bin/bash
 # GG-CORE E2E Proof Script
 # GG-CORE = Greatest Good - Contained Offline Restricted Execution
-# Demonstrates COREFORGE integration compliance:
+# Demonstrates standalone GG-CORE inference behavior (not a CoreForge integration gate):
 # 1. Load real GGUF model
 # 2. Run inference with meaningful output
 # 3. Show metrics increment
@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  GG-CORE E2E Proof - COREFORGE Compliance             ║"
+echo "║  GG-CORE E2E Proof - Standalone Inference             ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -170,5 +170,5 @@ echo "║  ✓ Metrics: Request/token counts incremented                ║"
 echo "║  ✓ Latency: Measured and reported                           ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
-echo "COREFORGE E2E requirements satisfied."
+echo "GG-CORE E2E proof checks completed. This is not a standalone v1 release qualification."
 echo ""
