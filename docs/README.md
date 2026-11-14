@@ -35,11 +35,11 @@ requalification against the current source or installed release.
 | [ADR-006 Deployment Strategies](architecture/ADR-006-DEPLOYMENT-STRATEGIES.md) | Historical accepted design, not current Kubernetes/production deployment proof |
 | [ADR-007 Consolidation Audit](architecture/ADR-007-CONSOLIDATION-AUDIT.md) | Dated audit and evidence; not a fresh architecture acceptance |
 | [ADR-007 TierSynergy](architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md) | Historical accepted adaptive design; dormant or feature-gated paths need current tests |
-| [Runtime Architecture](architecture/CORE_RUNTIME_ARCHITECTURE.md) | Living runtime architecture owner |
+| Runtime Architecture (registered above) | Living runtime architecture owner |
 | [Scalability Remediation](architecture/SCALABILITY_REMEDIATION_UPGRADE_PATH.md) | Planned remediation, not delivered capability |
-| [Standalone Dependency Direction](architecture/STANDALONE_DEPENDENCY_DIRECTION.md) | Current owner directive for upstream producer and downstream consumers |
+| Standalone Dependency Direction (registered above) | Current owner directive for upstream producer and downstream consumers |
 | [v0.6.0 Trade-offs](architecture/V0.6.0_TRADE_OFFS.md) | Historical design decisions and context; no current certification implied |
-| [Workflow and Release Boundaries](architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md) | Current release/CI description and explicitly open gates |
+| Workflow and Release Boundaries (registered above) | Current release/CI description and explicitly open gates |
 
 When two documents disagree, record drift and obtain an authorized disposition.
 Preserve old decisions for provenance; never resolve conflicts by deleting
@@ -51,10 +51,10 @@ semantic agreement, independent review, signed release, or installed acceptance.
 | Resource | What it covers |
 | --- | --- |
 | [Root README](../README.md) | Standalone build, serve, authenticated IPC, Rust/C/Python consumers |
-| [Living runtime architecture](architecture/CORE_RUNTIME_ARCHITECTURE.md) | Security boundary, daemon and embedded paths, model-loading versus inference diagrams |
-| [Standalone dependency direction](architecture/STANDALONE_DEPENDENCY_DIRECTION.md) | GG-CORE producer, CoreForge and others downstream; acceptance ownership |
+| Living runtime architecture (registered above) | Security boundary, daemon and embedded paths, model-loading versus inference diagrams |
+| Standalone dependency direction (registered above) | GG-CORE producer, CoreForge and others downstream; acceptance ownership |
 | [Architecture plan](ARCHITECTURE_PLAN.md) | Historical file tree, interface and governance plan; current source and living architecture win on drift |
-| [CI and release workflow boundaries](architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md) | Existing workflow triggers, packaged real-model acceptance, and the unimplemented v1 Windows Authenticode gate |
+| CI and release workflow boundaries (registered above) | Existing workflow triggers, packaged real-model acceptance, and the unimplemented v1 Windows Authenticode gate |
 | [IPC schema](IPC_PROTOCOL_SCHEMA.md) | Length-prefixed authenticated local protocol; follow exact source and version compatibility |
 | [Release support and maintenance](RELEASE_SUPPORT_AND_MAINTENANCE.md) | Verified published RC1, installed-platform caveats, hash checks, rollback |
 | [Feature index](FEATURE_INDEX.md) | Source-to-direct-test mapping, **not** a blanket shipped-product compatibility claim |
