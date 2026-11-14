@@ -1,6 +1,6 @@
 # Core Runtime Automation Scripts
 
-This directory contains automation scripts for building, testing, and validating the COREFORGE CORE Runtime.
+This directory contains scripts for building, testing, and validating **GG-CORE as an independent inference runtime**. CoreForge may consume GG-CORE artifacts downstream, but is not a build prerequisite or release authority.
 
 ## Available Scripts
 
