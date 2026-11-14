@@ -99,8 +99,9 @@ mod tests {
 
     #[test]
     fn compiled_capability_catalog_never_claims_qualification() {
+        let catalog = compiled_backend_capabilities();
         let r = select_qualified_backend(
-            &compiled_backend_capabilities(),
+            &catalog,
             request(InferenceTask::TextGeneration),
         );
         assert_eq!(r.unwrap_err(), BackendRefusal::NoQualifiedCandidate);
