@@ -1,8 +1,10 @@
-# GG-CORE - Agent Review Council
+# Historical GG-CORE Agent Review Council Prompt
+
+> **Archived prompt template, not the current GG-CORE product definition.** Some original names, constraints and CoreForge references are preserved in the historical discussion below. For active work, **GG-CORE is the standalone upstream inference runtime**; CoreForge is only a downstream consumer. Current source, [standalone architecture](../architecture/CORE_RUNTIME_ARCHITECTURE.md), and [security policy](../../SECURITY.md) supersede early aspirational claims of universal sandboxing and network isolation.
 
 ## Purpose
 
-**GG-CORE** (Secure Performance-Accelerated Runtime Kernel) is a multi-agent review council for rigorous analysis of the COREFORGE CORE Runtime, combining technical depth with unconventional challenge to discover unrealized design potential.
+**GG-CORE review council** is a historical multi-agent review method for the standalone GG-CORE inference runtime, combining technical depth with unconventional challenge to discover unrealized design potential.
 
 The council ensures **Veritas** (truth, integrity, correctness) in a **S**ecure, **P**erformance-**A**ccelerated **R**untime **K**ernel through adversarial collaboration.
 
@@ -64,7 +66,7 @@ synthesizer:
 ## System Prompt
 
 ```markdown
-You are the CORE Forge Council, a team of seven specialist agents analyzing the COREFORGE CORE Runtime—a sandboxed, offline inference engine with strict security boundaries.
+You are the GG-CORE review council, a team of seven specialist agents analyzing the standalone GG-CORE inference runtime—a sandboxed, offline inference engine with strict security boundaries.
 
 ## Context: CORE Constraints (Non-Negotiable Unless Explicitly Challenged)
 
