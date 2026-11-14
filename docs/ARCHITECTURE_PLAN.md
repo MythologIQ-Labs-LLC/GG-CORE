@@ -1,10 +1,9 @@
 # Architecture Plan
 
-Workspace-level architecture contract for **GG-CORE** (Greatest Good —
+Historical workspace-level architecture plan for **GG-CORE** (Greatest Good —
 Contained Offline Restricted Execution). Reconstructed 2026-07-08 during
 governance remediation: the original bootstrap-era plan was never committed,
-so this document records the contract the shipped `core-runtime/` already
-fulfills (79 sealed ledger entries through the Veritas-Shim seal). Per-feature
+so this document preserves the historical architecture intent and implementation trail (79 sealed ledger entries through the Veritas-Shim seal). **Do not treat this file as proof of present release capability.** The [standalone runtime architecture](architecture/CORE_RUNTIME_ARCHITECTURE.md), [live source](../core-runtime/src/), and [workflow qualification map](architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md) control current factual claims. Per-feature
 plans live in `docs/plan-*.md` via `/qor-plan`; this file is the standing
 workspace contract they chain from.
 
@@ -49,7 +48,7 @@ core-runtime/
 |   |   `-- moe/            # Mixture of Experts (router, executor, combiner)
 |   |-- models/             # Loader, registry, hot swap, versioning, routing
 |   |-- memory/             # Pool, GPU memory, cache
-|   |-- sandbox/            # OS-level isolation (seccomp / AppContainer)
+|   |-- sandbox/            # Linux seccomp; Windows Job Object resources; no macOS daemon sandbox
 |   |-- security/           # Encryption, FIPS, PII, prompt-injection, sanitizer
 |   |-- telemetry/          # Prometheus metrics, OpenTelemetry spans
 |   |-- deployment/         # Canary, blue-green, thresholds, rollback
@@ -66,7 +65,7 @@ core-runtime/
 ```
 
 Feature-to-file-to-test bindings are maintained in `docs/FEATURE_INDEX.md`
-(47 indexed subsystems). New work MUST update that index in the same commit
+(see the live index; historical counts are not immutable). New work MUST update that index in the same commit
 (Phase 73 obligation).
 
 ---
@@ -113,51 +112,25 @@ back-pressure rejection under load, graceful drain on shutdown.
 
 ---
 
-## Data Flow
+## Data flow (current standalone boundary)
 
-```
-Caller (Vault/Construct via IPC)
-      |
-      v
-ipc/ (auth -> protocol decode) --> reject unauthenticated
-      |
-      v
-scheduler/ (priority queue -> batch) --> back-pressure / timeout
-      |
-      v
-engine/ (tokenize -> prefill -> decode -> filter) --> telemetry/
-      |
-      v
-security/ (output sanitize, PII redact)
-      |
-      v
-ipc/ (stream response frames back to caller)
+The historical Vault/Construct and CoreForge consumer examples below this section were superseded by the standalone-runtime decision. Runtime architecture is application-independent, and the request pipeline must not be confused with the model-loader control path.
+
+```text
+Any local client or application
+  → Authenticated local IPC (daemon) OR embedded Rust / C / Python Runtime facade
+  → Request validation + ingress security scan
+  → Resource admission, priority queue and scheduler
+  → Registered model instance and native GGUF / source-conditional ONNX backend
+  → Sanitized ordinary response OR incrementally sanitized streaming text
+  → Same local client
 ```
 
-**Enforcement (SecurityPipeline)**: the `security/` stage is enforced in
-`scheduler/worker.rs`. The ingress prompt-injection scan runs before the
-resource guard on both the streaming and non-streaming paths; egress output
-sanitization (PII redact) runs on the non-streaming response path. Streaming
-egress carries u32 token IDs, not text, and is not sanitized in-runtime
-(follow-up: `docs/BACKLOG.md` B-24).
+Separately, a client-operated model load goes through allowed relative paths, optional manifest/hash validation, backend dispatch, model lifecycle registration and resident-memory limits. An unload can report registry removal while a held native instance is still charged; `model_release_wait_request` verifies actual last-holder release. See [IPC protocol](IPC_PROTOCOL_SCHEMA.md).
 
-**Delivery surfaces & secure entry point**: GG-CORE ships two delivery
-surfaces — embedded (in-process `gg_core::Runtime`, e.g. COREFORGE) and
-consumable component (FFI / Python bindings). `Runtime::infer` /
-`Runtime::infer_stream` is the single secure entry point serving both: it
-enforces the SecurityPipeline (ingress prompt-injection scan + egress PII
-sanitize) around the engine, which stays pure compute per the C.O.R.E.
-charter. The scheduler worker enforces the same pipeline for the IPC-server
-path. A security block is a typed `InferenceError::SecurityRejected`
-(embedded) — a distinct outcome the caller/UI renders, not a hang. Both
-delivery surfaces are now unified on this single enforced entry point: the
-embedded surface (COREFORGE via in-process `Runtime::infer`) and the
-consumable surface (FFI/Python bindings) route through `Runtime::infer` /
-`Runtime::infer_stream` — the FFI/Python bindings no longer enqueue-and-
-deadlock and are now security-enforced (B-25b, ledger Entry #107). The
-COREFORGE consumer switch (calling `runtime.infer`) is tracked as handoff
-`docs/BACKLOG.md` B-26.
+**Current versus developmental switching:** `v0.10.0-rc.1` and `main@1032d1b` do not publish an authenticated atomic A→B switch. An independently reviewed Windows **in-process** coordinator exists on a development branch; an additive authenticated switch IPC/status journal exists on a separate, unqualified branch. Registration alone is not inference readiness. See [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137).
 
+Embedding in a host inherits host authority; GG-CORE's daemon containment differs by OS and cannot be represented as universal filesystem/network isolation. No HTTP, remote model download, cloud routing or business/tool execution is added by this plan.
 ---
 
 ## Dependencies
