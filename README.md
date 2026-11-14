@@ -4,6 +4,12 @@
 
 <h1 align="center">GG-CORE</h1>
 
+> **Architecture and governance:** Begin architecture-affecting work at the
+> [root architecture index](ARCHITECTURE_INDEX.md). Its single
+> [architecture owner register](docs/README.md) identifies the accepted owner
+> for each design claim, including the [upstream standalone runtime and
+> downstream CoreForge boundary](docs/architecture/STANDALONE_DEPENDENCY_DIRECTION.md).
+
 <p align="center">
   <strong>Greatest Good - Contained Offline Restricted Execution</strong><br>
   A security-first local inference runtime for applications that need model execution without granting the model network, data, tool, or system authority.
