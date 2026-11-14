@@ -4,10 +4,11 @@
 //! choose a model ID, grant authority or expand supported features. In
 //! particular a compiled path is NOT evidence of installed task support.
 //! Only a later evidence-bound, authenticated runtime snapshot may populate
-//! qualified_tasks before this function is used in a serving controller.
+//! qualified_paths before this function is used in a serving controller.
 
 use super::backend_capabilities::{
-    BackendKind, ExecutionTarget, InferenceTask, RuntimeBackendCapabilities,
+    BackendKind, ExecutionTarget, InferenceTask, RuntimeBackendCapabilities, ServingPath,
+    CAPABILITY_SCHEMA_VERSION,
 };
 
 /// A caller's explicit task and execution target. No implicit cloud fallback.
@@ -41,9 +42,15 @@ pub fn select_qualified_backend<'a>(
     requirement: BackendRequirement,
 ) -> Result<&'a RuntimeBackendCapabilities, BackendRefusal> {
     let mut matches = catalog.iter().filter(|backend| {
-        backend.compiled_tasks.contains(&requirement.task)
-            && backend.qualified_tasks.contains(&requirement.task)
-            && backend.execution_targets.contains(&requirement.target)
+        backend.schema_version == CAPABILITY_SCHEMA_VERSION
+            && backend.compiled_paths.contains(&ServingPath {
+                task: requirement.task,
+                target: requirement.target,
+            })
+            && backend.qualified_paths.contains(&ServingPath {
+                task: requirement.task,
+                target: requirement.target,
+            })
             && (!requirement.streaming || backend.supports_streaming)
             && requirement
                 .pinned_backend
@@ -68,11 +75,16 @@ mod tests {
             schema_version: CAPABILITY_SCHEMA_VERSION,
             backend,
             model_formats: vec!["synthetic".to_owned()],
-            compiled_tasks: vec![task],
-            execution_targets: vec![ExecutionTarget::Cpu],
+            compiled_paths: vec![ServingPath {
+                task,
+                target: ExecutionTarget::Cpu,
+            }],
             supports_streaming: backend == BackendKind::Gguf,
             supports_kv_cache: backend == BackendKind::Gguf,
-            qualified_tasks: vec![task],
+            qualified_paths: vec![ServingPath {
+                task,
+                target: ExecutionTarget::Cpu,
+            }],
         }
     }
 
@@ -114,7 +126,7 @@ mod tests {
     fn unqualified_task_is_refused_even_when_compiled() {
         let mut only_compiled =
             synthetic_qualified(BackendKind::Gguf, InferenceTask::TextGeneration);
-        only_compiled.qualified_tasks.clear();
+        only_compiled.qualified_paths.clear();
         assert_eq!(
             select_qualified_backend(
                 &[only_compiled],
@@ -138,6 +150,34 @@ mod tests {
         r.target = ExecutionTarget::Cuda;
         assert_eq!(
             select_qualified_backend(&catalog, r).unwrap_err(),
+            BackendRefusal::NoQualifiedCandidate
+        );
+    }
+
+    #[test]
+    fn incompatible_schema_version_fails_closed() {
+        let mut backend =
+            synthetic_qualified(BackendKind::Gguf, InferenceTask::TextGeneration);
+        backend.schema_version = CAPABILITY_SCHEMA_VERSION + 1;
+        assert_eq!(
+            select_qualified_backend(&[backend], request(InferenceTask::TextGeneration))
+                .unwrap_err(),
+            BackendRefusal::NoQualifiedCandidate
+        );
+    }
+
+    #[test]
+    fn qualification_of_cpu_does_not_allow_cuda_even_if_cuda_is_compiled() {
+        let mut backend =
+            synthetic_qualified(BackendKind::Gguf, InferenceTask::TextGeneration);
+        backend.compiled_paths.push(ServingPath {
+            task: InferenceTask::TextGeneration,
+            target: ExecutionTarget::Cuda,
+        });
+        let mut r = request(InferenceTask::TextGeneration);
+        r.target = ExecutionTarget::Cuda;
+        assert_eq!(
+            select_qualified_backend(&[backend], r).unwrap_err(),
             BackendRefusal::NoQualifiedCandidate
         );
     }
