@@ -51,7 +51,11 @@
 //!         M::TypedInferenceResponse { .. } => 24,
 //!         M::ModelReleaseWaitRequest { .. } => 25,
 //!         M::ModelReleaseWaitResponse { .. } => 26,
-//!         M::Error { .. } => 27,
+//!         M::ModelSwitchRequest { .. } => 27,
+//!         M::ModelSwitchResponse { .. } => 28,
+//!         M::ModelSwitchStatusRequest { .. } => 29,
+//!         M::ModelSwitchStatusResponse { .. } => 30,
+//!         M::Error { .. } => 31,
 //!     }
 //! }
 //! # let _ = kind;
@@ -95,7 +99,11 @@ mod tests {
             M::TypedInferenceResponse { .. } => 24,
             M::ModelReleaseWaitRequest { .. } => 25,
             M::ModelReleaseWaitResponse { .. } => 26,
-            M::Error { .. } => 27,
+            M::ModelSwitchRequest { .. } => 27,
+            M::ModelSwitchResponse { .. } => 28,
+            M::ModelSwitchStatusRequest { .. } => 29,
+            M::ModelSwitchStatusResponse { .. } => 30,
+            M::Error { .. } => 31,
         }
     }
 
