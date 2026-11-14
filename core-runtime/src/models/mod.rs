@@ -2,6 +2,7 @@
 //!
 //! Handles model loading, registry tracking, manifest parsing, and hot-swap operations.
 
+pub mod backend_capabilities;
 pub mod backend_dispatch;
 pub mod manifest;
 pub mod pool;
