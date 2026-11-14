@@ -325,16 +325,17 @@ use std::path::PathBuf;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = Runtime::new(RuntimeConfig {
-        base_path: PathBuf::from("./models"),
+        base_path: PathBuf::from("."), // models/ is the allowlisted child
         auth_token: "local-application-secret".to_owned(),
         max_context_length: 4096,
         ..Default::default()
     });
 
-    // Paths are validated relative to RuntimeConfig.base_path.
+    // Put the model at ./models/qwen2.5-0.5b-instruct-q4_k_m.gguf.
+    // The loader requires the allowlisted models/ or tokenizers/ child.
     let path = runtime
         .model_loader
-        .validate_path("qwen2.5-0.5b-instruct-q4_k_m.gguf")?;
+        .validate_path("models/qwen2.5-0.5b-instruct-q4_k_m.gguf")?;
     let metadata = runtime.model_loader.load_metadata(&path)?;
     let model_id = metadata.name.clone();
 
