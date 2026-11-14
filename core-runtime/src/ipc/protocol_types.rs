@@ -363,6 +363,14 @@ pub enum IpcMessage {
     ModelReleaseWaitRequest(super::protocol_release_types::ModelReleaseWaitRequest),
     #[serde(rename = "model_release_wait_response")]
     ModelReleaseWaitResponse(super::protocol_release_types::ModelReleaseWaitResponse),
+    #[serde(rename = "model_switch_request")]
+    ModelSwitchRequest(super::protocol_switch_types::ModelSwitchRequest),
+    #[serde(rename = "model_switch_response")]
+    ModelSwitchResponse(super::protocol_switch_types::ModelSwitchStatusResponse),
+    #[serde(rename = "model_switch_status_request")]
+    ModelSwitchStatusRequest(super::protocol_switch_types::ModelSwitchStatusRequest),
+    #[serde(rename = "model_switch_status_response")]
+    ModelSwitchStatusResponse(super::protocol_switch_types::ModelSwitchStatusResponse),
     #[serde(rename = "error")]
     Error { code: u32, message: String },
 }
