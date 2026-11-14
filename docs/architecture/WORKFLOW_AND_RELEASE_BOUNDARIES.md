@@ -1,5 +1,7 @@
 # GG-CORE CI, packaging and release boundaries
 
+**Independent release direction:** GG-CORE is upstream; CoreForge and other hosts are downstream consumers. See [dependency direction](STANDALONE_DEPENDENCY_DIRECTION.md).
+
 **Checked against:** protected `main@1032d1ba8a229b6690209d4661cba6706a721ea7`, 2026-11-14. This is a factual map of the current workflow files, **not** a CI execution receipt or an approval to publish. The published [`v0.10.0-rc.1`](https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases/tag/v0.10.0-rc.1) is dated 2026-11-05 and immutable. The v1.0.0 standalone feature and signing gate are separate.
 
 ## Existing CI triggers
