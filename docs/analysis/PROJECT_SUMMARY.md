@@ -143,11 +143,11 @@ Created comprehensive documentation suite:
 | Document                                                         | Purpose                        | Lines | Status   |
 | ---------------------------------------------------------------- | ------------------------------ | ----- | -------- |
 | [`BASELINE_METRICS.md`](BASELINE_METRICS.md)                     | Benchmark results and analysis | 400+  | Complete |
-| [`TIER1_SETUP_GUIDE.md`](TIER1_SETUP_GUIDE.md)                   | Build and setup instructions   | 500+  | Complete |
-| [`TIER1_EXECUTION_PLAN.md`](TIER1_EXECUTION_PLAN.md)             | Step-by-step execution plan    | 300+  | Complete |
-| [`TIER1_PROGRESS_SUMMARY.md`](TIER1_PROGRESS_SUMMARY.md)         | Progress tracking              | 400+  | Complete |
-| [`TIER1_VALIDATION_SUMMARY.md`](TIER1_VALIDATION_SUMMARY.md)     | Complete validation summary    | 600+  | Complete |
-| [`GGUF_BUILD_TROUBLESHOOTING.md`](GGUF_BUILD_TROUBLESHOOTING.md) | GGUF build troubleshooting     | 500+  | Complete |
+| [`TIER1_SETUP_GUIDE.md`](../testing/TIER1_SETUP_GUIDE.md)                   | Build and setup instructions   | 500+  | Complete |
+| [`TIER1_EXECUTION_PLAN.md`](../testing/TIER1_EXECUTION_PLAN.md)             | Step-by-step execution plan    | 300+  | Complete |
+| [`TIER1_PROGRESS_SUMMARY.md`](../testing/TIER1_PROGRESS_SUMMARY.md)         | Progress tracking              | 400+  | Complete |
+| [`TIER1_VALIDATION_SUMMARY.md`](../testing/TIER1_VALIDATION_SUMMARY.md)     | Complete validation summary    | 600+  | Complete |
+| [`GGUF_BUILD_TROUBLESHOOTING.md`](../build/GGUF_BUILD_TROUBLESHOOTING.md) | GGUF build troubleshooting     | 500+  | Complete |
 | [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md)                       | This comprehensive summary     | 800+  | Complete |
 
 **Total Documentation:** 3,500+ lines of comprehensive documentation
@@ -177,7 +177,7 @@ core-runtime/fixtures/
 
 ### 7. Automation Scripts (100% Complete)
 
-**File:** [`core-runtime/scripts/README.md`](core-runtime/scripts/README.md)
+**File:** [`core-runtime/scripts/README.md`](../../core-runtime/scripts/README.md)
 
 Created PowerShell automation scripts:
 
@@ -229,7 +229,7 @@ error: A 'libclang' function was called that is not supported by the loaded 'lib
 
 **Root Cause:** bindgen v0.72.1 cannot find or use libclang.dll from LLVM 22.1.0-rc3. The libclang version is too new or uses an API that bindgen v0.72.1 does not support.
 
-**Resolution Options (Documented in [`GGUF_BUILD_TROUBLESHOOTING.md`](GGUF_BUILD_TROUBLESHOOTING.md)):**
+**Resolution Options (Documented in [`GGUF_BUILD_TROUBLESHOOTING.md`](../build/GGUF_BUILD_TROUBLESHOOTING.md)):**
 
 1. **Option 1: Downgrade bindgen to v0.69.4 (Recommended)**
    - Create `.cargo/config.toml` to override bindgen version
@@ -449,7 +449,7 @@ This represents **negligible overhead**, leaving **99.968%** of the latency budg
 3. Rebuild with GGUF feature
 4. Estimated time: 30-60 minutes
 
-**Documentation:** [`GGUF_BUILD_TROUBLESHOOTING.md`](GGUF_BUILD_TROUBLESHOOTING.md)
+**Documentation:** [`GGUF_BUILD_TROUBLESHOOTING.md`](../build/GGUF_BUILD_TROUBLESHOOTING.md)
 
 ---
 
@@ -519,18 +519,18 @@ This represents **negligible overhead**, leaving **99.968%** of the latency budg
 ### Documentation (7 files, 3,500+ lines)
 
 1. [`BASELINE_METRICS.md`](BASELINE_METRICS.md) - Complete benchmark results
-2. [`TIER1_SETUP_GUIDE.md`](TIER1_SETUP_GUIDE.md) - Detailed setup instructions
-3. [`TIER1_EXECUTION_PLAN.md`](TIER1_EXECUTION_PLAN.md) - Step-by-step execution plan
-4. [`TIER1_PROGRESS_SUMMARY.md`](TIER1_PROGRESS_SUMMARY.md) - Progress tracking
-5. [`TIER1_VALIDATION_SUMMARY.md`](TIER1_VALIDATION_SUMMARY.md) - Complete validation summary
-6. [`GGUF_BUILD_TROUBLESHOOTING.md`](GGUF_BUILD_TROUBLESHOOTING.md) - GGUF build troubleshooting
+2. [`TIER1_SETUP_GUIDE.md`](../testing/TIER1_SETUP_GUIDE.md) - Detailed setup instructions
+3. [`TIER1_EXECUTION_PLAN.md`](../testing/TIER1_EXECUTION_PLAN.md) - Step-by-step execution plan
+4. [`TIER1_PROGRESS_SUMMARY.md`](../testing/TIER1_PROGRESS_SUMMARY.md) - Progress tracking
+5. [`TIER1_VALIDATION_SUMMARY.md`](../testing/TIER1_VALIDATION_SUMMARY.md) - Complete validation summary
+6. [`GGUF_BUILD_TROUBLESHOOTING.md`](../build/GGUF_BUILD_TROUBLESHOOTING.md) - GGUF build troubleshooting
 7. [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md) - This comprehensive summary
 
 ### Scripts (3 files)
 
-1. [`core-runtime/scripts/download_models.ps1`](core-runtime/scripts/download_models.ps1) - Model download automation
-2. [`core-runtime/scripts/build_gguf.ps1`](core-runtime/scripts/build_gguf.ps1) - GGUF build automation
-3. [`core-runtime/scripts/README.md`](core-runtime/scripts/README.md) - Scripts documentation
+1. [`core-runtime/scripts/download_models.ps1`](../../core-runtime/scripts/download_models.ps1) - Model download automation
+2. [`core-runtime/scripts/build_gguf.ps1`](../../core-runtime/scripts/build_gguf.ps1) - GGUF build automation
+3. [`core-runtime/scripts/README.md`](../../core-runtime/scripts/README.md) - Scripts documentation
 
 ### Directories
 
