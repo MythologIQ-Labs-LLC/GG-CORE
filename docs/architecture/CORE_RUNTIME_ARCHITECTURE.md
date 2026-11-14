@@ -7,7 +7,19 @@
 contract + interface specs), the ADRs in `docs/architecture/`. Where this doc and the code
 disagree, the code wins — fix this doc.
 
-GG-CORE (**Greatest Good — Contained Offline Restricted Execution**) is a **standalone, offline-first local inference runtime**. It performs model execution under platform-specific security and resource controls. It is not a desktop UI, agent decision-maker, tool executor, plugin, cloud router or CoreForge-specific compute service. Any application, including a future CoreForge consumer, may use the same documented local interfaces.
+GG-CORE (**Greatest Good — Contained Offline Restricted Execution**) is a **standalone, offline-first local inference runtime**. It performs model execution under platform-specific security and resource controls. It is not a desktop UI, agent decision-maker, tool executor, plugin, cloud router or CoreForge-specific compute service. CoreForge is already a downstream consumer, not a subsystem of GG-CORE. Any other compatible application or independent operator may use those same documented local interfaces.
+
+
+**One-way product boundary:** GG-CORE is the upstream runtime producer. It must
+be independently installable, usable and qualified without CoreForge. A
+downstream CoreForge application may bundle a pinned daemon as its inference
+sidecar and make that capability look native within its own UI. That presentation
+does not move UI, personas, agent/task orchestration, provider routing, app
+credentials or host permissions into GG-CORE. GG-CORE's own version, security
+contract, model/backend support and release gate remain producer-owned. A
+consumer separately verifies the exact producer artifact and its installed
+integration. The same runtime interfaces are intended for other hosts, subject
+to their supported platform, model and protocol compatibility.
 
 GG-CORE does **not** impose full OS isolation by itself on every platform. Windows Job Objects restrict process and resource usage but are not a filesystem/network sandbox; macOS has no daemon sandbox; embedding into an application inherits that application's authority.
 
