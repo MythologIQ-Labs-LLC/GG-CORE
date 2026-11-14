@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Identity
 
-**GG-CORE** (Greatest Good - Contained Offline Restricted Execution) is a **local inference runtime**, not an optional plugin, a UI or an external-provider router. It performs inference computation only and has no *intended* business, tool or data authority. The daemon's OS confinement varies by platform; do not claim universal isolation. See `SECURITY.md` and the producer contract.
+**GG-CORE** (Greatest Good - Contained Offline Restricted Execution) is an **independent, upstream, standalone local inference runtime**, not an optional plugin, a UI or an external-provider router. It performs inference computation only and has no *intended* business, tool or data authority. The daemon's OS confinement varies by platform; do not claim universal isolation. See `SECURITY.md` and the producer contract.
 
-In the CoreForge product, **GG-CORE is the default local inference runtime**, independently of Synapse. Synapse-configured external inference providers are separate, opt-in host choices; GG-CORE is **not** a Synapse plugin. The consuming application owns UI, policy and external routing.
+**Dependency direction:** GG-CORE defines and qualifies its own runtime, authenticated IPC and Rust/C/Python contracts. **CoreForge is a downstream consumer** that may adopt a qualified GG-CORE version; GG-CORE must never depend on CoreForge code, UI, release timing, configuration, personas or integration tests to be a usable standalone inference product. CoreForge may host its own external-provider routing (Synapse); that is not GG-CORE functionality. A consumer does not confer GG-CORE product or release authority.
 
 **Philosophy**: Built on triage principles ("Greatest Good for the Greatest Number"). Resource-aware, multi-tenant AI that prioritizes system stability over individual request ego.
 
@@ -48,7 +48,7 @@ If these exist, scope creep has occurred—ABORT:
 ### Forbidden Dependencies
 - `reqwest`, `hyper`, any WebSocket library, filesystem traversal libraries
 
-**Release authority:** Do not modify, tag or publish the qualified functional/security RC without the owner gate in [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Source/head SHA and actual packaged tests outrank old architecture/roadmap prose. The RC scope is CPU GGUF and one resident model; performance superiority, model hot-swapping and GPU are not qualified. See `docs/RELEASE_SUPPORT_AND_MAINTENANCE.md`.
+**Release authority:** The published `v0.10.0-rc.1` prerelease is immutable. The standalone `v1.0.0` scope and release gate are tracked in [#160](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/160) and [#161](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/161). No release sign/tag/publish or protected-main merge without separate owner authorization. Source/head SHA and installed real-model evidence outrank old architecture prose; a qualified in-process switch or source-only GPU path is not a published support claim.
 
 ## Code Quality Rules (Section 4 Razor)
 
