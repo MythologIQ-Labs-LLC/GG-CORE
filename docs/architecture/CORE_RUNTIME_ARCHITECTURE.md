@@ -62,7 +62,7 @@ flowchart LR
     Auth --> Daemon[GG-CORE daemon process]
     Daemon --> OS[OS containment and host deployment policy]
     Daemon --> Files[Allowlisted local model files]
-    OS --> Linux[Linux seccomp; optional cgroup enforcement]
+    OS --> Linux[Linux seccomp and optional cgroup enforcement]
     OS --> Win[Windows Job Object resource limits]
     OS --> Mac[macOS no daemon OS sandbox]
 ```
