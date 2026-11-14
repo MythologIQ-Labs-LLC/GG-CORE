@@ -24,7 +24,10 @@ mod probe {
         page_fault_count: u32,
         peak_working_set_size: usize,
         working_set_size: usize,
-        quota: [usize; 4],
+        quota_peak_paged_pool_usage: usize,
+        quota_paged_pool_usage: usize,
+        quota_peak_non_paged_pool_usage: usize,
+        quota_non_paged_pool_usage: usize,
         pagefile_usage: usize,
         peak_pagefile_usage: usize,
         private_usage: usize,
@@ -32,7 +35,7 @@ mod probe {
     #[link(name = "kernel32")]
     extern "system" {
         fn GetCurrentProcess() -> isize;
-        fn K32GetProcessMemoryInfo(p: isize, c: *mut Counters, cb: u32) -> i32;
+        fn K32GetProcessMemoryInfo(process: isize, counters: *mut Counters, cb: u32) -> i32;
         fn GetProcessHandleCount(p: isize, count: *mut u32) -> i32;
     }
     /// (private bytes, working set, handle count) of this process.

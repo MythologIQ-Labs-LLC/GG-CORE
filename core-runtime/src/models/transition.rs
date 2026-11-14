@@ -10,6 +10,11 @@
 //! new admissions → bounded wait for A's real release → load B → registration
 //! check → (on failure) recover to A from its recorded, re-hashed source.
 
+// The coordinator is deliberately unreachable from production code until the
+// #153 switch policy is approved (no IPC message). Its items are exercised by
+// the model-free and real-model tests; only the load path is live.
+#![cfg_attr(not(test), allow(dead_code, unused_imports))]
+
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
