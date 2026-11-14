@@ -7,7 +7,7 @@
 contract + interface specs), the ADRs in `docs/architecture/`. Where this doc and the code
 disagree, the code wins — fix this doc.
 
-GG-CORE (**Greatest Good — Contained Offline Restricted Execution**) is a **standalone, offline-first local inference runtime**. It performs model execution under platform-specific security and resource controls. It is not a desktop UI, agent decision-maker, tool executor, plugin, cloud router or CoreForge-specific compute service. CoreForge is already a downstream consumer, not a subsystem of GG-CORE. Any other compatible application or independent operator may use those same documented local interfaces.
+GG-CORE (**Greatest Good — Contained Offline Restricted Execution**) is a **standalone, offline-first local inference runtime**. It performs model execution under platform-specific security and resource controls. It is not a desktop UI, agent decision-maker, tool executor, plugin, cloud router or CoreForge-specific compute service. CoreForge is already a downstream consumer that uses GG-CORE as its **primary local inference runtime**, not a subsystem of GG-CORE. Any other compatible application or independent operator may use those same documented local interfaces.
 
 
 **One-way product boundary:** GG-CORE is the upstream runtime producer. It must
