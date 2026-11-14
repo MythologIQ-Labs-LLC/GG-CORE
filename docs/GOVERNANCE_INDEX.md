@@ -2,6 +2,14 @@
 
 **Last Reviewed**: 2026-08-01
 
+> **Architecture routing supersession (2026-11-14):** This dated six-tier
+> artifact-freshness inventory is preserved for governance provenance. It is
+> **not** the current architecture-owner register. For every architectural
+> decision, use the mandatory [root architecture index](../ARCHITECTURE_INDEX.md)
+> and its single [architecture owner register](README.md). The living runtime
+> architecture controls current claims; historical “Tier 1” descriptions
+> below do not override current source, accepted decisions or release evidence.
+
 A single authoritative map of every governance artifact in this project, organized
 into six freshness tiers with explicit drift contracts. A stale entry here is
 itself a Tier 1 drift bug, so the index is self-policing. See
