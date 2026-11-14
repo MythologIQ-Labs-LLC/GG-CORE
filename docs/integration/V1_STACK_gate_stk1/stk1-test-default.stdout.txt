@@ -1,0 +1,1919 @@
+
+running 796 tests
+test ab_testing::metrics::stats::tests::test_average_latency_calculation ... ok
+test ab_testing::metrics::snapshot::tests::test_variant_stats_snapshot_serialization ... ok
+test ab_testing::metrics::stats::tests::test_average_tokens_calculation ... ok
+test ab_testing::metrics::stats::tests::test_high_latency_values ... ok
+test ab_testing::metrics::stats::tests::test_large_token_counts ... ok
+test ab_testing::metrics::stats::tests::test_record_failure ... ok
+test ab_testing::metrics::stats::tests::test_success_rate_calculation ... ok
+test ab_testing::metrics::stats::tests::test_variant_stats_new ... ok
+test ab_testing::metrics::stats::tests::test_microsecond_precision ... ok
+test ab_testing::metrics::stats::tests::test_variant_stats_default ... ok
+test ab_testing::metrics::stats::tests::test_stats_recording ... ok
+test ab_testing::metrics::stats::tests::test_concurrent_recording ... ok
+test ab_testing::metrics::tests::test_variant_metrics ... ok
+test ab_testing::metrics::tests::test_variant_metrics_clear ... ok
+test ab_testing::metrics::tests::test_variant_metrics_default ... ok
+test ab_testing::metrics::tests::test_variant_metrics_get_nonexistent ... ok
+test ab_testing::metrics::tests::test_variant_metrics_get_or_create ... ok
+test ab_testing::metrics::tests::test_variant_metrics_multiple_variants ... ok
+test ab_testing::traffic::bucket::tests::test_bucket_to_variant_single ... ok
+test ab_testing::traffic::bucket::tests::test_bucket_to_variant_split ... ok
+test ab_testing::traffic::bucket::tests::test_bucket_to_variant_three_way ... ok
+test ab_testing::traffic::bucket::tests::test_hash_to_bucket_deterministic ... ok
+test ab_testing::traffic::bucket::tests::test_hash_to_bucket_range ... ok
+test ab_testing::traffic::bucket::tests::test_random_bucket_range ... ok
+test ab_testing::traffic::config::tests::test_even_split_validation ... ok
+test ab_testing::traffic::config::tests::test_invalid_weights ... ok
+test ab_testing::traffic::config::tests::test_three_variant_config ... ok
+test ab_testing::traffic::config::tests::test_traffic_config_canary ... ok
+test ab_testing::traffic::config::tests::test_traffic_config_default ... ok
+test ab_testing::traffic::config::tests::test_traffic_config_serialization ... ok
+test ab_testing::traffic::config::tests::test_traffic_error_display ... ok
+test ab_testing::traffic::config::tests::test_traffic_error_is_error ... ok
+test ab_testing::traffic::config::tests::test_validate_zero_weights ... ok
+test ab_testing::traffic::tests::test_distribution ... ok
+test ab_testing::traffic::tests::test_splitter_100_percent_single_variant ... ok
+test ab_testing::traffic::tests::test_splitter_asymmetric_weights ... ok
+test ab_testing::traffic::tests::test_splitter_config_accessor ... ok
+test ab_testing::traffic::tests::test_splitter_deterministic_with_same_session ... ok
+test ab_testing::traffic::tests::test_splitter_empty_session_id ... ok
+test ab_testing::traffic::tests::test_splitter_invalid_weights ... ok
+test ab_testing::traffic::tests::test_splitter_no_variants ... ok
+test ab_testing::traffic::tests::test_splitter_random_without_session ... ok
+test ab_testing::traffic::tests::test_splitter_with_zero_weight_variant ... ok
+test ab_testing::traffic::tests::test_sticky_sessions ... ok
+test ab_testing::traffic::tests::test_sticky_sessions_disabled ... ok
+test ab_testing::variant::tests::test_variant_chaining ... ok
+test ab_testing::variant::tests::test_variant_clone ... ok
+test ab_testing::variant::tests::test_variant_creation ... ok
+test ab_testing::variant::tests::test_variant_debug ... ok
+test ab_testing::variant::tests::test_variant_disabled ... ok
+test ab_testing::variant::tests::test_variant_label ... ok
+test ab_testing::variant::tests::test_variant_label_clone ... ok
+test ab_testing::variant::tests::test_variant_label_control ... ok
+test ab_testing::variant::tests::test_variant_label_debug ... ok
+test ab_testing::variant::tests::test_variant_label_empty ... ok
+test ab_testing::variant::tests::test_variant_label_equality ... ok
+test ab_testing::variant::tests::test_variant_label_from_str ... ok
+test ab_testing::variant::tests::test_variant_label_hash ... ok
+test ab_testing::variant::tests::test_variant_label_serialization ... ok
+test ab_testing::variant::tests::test_variant_label_special_chars ... ok
+test ab_testing::variant::tests::test_variant_label_treatment ... ok
+test ab_testing::variant::tests::test_variant_new_enabled_by_default ... ok
+test ab_testing::variant::tests::test_variant_no_description_by_default ... ok
+test ab_testing::variant::tests::test_variant_serialization ... ok
+test cli::config_cmd::tests::per_call_line_reports_unset_and_explicit_ceilings ... ok
+test cli::config_cmd::tests::test_print_config_includes_all_fields ... ok
+test cli::config_cmd::tests::test_validate_passes_with_defaults ... ok
+test cli::config_cmd::tests::test_validate_warns_when_concurrent_zero ... ok
+test cli::config_cmd::tests::validate_per_call_unset_within_and_above_total ... ok
+test cli::config_cmd::tests::validate_rejects_per_call_above_total ... ok
+test cli::health::tests::test_exit_codes ... ok
+test cli::health::tests::test_health_check_types_all_covered ... ok
+test cli::health::tests::test_run_health_connection_failure ... ok
+test cli::health::tests::test_run_health_verbose_connection_failure ... ok
+test cli::health::tests::test_run_liveness_connection_failure ... ok
+test cli::health::tests::test_run_readiness_connection_failure ... ok
+test cli::ipc_client::tests::test_check_health_connection_failure ... ok
+test cli::ipc_client::tests::test_check_health_liveness_connection_failure ... ok
+test cli::ipc_client::tests::test_check_health_readiness_connection_failure ... ok
+test cli::ipc_client::tests::test_cli_error_display ... ok
+test cli::ipc_client::tests::test_cli_error_from_io ... ok
+test cli::ipc_client::tests::test_cli_error_variants ... ok
+test cli::ipc_client::tests::test_cli_ipc_client_creation ... ok
+test cli::ipc_client::tests::test_cli_ipc_client_custom_timeout_chaining ... ok
+test cli::ipc_client::tests::test_cli_ipc_client_with_timeout ... ok
+test cli::ipc_client::tests::test_client_with_short_timeout ... ok
+test cli::ipc_client::tests::test_get_health_report_connection_failure ... ok
+test cli::models_cmd::tests::test_print_models_empty ... ok
+test cli::models_cmd::tests::test_print_models_truncates_long_names ... ok
+test cli::models_cmd::tests::test_print_models_with_entries ... ok
+test cli::models_cmd::tests::test_run_list_connection_failure_returns_3 ... ok
+test cli::models_cmd::tests::test_truncate_exact_length ... ok
+test cli::models_cmd::tests::test_truncate_long_string ... ok
+test cli::models_cmd::tests::test_truncate_short_string ... ok
+test cli::models_release_cmd::tests::contradictory_release_receipts_fail_closed ... ok
+test cli::models_release_cmd::tests::expired_wait_with_held_instance_returns_nonzero ... ok
+test cli::models_release_cmd::tests::release_completed_returns_zero ... ok
+test cli::models_release_cmd::tests::wrong_model_cannot_claim_released ... ok
+test cli::status::tests::test_format_bytes ... ok
+test cli::status::tests::test_format_uptime ... ok
+test cli::status::tests::test_health_state_display ... ok
+test cli::status::tests::test_model_state_display ... ok
+test cli::status::tests::test_system_status_serialization ... ok
+test cli::status::tests::test_truncate ... ok
+test cli::tests::test_default_socket_path_unix ... ok
+test cli::tests::test_default_socket_path_windows ... ok
+test cli::tests::test_get_socket_path_default ... ok
+test cli::tests::test_get_socket_path_from_env ... ok
+test cli::tests::test_module_exports ... ok
+test cli::typed_cmd::tests::parses_single_and_batch_texts ... ok
+test cli::typed_cmd::tests::rejects_missing_or_unknown_arguments ... ok
+test config::memory::tests::absent_absent_uses_host_default ... ok
+test config::memory::tests::both_consistent_are_exact ... ok
+test config::memory::tests::explicit_total_above_fallback_keeps_one_gib_fallback ... ok
+test config::memory::tests::explicit_total_below_fallback_is_exact_issue_182 ... ok
+test config::memory::tests::invalid_total_is_refused_even_with_valid_per_call ... ok
+test config::memory::tests::malformed_values_are_refused_for_both_variables ... ok
+test config::memory::tests::minimum_is_inclusive ... ok
+test config::memory::tests::non_utf8_is_refused ... ok
+test config::memory::tests::per_call_above_explicit_total_is_refused ... ok
+test config::memory::tests::per_call_equal_to_total_is_admitted ... ok
+test config::memory::tests::per_call_only_above_host_default_is_refused ... ok
+test config::memory::tests::per_call_only_within_host_default_is_ceiling ... ok
+test config::memory::tests::resource_limits_mirror_resolved_values ... ok
+test config::memory::tests::usize_max_is_accepted_exactly ... ok
+test config::memory::tests::zero_is_refused_never_unlimited ... ok
+test config::tests::deprecated_per_call_ceiling_is_strict ... ok
+test config::tests::explicit_memory_values_are_strict_issue_182 ... ok
+test config::tests::explicit_thread_env_override_is_honoured ... ok
+test config::tests::load_panics_on_invalid_memory_setting ... ok
+test config::tests::test_defaults_are_sensible ... ok
+test config::tests::test_effective_config_contains_all_fields ... ok
+test config::tests::test_env_vars_override_defaults ... ok
+test config::tests::test_invalid_env_falls_back_to_default ... ok
+test config::tests::test_ipc_frame_limit_floor ... ok
+test config::tests::test_ipc_frame_limit_override ... ok
+test config::tests::test_max_context_length_validation ... ok
+test config::tests::try_load_total_only_is_exact ... ok
+test engine::degraded_mode::tests::capability_pressure_rejects_with_reason ... ok
+test engine::degraded_mode::tests::context_below_min_tokens_rejects ... ok
+test engine::degraded_mode::tests::context_over_budget_reduces_when_allowed ... ok
+test engine::degraded_mode::tests::context_reduction_disabled_rejects ... ok
+test engine::degraded_mode::tests::memory_pressure_rejects_with_reason ... ok
+test engine::degraded_mode::tests::truncate_on_char_boundary_never_splits_utf8 ... ok
+test engine::gguf::threads::tests::auto_divides_cores_by_workers ... ok
+test engine::gguf::threads::tests::auto_is_at_least_one_and_treats_zero_workers_as_one ... ok
+test engine::gguf::threads::tests::auto_keeps_the_sixteen_thread_cap ... ok
+test engine::gguf::threads::tests::describe_names_auto_and_explicit ... ok
+test engine::gguf::threads::tests::explicit_value_is_used_unchanged ... ok
+test engine::gguf::working_memory::tests::estimate_covers_measured_need_within_bound ... ok
+test engine::gguf::working_memory::tests::estimate_scales_with_context ... ok
+test engine::gguf::working_memory::tests::explicit_head_lengths_are_used ... ok
+test engine::gguf::working_memory::tests::kv_term_is_exact_for_measured_models ... ok
+test engine::gguf::working_memory::tests::negative::estimate_covers_measured_need_at_2k_4k_8k_contexts ... ok
+test engine::gguf::working_memory::tests::negative::indivisible_embedding_without_explicit_heads_is_unadmittable ... ok
+test engine::gguf::working_memory::tests::negative::invalid_metadata_never_yields_a_smaller_admissible_estimate ... ok
+test engine::gguf::working_memory::tests::negative::missing_or_zero_ffn_is_unadmittable_not_guessed ... ok
+test engine::gguf::working_memory::tests::negative::out_of_range_kv_heads_use_the_query_head_upper_bound ... ok
+test engine::gguf::working_memory::tests::negative::unsupported_shapes_are_unadmittable ... ok
+test engine::gguf::working_memory::tests::negative::zero_core_dimensions_are_unadmittable ... ok
+test engine::gguf::working_memory::tests::negative::zero_explicit_head_lengths_are_unadmittable ... ok
+test engine::gguf::working_memory::tests::shape_defaults_to_auto_flash_attention_and_fixed_ubatch ... ok
+test engine::gpu::tests::test_device_placement_default_is_cpu ... ok
+test engine::gpu::tests::test_device_placement_gpu_variant ... ok
+test engine::gpu::tests::test_device_placement_split_variant ... ok
+test engine::gpu::tests::test_gpu_backend_display ... ok
+test engine::gpu::tests::test_gpu_config_cpu ... ok
+test engine::gpu::tests::test_gpu_config_cuda_all_layers ... ok
+test engine::gpu::tests::test_gpu_config_default ... ok
+test engine::gpu::tests::test_gpu_device_cpu ... ok
+test engine::gpu::tests::test_gpu_manager_allocate_and_drop ... ok
+test engine::gpu::tests::test_gpu_manager_cpu_only ... ok
+test engine::gpu::tests::test_gpu_memory_cpu_only_no_alloc ... ok
+test engine::gpu_allocator::tests::allocate_and_deallocate_all_returns_zero ... ok
+test engine::gpu_allocator::tests::allocation_ids_are_unique ... ok
+test engine::gpu_allocator::tests::beyond_capacity_returns_out_of_memory ... ok
+test engine::gpu_allocator::tests::device_index_is_preserved ... ok
+test engine::gpu_allocator::tests::double_free_detection ... ok
+test engine::gpu_allocator::tests::exact_capacity_allocation_succeeds ... ok
+test engine::gpu_allocator::tests::leak_detection_reports_live_allocations ... ok
+test engine::gpu_allocator::tests::raii_drop_deallocates_via_gpu_memory ... ok
+test engine::gpu_allocator::tests::stress_test_1000_cycles_zero_drift ... ok
+test engine::gpu_pool::tests::test_gpu_memory_pool ... ok
+test engine::gpu_pool::tests::test_gpu_memory_pool_out_of_memory ... ok
+test engine::inference::chaos_tests::chaos_inference_engine_concurrent_requests ... ok
+test engine::inference::chaos_tests::chaos_inference_engine_context_exceeded ... ok
+test engine::inference::chaos_tests::chaos_inference_engine_invalid_params ... ok
+test engine::inference::tests::cancellable_model_stops_early_when_cancelled ... ok
+test engine::inference::tests::degraded_context_rejects_when_reduction_disabled ... ok
+test engine::inference::tests::degraded_context_truncates_over_budget_prompt ... ok
+test engine::inference::tests::engine_new_creates_empty_engine ... ok
+test engine::inference::tests::engine_run_fails_for_unloaded_model ... ok
+test engine::inference::tests::inference_params_default_is_valid ... ok
+test engine::inference::tests::inference_params_rejects_invalid_top_p ... ok
+test engine::inference::tests::inference_params_rejects_negative_temperature ... ok
+test engine::inference::tests::inference_params_rejects_zero_max_tokens ... ok
+test engine::inference::tests::memory_budget_allows_inference_when_model_fits ... ok
+test engine::inference::tests::model_larger_than_working_budget_still_runs ... ok
+test engine::inference::tests::non_cancelled_infer_cancellable_completes ... ok
+test engine::inference::tests::registry_holds_non_gguf_model_and_infers ... ok
+test engine::inference::tests::working_budget_is_not_a_weights_gate_even_when_tiny ... ok
+test engine::inference::typed::tests::batch_count_mismatch_fails_closed ... ok
+test engine::inference::typed::tests::cancellation_during_backend_call_never_returns_partial_vector ... ok
+test engine::inference::typed::tests::classification_nan_confidence_rejected ... ok
+test engine::inference::typed::tests::classification_text_preserves_typed_labels ... ok
+test engine::inference::typed::tests::embedding_batch_preserves_exact_count ... ok
+test engine::inference::typed::tests::embedding_text_preserves_typed_vector ... ok
+test engine::inference::typed::tests::invalid_empty_text_refused ... ok
+test engine::inference::typed::tests::model_capability_is_checked_before_execution ... ok
+test engine::inference::typed::tests::no_typed_text_generation_or_ner_bypass_is_available ... ok
+test engine::inference::typed::tests::non_finite_embedding_fails_closed ... ok
+test engine::inference::typed::tests::output_variant_cannot_impersonate_requested_task ... ok
+test engine::inference::typed::tests::pre_cancelled_typed_call_fails_before_model_execution ... ok
+test engine::inference::typed::tests::unsupported_classification_batch_refused ... ok
+test engine::inference::typed::tests::working_budget_is_not_compared_to_resident_weights ... ok
+test engine::moe::combiner::tests::test_combine_single_expert ... ok
+test engine::moe::combiner::tests::test_weighted_combination ... ok
+test engine::moe::executor::tests::test_group_by_expert ... ok
+test engine::moe::router::tests::test_linear_router ... ok
+test engine::moe::router::tests::test_softmax ... ok
+test engine::onnx::classifier::stub_tests::classify_text_without_model_fails ... ok
+test engine::onnx::dispatch::tests::load_from_manifest_stub_rejects_bad_manifest_before_feature_error ... ok
+test engine::onnx::dispatch::tests::load_from_manifest_stub_valid_manifest_reports_feature_absent ... ok
+test engine::onnx::dispatch::tests::onnx_embedder_as_any_downcasts_to_concrete ... ok
+test engine::onnx::dispatch::tests::plan_both_servable_is_ambiguous_error ... ok
+test engine::onnx::dispatch::tests::plan_classification_plus_ner_resolves_to_classifier ... ok
+test engine::onnx::dispatch::tests::plan_classifier_empty_labels_is_error ... ok
+test engine::onnx::dispatch::tests::plan_classifier_with_labels_returns_ordered_labels ... ok
+test engine::onnx::dispatch::tests::plan_classifier_without_labels_is_error ... ok
+test engine::onnx::dispatch::tests::plan_embedding_returns_embedder ... ok
+test engine::onnx::dispatch::tests::plan_no_servable_capability_is_error ... ok
+test engine::onnx::dispatch::tests::plan_non_onnx_architecture_is_error ... ok
+test engine::onnx::embedder::tests::embedding_dim_is_reported ... ok
+test engine::onnx::embedder::tests::load_without_feature_fails_cleanly ... ok
+test engine::onnx::embedder::tests::not_loaded_embedder_errors_cleanly ... ok
+test engine::request_control::tests::cancel_flag_stops_with_cancelled_error ... ok
+test engine::request_control::tests::cancellation_takes_precedence_over_deadline ... ok
+test engine::request_control::tests::default_control_never_stops ... ok
+test engine::request_control::tests::elapsed_deadline_stops_with_deadline_error ... ok
+test engine::request_control::tests::future_deadline_does_not_stop ... ok
+test engine::streaming::tests::collect_returns_tokens_and_complete_terminal ... ok
+test engine::streaming::tests::dropped_sender_reports_error_not_clean ... ok
+test engine::streaming::tests::error_terminal_is_distinct_from_completion ... ok
+test engine::streaming_bound::tests::for_request_clamps_stall_into_the_documented_range ... ok
+test engine::streaming_bound::tests::terminal_after_the_deadline_is_delivered_when_capacity_is_free ... ok
+test engine::tokenizer::tests::decode_boundary_token_invalid ... ok
+test engine::tokenizer::tests::decode_boundary_token_returns_error ... ok
+test engine::tokenizer::tests::decode_empty_tokens_returns_error ... ok
+test engine::tokenizer::tests::decode_rejects_invalid_token ... ok
+test engine::tokenizer::tests::encode_empty_string_returns_error ... ok
+test engine::tokenizer::tests::has_model_false_for_stub ... ok
+test engine::tokenizer::tests::is_eos_detects_correctly ... ok
+test engine::tokenizer::tests::special_token_accessors ... ok
+test engine::tokenizer::tests::stub_decode_returns_error ... ok
+test engine::tokenizer::tests::stub_encode_returns_error ... ok
+test health::tests::test_health_checker_report_degraded_no_model ... ok
+test health::tests::test_health_checker_report_degraded_queue_full ... ok
+test health::tests::test_health_checker_report_healthy ... ok
+test health::tests::test_health_checker_report_healthy_no_model_required ... ok
+test health::tests::test_health_checker_report_unhealthy_draining ... ok
+test health::tests::test_health_checker_report_unhealthy_stopped ... ok
+test health::tests::test_is_ready_max_queue_depth ... ok
+test health::tests::test_is_ready_require_model_loaded ... ok
+test health::tests::test_is_ready_running_state ... ok
+test health::tests::test_is_ready_shutdown_states ... ok
+test ipc::admission::tests::over_capacity_client_reads_explicit_503_after_its_write ... ok
+test ipc::auth::tests::test_auth_error_display ... ok
+test ipc::auth::tests::test_authenticate_success ... ok
+test ipc::auth::tests::test_authenticate_wrong_token ... ok
+test ipc::auth::tests::test_connection_tracking ... ok
+test ipc::auth::tests::test_constant_time_compare_different ... ok
+test ipc::auth::tests::test_constant_time_compare_different_lengths ... ok
+test ipc::auth::tests::test_constant_time_compare_empty ... ok
+test ipc::auth::tests::test_constant_time_compare_equal ... ok
+test ipc::auth::tests::test_generate_session_id_hex ... ok
+test ipc::auth::tests::test_generate_session_id_length ... ok
+test ipc::auth::tests::test_generate_session_id_unique ... ok
+test ipc::auth::tests::test_rate_limit_reset_on_success ... ok
+test ipc::auth::tests::test_multiple_sessions ... ok
+test ipc::auth::tests::test_rate_limiter_initial ... ok
+test ipc::auth::tests::test_rate_limiter_reset ... ok
+test ipc::auth::tests::test_rate_limiting ... ok
+test ipc::auth::tests::test_session_token ... ok
+test ipc::auth::tests::test_session_token_traits ... ok
+test ipc::auth::tests::test_validate_invalid_session ... ok
+test ipc::auth::tests::test_cleanup_expired_sessions ... ok
+test ipc::auth::tests::test_validate_session ... ok
+test ipc::conn_writer::tests::admit_is_checked_under_the_lock_before_any_byte ... ok
+test ipc::conn_writer::tests::healthy_write_is_one_length_prefixed_frame ... ok
+test ipc::encoding::tests::v1_decode_invalid ... ok
+test ipc::encoding::tests::v1_encode_empty ... ok
+test ipc::encoding::tests::v1_encode_single ... ok
+test ipc::encoding::tests::v1_roundtrip ... ok
+test ipc::handler::classify_tests::context_overflow_is_input_invalid ... ok
+test ipc::handler::classify_tests::other_worker_errors_keep_their_codes ... ok
+test ipc::handler::classify_tests::stopped_requests_get_explicit_codes ... ok
+test ipc::protocol::tests::test_decode_message_binary_too_large ... ok
+test ipc::protocol::tests::test_decode_message_too_large ... ok
+test ipc::protocol::tests::test_encode_decode_message ... ok
+test ipc::auth::tests::test_session_expiration ... ok
+test ipc::protocol::tests::test_encode_message_binary_roundtrip ... ok
+test ipc::protocol::tests::test_encode_response_within_limit ... ok
+test ipc::protocol::tests::test_handshake_ack_message ... ok
+test ipc::protocol::tests::test_handshake_message_encoding ... ok
+test ipc::protocol::tests::test_inference_error_code_serializes ... ok
+test ipc::protocol::tests::test_inference_request_validation ... ok
+test ipc::protocol::tests::test_inference_response_error ... ok
+test ipc::protocol::tests::test_inference_response_error_coded_admission_rejected ... ok
+test ipc::protocol::tests::test_inference_response_success ... ok
+test ipc::protocol::tests::test_inference_response_success_has_no_error_code ... ok
+test ipc::protocol::tests::test_protocol_error_display ... ok
+test ipc::protocol::tests::test_protocol_version_default ... ok
+test ipc::protocol::tests::test_protocol_version_is_supported ... ok
+test ipc::protocol::tests::test_protocol_version_negotiate_none ... ok
+test ipc::protocol::tests::test_protocol_version_negotiate_v1 ... ok
+test ipc::protocol::tests::test_protocol_version_negotiate_v2 ... ok
+test ipc::protocol::tests::test_stream_chunk_error ... ok
+test ipc::protocol::tests::test_stream_chunk_final ... ok
+test ipc::protocol::tests::test_stream_chunk_token ... ok
+test ipc::protocol::tests::test_warmup_response ... ok
+test ipc::protocol_compat::tests::doctest_variant_list_is_complete ... ok
+test ipc::protocol_release_types::tests::request_and_response_round_trip_as_json ... ok
+test ipc::protocol_release_types::tests::the_existing_unload_messages_are_unchanged ... ok
+test ipc::protocol_release_types::tests::wait_defaults_to_zero_and_is_clamped ... ok
+test ipc::protocol_typed::tests::ambiguous_or_missing_input_fails_closed ... ok
+test ipc::protocol_typed::tests::batch_classification_shape_decodes ... ok
+test ipc::protocol_typed::tests::engine_generation_output_is_not_coerced ... ok
+test ipc::protocol_typed::tests::error_response_has_code_and_no_result ... ok
+test ipc::protocol_typed::tests::handshake_ack_without_features_still_decodes ... ok
+test ipc::protocol_typed::tests::results_carry_explicit_kind_tags ... ok
+test ipc::protocol_typed::tests::single_text_embedding_request_round_trips ... ok
+test ipc::protocol_typed::tests::unknown_request_field_fails_closed ... ok
+test ipc::protocol_typed::tests::unknown_task_fails_closed ... ok
+test ipc::admission::tests::split_header_and_body_write_still_reads_503 ... ok
+test engine::streaming_bound::tests::no_send_waits_past_the_deadline ... ok
+test ipc::server::inference_tests::cancel_request_stops_pending_nonstream_request ... ok
+test engine::streaming_bound::tests::a_stall_closes_the_sender_for_good ... ok
+test engine::streaming_bound::tests::end_on_a_full_channel_returns_within_stall ... ok
+test ipc::server::inference_tests::unauthenticated_nonstream_request_is_rejected ... ok
+test ipc::server::inference_tests::disconnect_cancels_nonstream_request ... ok
+test engine::streaming_bound::tests::a_stalled_stream_never_reads_as_complete ... ok
+test ipc::conn_writer::tests::stalled_write_returns_within_stall_and_poisons ... ok
+test ipc::conn_writer::tests::nothing_is_written_after_a_partial_frame ... ok
+test ipc::server::inference_tests::zero_nonstream_timeout_is_invalid_input ... ok
+test ipc::stream_bridge::tests::cancellation_fences_data_that_was_waiting_on_writer_lock ... ok
+test ipc::stream_bridge::tests::cancelled_stream_can_send_terminal_frame ... ok
+test ipc::stream_bridge::tests::test_stream_bridge_cancelled ... ok
+test ipc::stream_bridge::tests::test_stream_bridge_send ... ok
+test k8s::profiles::tests::test_cpu_only_profile_no_gpu ... ok
+test k8s::profiles::tests::test_high_memory_profile ... ok
+test k8s::profiles::tests::test_multi_gpu_correct_resources ... ok
+test k8s::profiles::tests::test_multi_gpu_zero_devices_rejected ... ok
+test k8s::profiles::tests::test_rolling_update_strategy_values ... ok
+test k8s::profiles::tests::test_single_gpu_has_nvidia_toleration ... ok
+test k8s::types::tests::test_camel_case_serialization ... ok
+test k8s::types::tests::test_clone_traits ... ok
+test k8s::types::tests::test_condition_full ... ok
+test k8s::types::tests::test_condition_minimal ... ok
+test k8s::types::tests::test_crd_metadata_minimal ... ok
+test k8s::types::tests::test_crd_metadata_with_labels ... ok
+test k8s::types::tests::test_debug_traits ... ok
+test k8s::types::tests::test_gg_core_model_full ... ok
+test k8s::types::tests::test_gpu_spec_serialization ... ok
+test k8s::types::tests::test_model_deserialization ... ok
+test k8s::types::tests::test_model_source_serialization ... ok
+test k8s::types::tests::test_model_source_validate ... ok
+test k8s::types::tests::test_model_spec_serialization ... ok
+test k8s::types::tests::test_model_spec_validate ... ok
+test ipc::server::release::order_tests::second_release_wait_is_refused_while_first_reply_is_write_blocked ... ok
+test k8s::types::tests::test_model_status_serialization ... ok
+test k8s::types::tests::test_runtime_deserialization ... ok
+test k8s::types::tests::test_runtime_spec_validate ... ok
+test k8s::types::tests::test_runtime_spec_with_gpu ... ok
+test k8s::types::tests::test_runtime_status_serialization ... ok
+test k8s::types::tests::test_serialize_runtime ... ok
+test k8s::types::tests::test_skip_serializing_none_status ... ok
+test k8s::types::tests::test_validate_image_empty ... ok
+test k8s::types::tests::test_validate_image_injection ... ok
+test k8s::types::tests::test_validate_image_valid ... ok
+test k8s::types::tests::test_validate_model_id_invalid ... ok
+test k8s::types::tests::test_validate_model_id_valid ... ok
+test k8s::types::tests::test_validate_path_empty ... ok
+test k8s::types::tests::test_validate_path_null_byte ... ok
+test k8s::types::tests::test_validate_path_traversal ... ok
+test k8s::types::tests::test_validate_socket_path_invalid ... ok
+test k8s::types::tests::test_validate_socket_path_valid ... ok
+test memory::host::tests::default_total_is_at_least_the_historical_floor ... ok
+test ipc::server::inference_tests::nonstream_timeout_is_a_wall_clock_deadline ... ok
+test memory::host::tests::physical_memory_is_reported_on_supported_hosts ... ok
+test memory::kv_cache::tests::test_attention_scores ... ok
+test memory::kv_cache::tests::test_kv_cache_basic ... ok
+test memory::kv_cache::tests::test_kv_cache_eviction ... ok
+test memory::kv_cache::tests::test_sliding_window_eviction ... ok
+test memory::kv_cache::tests::test_sliding_window_noop_without_config ... ok
+test memory::kv_cache::tests::test_sliding_window_overlap_preserved ... ok
+test memory::limits::resident::tests::checked_reserve_never_wraps_usize ... ok
+test memory::limits::resident::tests::concurrent_reservations_never_exceed_the_total ... ok
+test memory::limits::resident::tests::dropping_the_guard_releases_resident_bytes ... ok
+test memory::limits::resident::tests::huge_resident_request_is_refused_without_wrapping_the_counter ... ok
+test memory::limits::resident::tests::huge_working_request_with_unbounded_per_call_is_refused_without_wrapping ... ok
+test memory::limits::resident::tests::reservation_exactly_at_the_total_is_admitted ... ok
+test memory::kv_cache::tests::test_sliding_window_memory_bounded ... ok
+test memory::limits::resident::tests::resident_bytes_count_toward_the_total ... ok
+test memory::limits::resident::tests::resident_reservation_beyond_total_is_refused_and_not_leaked ... ok
+test memory::limits::resident::tests::resident_reservation_larger_than_per_call_is_allowed ... ok
+test memory::limits::resident::tests::resize_grows_within_budget_and_refuses_beyond_it_unchanged ... ok
+test memory::limits::resident::tests::working_reservation_fails_when_resident_fills_the_total ... ok
+test memory::limits::tests::acquire_within_limits_succeeds ... ok
+test memory::limits::tests::concurrency_cap_rejects_when_slots_exhausted ... ok
+test memory::limits::tests::guard_drop_releases_memory_and_concurrency ... ok
+test memory::limits::tests::legacy_try_acquire_keeps_the_config_per_call_cap ... ok
+test memory::limits::tests::max_memory_per_call_accessor_matches_config ... ok
+test memory::limits::tests::memory_cap_100_percent_rejection ... ok
+test memory::limits::tests::per_call_ceiling_is_set_once_and_shared_by_clones ... ok
+test memory::limits::tests::per_call_memory_cap_rejects_oversized_request ... ok
+test memory::limits::tests::total_memory_cap_rejects_when_pool_full ... ok
+test memory::limits::resident::tests::concurrent_working_reservations_respect_total_and_slots ... ok
+test memory::limits::tests::working_reservation_above_an_explicit_ceiling_is_refused_without_side_effects ... ok
+test memory::limits::tests::working_reservation_without_ceiling_is_bounded_only_by_total ... ok
+test memory::paged::tests::test_evicted_page_is_zeroed ... ok
+test memory::paged::tests::test_page_table_basic_allocation ... ok
+test memory::paged::tests::test_page_table_free ... ok
+test memory::paged::tests::test_page_table_free_multiple ... ok
+test memory::paged::tests::test_page_table_reuse ... ok
+test memory::pool::tests::test_memory_pool_acquire_and_release ... ok
+test models::backend_dispatch::config_tests::configured_context_and_threads_reach_the_model_loader ... ok
+test models::backend_dispatch::config_tests::daemon_auto_threads_are_cores_divided_by_workers ... ok
+test models::backend_dispatch::config_tests::explicit_thread_override_is_honoured_for_every_worker_count ... ok
+test models::backend_dispatch::config_tests::worker_loops_follow_max_concurrent ... ok
+test models::backend_dispatch::config_tests::original_dispatch_is_the_single_context_variant ... ok
+test models::backend_dispatch::tests::choose_absent_manifest_selects_gguf_default ... ok
+test models::backend_dispatch::tests::absent_manifest_reads_as_none ... ok
+test models::backend_dispatch::tests::choose_gguf_manifest_is_explicit_not_a_fallback ... ok
+test models::backend_dispatch::tests::choose_onnx_manifest_selects_onnx ... ok
+test models::backend_dispatch::tests::directory_named_like_a_manifest_is_refused ... ok
+test models::backend_dispatch::tests::dispatch_routes_no_manifest_to_gguf_loader ... ok
+test models::backend_dispatch::tests::dedicated_manifest_has_precedence_over_legacy_sibling ... ok
+test models::backend_dispatch::tests::dispatch_routes_onnx_manifest_to_onnx_loader ... ok
+test models::backend_dispatch::tests::explicit_safetensors_manifest_is_rejected_before_backend_work ... ok
+test models::backend_dispatch::tests::gguf_declared_generation_plus_embedding_is_not_silently_accepted ... ok
+test models::backend_dispatch::tests::malformed_dedicated_manifest_must_not_fall_back_to_valid_legacy ... ok
+test models::backend_dispatch::tests::gguf_embedding_only_manifest_is_not_accepted_as_text_generation ... ok
+test models::backend_dispatch::tests::legacy_manifest_still_reads_without_dedicated_entry ... ok
+test models::backend_dispatch::tests::manifest_free_onnx_requires_explicit_manifest ... ok
+test models::backend_dispatch::tests::manifest_free_safetensors_never_falls_back_to_gguf ... ok
+test models::backend_dispatch::tests::manifest_size_is_bounded_before_parsing ... ok
+test models::backend_dispatch::tests::manifest_with_unusable_sha256_fails_closed ... ok
+test models::backend_dispatch::tests::unsupported_safetensors_manifest_does_not_fall_back_to_gguf ... ok
+test models::history::tests::test_all_entries ... ok
+test models::backend_dispatch::tests::present_but_malformed_manifest_fails_closed ... ok
+test models::history::tests::test_current_on_empty_history ... ok
+test models::history::tests::test_default_max_history ... ok
+test models::history::tests::test_history_capacity ... ok
+test models::backend_dispatch::tests::onnx_generation_is_not_advertised_as_serving_supported ... ok
+test models::history::tests::test_history_capacity_boundary ... ok
+test models::history::tests::test_history_deactivates_on_new_record ... ok
+test models::history::tests::test_history_default ... ok
+test models::history::tests::test_history_large_capacity ... ok
+test models::history::tests::test_history_multiple_deactivations ... ok
+test models::history::tests::test_history_new ... ok
+test models::backend_dispatch::tests::verified_gguf_text_generation_manifest_still_reaches_backend ... ok
+test models::history::tests::test_history_preserves_order ... ok
+test models::history::tests::test_history_recording ... ok
+test models::backend_dispatch::tests::two_models_in_one_directory_use_independent_pinned_manifests ... ok
+test models::history::tests::test_history_serialization ... ok
+test models::history::tests::test_history_zero_capacity ... ok
+test models::history::tests::test_previous_on_empty_history ... ok
+test models::history::tests::test_previous_with_single_entry ... ok
+test models::history::tests::test_previous_with_two_entries ... ok
+test models::history::tests::test_version_history_entry_deactivate ... ok
+test models::history::tests::test_version_history_entry_new ... ok
+test models::history::tests::test_version_history_entry_serialization ... ok
+test models::history::tests::test_version_source_variants ... ok
+test models::integrity::tests::missing_file_fails_loud ... ok
+test models::integrity::tests::identity_is_stable_while_the_file_is_untouched ... ok
+test models::integrity::tests::identity_detects_a_file_swapped_in_after_hashing ... ok
+test models::integrity::tests::matching_hash_passes ... ok
+test models::integrity::tests::mismatched_hash_fails_loud ... ok
+test ipc::conn_writer::tests::a_stalled_write_releases_the_lock_within_stall ... ok
+test models::integrity::tests::uppercase_declared_hash_passes ... ok
+test models::integrity::tests::windows_symlinked_model_file_is_refused_for_hashing ... ok
+test models::integrity::tests::windows_identity_detects_a_symlink_swapped_in_after_hashing ... ok
+test models::lifecycle::release_tests::a_held_instance_is_listed_exactly_once_while_unloading ... ok
+test models::lifecycle::release_tests::idle_unload_is_released_at_once_and_budget_returns ... ok
+test models::integrity::tests::tampered_file_fails_after_manifest_written ... ok
+test models::lifecycle::release_tests::without_a_runtime_a_held_instance_never_reads_released ... ok
+test models::lifecycle::resident_tests::load_beyond_total_is_refused_and_not_registered ... ok
+test models::lifecycle::resident_tests::load_reserves_resident_weights_larger_than_per_call ... ok
+test models::lifecycle::resident_tests::oversized_load_is_refused_before_backend_io ... ok
+test models::lifecycle::release_tests::held_instance_is_listed_and_charged_until_the_holder_drops ... ok
+test models::lifecycle::resident_tests::reservation::abandoned_prepared_load_releases_its_reservation ... ok
+test ipc::server::poison_tests::stalled_frame_write_closes_the_connection_and_cancels_its_requests ... ok
+test models::lifecycle::release_tests::unlimited_lifecycles_track_release_too ... ok
+test models::lifecycle::resident_tests::reservation::duplicate_id_releases_the_losing_reservation ... ok
+test models::lifecycle::resident_tests::reservation::backend_failure_after_reservation_rolls_back ... ok
+test models::lifecycle::resident_tests::reservation::registration_growth_beyond_total_is_refused_and_rolled_back ... ok
+test models::lifecycle::resident_tests::reservation::registration_resizes_reservation_to_reported_footprint ... ok
+test models::lifecycle::resident_tests::reservation::parallel_prepares_never_exceed_the_total ... ok
+test models::lifecycle::resident_tests::reservation::second_concurrent_load_is_refused_before_backend_allocation ... ok
+test models::lifecycle::resident_tests::unload_releases_resident_and_allows_reload_or_swap ... ok
+test models::lifecycle::resident_tests::working_reservations_and_residents_share_one_budget ... ok
+test models::lifecycle::tests::bidirectional_o1_lookup ... ok
+test models::lifecycle::tests::concurrent_load_same_model_exactly_one_wins ... ok
+test models::lifecycle::tests::inference_works_through_lifecycle ... ok
+test models::lifecycle::tests::load_registers_in_both_registries ... ok
+test models::lifecycle::tests::memory_tracked_in_registry ... ok
+test models::lifecycle::tests::multiple_models_independent ... ok
+test models::lifecycle::tests::partial_state_impossible_duplicate_load_rejected ... ok
+test models::lifecycle::tests::unload_nonexistent_returns_error ... ok
+test models::lifecycle::tests::unload_removes_from_both_registries ... ok
+test models::lifecycle::tests::validate_handle_returns_false_for_bogus_handle ... ok
+test models::lifecycle::tests::validate_handle_returns_false_for_unloaded_model ... ok
+test models::lifecycle::tests::validate_handle_returns_true_for_loaded_model ... ok
+test models::loader::tests::test_normalize_path ... ok
+test models::loader::tests::test_validate_path ... ok
+test models::model_ops::tests::nul_byte_path_is_rejected ... ok
+test models::model_ops::tests::missing_model_fails_loud_with_no_partial_state ... ok
+test models::model_ops::tests::traversal_path_is_rejected_before_any_backend_work ... ok
+test models::model_ops::tests::unload_of_absent_model_fails_loud ... ok
+test models::persistence::tests::test_all_architectures_serializable ... ok
+test models::persistence::tests::test_all_capabilities_serializable ... ok
+test models::persistence::tests::test_delete_nonexistent_file ... ok
+test models::persistence::tests::test_load_not_found ... ok
+test models::persistence::tests::test_load_or_default ... ok
+test models::lifecycle::release_tests::waiting_holds_no_lifecycle_lock ... ok
+test models::persistence::tests::test_persisted_model_serialization ... ok
+test models::persistence::tests::test_load_corrupted_json ... ok
+test models::persistence::tests::test_persistence_error_display ... ok
+test models::persistence::tests::test_persistence_exists_false ... ok
+test models::persistence::tests::test_registry_state_default ... ok
+test models::persistence::tests::test_registry_state_serialization ... ok
+test models::persistence::tests::test_multiple_save_overwrite ... ok
+test models::persistence::tests::test_save_creates_parent_directories ... ok
+test models::pool::tests::pool_eviction_by_tier ... ok
+test models::pool::tests::pool_preload_and_switch ... ok
+test models::pool::tests::pool_switch_emits_latency_metric ... ok
+test models::pool::tests::pool_switch_latency_is_cheap ... ok
+test models::persistence::tests::test_save_and_load ... ok
+test models::pool::tests::pool_warmup_tracking ... ok
+test models::search::tests::test_empty_capabilities_list ... ok
+test models::search::tests::test_empty_query_matches_all ... ok
+test models::persistence::tests::test_save_multiple_models ... ok
+test models::search::tests::test_model_query_builder_chaining ... ok
+test models::search::tests::test_model_search_result_serialization ... ok
+test models::search::tests::test_query_builder ... ok
+test models::search::tests::test_query_builder_name_contains ... ok
+test models::search::tests::test_query_builder_offset ... ok
+test models::search::tests::test_query_builder_version_range ... ok
+test models::search::tests::test_query_matches_architecture_mismatch ... ok
+test models::search::tests::test_query_matches_capability_mismatch ... ok
+test models::search::tests::test_query_matches_capability_present ... ok
+test models::search::tests::test_query_matches_combined_filters ... ok
+test models::search::tests::test_query_matches_name_case_insensitive ... ok
+test models::search::tests::test_query_matches_name_partial ... ok
+test models::search::tests::test_query_matches_version_range ... ok
+test models::search::tests::test_query_matching ... ok
+test models::search::tests::test_query_new_default ... ok
+test models::search::tests::test_query_serialization ... ok
+test models::smart_loader::tests::test_cache_hit_fast ... ok
+test models::smart_loader::tests::test_callback_is_required ... ok
+test models::smart_loader::tests::test_register_zero_overhead ... ok
+test models::version::tests::test_parse_invalid_component_negative ... ok
+test models::version::tests::test_parse_invalid_component_non_numeric ... ok
+test models::version::tests::test_parse_invalid_format_empty ... ok
+test models::smart_loader::tests::test_semantic_hint_quick_query ... ok
+test models::version::tests::test_parse_invalid_format_too_few_parts ... ok
+test models::smart_loader::tests::test_tier_based_hints ... ok
+test models::version::tests::test_parse_invalid_format_too_many_parts ... ok
+test models::version::tests::test_parse_prerelease ... ok
+test models::version::tests::test_parse_prerelease_complex ... ok
+test models::version::tests::test_parse_prerelease_empty_tag ... ok
+test models::version::tests::test_parse_version ... ok
+test models::version::tests::test_parse_version_large_numbers ... ok
+test models::version::tests::test_parse_version_zero ... ok
+test models::version::tests::test_range_any ... ok
+test models::version::tests::test_range_at_least ... ok
+test models::version::tests::test_range_below ... ok
+test models::version::tests::test_range_between ... ok
+test models::version::tests::test_range_exact ... ok
+test models::version::tests::test_range_exact_includes_prerelease ... ok
+test models::version::tests::test_range_matching ... ok
+test models::version::tests::test_range_prerelease_excluded_by_default ... ok
+test models::version::tests::test_range_prerelease_included_when_enabled ... ok
+test models::version::tests::test_range_serialization ... ok
+test models::version::tests::test_version_display ... ok
+test models::version::tests::test_version_equality ... ok
+test models::version::tests::test_version_error_display ... ok
+test models::version::tests::test_version_from_str ... ok
+test models::version::tests::test_version_hash ... ok
+test models::version::tests::test_version_inequality ... ok
+test models::version::tests::test_version_new ... ok
+test models::version::tests::test_version_ordering ... ok
+test models::version::tests::test_version_ordering_major ... ok
+test models::version::tests::test_version_ordering_minor ... ok
+test models::version::tests::test_version_ordering_patch ... ok
+test models::version::tests::test_version_ordering_prerelease_alphabetical ... ok
+test models::version::tests::test_version_ordering_prerelease_vs_release ... ok
+test models::version::tests::test_version_serialization ... ok
+test models::version::tests::test_version_with_prerelease ... ok
+test models::version::tests::test_version_with_prerelease_serialization ... ok
+test scheduler::queue_tests::tests::context_too_large_rejects_streaming ... ok
+test scheduler::queue_tests::tests::controlled_stream_carries_cancel_and_deadline ... ok
+test scheduler::queue_tests::tests::dequeued_streaming_frees_capacity ... ok
+test scheduler::queue_tests::tests::enqueue_with_response_returns_receiver ... ok
+test scheduler::queue_tests::tests::queue_full_rejects_enqueue ... ok
+test scheduler::queue_tests::tests::streaming_dequeue_returns_request ... ok
+test scheduler::queue_tests::tests::streaming_enqueue_counts_toward_capacity ... ok
+test scheduler::thread_pool::tests::test_config_presets ... ok
+test scheduler::queue_tests::tests::expired_stream_is_skipped ... ok
+test models::lifecycle::release_tests::a_reloaded_id_and_its_old_instance_are_tracked_apart ... ok
+test scheduler::worker::admission::tests::estimate_beyond_total_is_refused_without_side_effects ... ok
+test scheduler::worker::admission::tests::explicit_ceiling_below_estimate_is_refused_and_named ... ok
+test scheduler::worker::admission::tests::falls_back_to_configured_reservation_without_estimate ... ok
+test scheduler::worker::admission::tests::no_limits_means_no_guard ... ok
+test scheduler::worker::admission::tests::reserves_the_model_estimate_not_the_fallback ... ok
+test scheduler::worker::admission::tests::two_requests_reserve_twice_the_estimate_within_total ... ok
+test scheduler::worker::admission::tests::unboundable_model_is_refused_explicitly_without_reserving ... ok
+test scheduler::queue_tests::tests::streaming_enqueue_unparks_wait_and_dequeue ... ok
+test models::lifecycle::resident_tests::reservation::unload_defers_release_while_a_request_holds_the_model ... ok
+test scheduler::worker::security_tests::test_apply_egress_passthrough_without_pipeline ... ok
+test models::lifecycle::release_tests::a_short_wait_returns_false_without_blocking_past_it ... ok
+test scheduler::thread_pool::tests::test_priority_tasks ... ok
+test scheduler::thread_pool::tests::test_thread_pool_basic ... ok
+test scheduler::worker::security_tests::test_streaming_execute_rejects_injection ... ok
+test scheduler::worker::security_tests::test_apply_egress_redacts_pii_output ... ok
+test scheduler::worker::streaming_tests::cancelled_queued_stream_reports_error_terminal ... ok
+test scheduler::worker::streaming_tests::expired_queued_stream_reports_error_terminal ... ok
+test ipc::server::release::stall_tests::blocked_inline_reply_ends_the_connection_within_the_stall_bound ... ok
+test scheduler::worker::tests::admission_rejection_propagates_to_caller ... ok
+test scheduler::worker::tests::default_infer_cancellable_delegates_to_infer ... ok
+test scheduler::worker::tests::python_session_infer_routes_through_queue ... ok
+test scheduler::worker::tests::queue_full_rejected ... ok
+test scheduler::worker::tests::streaming_enqueue_rejects_when_queue_full ... ok
+test scheduler::thread_pool::tests::test_stats_tracking ... ok
+test scheduler::worker::tests::streaming_enqueue_succeeds_with_capacity ... ok
+test scheduler::worker::tests::tier1_context_check_allows_small_prompt ... ok
+test scheduler::worker::tests::tier1_context_check_rejects_oversized_prompt ... ok
+test scheduler::worker::tests::worker_executes_enqueued_request ... ok
+test scheduler::worker::tests::worker_handles_multiple_concurrent_requests ... ok
+test scheduler::worker::tests::worker_rejects_streaming_when_concurrency_limit_exceeded ... ok
+test scheduler::worker::tests::worker_rejects_when_concurrency_limit_exceeded ... ok
+test scheduler::worker::tests::worker_rejects_when_memory_limit_exceeded ... ok
+test scheduler::worker::tests::worker_releases_resource_guard_after_inference ... ok
+test scheduler::worker::tests::worker_serves_model_larger_than_working_budget ... ok
+test scheduler::worker::tests::worker_shuts_down_gracefully ... ok
+test scheduler::worker::tests::worker_skips_cancelled_request ... ok
+test scheduler::worker::stop_tests::cancel_flag_stops_running_request_with_explicit_error ... ok
+test scheduler::worker_pool::tests::shutdown_joins_every_loop ... ok
+test scheduler::worker::stop_tests::deadline_stops_running_request_with_explicit_error ... ok
+test scheduler::worker::streaming_tests::streaming_request_is_serviced_by_an_idle_worker ... ok
+test scheduler::worker::hol_tests::stalled_stream_consumer_does_not_block_unrelated_request ... ok
+test scheduler::worker_typed_tests::cancelled_before_execution_does_no_work ... ok
+test scheduler::worker_typed_tests::capability_mismatch_is_explicit_and_not_executed ... ok
+test scheduler::worker_typed_tests::classification_labels_pass_egress_redaction ... ok
+test scheduler::worker_typed_tests::typed_lane_shares_the_pending_bound_with_generation ... ok
+test scheduler::worker_typed_tests::worker_wakes_for_typed_work ... ok
+test security::audit::tests::test_audit_event_builder ... ok
+test security::audit::tests::test_audit_event_builder_missing_fields ... ok
+test security::audit::tests::test_audit_event_to_json ... ok
+test security::audit::tests::test_audit_event_to_log_string ... ok
+test security::audit::tests::test_audit_logger ... ok
+test security::audit::tests::test_audit_logger_max_events ... ok
+test security::audit::tests::test_audit_logger_severity_filter ... ok
+test security::audit::tests::test_audit_severity_ordering ... ok
+test security::audit::tests::test_export_json ... ok
+test security::audit::tests::test_generate_event_id ... ok
+test security::audit::tests::test_get_events_by_category ... ok
+test security::encryption::tests::test_authentication_failure ... ok
+test security::encryption::tests::test_bit_flip_detection ... ok
+test security::encryption::tests::test_byte_insertion_detection ... ok
+test security::encryption::tests::test_byte_removal_detection ... ok
+test security::encryption::tests::test_ciphertext_includes_tag ... ok
+test security::encryption::tests::test_decrypt_invalid_magic ... ok
+test security::encryption::tests::test_different_keys ... ok
+test security::encryption::tests::test_different_nonces_allowed ... ok
+test scheduler::worker_typed_tests::embedding_succeeds_through_the_typed_lane ... ok
+test security::encryption::tests::test_encrypt_decrypt ... ok
+test security::encryption::tests::test_encrypt_decrypt_empty ... ok
+test security::encryption::tests::test_encryption_error_display ... ok
+test scheduler::worker_typed_tests::injection_in_any_batch_item_is_rejected_before_execution ... ok
+test security::encryption::tests::test_encrypt_decrypt_large ... ok
+test security::encryption::tests::test_file_decrypt_truncated_file ... ok
+test security::encryption::tests::test_file_decrypt_wrong_version ... ok
+test security::encryption::tests::test_file_encryption ... ok
+test security::encryption::tests::test_file_encryption_empty_file ... ok
+test security::encryption::tests::test_file_encryption_binary_data ... ok
+test security::encryption::tests::test_file_encryption_single_byte ... ok
+test security::encryption::tests::test_file_encryption_overwrite_protection ... ok
+test security::encryption::tests::test_hw_acceleration_check ... ok
+test security::encryption::tests::test_invalid_nonce_size ... ok
+test security::encryption::tests::test_key_size_constant ... ok
+test security::encryption::tests::test_gcm_file_format ... ok
+test security::encryption::tests::test_modified_nonce ... ok
+test security::encryption::tests::test_multiple_encrypt_same_key_different_ciphertext ... ok
+test security::encryption::tests::test_file_encryption_unicode_filename ... ok
+test security::encryption::tests::test_nonce_reuse_detection ... ok
+test security::encryption::tests::test_nonce_reuse_error_display ... ok
+test security::encryption::tests::test_nonce_randomness ... ok
+test security::encryption::tests::test_nonce_size_constant ... ok
+test scheduler::worker::hol_tests::repeated_stalled_consumers_each_hold_the_worker_only_for_the_bound ... ok
+test ipc::server::release_tests::a_pending_wait_ends_when_its_connection_does ... ok
+test scheduler::worker_pool::tests::streams_do_not_starve_main_requests ... ok
+test scheduler::worker_pool::tests::two_loops_run_two_requests_at_the_same_time ... ok
+test ipc::admission::tests::silent_peer_cannot_pin_rejection_task ... ok
+test security::encryption::tests::test_semantic_security ... ok
+test security::encryption::tests::test_tag_size_constant ... ok
+test scheduler::worker::stop_tests::backend_ignoring_stop_still_yields_explicit_failure ... ok
+test security::fips_tests::tests::test_aes_gcm_kat ... ok
+test security::fips_tests::tests::test_count_differing_bits ... ok
+test security::fips_tests::tests::test_integrity ... ok
+test security::fips_tests::tests::test_pbkdf2_kat ... ok
+test security::fips_tests::tests::test_power_on_self_tests ... ok
+test security::fips_tests::tests::test_rng_health ... ok
+test security::fips_tests::tests::test_self_test_error_display ... ok
+test security::key_rotation::tests::test_add_and_encrypt ... ok
+test security::key_rotation::tests::test_key_not_found_error ... ok
+test security::key_rotation::tests::test_key_rotation ... ok
+test security::key_rotation::tests::test_no_active_key_error ... ok
+test security::output_sanitizer::tests::test_excessive_repetition_detection ... ok
+test security::output_sanitizer::tests::test_format_validation ... ok
+test security::output_sanitizer::tests::test_confidence_threshold ... ok
+test security::output_sanitizer::tests::test_length_truncation ... ok
+test security::output_sanitizer::tests::test_multiple_pii_types ... ok
+test security::output_sanitizer::tests::test_no_modification_needed ... ok
+test security::output_sanitizer::tests::test_pii_redaction ... ok
+test security::output_sanitizer::tests::test_safe_trim_point ... ok
+test ipc::server::release_tests::cancel_is_served_during_a_wait_which_then_reports_released ... ok
+test security::output_sanitizer::tests::test_sanitize_pii_after_expand_char_no_leak_no_panic ... ok
+test security::encryption::tests::test_performance ... ok
+test ipc::server::release_tests::unauthenticated_wait_is_refused_and_the_connection_stays_open ... ok
+test security::output_sanitizer::tests::test_selective_pii_types ... ok
+test security::output_sanitizer::tests::test_sanitize_pii_after_nbsp_no_leak_no_panic ... ok
+test security::output_sanitizer::tests::test_streaming_pii_split_attack ... ok
+test security::output_sanitizer::tests::test_streaming_buffer_does_not_lose_pii ... ok
+test security::output_sanitizer::tests::test_streaming_sanitization ... ok
+test security::pii_detector::tests::test_api_key_detection ... ok
+test security::pii_detector::tests::test_credit_card_detection ... ok
+test scheduler::worker_pool::tests::in_flight_never_exceeds_max_concurrent ... ok
+test security::pii_detector::tests::test_email_detection ... ok
+test security::pii_detector::tests::test_credit_card_luhn_rejects_invalid ... ok
+test security::pii_detector::tests::test_github_token_detection ... ok
+test security::pii_detector::tests::test_ip_address_v6 ... ok
+test security::pii_detector::tests::test_multiple_pii_types ... ok
+test security::pii_detector::tests::test_no_pii ... ok
+test security::pipeline::tests::test_disabled_pipeline_is_identity ... ok
+test security::pii_detector::tests::test_phone_detection ... ok
+test security::pii_detector::tests::test_ssn_detection ... ok
+test security::pii_detector::tests::test_redaction ... ok
+test security::pipeline::tests::test_scan_allows_incidental_substring_in_block_mode ... ok
+test security::pipeline::tests::test_sanitize_redacts_ssn_and_email ... ok
+test security::pipeline::tests::test_scan_clean_prompt_allowed ... ok
+test security::pipeline::tests::test_scan_blocks_injection_when_blocking ... ok
+test security::pipeline::tests::test_scan_detect_only_allows_but_scores ... ok
+test security::prompt_injection::tests::test_basic_injection_detection ... ok
+test security::prompt_injection::tests::test_case_insensitive ... ok
+test security::prompt_injection::tests::test_context_aware ... ok
+test security::prompt_injection::tests::test_dan_detection ... ok
+test security::prompt_injection::tests::test_high_risk_patterns ... ok
+test security::prompt_injection::tests::test_multiple_patterns ... ok
+test security::prompt_injection::tests::test_role_manipulation ... ok
+test security::pipeline::tests::test_from_env_parses_closed_vocab ... ok
+test security::prompt_injection::tests::test_safe_text ... ok
+test shim::rate_limiter::tests::test_allows_within_burst ... ok
+test security::prompt_injection::tests::test_sanitization ... ok
+test shim::rate_limiter::tests::test_cleanup_removes_stale ... ok
+test shim::rate_limiter::tests::test_gold_has_higher_burst ... ok
+test security::prompt_injection::tests::test_performance_short_text ... ok
+test shim::rate_limiter::tests::test_rejects_over_burst ... ok
+test shim::rate_limiter::tests::test_remove_session ... ok
+test shim::rate_limiter::tests::test_sessions_isolated ... ok
+test shim::service_tier::tests::test_burst_increases_with_tier ... ok
+test shim::service_tier::tests::test_rate_limits_increase_with_tier ... ok
+test shim::service_tier::tests::test_display ... ok
+test shim::service_tier::tests::test_default_is_silver ... ok
+test security::output_sanitizer::tests::test_performance ... ok
+test shim::service_tier::tests::test_tier_to_priority_ordering ... ok
+test shim::tests::test_intercept_error_display ... ok
+test shim::tests::test_intercept_result_default ... ok
+test shim::tests::test_passthrough_allows_all ... ok
+test telemetry::buckets::tests::test_default_latency_buckets ... ok
+test telemetry::buckets::tests::test_histogram_buckets ... ok
+test telemetry::prometheus::tests::test_encode_bucketed_histogram ... ok
+test telemetry::prometheus::tests::test_encode_counter ... ok
+test telemetry::security_log::tests::test_event_as_str ... ok
+test telemetry::security_log::tests::test_event_severity ... ok
+test telemetry::security_log::tests::test_severity_as_str ... ok
+test telemetry::security_log::tests::test_severity_ordering ... ok
+test telemetry::span_export::tests::test_span_collector ... ok
+test security::pii_detector::tests::test_performance ... ok
+test security::prompt_injection::tests::test_performance_long_text ... ok
+test security::encryption::tests::test_pbkdf2_empty_password ... ok
+test security::encryption::tests::test_pbkdf2_empty_salt ... ok
+test security::encryption::tests::test_pbkdf2_key_derivation_deterministic ... ok
+test security::encryption::tests::test_pbkdf2_different_passwords ... ok
+test security::encryption::tests::test_pbkdf2_different_salts ... ok
+test security::encryption::tests::test_password_derived_key ... ok
+
+test result: ok. 796 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.46s
+
+
+running 33 tests
+test auth_boot::tests::describe_warns_on_short_token_and_flags_insecure_mode ... ok
+test auth_boot::tests::empty_token_with_explicit_opt_in_is_insecure_mode ... ok
+test auth_boot::tests::empty_token_without_opt_in_refuses_startup ... ok
+test auth_boot::tests::non_empty_token_requires_token_policy ... ok
+test auth_boot::tests::opt_in_requires_exact_value_one ... ok
+test chat_template::tests::preserves_multiline_unicode_content ... ok
+test chat_template::tests::qwen_instruct_single_user_turn_matches_chatml ... ok
+test chat_template::tests::raw_mode_preserves_original_prompt ... ok
+test auth_boot::tests::opt_in_never_overrides_a_configured_token ... ok
+test chat_template::tests::qwen_system_precedes_user_without_untrusted_role_interpolation ... ok
+test chat_template::tests::rejects_empty_and_ambiguous_inputs ... ok
+test chat_template::tests::rejects_system_role_token_injection ... ok
+test chat_template::tests::rejects_user_role_token_injection ... ok
+test chat_template::tests::unknown_template_fails_closed ... ok
+test runtime_init::tests::daemon_config_refuses_per_call_above_explicit_total ... ok
+test runtime_init::tests::daemon_config_requires_model_for_readiness ... ok
+test runtime_init::tests::env_fallback_parses_comma_separated_paths ... ok
+test runtime_init::tests::explicit_flags_win_over_env ... ok
+test runtime_init::tests::missing_flag_value_is_rejected ... ok
+test runtime_init::tests::more_ids_than_models_is_rejected ... ok
+test runtime_init::tests::no_flags_and_no_env_means_no_preload ... ok
+test runtime_init::tests::repeatable_model_flags_with_paired_ids ... ok
+test runtime_init::tests::unknown_argument_is_rejected ... ok
+test sandbox_boot::tests::daemon_config_never_sets_a_cumulative_cpu_budget ... ok
+test sandbox_boot::tests::explicit_modes_parse_case_insensitively ... ok
+test sandbox_boot::tests::invalid_mode_is_rejected_loudly ... ok
+test sandbox_boot::tests::off_mode_reports_without_applying ... ok
+test sandbox_boot::tests::sandbox_memory_cap_equals_explicit_total_below_fallback ... ok
+test sandbox_boot::tests::unset_env_uses_platform_default ... ok
+test version_info::tests::gguf_feature_is_reported_when_compiled ... ok
+test version_info::tests::version_json_is_well_formed_and_carries_provenance ... ok
+test chat_template::tests::formatting_does_not_bypass_ingress_injection_rejection ... ok
+test chat_template::tests::qwen_chat_markup_is_admitted_by_default_ingress_security ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+running 16 tests
+test traffic_config_canary_validates ... ok
+test traffic_config_accepts_zero_weight_variant ... ok
+test traffic_splitter_same_session_returns_same_variant ... ok
+test traffic_config_rejects_invalid_sum ... ok
+test traffic_splitter_rejects_empty_config ... ok
+test integration_traffic_splitting_with_metrics ... ok
+test traffic_config_even_split_validates ... ok
+test traffic_splitter_different_sessions_distribute_traffic ... ok
+test traffic_splitter_single_variant_works ... ok
+test traffic_splitter_three_way_split ... ok
+test traffic_splitter_100_percent_to_single_variant ... ok
+test variant_creation_and_modification ... ok
+test integration_canary_deployment_scenario ... ok
+test variant_label_ordering ... ok
+test variant_metrics_concurrent_recording ... ok
+test variant_metrics_isolated_per_variant ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 4 tests
+test unknown_session_rejected ... ok
+test valid_token_creates_session ... ok
+test invalid_token_rejected ... ok
+test session_validates_successfully ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 13 tests
+test gguf_generator_has_correct_capabilities ... ok
+test gguf_generator_rejects_empty_prompt ... ok
+test gguf_generator_rejects_batch_input ... ok
+test gguf_generator_requires_loaded_model ... ok
+test gguf_generator_chat_requires_loaded_model ... ok
+test onnx_classifier_rejects_chat_messages ... ok
+test onnx_classifier_infers_text_requires_loaded_model ... ok
+test onnx_classifier_rejects_empty_text ... ok
+test onnx_classifier_returns_model_id ... ok
+test gguf_generator_returns_model_id ... ok
+test onnx_embedder_has_correct_capabilities ... ok
+test onnx_classifier_has_correct_capabilities ... ok
+test onnx_embedder_requires_loaded_model ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 8 tests
+test compare_memory_efficiency ... ok
+test baseline_thresholds_are_reasonable ... ok
+test baseline_file_exists_and_valid ... ok
+test compare_classification_latency ... ok
+test compare_generation_throughput ... ok
+test baseline_has_required_metrics ... ok
+test compare_concurrent_throughput ... ok
+test compare_embedding_latency ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 5 tests
+test test_medium_fixture_parses ... ok
+test test_large_fixture_parses ... ok
+test test_small_fixture_parses ... ok
+test test_fixtures_have_consistent_parameters ... ok
+test test_all_fixtures_have_valid_token_sequences ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 7 tests
+test bluegreen_environment_creation ... ok
+test bluegreen_concurrent_switch_rejected ... ok
+test bluegreen_environment_health_tracking ... ok
+test bluegreen_atomic_switch_verification ... ok
+test bluegreen_resource_allocation_validation ... ok
+test bluegreen_switch_rejects_unhealthy_target ... ok
+test bluegreen_zero_downtime_switch ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s
+
+
+running 7 tests
+test bluegreen_instant_rollback_trigger ... ok
+test bluegreen_double_rollback ... ok
+test bluegreen_failed_deployment_detection ... ok
+test bluegreen_rollback_preserves_blue_state ... ok
+test bluegreen_automatic_environment_swap ... ok
+test bluegreen_multiple_rapid_switches ... ok
+test bluegreen_rollback_within_timeout ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 10 tests
+test bluegreen_cache_empty_not_warmed ... ok
+test bluegreen_cache_multiple_models ... ok
+test bluegreen_kv_cache_data_integrity ... ok
+test bluegreen_kv_cache_large_vectors ... ok
+test bluegreen_kv_cache_overwrite ... ok
+test bluegreen_session_state_handling ... ok
+test bluegreen_session_transfer_preserves_data ... ok
+test bluegreen_session_transfer_to_non_empty ... ok
+test bluegreen_kv_cache_prepopulation ... ok
+test bluegreen_model_cache_warming ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 6 tests
+test canary_sticky_session_consistency ... ok
+test canary_traffic_80_20_distribution ... ok
+test canary_gradual_rollout_progression ... ok
+test canary_traffic_90_10_distribution ... ok
+test canary_control_vs_canary_comparison ... ok
+test canary_traffic_routing_accuracy ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 8 tests
+test canary_automatic_rollback_on_threshold_breach ... ok
+test canary_latency_percentile_tracking ... ok
+test canary_error_rate_calculation ... ok
+test canary_manual_rollback_traffic_shift ... ok
+test canary_state_preservation_during_rollback ... ok
+test canary_threshold_breach_detection ... ok
+test canary_rollback_timing_verification ... ok
+test canary_concurrent_metrics_recording ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 13 tests
+test chaos_binary_random_bytes ... ok
+test chaos_binary_encode_tagged_enums ... ok
+test chaos_encoder_roundtrip_stress ... ok
+test chaos_ipc_invalid_inference_params ... ok
+test chaos_ipc_massive_prompt ... ok
+test chaos_ipc_repeated_fields ... ok
+test chaos_ipc_type_confusion ... ok
+test chaos_v2_encoder_count_overflow ... ok
+test chaos_ipc_random_bytes ... ok
+test chaos_v1_encoder_malformed_input ... ok
+test chaos_ipc_truncated_json ... ok
+test chaos_ipc_extreme_string_lengths ... ok
+test chaos_v2_encoder_malformed_input ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 4 tests
+test chaos_queue_cancel_then_dequeue ... ok
+test chaos_queue_flood ... ok
+test chaos_concurrent_enqueue_dequeue ... ok
+test chaos_queue_expired_requests_skipped ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 18 tests
+test chaos_connection_pool_exhaustion ... ok
+test chaos_connection_pool_zero_max ... ok
+test chaos_health_unhealthy_during_shutdown ... ok
+test chaos_combined_resource_limits_and_queue ... ok
+test chaos_health_unhealthy_when_stopped ... ok
+test chaos_resource_exceed_concurrent_limit ... ok
+test chaos_resource_exceed_per_call_memory ... ok
+test chaos_health_degraded_no_models ... ok
+test chaos_health_degraded_queue_full ... ok
+test chaos_resource_exceed_total_memory ... ok
+test chaos_resource_release_then_reacquire ... ok
+test chaos_resource_zero_and_exact_boundary ... ok
+test chaos_connection_pool_concurrent_stress ... ok
+test chaos_shutdown_rejects_new_requests ... ok
+test chaos_combined_shutdown_and_queue ... ok
+test chaos_shutdown_concurrent_track_during_drain ... ok
+test chaos_shutdown_timeout_with_stuck_requests ... ok
+test chaos_shutdown_drains_in_flight ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 29 tests
+test test_cli_client_check_health_connection_failure ... ok
+test test_cli_client_get_health_report_connection_failure ... ok
+test test_cli_client_check_liveness_connection_failure ... ok
+test test_cli_error_all_variants_have_display ... ok
+test test_cli_client_with_short_timeout_fails_quickly ... ok
+test test_cli_error_connection_failed_display ... ok
+test test_cli_error_protocol_display ... ok
+test test_all_health_checks_fail_consistently_on_invalid_socket ... ok
+test test_cli_error_unhealthy_display ... ok
+test test_cli_error_io_from_std_io_error ... ok
+test test_cli_error_timeout_display ... ok
+test test_cli_ipc_client_accepts_various_path_formats ... ok
+test test_cli_ipc_client_creation_with_path ... ok
+test test_cli_ipc_client_timeout_chaining ... ok
+test test_cli_ipc_client_with_custom_timeout ... ok
+test test_concurrent_health_checks_on_invalid_socket ... ok
+test test_default_socket_path_platform_specific ... ok
+test test_exit_codes_follow_unix_convention ... ok
+test test_get_socket_path_env_var_behavior ... ok
+test test_health_check_type_equality ... ok
+test test_health_check_type_full ... ok
+test test_health_check_type_liveness ... ok
+test test_health_check_type_readiness ... ok
+test test_run_health_returns_unhealthy_on_connection_failure ... ok
+test test_run_health_verbose_connection_failure ... ok
+test test_run_liveness_returns_unhealthy_on_connection_failure ... ok
+test test_run_readiness_returns_unhealthy_on_connection_failure ... ok
+test test_socket_path_with_special_characters ... ok
+test test_cli_client_check_readiness_connection_failure ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+
+running 7 tests
+test core_targets_meet_tier_1 ... ok
+test external_references_loaded ... ok
+test generation_competitive_ratio ... ok
+test tier_targets_defined ... ok
+test memory_efficiency_competitive ... ok
+test tier_progression_reasonable ... ok
+test classification_competitive_ratio ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 4 tests
+test show_reports_explicit_total_below_one_gib_exactly ... ok
+test validate_accepts_consistent_limits ... ok
+test serve_refuses_invalid_limits_before_preload_sandbox_or_listen ... ok
+test show_and_validate_refuse_invalid_limits ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
+
+
+running 6 tests
+test test_acquire_at_limit ... ok
+test test_acquire_within_limit ... ok
+test test_connection_config_defaults ... ok
+test test_guard_releases_on_drop ... ok
+test test_session_connection_tracking ... ok
+test test_concurrent_acquire ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 8 tests
+test test_cache_empty ... ok
+test test_cache_hit_within_ttl ... ok
+test test_cache_key_deterministic ... ok
+test test_cache_key_differs_by_params ... ok
+test test_cache_key_differs_by_tokens ... ok
+test test_cache_eviction_at_capacity ... ok
+test test_cache_cleanup ... ok
+test test_cache_miss_after_ttl ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 3 tests
+test inference_params_shape_matches_guide ... ok
+test security_api_example ... ok
+test embedded_rust_example_compiles_and_fails_loud_without_model ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 19 tests
+test get_encoder_v1_returns_functional_encoder ... ok
+test get_encoder_v2_returns_binary_encoder ... ok
+test v1_decode_invalid_json_returns_error ... ok
+test v1_decode_wrong_type_returns_error ... ok
+test v1_encoding_is_deterministic ... ok
+test v1_roundtrip_empty ... ok
+test v1_roundtrip_single_token ... ok
+test v1_roundtrip_small_sequence ... ok
+test v1_roundtrip_boundary_values ... ok
+test v2_decode_length_mismatch ... ok
+test v1_roundtrip_repeated_values ... ok
+test v2_decode_truncated ... ok
+test v1_roundtrip_large_sequence ... ok
+test v2_encode_empty ... ok
+test v2_encode_single ... ok
+test v2_encoding_is_deterministic ... ok
+test v2_roundtrip ... ok
+test v2_roundtrip_large_sequence ... ok
+test v2_vs_v1_size_comparison ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 10 tests
+test filter_blocklist_replaces_blocked_words ... ok
+test filter_contains_blocked_detects_blocklist ... ok
+test filter_default_passes_all_text ... ok
+test filter_blocklist_is_case_insensitive ... ok
+test filter_rejects_invalid_regex ... ok
+test filter_unlimited_when_max_is_zero ... ok
+test filter_multiple_blocklist_entries ... ok
+test filter_regex_replaces_patterns ... ok
+test filter_truncates_long_output ... ok
+test filter_contains_blocked_detects_regex ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 7 tests
+test flash_attn_config_defaults ... ok
+test flash_attn_empty_handling ... ok
+test flash_attn_numerical_stability ... ok
+test flash_attn_single_position ... ok
+test flash_attn_tiled_matches_single_block ... ok
+test flash_attn_two_positions_equal_scores ... ok
+test flash_attn_weighted_attention ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 17 tests
+test test_gpu_backend_default ... ok
+test test_gpu_backend_display ... ok
+test test_gpu_config_cpu ... ok
+test test_gpu_config_cuda_all_layers ... ok
+test test_gpu_config_default ... ok
+test test_gpu_device_has_memory ... ok
+test test_gpu_device_memory_utilization ... ok
+test test_gpu_error_display ... ok
+test test_gpu_manager_available_devices ... ok
+test test_gpu_manager_cpu_only ... ok
+test test_gpu_device_cpu ... ok
+test test_gpu_manager_available_backends ... ok
+test test_gpu_manager_select_device_fallback ... ok
+test test_gpu_memory_pool_allocate ... ok
+test test_gpu_memory_pool_multiple_allocations ... ok
+test test_gpu_memory_pool_new ... ok
+test test_gpu_memory_pool_out_of_memory ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 5 tests
+test test_gpu_backend_default ... ok
+test test_gpu_backend_display ... ok
+test test_gpu_config_cuda_all_layers ... ok
+test test_gpu_device_cpu ... ok
+test test_gpu_manager_cpu_fallback ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 11 tests
+test test_alive_always_true ... ok
+test test_health_check_readiness_roundtrip ... ok
+test test_health_check_full_roundtrip ... ok
+test test_health_check_liveness_roundtrip ... ok
+test test_not_ready_when_queue_full ... ok
+test test_health_response_roundtrip ... ok
+test test_not_ready_when_stopped ... ok
+test test_ready_when_running ... ok
+test test_report_includes_all_fields ... ok
+test test_not_ready_when_draining ... ok
+test test_ready_respects_model_requirement ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 3 tests
+test empty_parameters_take_documented_defaults ... ok
+test partial_parameters_keep_supplied_values ... ok
+test serialization_still_writes_every_field ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 18 tests
+test capability_enum_equality ... ok
+test config_for_classification_is_deterministic ... ok
+test config_default_values_are_safe ... ok
+test config_rejects_invalid_top_p ... ok
+test input_batch_rejects_oversized ... ok
+test input_batch_validates_within_limit ... ok
+test input_byte_size_calculated_correctly ... ok
+test config_rejects_invalid_temperature ... ok
+test input_text_validates_non_empty ... ok
+test input_text_rejects_empty ... ok
+test input_text_rejects_oversized ... ok
+test input_chat_validates_messages ... ok
+test manifest_has_capability_check ... ok
+test manifest_parses_valid_json ... ok
+test manifest_validates_sha256_length ... ok
+test output_classification_result_created ... ok
+test output_embedding_result_created ... ok
+test output_generation_result_created ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 9 tests
+test concurrent_request_queue_capacity ... ok
+test error_propagation_model_not_found ... ok
+test inference_params_serialization ... ok
+test output_filter_config_defaults ... ok
+test priority_ordering_correct ... ok
+test request_id_uniqueness ... ok
+test ipc_request_roundtrip ... ok
+test queue_fifo_for_same_priority ... ok
+test scheduler_request_ordering ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 14 tests
+test chat_message_structure_valid ... ok
+test chat_roles_all_variants ... ok
+test generation_result_structure_valid ... ok
+test inference_output_generation_identification ... ok
+test inference_params_typical_defaults ... ok
+test gguf_config_defaults_valid ... ok
+test inference_params_valid_values ... ok
+test max_tokens_param_respected ... ok
+test gguf_model_requires_valid_path ... ok
+test mmap_load_missing_file ... ok
+test mmap_len_matches_file_size ... ok
+test mmap_data_accessible ... ok
+test stop_reason_variants_correct ... ok
+test mmap_load_valid_file ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 16 tests
+test test_framing_multiple_messages ... ok
+test test_framing_empty_payload ... ok
+test test_framing_roundtrip ... ok
+test test_framing_large_payload ... ok
+test test_owned_guard_acquire_and_release ... ok
+test test_server_error_frame_too_large_display ... ok
+test test_server_error_io_display ... ok
+test test_owned_guard_rejects_at_limit ... ok
+test windows_server_tests::test_busy_pipe_connect_respects_deadline ... ok
+test windows_server_tests::test_server_authenticated_burst_eight_clients ... ok
+test windows_server_tests::test_server_graceful_shutdown ... ok
+test windows_server_tests::test_server_health_roundtrip ... ok
+test windows_server_tests::test_server_multiple_requests ... ok
+test windows_server_tests::test_server_client_disconnect ... ok
+test windows_server_tests::test_over_capacity_client_gets_explicit_503 ... ok
+test windows_server_tests::test_server_sequential_connections ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 15 tests
+test test_allocate_sequence ... ok
+test test_append_and_read_single ... ok
+test test_free_sequence ... ok
+test test_cross_page_boundary ... ok
+test test_free_nonexistent_sequence ... ok
+test test_append_multiple_positions ... ok
+test test_attention_scores_basic ... ok
+test test_memory_usage_tracking ... ok
+test test_multi_sequence_independence ... ok
+test test_quantization_disabled ... ok
+test test_read_out_of_bounds ... ok
+test test_large_sequence ... ok
+test test_reset_clears_all ... ok
+test test_stats_tracking ... ok
+test test_two_sequences_same_position_distinct_pages ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 8 tests
+test limits_allow_within_bounds ... ok
+test limits_clone_shares_state ... ok
+test limits_default_config_is_reasonable ... ok
+test limits_reject_exceeds_concurrent ... ok
+test limits_reject_exceeds_per_call ... ok
+test limits_reject_exceeds_total ... ok
+test limits_release_on_drop ... ok
+test limits_track_multiple_acquisitions ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 11 tests
+test test_empty_snapshot ... ok
+test test_counter_multiple_names ... ok
+test test_gauge_set ... ok
+test test_counter_increment ... ok
+test test_histogram_multiple_values ... ok
+test test_histogram_min_max_tracking ... ok
+test test_metrics_response_empty_snapshot ... ok
+test test_metrics_response_roundtrip ... ok
+test test_histogram_single_value ... ok
+test test_metrics_request_roundtrip ... ok
+test test_snapshot_is_immutable ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 8 tests
+test protocol_round_trips_for_model_lifecycle_messages ... ok
+test load_with_mismatched_manifest_hash_is_refused ... ok
+test readiness_requires_a_loaded_model_when_configured ... ok
+test load_without_session_is_rejected ... ok
+test unload_of_absent_model_fails_loud ... ok
+test load_failure_leaves_no_registry_state ... ok
+test unload_without_session_is_rejected ... ok
+test traversal_path_is_rejected_and_connection_survives ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 8 tests
+test test_pool_metrics ... ok
+test test_instant_tier_switching ... ok
+test test_active_model_protected ... ok
+test test_pool_status ... ok
+test test_preload_all_tiers ... ok
+test test_warmup_affects_switch_info ... ok
+test test_tier_based_eviction ... ok
+test benchmark_transition_latency ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 22 tests
+test combiner_aux_loss_balanced ... ok
+test combiner_aux_loss_imbalanced ... ok
+test combiner_single_expert ... ok
+test combiner_weighted_sum ... ok
+test config_deepseek_preset ... ok
+test config_mixtral_preset ... ok
+test config_validation_top_k_exceeds_experts ... ok
+test config_validation_valid ... ok
+test config_validation_zero_experts ... ok
+test config_default_values ... ok
+test config_validation_zero_top_k ... ok
+test executor_cpu_only_assignment ... ok
+test executor_custom_assignment ... ok
+test executor_group_by_expert ... ok
+test executor_load_statistics ... ok
+test executor_load_statistics_empty ... ok
+test router_basic_routing ... ok
+test router_batch_routing ... ok
+test router_creation_dimension_mismatch ... ok
+test router_creation_valid ... ok
+test router_load_tracking ... ok
+test router_weights_sum_to_one ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 5 tests
+test test_preload_invalid_manifest_model_id ... ok
+test test_preload_invalid_manifest_sha256 ... ok
+test test_preload_different_models_get_different_handles ... ok
+test test_preload_registers_handle ... ok
+test test_abort_unregisters_handle ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 11 tests
+test cache_clear_removes_all ... ok
+test cache_find_prefix_exact ... ok
+test cache_find_prefix_longest_match ... ok
+test cache_find_prefix_no_match ... ok
+test cache_find_prefix_partial ... ok
+test cache_insert_and_get ... ok
+test cache_lru_eviction ... ok
+test cache_hash_different_for_different_tokens ... ok
+test cache_hash_same_for_same_tokens ... ok
+test cache_miss_returns_none ... ok
+test cache_memory_bytes_tracking ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 7 tests
+test handshake_v1_explicit ... ok
+test handshake_v1_default_when_not_specified ... ok
+test handshake_ack_v2_negotiated ... ok
+test handshake_ack_includes_negotiated_version ... ok
+test handshake_v2_request ... ok
+test legacy_handshake_ack_defaults_to_v1 ... ok
+test protocol_version_default_is_v1 ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 4 tests
+test original_signatures_bind_to_their_exact_types ... ok
+test original_sync_calls_fail_loud_on_a_missing_model ... ok
+test original_async_load_fails_loud_with_no_registry_state ... ok
+test unload_api_and_wire_structs_are_unchanged ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 5 tests
+test test_connection_limit_enforced ... ok
+test test_dedup_across_sessions ... ok
+test test_cancel_pending_request ... ok
+test test_warmup_then_inference ... ok
+test test_timeout_during_queue ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 5 tests
+test sandbox_can_be_created ... ok
+test sandbox_config_custom_limits ... ok
+test sandbox_default_config_is_reasonable ... ok
+test sandbox_disabled_reports_success ... ok
+test sandbox_usage_returns_none_when_inactive ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 9 tests
+test batch_processor_respects_size_limit ... ok
+test batch_processor_respects_token_limit ... ok
+test priority_queue_fifo_within_same_priority ... ok
+test priority_queue_orders_by_priority ... ok
+test thread_pool_config_inference_halves_cores ... ok
+test thread_pool_config_stack_size_reasonable ... ok
+test thread_pool_config_default_uses_available ... ok
+test thread_pool_config_minimum_one_thread ... ok
+test request_queue_enqueue_dequeue ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 3 tests
+test infer_clean_prompt_reaches_engine ... ok
+test infer_rejects_injection_with_typed_error ... ok
+test runtime_reads_security_config ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+
+running 85 tests
+test auth_attacks::auth_error_display ... ok
+test auth_attacks::case_sensitivity ... ok
+test auth_attacks::connection_tracking ... ok
+test auth_attacks::accept_correct_token ... ok
+test auth_attacks::null_byte_in_token ... ok
+test auth_attacks::rate_limit_reset_on_success ... ok
+test auth_attacks::rate_limiting_after_failures ... ok
+test auth_attacks::accept_valid_session ... ok
+test auth_attacks::reject_empty_token ... ok
+test auth_attacks::prefix_attack ... ok
+test auth_attacks::multiple_sessions ... ok
+test auth_attacks::reject_wrong_token ... ok
+test auth_attacks::session_token_format ... ok
+test auth_attacks::suffix_attack ... ok
+test auth_attacks::token_with_special_chars ... ok
+test auth_attacks::session_tokens_unique ... ok
+test auth_attacks::token_with_unicode ... ok
+test auth_attacks::very_long_token ... ok
+test auth_attacks::whitespace_differences ... ok
+test boundary_tests::allocation_at_exact_limit ... ok
+test boundary_tests::allocation_one_over_limit ... ok
+test boundary_tests::concurrency_limit_enforced ... ok
+test boundary_tests::concurrency_release_on_drop ... ok
+test boundary_tests::max_value_no_overflow ... ok
+test boundary_tests::memory_boundary_concurrent_exhaustion ... ok
+test boundary_tests::memory_boundary_reject_over_limit ... ok
+test boundary_tests::memory_boundary_release_on_drop ... ok
+test auth_attacks::cleanup_removes_expired ... ok
+test auth_attacks::reject_expired_session ... ok
+test boundary_tests::memory_boundary_total_exhaustion ... ok
+test boundary_tests::resource_exhaustion_rapid_fire ... ok
+test boundary_tests::resource_lockup_concurrent ... ok
+test boundary_tests::sandbox_config_defaults_secure ... ok
+test boundary_tests::sandbox_custom_limits ... ok
+test boundary_tests::sandbox_disabled_no_restrictions ... ok
+test boundary_tests::sandbox_usage_tracking ... ok
+test boundary_tests::zero_byte_allocation ... ok
+test crypto_tests::authentication_byte_insertion ... ok
+test crypto_tests::authentication_byte_removal ... ok
+test crypto_tests::authentication_single_bit_flip ... ok
+test crypto_tests::binary_data_all_byte_values ... ok
+test crypto_tests::ciphertext_includes_tag ... ok
+test crypto_tests::encrypt_empty_plaintext ... ok
+test crypto_tests::nonce_size_96_bits ... ok
+test crypto_tests::nonce_modification_fails_decrypt ... ok
+test crypto_tests::invalid_nonce_size_rejected ... ok
+test crypto_tests::encryption_not_deterministic ... ok
+test crypto_tests::key_size_256_bits ... ok
+test crypto_tests::swapped_ciphertext_fails ... ok
+test crypto_tests::nonce_uniqueness ... ok
+test crypto_tests::semantic_security_different_ciphertexts ... ok
+test crypto_tests::repeated_encrypt_decrypt_consistent ... ok
+test crypto_tests::truncated_ciphertext_fails ... ok
+test crypto_tests::wrong_key_fails_decrypt ... ok
+test ipc_fuzzing::control_characters_in_strings ... ok
+test ipc_fuzzing::error_message_long_string ... ok
+test ipc_fuzzing::handle_null_bytes_in_json ... ok
+test ipc_fuzzing::handle_utf8_bom ... ok
+test ipc_fuzzing::handle_deeply_nested_json ... ok
+test ipc_fuzzing::handshake_message_encoding ... ok
+test ipc_fuzzing::inference_request_requires_model_id ... ok
+test ipc_fuzzing::inference_request_requires_prompt ... ok
+test ipc_fuzzing::large_prompt ... ok
+test ipc_fuzzing::large_request_id ... ok
+test ipc_fuzzing::message_roundtrip_binary ... ok
+test ipc_fuzzing::message_roundtrip_json ... ok
+test ipc_fuzzing::negative_request_id ... ok
+test ipc_fuzzing::protocol_error_display ... ok
+test ipc_fuzzing::reject_empty_message ... ok
+test ipc_fuzzing::reject_invalid_json ... ok
+test ipc_fuzzing::reject_missing_type_field ... ok
+test ipc_fuzzing::reject_oversized_binary_message ... ok
+test ipc_fuzzing::reject_oversized_message ... ok
+test ipc_fuzzing::valid_inference_request_passes ... ok
+test ipc_fuzzing::zero_request_id ... ok
+test ipc_fuzzing::reject_unknown_message_type ... ok
+test ipc_fuzzing::unicode_model_id ... ok
+test boundary_tests::resource_limits_thread_safe ... ok
+test crypto_tests::crypto_performance ... ok
+test crypto_tests::encrypt_large_plaintext ... ok
+test crypto_tests::pbkdf2_empty_salt ... ok
+test crypto_tests::pbkdf2_empty_password ... ok
+test crypto_tests::pbkdf2_different_passwords ... ok
+test crypto_tests::pbkdf2_different_salts ... ok
+test crypto_tests::pbkdf2_deterministic ... ok
+
+test result: ok. 85 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.31s
+
+
+running 2 tests
+test regular_file_inside_models_is_allowed ... ok
+test absent_file_passes_validation_and_fails_as_not_found ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 15 tests
+test filter_blocks_substring_match ... ok
+test filter_case_insensitive_blocklist ... ok
+test filter_empty_blocklist_passes_all ... ok
+test filter_length_truncation ... ok
+test filter_mixed_unicode_normalization ... ok
+test filter_multiple_blocklist_entries ... ok
+test filter_unicode_in_blocklist ... ok
+test filter_invalid_regex_rejected ... ok
+test filter_regex_not_catastrophic_backtracking ... ok
+test filter_replaces_blocked_content ... ok
+test filter_preserves_unblocked_content ... ok
+test precomputed_blocklist_no_per_call_allocation ... ok
+test unicode_nfc_blocks_composed_form ... ok
+test unicode_nfc_blocks_decomposed_form ... ok
+test filter_regex_patterns_work ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 11 tests
+test accept_uppercase_hex_hash ... ok
+test accept_valid_64_char_hash ... ok
+test accept_lowercase_hex_hash ... ok
+test error_contains_hash_info ... ok
+test manifest_from_json_invalid ... ok
+test manifest_from_json_valid ... ok
+test reject_empty_hash ... ok
+test reject_long_hash ... ok
+test reject_short_hash ... ok
+test reject_empty_capabilities ... ok
+test reject_empty_model_id ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 11 tests
+test accept_batch_at_exactly_32_items ... ok
+test accept_text_at_exactly_64kb ... ok
+test accept_valid_utf8_text ... ok
+test byte_size_calculation_correct ... ok
+test reject_batch_exceeding_32_items ... ok
+test reject_empty_batch ... ok
+test reject_empty_message_content ... ok
+test reject_empty_text_input ... ok
+test reject_text_exceeding_64kb ... ok
+test reject_empty_messages ... ok
+test reject_messages_total_exceeding_64kb ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 9 tests
+test reject_absolute_path_unix ... ok
+test reject_relative_path_escape ... ok
+test reject_null_byte_in_path ... ok
+test reject_absolute_path_windows ... ok
+test reject_url_encoded_traversal ... ok
+test reject_unc_paths ... ok
+test accept_valid_model_path ... ok
+test reject_double_dot_in_middle ... ok
+test allowed_dirs_enforced ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 2 tests
+test test_worker_rejects_injection_end_to_end ... ok
+test test_streaming_worker_rejects_injection_end_to_end ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+running 9 tests
+test test_no_false_positives_on_safe_text ... ok
+test test_prompt_injection_case_insensitive ... ok
+test test_prompt_injection_edge_cases ... ok
+test test_zero_width_character_bypass_prevented ... ok
+test test_multiple_pii_types_detected ... ok
+test test_pii_format_variations ... ok
+test test_credit_card_detection ... ok
+test test_unicode_homograph_pii_detected ... ok
+test test_ssn_detection ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+
+running 8 tests
+test resource_guard_releases_on_drop ... ok
+test resource_limits_track_current_usage ... ok
+test resource_limits_enforce_concurrency ... ok
+test resource_limits_reject_exceeding_per_call ... ok
+test sandbox_can_be_created ... ok
+test resource_limits_reject_exceeding_total ... ok
+test sandbox_disabled_is_noop ... ok
+test sandbox_config_defaults_enforced ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 10 tests
+test test_initial_state_is_running ... ok
+test test_multiple_guards_track_correctly ... ok
+test test_state_is_stopped_after_drain ... ok
+test test_drain_completes_when_zero_requests ... ok
+test test_track_increments_count ... ok
+test test_is_accepting_when_running ... ok
+test test_track_returns_none_when_draining ... ok
+test test_initiate_transitions_to_draining ... ok
+test test_drain_waits_for_completion ... ok
+test test_drain_timeout_returns_remaining ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 10 tests
+test test_inference_params_stream_defaults_to_false ... ok
+test test_inference_params_stream_serde_default ... ok
+test test_inference_params_stream_serde_explicit ... ok
+test test_stream_chunk_error_constructor ... ok
+test test_stream_chunk_roundtrip ... ok
+test test_inference_request_with_stream_flag ... ok
+test test_stream_chunk_error_roundtrip ... ok
+test test_stream_chunk_token_constructor ... ok
+test test_stream_chunk_final_roundtrip ... ok
+test test_stream_chunk_final_token_constructor ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 6 tests
+test test_swap_route_not_found ... ok
+test test_swap_manager_is_idle_after_completion ... ok
+test test_swap_preload_failure_rollback ... ok
+test test_zero_downtime_swap ... ok
+test test_swap_with_drain_timeout ... ok
+test test_concurrent_swap_rejected ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 14 tests
+test test_classification_output_structure ... ok
+test test_classification_p95_latency_simulation ... ok
+test test_classification_input_validation ... ok
+test test_batch_classification_requests ... ok
+test test_classification_throughput_simulation ... ok
+test test_end_to_end_latency_measurement ... ok
+test test_concurrent_classification_requests ... ok
+test test_error_handling_invalid_input ... ok
+test test_inference_output_classification_identification ... ok
+test test_performance_regression_detection ... ok
+test test_error_handling_invalid_model ... ok
+test test_memory_utilization_estimation ... ok
+test test_tinybert_config_validation ... ok
+test test_tinybert_model_loading ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 9 tests
+test batch_slot_phase_transitions ... ok
+test continuous_admits_to_free_slots ... ok
+test continuous_evicts_on_complete ... ok
+test continuous_respects_max_slots ... ok
+test page_table_free_recycles_pages ... ok
+test page_write_and_read ... ok
+test paged_kv_slot_calculation ... ok
+test page_is_full_after_16_slots ... ok
+test page_table_allocate_returns_unique_ids ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 10 tests
+test test_cancel_message_roundtrip ... ok
+test test_cancel_response_roundtrip ... ok
+test test_cancel_pending_request ... ok
+test test_cancel_unknown_request ... ok
+test test_cancelled_request_skipped_on_dequeue ... ok
+test test_request_no_deadline_when_no_timeout ... ok
+test test_request_no_timeout ... ok
+test test_request_with_timeout ... ok
+test test_request_deadline_computed ... ok
+test test_expired_request_skipped_on_dequeue ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 14 tests
+test simd_decode_invalid_token ... ok
+test simd_decode_valid ... ok
+test simd_encode_empty ... ok
+test simd_encode_multiple_tokens ... ok
+test simd_encode_roundtrip ... ok
+test simd_encode_unknown_bytes ... ok
+test simd_vocab_size ... ok
+test simd_whitespace_all_whitespace ... ok
+test simd_whitespace_empty_input ... ok
+test simd_encode_single_token ... ok
+test simd_whitespace_large_input ... ok
+test simd_special_tokens ... ok
+test simd_whitespace_matches_scalar ... ok
+test simd_whitespace_no_whitespace ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 6 tests
+test test_warmup_request_defaults ... ok
+test test_warmup_request_roundtrip ... ok
+test test_warmup_request_with_tokens ... ok
+test test_warmup_response_error ... ok
+test test_warmup_response_success ... ok
+test test_warmup_response_roundtrip ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 3 tests
+test src\ipc\protocol_compat.rs - ipc::protocol_compat (line 22) - compile fail ... ok
+test src\ipc\protocol_compat.rs - ipc::protocol_compat (line 7) ... ok
+test src\telemetry\security_log.rs - telemetry::security_log::log_security_event (line 117) ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+

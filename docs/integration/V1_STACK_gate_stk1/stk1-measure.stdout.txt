@@ -1,0 +1,8 @@
+
+running 3 tests
+test engine::gguf::backend::cancel_latency_tests::real_model_n7_prefill_characterization ... ok
+test engine::gguf::backend::cross_model_tests::real_model_n7_cross_model_remainder_acceptance ... ok
+test engine::gguf::prefill::split_tests::real_model_n7_determinism_matrix ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 834 filtered out; finished in 2514.29s
+

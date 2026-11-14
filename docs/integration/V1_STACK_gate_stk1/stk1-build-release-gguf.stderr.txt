@@ -1,0 +1,2 @@
+   Compiling gg-core v0.10.0-rc.1 (C:\w\src\ggv1-stack\core-runtime)
+    Finished `release` profile [optimized] target(s) in 54.21s

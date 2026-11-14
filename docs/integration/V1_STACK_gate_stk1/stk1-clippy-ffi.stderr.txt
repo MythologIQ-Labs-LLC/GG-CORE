@@ -1,0 +1,2 @@
+   Compiling gg-core v0.10.0-rc.1 (C:\w\src\ggv1-stack\core-runtime)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.27s

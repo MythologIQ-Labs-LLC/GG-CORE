@@ -78,7 +78,36 @@ C1 and C2 were re-run in the same batch.
 - **Correctness:** 0 problems; every stop quiesced with `cancelled` or `deadline_exceeded`, and every recovery succeeded.
 - **Output:** the hash `57822580A271832B` is identical across all three daemons.
 
-## 4. Not tested
+## 4. Skipped tests (4 in total, all pre-existing on `main` and untouched by the three PRs)
+`git diff b06aaa0 69fa860` on these files is empty.
+
+| Suite | Test | Why it is skipped | Affects release acceptance? |
+|---|---|---|---|
+| full (`onnx,gguf,ffi`) | `engine::gguf::working_memory::tests::real::flash_attention_off_peak_stays_within_estimate` | `#[ignore = "real models; run natively with GG_CORE_WM_MODELS"]`: a multi-model working-memory measurement that needs a model list. It has been on `main` since `862965f`. | Not for these PRs, which do not change working-memory estimation. It belongs to a future multi-model packaged acceptance run. |
+| advanced | doctest `engine::adaptive_speculative` (mod.rs line 14) | A `rust,ignore` example block for an `advanced`-feature API, never compiled. | No. It is documentation only, for a feature outside the release build. |
+| advanced | doctest `engine::adaptive_speculative::telemetry` (line 14) | Same: `rust,ignore`. | No. |
+| advanced | doctest `models::tier_synergy_speculative` (line 8) | Same: `rust,ignore`. | No. |
+
+## 5. Independent integration review (69fa860): APPROVE, no integration defects
+The reviewer read all three merge diffs (all auto-merged, no hand-resolved hunks) and the surrounding code.
+- **main.rs:** #193's strict serve configuration and #183's unload client do not overlap. A bad memory environment variable cannot break `models unload`, and the unload path cannot bypass strict configuration.
+- **Configuration:** neither #183 nor #195 calls `config::load()`, `try_load()` or the deprecated `per_call_ceiling_from_env()`.
+- **Memory accounting:** #183's release accounting works with #193's strict totals. The budget comes back only after the instance drops. An immediate reload during `unloading` is refused (fail-closed); `--wait-ms` is the remedy.
+- **Prefill and release:** #195's prefill does not change model ownership, and a stop delays release by at most one chunk.
+- **Docs and tests:** the auto-merged release-support doc reads coherently. Test environment guards show no cross-test race. The merges introduced no Razor regressions.
+- **Optional cleanup, not blocking:**
+  1. `test_env.rs`: the doc comment overstates the shared lock's scope. The binary-crate tests use their own locks in a separate process, which is safe.
+  2. Release-support doc: recommend `models unload <id> --wait-ms N` before reloading under an explicit memory total.
+
+## 6. Reproducibility of the tested tree
+- **Re-merge check (2026-11-13):** the three PR heads were verified unchanged, and `main` was still `b06aaa04`. A fresh worktree merging `origin/main` + #195 + #193 + #183 in order (`--no-ff`) produced tree **`7b895ad31b4df7d8a0795a2811bc9526dae0eed2`**, identical to the qualified tree.
+- **Evidence commits:** every commit after `69fa860` on this branch changes only `docs/integration/` files, so production code is identical to the tested tree.
+
+## 7. Raw gate logs
+- **`V1_STACK_gate_stk1/`:** the per-job stdout and stderr of batch `stk1` that are under 1 MB, covering fmt, Clippy for the 5 feature sets, the 3 test suites, the release build and the release-wait tests.
+- **Not committed:** `stk1-test-full.stderr.txt` (9.5 MB) and `stk1-measure.stderr.txt` (14.6 MB), which are llama.cpp load logs. The measurement results (the `N7M`/`N7X`/`N7D` lines) are in `stk1-measure.stdout.txt` and are quoted in §2.
+
+## 8. Not tested
 - Linux and macOS.
 - GPU.
 - Contexts above 16k.

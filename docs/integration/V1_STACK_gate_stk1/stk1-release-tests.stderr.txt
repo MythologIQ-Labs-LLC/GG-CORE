@@ -1,0 +1,8 @@
+   Compiling gg-core v0.10.0-rc.1 (C:\w\src\ggv1-stack\core-runtime)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.98s
+     Running unittests src\lib.rs (E:\w\target-ggv1-n7d\debug\deps\gg_core-270db0a8de5df481.exe)
+Inconsistent model release response
+Inconsistent model release response
+Unloaded model 'm': release pending: 1 instance(s) still held by in-flight requests
+Inconsistent model release response
+R1A stall_ms=300 connection_end_ms=308

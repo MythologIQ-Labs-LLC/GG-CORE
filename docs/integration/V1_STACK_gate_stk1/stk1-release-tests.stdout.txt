@@ -1,0 +1,45 @@
+
+running 39 tests
+test cli::models_release_cmd::tests::contradictory_release_receipts_fail_closed ... ok
+test cli::models_release_cmd::tests::expired_wait_with_held_instance_returns_nonzero ... ok
+test cli::models_release_cmd::tests::release_completed_returns_zero ... Unloaded model 'm': released
+ok
+test cli::models_release_cmd::tests::wrong_model_cannot_claim_released ... ok
+test ipc::conn_writer::tests::a_stalled_write_releases_the_lock_within_stall ... ok
+test ipc::protocol_release_types::tests::request_and_response_round_trip_as_json ... ok
+test ipc::protocol_release_types::tests::the_existing_unload_messages_are_unchanged ... ok
+test ipc::protocol_release_types::tests::wait_defaults_to_zero_and_is_clamped ... ok
+test ipc::server::release::order_tests::second_release_wait_is_refused_while_first_reply_is_write_blocked ... ok
+test ipc::server::release::stall_tests::blocked_inline_reply_ends_the_connection_within_the_stall_bound ... ok
+test ipc::server::release_tests::a_pending_wait_ends_when_its_connection_does ... ok
+test ipc::server::release_tests::cancel_is_served_during_a_wait_which_then_reports_released ... ok
+test ipc::server::release_tests::unauthenticated_wait_is_refused_and_the_connection_stays_open ... ok
+test memory::limits::resident::tests::dropping_the_guard_releases_resident_bytes ... ok
+test memory::limits::tests::guard_drop_releases_memory_and_concurrency ... ok
+test memory::pool::tests::test_memory_pool_acquire_and_release ... ok
+test models::lifecycle::release_tests::a_held_instance_is_listed_exactly_once_while_unloading ... ok
+test models::lifecycle::release_tests::a_reloaded_id_and_its_old_instance_are_tracked_apart ... ok
+test models::lifecycle::release_tests::a_short_wait_returns_false_without_blocking_past_it ... ok
+test models::lifecycle::release_tests::held_instance_is_listed_and_charged_until_the_holder_drops ... ok
+test models::lifecycle::release_tests::idle_unload_is_released_at_once_and_budget_returns ... ok
+test models::lifecycle::release_tests::unlimited_lifecycles_track_release_too ... ok
+test models::lifecycle::release_tests::waiting_holds_no_lifecycle_lock ... ok
+test models::lifecycle::release_tests::without_a_runtime_a_held_instance_never_reads_released ... ok
+test models::lifecycle::resident_tests::reservation::abandoned_prepared_load_releases_its_reservation ... ok
+test models::lifecycle::resident_tests::reservation::duplicate_id_releases_the_losing_reservation ... ok
+test models::lifecycle::resident_tests::reservation::unload_defers_release_while_a_request_holds_the_model ... ok
+test models::lifecycle::resident_tests::unload_releases_resident_and_allows_reload_or_swap ... ok
+test models::version::tests::test_parse_prerelease ... ok
+test models::version::tests::test_parse_prerelease_complex ... ok
+test models::version::tests::test_parse_prerelease_empty_tag ... ok
+test models::version::tests::test_range_exact_includes_prerelease ... ok
+test models::version::tests::test_range_prerelease_excluded_by_default ... ok
+test models::version::tests::test_range_prerelease_included_when_enabled ... ok
+test models::version::tests::test_version_ordering_prerelease_alphabetical ... ok
+test models::version::tests::test_version_ordering_prerelease_vs_release ... ok
+test models::version::tests::test_version_with_prerelease ... ok
+test models::version::tests::test_version_with_prerelease_serialization ... ok
+test scheduler::worker::tests::worker_releases_resource_guard_after_inference ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 757 filtered out; finished in 2.31s
+
