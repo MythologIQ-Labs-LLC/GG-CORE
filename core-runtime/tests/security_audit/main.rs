@@ -1,4 +1,4 @@
-//! Security Audit Test Suite for COREFORGE CORE Runtime
+//! Security audit tests for the standalone GG-CORE inference runtime
 //!
 //! This module contains penetration testing scenarios designed to validate
 //! the security boundaries and defenses of the CORE runtime. These tests
