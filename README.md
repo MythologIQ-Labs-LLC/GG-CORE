@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/gg-core-banner.webp" alt="GG-CORE: Local Inference Runtime, powering CoreForge" width="600">
+  <img src="docs/assets/gg-core-logo.png" alt="GG-CORE standalone inference runtime" width="160">
 </p>
 
 <h1 align="center">GG-CORE</h1>
@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/workflows/rust.yml"><img src="https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/workflows/rust.yml/badge.svg" alt="Rust CI"></a>
-  <a href="https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases"><img src="https://img.shields.io/badge/candidate-0.10.0--rc.1-orange.svg" alt="GG-CORE 0.10.0-rc.1 release candidate; see Releases for publication status"></a>
+  <a href="https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases"><img src="https://img.shields.io/badge/prerelease-v0.10.0--rc.1-orange.svg" alt="Published GG-CORE v0.10.0-rc.1 prerelease"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache 2.0 license"></a>
   <a href="docs/FEATURE_INDEX.md"><img src="https://img.shields.io/badge/evidence-feature%20index-5b5bd6.svg" alt="Evidence-backed feature index"></a>
   <img src="https://img.shields.io/badge/status-pre--production-yellow.svg" alt="Pre-production status">
@@ -44,20 +44,24 @@ GG-CORE is the **local inference runtime**, not a plugin, a desktop interface, o
 
 ```mermaid
 flowchart LR
-    A[Application or agent host] -->|Rust, C, Python, or authenticated IPC| B[GG-CORE runtime boundary]
-    B --> C[Ingress security scan]
-    C --> D[Model registry and lifecycle]
-    D --> E{Backend dispatch}
-    E -->|GGUF| F[llama.cpp backend]
-    E -->|ONNX manifest| G[Candle ONNX embed or classify]
-    F --> H[Inference engine and scheduler]
-    G --> H
-    H --> I[Egress sanitization]
-    I --> A
-
-    B -. no HTTP / REST / WebSocket .-> J[No network inference surface]
-    H -. no tool or business authority .-> K[Pure execution boundary]
+    Host[Standalone caller or application]
+    Host -->|Authenticated named pipe or Unix socket| IPC[IPC session and framing]
+    Host -->|Embedded Rust, C FFI or Python| API[Runtime facade]
+    IPC --> API
+    API --> Ingress[Prompt validation and ingress scan]
+    Ingress --> Queue[Admission limits and scheduler]
+    Queue --> Model[Registered model instance]
+    Model --> Backend{Model backend}
+    Backend -->|GGUF generation| GGUF[llama.cpp CPU path]
+    Backend -->|ONNX embed or classify, source-only in RC archive| ONNX[Candle ONNX CPU path]
+    GGUF --> Egress[Output and streaming sanitization]
+    ONNX --> Egress
+    Egress --> Host
+    Loader[Local model loader, manifest and path checks] --> Lifecycle[Registry, lifecycle and resident memory]
+    Lifecycle --> Model
 ```
+
+The model-loading control path is distinct from request inference. Backend source code does **not** establish packaged support for every model family or accelerator. GG-CORE has no HTTP inference server, tool execution authority, or automatic model downloader. See the [code-grounded architecture diagrams](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md).
 
 ## Start here
 
@@ -94,6 +98,8 @@ The labels below are part of the product contract:
 
 The full source-to-test map lives in [`docs/FEATURE_INDEX.md`](docs/FEATURE_INDEX.md). The README claim audit is recorded in [`docs/README_VERIFICATION.md`](docs/README_VERIFICATION.md).
 
+**Release versus development:** [`v0.10.0-rc.1`](https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases/tag/v0.10.0-rc.1) was published on **2026-11-05** with Linux, macOS and Windows CPU-GGUF portable archives plus checksums. Current `main` contains additional qualified source correctness changes. The authenticated cold-switch coordinator and IPC operation/status interface are on separate, **unmerged** development branches and are **not included in the published RC**. New IPC switch changes have not passed native qualification. A `loaded_unverified` result is not inference readiness. See [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137).
+
 ---
 
 ## Build matrix
@@ -116,10 +122,10 @@ Use the stable Rust toolchain. Native prerequisites vary by selected backend.
 | C ABI | `cargo build --release --features "ffi,gguf"` | Produces the `cdylib` and regenerates `include/gg_core.h`. Replace `gguf` with the backend combination you need. |
 | Python | `cargo build --release --features "python,gguf"` | Builds the PyO3 surface. Python 3.8+ ABI compatibility is configured; wheel/developer packaging still needs a documented release workflow. |
 | Adaptive/TierSynergy work | `cargo build --release --features "gguf,advanced"` | Experimental, off by default at runtime, and not part of the current feature-matrix CI job. |
-| NVIDIA support | `cargo build --release --features "gguf,cuda"` | Requires a compatible CUDA toolkit and hardware. |
-| Apple Metal support | `cargo build --release --features "gguf,metal"` | macOS only. |
+| NVIDIA code paths | `cargo build --release --features "gguf,cuda"` | Requires a compatible CUDA toolkit and hardware; **not evidence of serving-path GPU offload or release qualification**. |
+| Apple Metal code paths | `cargo build --release --features "gguf,metal"` | macOS only; **not evidence of serving-path Metal inference or release qualification**. |
 
-The default CI workflow runs formatting, clippy, and tests on Linux, macOS, and Windows, plus dedicated `gguf`, `onnx`, `ffi`, and `python` feature legs. A model-free benchmark smoke and gross-regression gate also runs on pull requests.
+The default CI workflow runs formatting, clippy, and tests on Linux, macOS, and Windows, plus dedicated `gguf`, `onnx`, `ffi`, `python` and `advanced` feature legs. A model-free benchmark smoke and gross-regression gate also runs on pull requests.
 
 ### Windows GGUF build notes
 
@@ -512,7 +518,7 @@ This is historical evidence for the original model/build/host combination only. 
 
 ### Benchmark discipline
 
-- CI runs model-free benchmark smoke tests and a same-runner gross-regression gate.
+- CI runs model-free benchmark smoke tests and a cache-baseline gross-regression gate on pull requests. If no suitable baseline is restored, the performance comparison is skipped; green CI is not model throughput qualification.
 - Absolute hardware results must include commit, model, quantization, prompt profile, compiler/build flags, and hardware.
 - Estimated matrices remain labeled estimates.
 - Control-path benchmarks are not presented as proof that model kernels outperform Ollama, llama.cpp, or vLLM.
@@ -554,7 +560,7 @@ The living code-grounded architecture overview is [`docs/architecture/CORE_RUNTI
 
 ## Claim and evidence policy
 
-GG-CORE does not treat documentation polish as permission to blur maturity.
+GG-CORE does not treat documentation polish as permission to blur maturity. The published RC, source-qualified `main`, and unmerged development branches are separate evidence levels.
 
 Every material README claim should resolve to one of these outcomes:
 
@@ -573,6 +579,7 @@ The evidence record for this README is [`docs/README_VERIFICATION.md`](docs/READ
 | Document | Purpose | Authority |
 | --- | --- | --- |
 | [Runtime architecture](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md) | Code-grounded system and trust-boundary overview | Current living architecture |
+| [CI and release workflow status](docs/architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md) | Exact workflow triggers, current artifact checks and pending Windows signing gate | Live workflow YAML remains authoritative |
 | [Feature index](docs/FEATURE_INDEX.md) | Feature, source, design citation, and direct test binding | Current evidence inventory |
 | [Changelog](CHANGELOG.md) | Release and unreleased change chronology | Release history |
 | [IPC schema](docs/IPC_PROTOCOL_SCHEMA.md) | Framing and message examples | Useful guide; code types win on drift |
@@ -609,7 +616,7 @@ cargo test --features ffi
 cargo clippy --features python --all-targets -- -D warnings
 cargo test --features python
 
-# Advanced surface, currently outside the standard CI feature matrix
+# Combined GGUF + advanced surface (CI tests the 'advanced' feature alone)
 cargo clippy --features "gguf,advanced" --all-targets -- -D warnings
 cargo test --features "gguf,advanced"
 ```
