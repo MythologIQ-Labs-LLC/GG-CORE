@@ -12,7 +12,7 @@ Expose truthful, versioned capability data over **authenticated** IPC without br
 - evidence-qualified support;
 - operator constraints.
 
-## Design
+## Design (Revision 1: superseded where Revision 2 differs; see below)
 1. **`CapabilitySnapshot`** (new `models/capability_snapshot.rs`, `#[non_exhaustive]`, Serialize-only):
 
    | Field | Content |
@@ -41,7 +41,7 @@ Expose truthful, versioned capability data over **authenticated** IPC without br
    - **Out of scope here:** model selection, as opposed to backend eligibility. That needs #153 and #50 policy and is not implemented.
 4. **CLI:** none in this step. The frame is reachable from authenticated IPC clients.
 
-## Tests
+## Tests (Revision 1: superseded where Revision 2 differs)
 - **Snapshot:**
   - `compiled` matches the feature matrix;
   - `qualified` is empty;
@@ -75,7 +75,7 @@ Expose truthful, versioned capability data over **authenticated** IPC without br
 - The authority types (`RuntimeBackendCapabilities`, `ServingPath`, `CapabilitySnapshot`) stay output-only.
 - **Restated invariant:** the server never deserializes inbound capability data into authority types, and never treats it as authority.
 - Clients decode the JSON with their own types. A typed Rust client mirror is out of scope.
-- **Test:** a client-sent `capabilities_response` hits the existing default arm and gets `error{code:400}` (connection closed, per the current policy), with no state change.
+- **Test:** a client-sent `capabilities_response` hits the existing default arm and gets `error{code:400}`. The connection stays open (corrected per audit finding P1), and there is no state change.
 
 **C2: authentication.** The test follows the real policy:
 - **Unauthenticated:** `error{code:401}`, then the connection closes.
@@ -86,7 +86,7 @@ Expose truthful, versioned capability data over **authenticated** IPC without br
 - **Backend:** found by downcasting to `GgufGenerator` (`cfg(feature = "gguf")`), `OnnxEmbedder` or `OnnxClassifier` (`cfg(feature = "onnx")`). Anything else is `None`.
 - **Paths:** with a known backend, the model's declared capabilities mapped to `InferenceTask` on `Cpu`, **intersected with that backend's `compiled_paths`**. With `backend: None`, they appear in a separate `declared_only_paths` field, never in `paths`.
 - **Handles:** the registry supplies the handle id.
-- **Consistency:** the snapshot reads the registry first, then the engine. It reports only models present in both (registered and serving). A model present in only one is omitted, which is not a serving claim. Instances that are releasing are not capabilities, so they are left out; `models_request` already lists them as `unloading`.
+- **Consistency** (order corrected per P2): the snapshot reads the engine under one read lock, then joins through the lifecycle after releasing it. It reports only models present in both (registered and serving). A model present in only one is omitted, which is not a serving claim. Instances that are releasing are not capabilities, so they are left out; `models_request` already lists them as `unloading`.
 
 **C4: memory budgets.** These are **deferred in writing**. Backend eligibility does not know a model's resident or working size. The budget, together with host authority and model selection, belongs to model selection under #50/#153. Until then, `Eligibility` never selects a model or raises any budget, and the existing admission and budget checks apply unchanged. The deferral is recorded in `V1_BACKEND_CAPABILITY_CONTRACT.md`.
 
@@ -131,4 +131,19 @@ Expose truthful, versioned capability data over **authenticated** IPC without br
 | P3 | Budget accessor | `ResourceLimits::max_total_memory()` already exists (`memory/resident.rs`); tests cover a configured budget and `None` |
 | P4 | Written deferral | Committed to `V1_BACKEND_CAPABILITY_CONTRACT.md` |
 | P5 | Razor | `handler.rs` grows only by the dispatch arm and `protocol_types.rs` only by the variant lines; the capability test module is declared from the test daemon file |
+
+## Independent review (2026-11-14): APPROVE WITH CONDITIONS
+- **Verified:**
+  - truthful under all four feature combinations;
+  - authentication before any work, with no inbound claim ingested;
+  - lock order safe;
+  - compatibility (30-variant guard lists);
+  - `select_qualified_backend` semantics unchanged;
+  - Razor.
+- **Fixed:**
+  1. A positive test of the detected-backend path: the `compiled_paths` intersection gives no ONNX generation, and a backend missing from the catalog serves nothing.
+  2. The stale Revision 1 and C1/C3 text is marked superseded or corrected.
+  3. The join race is documented as a known transient limit.
+  4. The doc states that `paths` means compiled-reachable, not ready.
+  5. The serialization fallback is commented.
 

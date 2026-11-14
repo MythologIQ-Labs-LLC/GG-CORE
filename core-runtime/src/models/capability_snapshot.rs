@@ -77,6 +77,11 @@ pub struct CapabilitySnapshot {
 /// Build the snapshot. Engine models are inspected under one read lock
 /// (synchronous visitor), then joined to lifecycle handles by model id after
 /// that lock is released; a model without a lifecycle handle is omitted.
+/// Known limit: a model unloaded and reloaded under the same id between the
+/// two phases can pair the new handle with the old instance's backend and
+/// tasks. The result is transient and never claims more than either
+/// instance could serve. `paths` means compiled-reachable for the detected
+/// backend type, not a readiness or quality claim.
 pub(crate) async fn capability_snapshot(
     lifecycle: &ModelLifecycle,
     engine: &InferenceEngine,

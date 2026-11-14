@@ -136,3 +136,31 @@ async fn an_engine_model_without_a_lifecycle_handle_is_omitted() {
         "not registered through the lifecycle"
     );
 }
+
+#[test]
+fn a_detected_backend_serves_only_its_compiled_declared_paths() {
+    let cpu = |task| ServingPath::new(task, ExecutionTarget::Cpu);
+    let onnx = RuntimeBackendCapabilities {
+        schema_version: CAPABILITY_SCHEMA_VERSION,
+        backend: BackendKind::Onnx,
+        model_formats: vec!["onnx".into()],
+        compiled_paths: vec![cpu(InferenceTask::Embedding)],
+        supports_streaming: false,
+        supports_kv_cache: false,
+        qualified_paths: Vec::new(),
+    };
+    let declared = [InferenceTask::TextGeneration, InferenceTask::Embedding];
+    let entry = loaded_entry("e".into(), 7, Some(BackendKind::Onnx), &declared, &[onnx]);
+    assert_eq!(entry.backend, Some(BackendKind::Onnx));
+    assert_eq!(
+        entry.paths,
+        vec![cpu(InferenceTask::Embedding)],
+        "no ONNX generation"
+    );
+    assert!(entry.declared_only_paths.is_empty());
+    let missing = loaded_entry("g".into(), 8, Some(BackendKind::Gguf), &declared, &[]);
+    assert!(
+        missing.paths.is_empty(),
+        "a backend absent from the catalog serves nothing"
+    );
+}

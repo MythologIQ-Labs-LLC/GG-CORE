@@ -14,6 +14,8 @@ impl IpcHandler {
             self.config.require_auth,
         )
         .await;
+        // Serializing plain structs of strings, integers and enums cannot fail;
+        // `null` would be reported rather than a fabricated snapshot.
         let value = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
         CapabilitiesResponse::new(value)
     }
