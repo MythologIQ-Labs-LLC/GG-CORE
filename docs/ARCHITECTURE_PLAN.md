@@ -114,7 +114,7 @@ back-pressure rejection under load, graceful drain on shutdown.
 
 ## Data flow (current standalone boundary)
 
-The historical Vault/Construct and CoreForge consumer examples below this section were superseded by the standalone-runtime decision. Runtime architecture is application-independent, and the request pipeline must not be confused with the model-loader control path.
+Earlier historical Vault/Construct and CoreForge-centric examples were superseded by the standalone-runtime decision. Runtime architecture is application-independent, and the request pipeline must not be confused with the model-loader control path.
 
 ```text
 Any local client or application
