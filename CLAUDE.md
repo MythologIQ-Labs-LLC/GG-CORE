@@ -92,3 +92,4 @@ Recommended crates: `candle` or `llama-cpp-rs`, `serde`, `tokio`, `interprocess`
 - `docs/ARCHITECTURE_PLAN.md` - File tree contract, interface specs, risk grade
 - `docs/META_LEDGER.md` - Merkle-chained decision log with hash integrity
 - `docs/architecture/CORE_RUNTIME_ARCHITECTURE.md` - Full technical specification
+- `docs/architecture/STANDALONE_DEPENDENCY_DIRECTION.md` - Binding upstream runtime / downstream consumer boundary
