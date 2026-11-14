@@ -55,6 +55,7 @@ Ready(A'), with a new never-reused handle
 - A held 700-byte A instance in a 1,000-byte budget preventing a 500-byte B admission until A's final holder drops, then full A→B→A with unique handle identities.
 - An attempted overlapping 800-byte A + 300-byte B warm load refusing without evicting A.
 - A timed-out release wait keeping memory charged and preventing a 400-byte B load.
+- A missing target model path failing canonical loader preflight without evicting A or changing its current resident-budget charge.
 
 These tests **have not been compiled or executed in this GitHub-only session**. They do not prove actual GGUF/ONNX model loads, daemon orchestration, OS RSS or VRAM, or rollback after a failed model-load.
 
