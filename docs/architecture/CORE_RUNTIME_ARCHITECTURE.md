@@ -54,18 +54,18 @@ These are **runtime architecture**, not a CoreForge application diagram. The fir
 
 ```mermaid
 flowchart TD
-    App[Independent application or CLI] --> IPC[Authenticated local IPC]
-    App --> Embed[Embedded Rust, C FFI or Python]
-    IPC --> Secure[Runtime facade and ingress validation]
-    Embed --> Secure
-    Secure --> Admission[Queue, scheduler and resource admission]
-    Admission --> Registered[Registered Model trait instance]
-    Loader[Local path, manifest, integrity and backend dispatch] --> Lifecycle[Lifecycle, registry and resident reservation]
+    App[Independent application or CLI]
+    App -->|Local authenticated IPC| Handler[IPC handler and framed session]
+    Handler --> Worker[Scheduler worker and ingress SecurityPipeline]
+    App -->|Embedded Rust C FFI or Python| Facade[Runtime infer security facade]
+    Worker --> Registered[Loaded Model trait instance]
+    Facade --> Registered
+    Loader[Local path, manifest, integrity and backend dispatch] --> Lifecycle[Registry, lifecycle and resident reservation]
     Lifecycle --> Registered
-    Registered --> Backend{Loaded Model implementation}
+    Registered --> Backend{Loaded model implementation}
     Backend -->|GGUF| GGUF[llama.cpp CPU generation]
-    Backend -->|ONNX source path| ONNX[Candle ONNX CPU embed/classify]
-    GGUF --> Out[Output / streaming sanitation]
+    Backend -->|ONNX source path| ONNX[Candle ONNX CPU embed and classify]
+    GGUF --> Out[Secured output and streaming egress]
     ONNX --> Out
     Out --> App
 ```
