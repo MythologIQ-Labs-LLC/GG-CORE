@@ -1,3 +1,5 @@
+> **Historical-provenance notice (2026-11-14):** This dated analysis retains its original terminology, measurements and findings for audit traceability. References to **"COREFORGE CORE Runtime"** describe earlier project framing, **not the current product dependency or ownership model**. **GG-CORE is the independent upstream standalone inference runtime; CoreForge is an optional downstream consumer.** Do not use this archival document to claim current platform isolation, security certification, supported model paths, performance or release maturity. Refer to [standalone dependency direction](../../docs/architecture/STANDALONE_DEPENDENCY_DIRECTION.md), [living architecture](../../docs/architecture/CORE_RUNTIME_ARCHITECTURE.md), [current security policy](../../SECURITY.md) and exact release evidence.
+
 # Unsafe Code Audit Report
 
 **Project:** COREFORGE CORE Runtime
