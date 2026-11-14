@@ -2,7 +2,7 @@
 
 > **Design vision, not a verified release-specification.** This early concept includes aspirational sandbox, complete network-denial and performance statements that do **not** describe every platform in the published `v0.10.0-rc.1` prerelease. Current verified capabilities and risks are in [SECURITY.md](../SECURITY.md), the [standalone runtime architecture](architecture/CORE_RUNTIME_ARCHITECTURE.md), and [release gate #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130). Do not treat this document's historical goals or illustrative numbers as achieved benchmark or certification evidence.
 
-**Product/dependency boundary:** GG-CORE is the **independent upstream inference runtime**. CoreForge and other host applications are optional **downstream consumers** of its qualified, versioned public interfaces. No consumer's UI, provider routing, product lifecycle or acceptance test is a required GG-CORE runtime dependency.
+**Product/dependency boundary:** GG-CORE is the **independent upstream inference runtime**. CoreForge is a **downstream consumer whose primary local inference engine is GG-CORE**; other compatible hosts can consume the same qualified, versioned interfaces independently. No consumer's UI, provider routing, product lifecycle or acceptance test is a required GG-CORE runtime dependency.
 
 ## Why (One Sentence)
 
