@@ -4,6 +4,27 @@
 
 **Pinned revision:** `v0.10.0-rc.1` was published on 2026-11-05. Consumers should verify the immutable release's exact tag/commit and hashes against [GG-CORE #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130); never float on `main`. This document does not require GG-CORE itself to adopt a CoreForge-specific pin.
 
+
+### Experience integration does not change ownership
+
+Within **CoreForge's interface**, GG-CORE inference should feel like an
+integral local capability. This is a **downstream presentation choice**, not a
+shared product identity: CoreForge owns onboarding, user-facing model selection,
+agent/persona behavior, voice, permissions, error display, application state,
+sidecar launch/recovery and its installer. GG-CORE independently owns the
+inference runtime, authenticated local protocol, model execution, producer
+artifacts, version compatibility and producer security/release qualification.
+
+An installation of GG-CORE must work without CoreForge. Other compatible hosts
+may use the same producer artifacts and documented interfaces. Conversely,
+CoreForge's successful installed acceptance qualifies **that CoreForge
+integration**, not every GG-CORE platform/backend/consumer, and GG-CORE source
+or packaged acceptance alone cannot qualify CoreForge's user journeys.
+CoreForge may pin a frozen producer or replace it only after its own conformance
+and installed tests; it never silently dictates GG-CORE's upstream roadmap or
+changes a published producer artifact.
+
+
 ## 1. Scope of this contract
 
 | Supported now (qualified) | Not in this contract (tracked) |
