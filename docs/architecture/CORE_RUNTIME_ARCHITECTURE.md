@@ -1,7 +1,7 @@
 # GG-CORE Runtime Architecture
 
 **Status:** Standalone product and trust-boundary audit updated 2026-11-14 against `main@1032d1b`; the published `v0.10.0-rc.1` baseline remains distinct from unmerged v1 development. Source, [SECURITY.md](../../SECURITY.md), [IPC schema](../IPC_PROTOCOL_SCHEMA.md), and the [release gate #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130) take precedence over older diagrams. Consumer-specific producer contracts are subordinate, not GG-CORE's product architecture.
-**Standalone dependency invariant:** [GG-CORE upstream / CoreForge optional downstream](STANDALONE_DEPENDENCY_DIRECTION.md). A consuming application's UI and release are outside GG-CORE's upstream acceptance.
+**Standalone dependency invariant:** [GG-CORE upstream / CoreForge primary-local-inference downstream](STANDALONE_DEPENDENCY_DIRECTION.md). A consuming application's UI and release are outside GG-CORE's upstream acceptance.
 
 **Companion docs**: `docs/CONCEPT.md` (the "why"), `docs/ARCHITECTURE_PLAN.md` (file-tree
 contract + interface specs), the ADRs in `docs/architecture/`. Where this doc and the code
