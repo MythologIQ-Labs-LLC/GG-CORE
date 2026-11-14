@@ -12,7 +12,7 @@
 | Exact source qualification | `d55ba50a`: [Rust](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060869327), [CodeQL](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060869220) and [nonpublishing Release](https://github.com/MythologIQ-Labs-LLC/GG-CORE/actions/runs/42060941207) passed, including installed real-model acceptance Linux 35/35, Windows 33/33 + 1 documented SKIP, macOS 34/34. |
 | Benchmarks | ~40 tokens/sec is a historical single-host measurement, not a promise for this RC. Same-host secured-path measurements are open under [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136). |
 | Windows signed distribution | The current release workflow verifies Microsoft-signed app-local VC DLLs but does **not** Authenticode-sign GG-CORE-owned EXE/DLL files; owned-binary signing is a separate required v1 gate. See [workflow status](architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md). |
-| Consumer boundary | [Producer contract](integration/COREFORGE_PRODUCER_CONTRACT.md), [support guide](RELEASE_SUPPORT_AND_MAINTENANCE.md) and [#112–#114](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/112) identify supported integration versus future API stability. |
+| Upstream/downstream boundary | [Standalone dependency direction](architecture/STANDALONE_DEPENDENCY_DIRECTION.md) governs GG-CORE independently; [CoreForge producer contract](integration/COREFORGE_PRODUCER_CONTRACT.md) is **one downstream-specific example**. The [support guide](RELEASE_SUPPORT_AND_MAINTENANCE.md) and [#112–#114](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/112) distinguish available interfaces from future stability. |
 
 ## Historical 2026-08-01 record (not current instructions)
 
