@@ -2,11 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Required architecture entrypoint:** Read [ARCHITECTURE_INDEX.md](ARCHITECTURE_INDEX.md)
+and follow its single [architecture owner register](docs/README.md) before
+planning or changing runtime architecture, release contracts, protocol or
+consumer dependency boundaries. A source change, test pass or agent claim is
+not an approved architectural supersession. Preserve historical provenance.
+
 ## Project Identity
 
 **GG-CORE** (Greatest Good - Contained Offline Restricted Execution) is an **independent, upstream, standalone local inference runtime**, not an optional plugin, a UI or an external-provider router. It performs inference computation only and has no *intended* business, tool or data authority. The daemon's OS confinement varies by platform; do not claim universal isolation. See `SECURITY.md` and the producer contract.
 
-**Dependency direction:** GG-CORE defines and qualifies its own runtime, authenticated IPC and Rust/C/Python contracts. **CoreForge is a downstream consumer** that may adopt a qualified GG-CORE version; GG-CORE must never depend on CoreForge code, UI, release timing, configuration, personas or integration tests to be a usable standalone inference product. CoreForge may host its own external-provider routing (Synapse); that is not GG-CORE functionality. A consumer does not confer GG-CORE product or release authority.
+**Dependency direction:** GG-CORE defines and qualifies its own runtime, authenticated IPC and Rust/C/Python contracts. **CoreForge is a downstream consumer that uses GG-CORE as its primary local inference engine**, adopting an exact qualified, version-pinned sidecar; GG-CORE must never depend on CoreForge code, UI, release timing, configuration, personas or integration tests to be a usable standalone inference product. CoreForge may host its own external-provider routing (Synapse); that is not GG-CORE functionality. A consumer does not confer GG-CORE product or release authority.
 
 **Philosophy**: Built on triage principles ("Greatest Good for the Greatest Number"). Resource-aware, multi-tenant AI that prioritizes system stability over individual request ego.
 
