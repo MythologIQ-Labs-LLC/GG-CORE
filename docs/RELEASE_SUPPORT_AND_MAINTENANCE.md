@@ -2,7 +2,7 @@
 
 **Scope:** Local, CPU-based GGUF inference with one resident model and authenticated IPC. GG-CORE is an inference component, not a desktop application, UI, optional inference plugin, or external-provider router. The consuming application owns model choice, its interface, installation and process supervision. This guide does **not** claim that the model-switching, GPU, performance, or stable embedded API milestones are finished.
 
-**Source of truth:** [Release gate #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130) and the [GitHub Releases page](https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases). On 2026-11-05, `main@d55ba50a262469d4cee828e9c6431670635c3cc5` passed Rust CI, CodeQL, and full packaged three-platform real-model qualification; **no public `v0.10.0-rc.1` tag or release was yet published**. If documentation changes are later merged, the new source SHA must be requalified before tagging. Do not mistake a candidate badge for a published download.
+**Source of truth:** [Release gate #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130) and the [published `v0.10.0-rc.1` release](https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases/tag/v0.10.0-rc.1). **Published on 2026-11-05 at 23:36 UTC** as a prerelease, with Linux x86_64, macOS arm64 and Windows x86_64 portable archives plus `SHA256SUMS`. The prior 2026-11-05 candidate checkpoint at `main@d55ba50a` passed Rust CI, CodeQL and three-platform packaged GGUF acceptance before final release promotion. Keep the immutable published tag, qualifying source and later `main` development commits distinct. The current `main@1032d1b` includes additional source-level corrections but is **not itself a v1.0.0 release candidate**.
 
 ## What is supported
 
@@ -16,6 +16,8 @@
 | Performance, automatic model switching, GPU, ONNX text generation | Not qualified for this RC |
 
 A local model must be present and authorized. GG-CORE does **not** fetch models or grant network, tool or business authority. It does not manage external-provider credentials or routing. The application using GG-CORE is responsible for those decisions.
+
+**Windows provenance:** The published portable Windows package includes verified Microsoft-signed app-local runtime dependencies. This does **not** establish an Authenticode signature on GG-CORE's own `gg-core-cli.exe` or `gg_core.dll`. Owned-binary signing is an **unimplemented standalone v1 gate**. See [workflow and release boundaries](architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md). Do not call the Windows release executable publisher-signed unless its exact file signature was checked.
 
 ## Before an application pins this release
 
