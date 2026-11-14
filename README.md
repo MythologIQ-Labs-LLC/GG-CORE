@@ -51,13 +51,13 @@ flowchart LR
     API --> Ingress[Prompt validation and ingress scan]
     Ingress --> Queue[Admission limits and scheduler]
     Queue --> Model[Registered model instance]
-    Model --> Backend{Model backend}
+    Model --> Backend{Loaded Model implementation}
     Backend -->|GGUF generation| GGUF[llama.cpp CPU path]
     Backend -->|ONNX embed or classify, source-only in RC archive| ONNX[Candle ONNX CPU path]
     GGUF --> Egress[Output and streaming sanitization]
     ONNX --> Egress
     Egress --> Host
-    Loader[Local model loader, manifest and path checks] --> Lifecycle[Registry, lifecycle and resident memory]
+    Loader[Local model loader, path, manifest and backend dispatch checks] --> Lifecycle[Registry, lifecycle and resident memory]
     Lifecycle --> Model
 ```
 
