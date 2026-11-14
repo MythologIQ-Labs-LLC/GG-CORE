@@ -1,8 +1,8 @@
 # GG-CORE → CoreForge producer contract (v0.10.0-rc.1)
 
-**Status:** verified for the release-candidate scope below; owner of this document is the GG-CORE repository. CoreForge consumes it (COREFORGE #542, #588, #538, #548); CoreForge owns its application, installer and lifecycle code.
+**Direction and status:** **GG-CORE is upstream** and owns its standalone inference implementation, local protocol, safety constraints, packaging and release gate. **CoreForge is a downstream, optional consumer**, not an upstream dependency, runtime owner or release authority. This is a **consumer-specific integration reference**, not GG-CORE's canonical architecture or a requirement that GG-CORE be installed through CoreForge. See the [standalone architecture](../architecture/CORE_RUNTIME_ARCHITECTURE.md). The v0.10.0-rc.1 consumer scope and related historical CoreForge issues (#542, #588, #538, #548) remain recorded here.
 
-**Pinned revision:** the `v0.10.0-rc.1` tag commit, recorded with its SHA and acceptance receipts in GG-CORE issue #130. Until the tag exists, pin the commit named there; never float on `main`.
+**Pinned revision:** `v0.10.0-rc.1` was published on 2026-11-05. Consumers should verify the immutable release's exact tag/commit and hashes against [GG-CORE #130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130); never float on `main`. This document does not require GG-CORE itself to adopt a CoreForge-specific pin.
 
 ## 1. Scope of this contract
 
@@ -16,7 +16,7 @@
 
 ### 2a. Managed daemon (recommended for CoreForge)
 
-CoreForge launches the packaged `gg-core-cli` as a **child process it owns** and talks to it over the local IPC transport. GG-CORE keeps its own process, sandbox and release boundary; the user never launches GG-CORE as a separate application.
+**In this downstream integration only**, CoreForge may launch the packaged `gg-core-cli` as a child process and communicate over local IPC. GG-CORE also supports independent standalone installation and invocation, with its own qualification and release boundary. CoreForge neither creates nor governs GG-CORE's runtime API.
 
 | Control | Linux x86_64 | Windows x64 | macOS |
 | --- | --- | --- | --- |
