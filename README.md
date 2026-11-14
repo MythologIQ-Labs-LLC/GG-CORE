@@ -45,7 +45,7 @@ GG-CORE is the **local inference runtime**, not a plugin, a desktop interface, o
 
 ### Upstream runtime, downstream applications
 
-**GG-CORE is the independent upstream product. CoreForge is one downstream consumer.**
+**GG-CORE is the independent upstream product. CoreForge is a downstream consumer that uses GG-CORE as its primary local inference runtime.**
 GG-CORE can be installed, configured, served, tested, released and used **without
 CoreForge**. CoreForge packages an approved GG-CORE build as a local inference
 sidecar and communicates with it over authenticated local IPC. Other compatible
