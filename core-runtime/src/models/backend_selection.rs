@@ -70,7 +70,10 @@ mod tests {
         compiled_backend_capabilities, CAPABILITY_SCHEMA_VERSION,
     };
 
-    fn synthetic_qualified(backend: BackendKind, task: InferenceTask) -> RuntimeBackendCapabilities {
+    fn synthetic_qualified(
+        backend: BackendKind,
+        task: InferenceTask,
+    ) -> RuntimeBackendCapabilities {
         RuntimeBackendCapabilities {
             schema_version: CAPABILITY_SCHEMA_VERSION,
             backend,
@@ -100,19 +103,18 @@ mod tests {
     #[test]
     fn compiled_capability_catalog_never_claims_qualification() {
         let catalog = compiled_backend_capabilities();
-        let r = select_qualified_backend(
-            &catalog,
-            request(InferenceTask::TextGeneration),
-        );
+        let r = select_qualified_backend(&catalog, request(InferenceTask::TextGeneration));
         assert_eq!(r.unwrap_err(), BackendRefusal::NoQualifiedCandidate);
     }
 
     #[test]
     fn synthetic_evidence_matches_only_the_exact_supported_task() {
-        let catalog = [synthetic_qualified(BackendKind::Onnx, InferenceTask::Embedding)];
+        let catalog = [synthetic_qualified(
+            BackendKind::Onnx,
+            InferenceTask::Embedding,
+        )];
         assert_eq!(
-            select_qualified_backend(&catalog, request(InferenceTask::TextGeneration))
-                .unwrap_err(),
+            select_qualified_backend(&catalog, request(InferenceTask::TextGeneration)).unwrap_err(),
             BackendRefusal::NoQualifiedCandidate
         );
         assert_eq!(
@@ -129,18 +131,18 @@ mod tests {
             synthetic_qualified(BackendKind::Gguf, InferenceTask::TextGeneration);
         only_compiled.qualified_paths.clear();
         assert_eq!(
-            select_qualified_backend(
-                &[only_compiled],
-                request(InferenceTask::TextGeneration)
-            )
-            .unwrap_err(),
+            select_qualified_backend(&[only_compiled], request(InferenceTask::TextGeneration))
+                .unwrap_err(),
             BackendRefusal::NoQualifiedCandidate
         );
     }
 
     #[test]
     fn streaming_and_hardware_require_exact_eligibility() {
-        let catalog = [synthetic_qualified(BackendKind::Onnx, InferenceTask::Embedding)];
+        let catalog = [synthetic_qualified(
+            BackendKind::Onnx,
+            InferenceTask::Embedding,
+        )];
         let mut r = request(InferenceTask::Embedding);
         r.streaming = true;
         assert_eq!(
@@ -157,8 +159,7 @@ mod tests {
 
     #[test]
     fn incompatible_schema_version_fails_closed() {
-        let mut backend =
-            synthetic_qualified(BackendKind::Gguf, InferenceTask::TextGeneration);
+        let mut backend = synthetic_qualified(BackendKind::Gguf, InferenceTask::TextGeneration);
         backend.schema_version = CAPABILITY_SCHEMA_VERSION + 1;
         assert_eq!(
             select_qualified_backend(&[backend], request(InferenceTask::TextGeneration))
@@ -169,8 +170,7 @@ mod tests {
 
     #[test]
     fn qualification_of_cpu_does_not_allow_cuda_even_if_cuda_is_compiled() {
-        let mut backend =
-            synthetic_qualified(BackendKind::Gguf, InferenceTask::TextGeneration);
+        let mut backend = synthetic_qualified(BackendKind::Gguf, InferenceTask::TextGeneration);
         backend.compiled_paths.push(ServingPath {
             task: InferenceTask::TextGeneration,
             target: ExecutionTarget::Cuda,
@@ -190,8 +190,7 @@ mod tests {
             synthetic_qualified(BackendKind::Gguf, InferenceTask::TextGeneration),
         ];
         assert_eq!(
-            select_qualified_backend(&catalog, request(InferenceTask::TextGeneration))
-                .unwrap_err(),
+            select_qualified_backend(&catalog, request(InferenceTask::TextGeneration)).unwrap_err(),
             BackendRefusal::AmbiguousSelection
         );
         let mut r = request(InferenceTask::TextGeneration);

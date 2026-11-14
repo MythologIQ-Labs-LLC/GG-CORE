@@ -12,6 +12,7 @@ pub const CAPABILITY_SCHEMA_VERSION: u16 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BackendKind {
     Gguf,
     Onnx,
@@ -19,6 +20,7 @@ pub enum BackendKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum InferenceTask {
     TextGeneration,
     Embedding,
@@ -27,6 +29,7 @@ pub enum InferenceTask {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ExecutionTarget {
     Cpu,
     Cuda,
@@ -35,13 +38,27 @@ pub enum ExecutionTarget {
 
 /// A task/execution-target pair is indivisible: never infer a Cartesian
 /// product such as GPU embeddings from CPU embeddings plus GPU generation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// Output-only (`Serialize`, no `Deserialize`): support claims flow out of
+/// the runtime and are never accepted from clients or files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct ServingPath {
     pub task: InferenceTask,
     pub target: ExecutionTarget,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+impl ServingPath {
+    /// One exact task on one execution target.
+    pub const fn new(task: InferenceTask, target: ExecutionTarget) -> Self {
+        Self { task, target }
+    }
+}
+
+/// Output-only like [`ServingPath`]: there is deliberately no `Deserialize`,
+/// so untrusted JSON can never become a `qualified_paths` claim.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct RuntimeBackendCapabilities {
     pub schema_version: u16,
     pub backend: BackendKind,
@@ -124,11 +141,13 @@ mod tests {
     fn onnx_generation_and_unsupported_bitnet_are_not_advertised() {
         let catalog = compiled_backend_capabilities();
         assert!(catalog.iter().all(|c| c.backend != BackendKind::Onnx
-            || !c.compiled_paths.iter().any(|path| {
-                path.task == InferenceTask::TextGeneration
-            })));
-        assert!(catalog.iter().all(|c| c.backend == BackendKind::Gguf
-            || c.backend == BackendKind::Onnx));
+            || !c
+                .compiled_paths
+                .iter()
+                .any(|path| { path.task == InferenceTask::TextGeneration })));
+        assert!(catalog
+            .iter()
+            .all(|c| c.backend == BackendKind::Gguf || c.backend == BackendKind::Onnx));
     }
 
     #[test]
@@ -142,30 +161,31 @@ mod tests {
             catalog.iter().any(|c| c.backend == BackendKind::Onnx),
             cfg!(feature = "onnx")
         );
-        assert_eq!(catalog.len(), usize::from(cfg!(feature = "gguf"))
-            + usize::from(cfg!(feature = "onnx")));
+        assert_eq!(
+            catalog.len(),
+            usize::from(cfg!(feature = "gguf")) + usize::from(cfg!(feature = "onnx"))
+        );
     }
 
     #[test]
-    fn schema_round_trips_without_inventing_hardware() {
+    fn schema_serializes_without_inventing_hardware() {
         let input = RuntimeBackendCapabilities {
             schema_version: CAPABILITY_SCHEMA_VERSION,
             backend: BackendKind::Gguf,
             model_formats: vec!["gguf".into()],
-            compiled_paths: vec![ServingPath {
-                task: InferenceTask::TextGeneration,
-                target: ExecutionTarget::Cpu,
-            }],
+            compiled_paths: vec![ServingPath::new(
+                InferenceTask::TextGeneration,
+                ExecutionTarget::Cpu,
+            )],
             supports_streaming: true,
             supports_kv_cache: true,
             qualified_paths: Vec::new(),
         };
         let json = serde_json::to_string(&input).expect("serialize");
         assert!(json.contains("\"schema_version\":1"));
+        assert!(json.contains("\"task\":\"text_generation\",\"target\":\"cpu\""));
+        assert!(json.contains("\"qualified_paths\":[]"));
         assert!(!json.contains("cuda"));
         assert!(!json.contains("metal"));
-        let decoded: RuntimeBackendCapabilities =
-            serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(decoded, input);
     }
 }

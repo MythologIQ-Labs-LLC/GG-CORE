@@ -3,8 +3,8 @@
 //! Handles model loading, registry tracking, manifest parsing, and hot-swap operations.
 
 pub mod backend_capabilities;
-pub mod backend_selection;
 pub mod backend_dispatch;
+pub mod backend_selection;
 pub mod manifest;
 pub mod pool;
 pub mod pool_types;
