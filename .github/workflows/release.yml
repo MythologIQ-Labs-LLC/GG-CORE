@@ -8,6 +8,13 @@ name: Release
 #   - per-file SHA-256 checksums
 # Manual workflow_dispatch builds the same release packages without publishing.
 # All packages must contain the real GGUF backend, or packaging fails.
+# IMPORTANT v1.0.0 gate: this workflow verifies the *Microsoft-signed*
+# app-local VC runtime DLLs but does NOT Authenticode-sign GG-CORE's own
+# gg-core-cli.exe or gg_core.dll. Archive SHA256SUMS is not code signing.
+# Owner-approved standalone v1 Windows distribution requires a separate,
+# independently qualified GG-CORE signing/verification stage using protected
+# organizational signing credentials BEFORE signed v1 tags may be published.
+# Documentation: docs/architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md.
 
 on:
   workflow_dispatch:
