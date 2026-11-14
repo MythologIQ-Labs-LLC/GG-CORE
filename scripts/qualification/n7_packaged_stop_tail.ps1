@@ -112,6 +112,9 @@ function Prefill-Deadline([int]$timeoutMs) {
     } finally { $c.Dispose() }
 }
 
+# Stage every daemon first, then run configuration-outer / daemon-inner so the daemons
+# (notably trace off vs on of one binary) interleave per configuration (audit F7).
+$staged = @()
 foreach ($pair in $Daemons) {
     $label, $exe = $pair -split '=', 2
     $root = "C:\g184stop-$label"; Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
@@ -122,27 +125,29 @@ foreach ($pair in $Daemons) {
     $sha = (Get-FileHash "$root\models\qwen\model.gguf").Hash.ToLower()
     @{ model_id = 'qwen'; name = 'Qwen2.5-0.5B-Instruct Q4_K_M'; version = '9217f5db'; capabilities = @('text_generation'); sha256 = $sha; size_bytes = (Get-Item "$root\models\qwen\model.gguf").Length; architecture = 'gguf'; license = 'Apache-2.0' } | ConvertTo-Json | Set-Content "$root\models\qwen\manifest.json" -Encoding ascii
     Rec @{ kind = 'identity'; label = $label; exe = $exe; exe_sha256 = (Get-FileHash "$root\gg-core-cli.exe").Hash.ToLower(); model_sha256 = $sha }
-    foreach ($ctx in $Contexts) { foreach ($t in $Threads) {
-        $tag = "$label-ctx$ctx-t$t"; $script:pipeName = "gg184-$tag-" + [guid]::NewGuid().ToString('N')
-        $env:CORE_AUTH_TOKEN = $token; $env:GG_CORE_SOCKET_PATH = "\\.\pipe\$($script:pipeName)"
-        $env:GG_CORE_N_CTX = "$ctx"; $env:GG_CORE_MAX_CONTEXT = "$ctx"; $env:GG_CORE_MAX_CONTEXT_TOKENS = "$ctx"; $env:GG_CORE_N_THREADS = "$t"; $env:GG_CORE_MAX_CONCURRENT = '2'
-        if ($TraceLabels -contains $label) { $env:GG_CORE_STOP_TRACE = '1' }
-        $script:d = Start-Process -FilePath "$root\gg-core-cli.exe" -ArgumentList 'serve', '--model', 'models/qwen/model.gguf', '--model-id', 'qwen' -WorkingDirectory $root -RedirectStandardError "$Out\$tag.err" -RedirectStandardOutput "$Out\$tag.out" -NoNewWindow -PassThru
-        foreach ($k in 'CORE_AUTH_TOKEN', 'GG_CORE_SOCKET_PATH', 'GG_CORE_N_CTX', 'GG_CORE_MAX_CONTEXT', 'GG_CORE_MAX_CONTEXT_TOKENS', 'GG_CORE_N_THREADS', 'GG_CORE_MAX_CONCURRENT', 'GG_CORE_STOP_TRACE') { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
-        $null = $script:d.Handle; $ready = $false
-        for ($i = 0; $i -lt 480; $i++) { Start-Sleep -Milliseconds 250; if ((Get-Content "$Out\$tag.err" -Raw -ErrorAction SilentlyContinue) -match 'IPC server listening') { $ready = $true; break }; if ($script:d.HasExited) { break } }
-        Rec @{ kind = 'daemon'; tag = $tag; ready = $ready }
-        if (-not $ready) { continue }
-        for ($r = 0; $r -lt $Reps; $r++) {
-            $tp = Infer $long 24; $outHash = if ($tp.r.output) { ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$tp.r.output)))).Replace('-', '').Substring(0, 16) } else { $null }
-            Rec @{ kind = 'throughput'; tag = $tag; rep = $r; ms = $tp.ms; tokens = $tp.r.tokens_generated; ok = (-not $tp.r.error); outputSha = $outHash }
-            Rec ((Prefill-Cancel (1500 + 500 * $r)) + @{ tag = $tag; rep = $r })
-            Rec ((Prefill-Deadline (2000 + 500 * $r)) + @{ tag = $tag; rep = $r })
-            Rec ((Decode-Cancel (2500 + 500 * $r)) + @{ tag = $tag; rep = $r })
-            Rec ((Queued-Cancel) + @{ tag = $tag; rep = $r })
-            $rc = Infer 'Reply with one word: ok' 4; Rec @{ kind = 'recover'; tag = $tag; rep = $r; ok = (-not $rc.r.error); ms = $rc.ms; alive = (-not $script:d.HasExited) }
-        }
-        if (-not $script:d.HasExited) { $script:d.Kill() }; Start-Sleep 1
-    } }
+    $staged += , @($label, $root)
 }
+foreach ($ctx in $Contexts) { foreach ($t in $Threads) { foreach ($sd in $staged) {
+    $label, $root = $sd
+    $tag = "$label-ctx$ctx-t$t"; $script:pipeName = "gg184-$tag-" + [guid]::NewGuid().ToString('N')
+    $env:CORE_AUTH_TOKEN = $token; $env:GG_CORE_SOCKET_PATH = "\\.\pipe\$($script:pipeName)"
+    $env:GG_CORE_N_CTX = "$ctx"; $env:GG_CORE_MAX_CONTEXT = "$ctx"; $env:GG_CORE_MAX_CONTEXT_TOKENS = "$ctx"; $env:GG_CORE_N_THREADS = "$t"; $env:GG_CORE_MAX_CONCURRENT = '2'
+    if ($TraceLabels -contains $label) { $env:GG_CORE_STOP_TRACE = '1' }
+    $script:d = Start-Process -FilePath "$root\gg-core-cli.exe" -ArgumentList 'serve', '--model', 'models/qwen/model.gguf', '--model-id', 'qwen' -WorkingDirectory $root -RedirectStandardError "$Out\$tag.err" -RedirectStandardOutput "$Out\$tag.out" -NoNewWindow -PassThru
+    foreach ($k in 'CORE_AUTH_TOKEN', 'GG_CORE_SOCKET_PATH', 'GG_CORE_N_CTX', 'GG_CORE_MAX_CONTEXT', 'GG_CORE_MAX_CONTEXT_TOKENS', 'GG_CORE_N_THREADS', 'GG_CORE_MAX_CONCURRENT', 'GG_CORE_STOP_TRACE') { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
+    $null = $script:d.Handle; $ready = $false
+    for ($i = 0; $i -lt 480; $i++) { Start-Sleep -Milliseconds 250; if ((Get-Content "$Out\$tag.err" -Raw -ErrorAction SilentlyContinue) -match 'IPC server listening') { $ready = $true; break }; if ($script:d.HasExited) { break } }
+    Rec @{ kind = 'daemon'; tag = $tag; ready = $ready }
+    if (-not $ready) { continue }
+    for ($r = 0; $r -lt $Reps; $r++) {
+        $tp = Infer $long 24; $outHash = if ($tp.r.output) { ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$tp.r.output)))).Replace('-', '').Substring(0, 16) } else { $null }
+        Rec @{ kind = 'throughput'; tag = $tag; rep = $r; ms = $tp.ms; tokens = $tp.r.tokens_generated; ok = (-not $tp.r.error); outputSha = $outHash }
+        Rec ((Prefill-Cancel (1500 + 500 * $r)) + @{ tag = $tag; rep = $r })
+        Rec ((Prefill-Deadline (2000 + 500 * $r)) + @{ tag = $tag; rep = $r })
+        Rec ((Decode-Cancel (2500 + 500 * $r)) + @{ tag = $tag; rep = $r })
+        Rec ((Queued-Cancel) + @{ tag = $tag; rep = $r })
+        $rc = Infer 'Reply with one word: ok' 4; Rec @{ kind = 'recover'; tag = $tag; rep = $r; ok = (-not $rc.r.error); ms = $rc.ms; alive = (-not $script:d.HasExited) }
+    }
+    if (-not $script:d.HasExited) { $script:d.Kill() }; Start-Sleep 1
+} } }
 Note 'done'; Set-Content "$Out\DONE" 'done'
