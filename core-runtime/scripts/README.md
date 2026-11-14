@@ -1,6 +1,8 @@
 # Core Runtime Automation Scripts
 
-This directory contains automation scripts for building, testing, and validating the COREFORGE CORE Runtime.
+> **Historical script guidance, not a qualified current Windows build matrix.** Check script contents and prerequisites against the pinned source and root README before running. The hardcoded LLVM/bindgen compatibility assertions and workaround below are not verified as universal restrictions. GG-CORE is standalone upstream; CoreForge is only a downstream consumer.
+
+This directory contains automation scripts for building, testing, and validating GG-CORE.
 
 ## Available Scripts
 
@@ -51,7 +53,7 @@ This directory contains automation scripts for building, testing, and validating
 **Requirements:**
 
 - LLVM 15.0.7 installed at `C:\Program Files\llvm15.0.7\bin`
-  - **Note:** LLVM 22+ is incompatible with bindgen. Use LLVM 15.0.7 specifically.
+  - **Historical note (unverified for current dependencies):** This setup pinned LLVM 15.0.7. Do not treat it as a universal version ceiling.
 - libclang.dll present in LLVM bin directory
 - Cargo and Rust toolchain installed
 - Visual Studio 2022 (CMAKE_GENERATOR = "Visual Studio 17 2022")
@@ -73,7 +75,7 @@ If the GGUF build fails with bindgen errors:
    - 4 resolution options documented (downgrade bindgen, LLVM with DLL, pre-built bindings, alternative crate)
    - Contact information provided
 
-2. **Recommended approach:** Downgrade bindgen to v0.69.4
+2. **Historical workaround (do not apply without reproducing and validating against the current lockfile):** Downgrade bindgen to v0.69.4
 
    ```powershell
    # Create .cargo/config.toml

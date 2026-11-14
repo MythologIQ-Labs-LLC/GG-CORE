@@ -1,6 +1,8 @@
 # Testing Infrastructure
 
-This directory contains all testing infrastructure for the COREFORGE CORE Runtime.
+> **Historical test-infrastructure inventory.** This document includes aspirational performance tiers and example CI, not proof that the listed scripts, fixtures, CI legs, or thresholds currently execute. Use `.github/workflows/`, `docs/FEATURE_INDEX.md`, and `docs/README_VERIFICATION.md` for current evidence. GG-CORE is a standalone upstream runtime; CoreForge is a downstream consumer.
+
+This directory contains all testing infrastructure for GG-CORE.
 
 ## Directory Structure
 
@@ -125,7 +127,7 @@ Baseline metrics are stored in `core-runtime/fixtures/baselines/`:
 
 ## CI Integration
 
-Testing scripts are designed for GitHub Actions CI:
+The following is **illustrative** GitHub Actions YAML, not an assertion that these jobs are configured or green:
 
 ```yaml
 # Example workflow

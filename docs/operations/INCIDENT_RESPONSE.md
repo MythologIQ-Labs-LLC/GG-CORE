@@ -1,10 +1,12 @@
 # Incident Response Procedures
 
+> **Historical operations draft, not a verified current GG-CORE command or deployment runbook.** This February 2026 document predates the standalone RC and contains unverified Kubernetes/Prometheus examples and `GG-CORE` command spellings. Do not execute its commands as production instructions. For supported standalone CLI commands and limits, use the root README, `SECURITY.md`, and `docs/RELEASE_SUPPORT_AND_MAINTENANCE.md`. CoreForge is a downstream consumer, not GG-CORE's product identity.
+
 **Document Version:** 1.0.0
 **Last Updated:** 2026-02-18
-**Applies To:** COREFORGE CORE Runtime v0.6.0+
+**Historical scope:** legacy runtime operations planning (v0.6.0 era)
 
-This document defines incident response procedures for the COREFORGE CORE Runtime, including severity classification, response workflows, and deployment-specific incident handling.
+This historical draft proposes incident response procedures for GG-CORE deployments, including severity classification, response workflows, and deployment-specific incident handling.
 
 ---
 
