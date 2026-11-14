@@ -76,19 +76,18 @@ and the [CoreForge-specific downstream contract](docs/integration/COREFORGE_PROD
 ```mermaid
 flowchart LR
     Host[Standalone caller or application]
-    Host -->|Authenticated named pipe or Unix socket| IPC[IPC session and framing]
-    Host -->|Embedded Rust, C FFI or Python| API[Runtime facade]
-    IPC --> API
-    API --> Ingress[Prompt validation and ingress scan]
-    Ingress --> Queue[Admission limits and scheduler]
-    Queue --> Model[Registered model instance]
-    Model --> Backend{Loaded Model implementation}
-    Backend -->|GGUF generation| GGUF[llama.cpp CPU path]
-    Backend -->|ONNX embed or classify, source-only in RC archive| ONNX[Candle ONNX CPU path]
-    GGUF --> Egress[Output and streaming sanitization]
+    Host -->|Authenticated local IPC| IPC[IPC handler and session]
+    IPC --> Worker[Scheduler worker, admission and ingress checks]
+    Host -->|Embedded Rust C FFI or Python| Facade[Runtime inference facade and ingress checks]
+    Worker --> Model[Loaded Model trait instance]
+    Facade --> Model
+    Model --> Engine{Actual model implementation}
+    Engine -->|GGUF generation| GGUF[llama.cpp CPU backend]
+    Engine -->|ONNX embed or classify, source path| ONNX[Candle ONNX CPU backend]
+    GGUF --> Egress[Secured output and streaming egress]
     ONNX --> Egress
     Egress --> Host
-    Loader[Local model loader, path, manifest and backend dispatch checks] --> Lifecycle[Registry, lifecycle and resident memory]
+    Loader[Local path, manifest and backend dispatch checks] --> Lifecycle[Registry, lifecycle and resident budget]
     Lifecycle --> Model
 ```
 
