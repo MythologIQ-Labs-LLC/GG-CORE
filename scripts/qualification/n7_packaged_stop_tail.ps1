@@ -87,7 +87,9 @@ function Decode-Cancel([int]$afterMs) {
 # Both workers busy with a mid-length prompt; a third, queued request is cancelled.
 # The busy requests must still succeed; the queued one must end cancelled with no work.
 function Queued-Cancel {
-    $mid = 'Reply with the word READY after reading this note: ' + ($fox * 40)
+    # Busy requests use the long prompt so they are still prefilling when the queued one is
+    # cancelled (review); the report checks the queued request never reached the backend.
+    $mid = $long
     $busy = @(Session; Session); $q = Session
     try {
         $b = @(); foreach ($c in $busy) { $r = Req $mid 4; Send-Ipc $c $r; $b += $r }

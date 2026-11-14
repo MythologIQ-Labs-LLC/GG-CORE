@@ -161,3 +161,31 @@ Where this section differs from the design above, this section governs.
 |---|---|---|
 | A1 | Reset the stop-observation thread-local on every request entry, whether or not a stop is found; test an unstopped request followed by a request stopped before its first decode on the same thread | `stop_observe::setup_stop` resets, then checks; it replaces `stop_requested` at both entry checks |
 | A2 | Runs whose stage records show `dropped > 0` are marked incomplete and excluded from stage statistics | `n7_stop_stage_report.py` |
+
+## Implementation notes (where the code differs from the text above)
+- **S3 field names:** `phase`, `done` (prompt position for prefill, tokens generated for decode, 0 for setup), `remaining` (prefill only), `last_decode_tokens`, `last_decode_ms`, `dropped`. These replace `position` / `generated` in the design table.
+- **Overhead with the trace off:** `timed_decode` always takes two `Instant::now()` readings and writes one thread-local per native decode. That costs tens of nanoseconds against decodes of 20 ms or more. It is more than the "one relaxed atomic load" stated in Design item 2, which applies only to the disabled event and span callsites.
+- **Install-twice test: dropped.** A process-wide install would conflict with the test-only global capture (`stop_trace::test_capture`) that the cross-thread correlation tests need. Install semantics are `tracing::subscriber::set_global_default`'s.
+- **`log`-crate bridge test: replaced by inspection.** `log` is not a direct dependency, and adding a dev-dependency would change `Cargo.lock`, which the offline VM cannot resolve. No `LogTracer` is installed because install goes through `set_global_default`, not `try_init`.
+- **A stop seen by the engine's pre-check** (`InferenceEngine::run_controlled`) before the backend is called produces S2 and S4 with no S3. The report tolerates it.
+
+## Independent review (2026-11-14): APPROVE WITH CONDITIONS, all fixed
+| Finding | Fix |
+|---|---|
+| C1 Razor: long functions grew | S1 and S2 moved into `stop_trace::{cancel_received, answered}`. The streaming span and S4 moved into `worker_streaming::traced`. `StreamControl::of` replaces inline construction. Function and file deltas against `1032d1b` are listed after this table. |
+| C2 S1 emitted after the cancel, so S2 could precede it | The token is cloned out of the map, S1 is emitted, then the cancel is signalled. The IPC test asserts S1 is captured before S2. |
+| C3 worker test could match another queue's id 1 | One predicate over message, `queue_id`, `stream == false` and `cancel_flag == true`, after the request's own marker. |
+| C4 A2 under-detects drops of the run's own lines | The report marks a run incomplete if the daemon's trace shows any drop, or if a required stage is missing (S4 for running stops; no S3 or S4 for queued stops). |
+| Streaming S4 could be spurious once a deadline passed after a natural finish | S4 is decided inside the blocking closure the moment `run_stream_sync` returns. |
+| Writer thread spawned after install | Spawned first, so a subscriber is never installed without its drain. |
+| Queued scenario could stop being queued at auto threads | The busy requests use the long prompt. The report counts queued cancels that reached the backend; the expected count is 0. |
+| Report: label parse, stream filter, F7 not evaluated | `rsplit` tag parse, `stream` filter, trace on/off throughput ratio and output-hash checks printed. |
+
+**Deltas against `1032d1b`:**
+- **Files:** `backend.rs` 600 → 600; `server.rs` 362 → 358.
+- **Functions:**
+  - `worker_streaming::execute` 58 → 56;
+  - `run_stream` 46 → 46;
+  - `handle_inference_controlled` 66 → 66;
+  - `handle_connection` 209 → 205.
+- **New code:** all new functions are 40 lines or fewer, and all new files 250 lines or fewer.

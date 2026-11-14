@@ -8,15 +8,23 @@ use crate::telemetry;
 
 /// One control bundle keeps cancellation and deadline tied to the same request
 /// without growing the worker's already-wide execution signature.
-#[derive(Clone)]
 struct StreamControl {
     cancel: tokio_util::sync::CancellationToken,
     deadline: Option<std::time::Instant>,
-    /// Streaming queue id, for the #184 stop-trace span.
+    /// Streaming queue id, for the #184 stop-trace span (gguf only).
+    #[cfg_attr(not(feature = "gguf"), allow(dead_code))]
     queue_id: u64,
 }
 
 impl StreamControl {
+    fn of(request: &StreamingQueuedRequest) -> Self {
+        Self {
+            cancel: request.cancelled.clone(),
+            deadline: request.deadline,
+            queue_id: request.id,
+        }
+    }
+
     fn should_stop(&self) -> bool {
         self.cancel.is_cancelled()
             || self
@@ -62,12 +70,7 @@ pub(crate) async fn execute(
         }
     };
 
-    let control = StreamControl {
-        cancel: request.cancelled,
-        deadline: request.deadline,
-        queue_id: request.id,
-    };
-    let probe = control.clone();
+    let control = StreamControl::of(&request);
     let start = std::time::Instant::now();
     let result = run_stream(
         engine,
@@ -80,7 +83,6 @@ pub(crate) async fn execute(
     )
     .await;
     let latency_ms = start.elapsed().as_millis() as u64;
-    trace_stream_release(&probe, latency_ms);
 
     match result {
         Ok(Ok(())) => telemetry::record_request_success(&model_id, latency_ms, 0),
@@ -89,8 +91,26 @@ pub(crate) async fn execute(
     }
 }
 
+/// Run the backend inside the request's #184 stop-trace span and report S4
+/// the moment it returns, so a deadline passing later never marks a stream
+/// that had already finished.
+#[cfg(feature = "gguf")]
+fn traced<T>(
+    control: &StreamControl,
+    run: impl FnOnce(&(dyn Fn() -> bool + Send + Sync)) -> T,
+) -> T {
+    let span = super::worker::stop_scope(control.queue_id, true);
+    let _entered = span.enter();
+    let start = std::time::Instant::now();
+    let should_stop = || control.should_stop();
+    let out = run(&should_stop);
+    trace_stream_release(control, start.elapsed().as_millis() as u64);
+    out
+}
+
 /// #184 stop trace S4 for a stream. A stopped stream can return `Ok(())`,
 /// so the stop is decided by the control, not by the result.
+#[cfg_attr(not(feature = "gguf"), allow(dead_code))]
 fn trace_stream_release(control: &StreamControl, run_ms: u64) {
     if !control.should_stop() {
         return;
@@ -146,19 +166,17 @@ async fn run_stream(
 ) -> Result<Result<(), crate::engine::inference::InferenceError>, tokio::task::JoinError> {
     #[cfg(feature = "gguf")]
     {
-        // Cast to usize to avoid capturing raw pointers (which are !Send).
-        // SAFETY: the caller awaits the JoinHandle, so both the engine and the
-        // security pipeline references outlive the spawned task.
+        // usize casts avoid capturing !Send raw pointers. SAFETY: the caller awaits
+        // the JoinHandle, so the engine and security pipeline outlive the task.
         let engine_addr = engine as *const InferenceEngine as usize;
         let sec_addr = security.map(|s| s as *const SecurityPipeline as usize);
         let mid = model_id.to_string();
         tokio::task::spawn_blocking(move || {
-            let span = super::worker::stop_scope(control.queue_id, true);
-            let _entered = span.enter();
             let engine = unsafe { &*(engine_addr as *const InferenceEngine) };
             let security = sec_addr.map(|a| unsafe { &*(a as *const SecurityPipeline) });
-            let should_stop = || control.should_stop();
-            engine.run_stream_sync(&mid, &prompt, &config, sender, security, Some(&should_stop))
+            traced(&control, |stop| {
+                engine.run_stream_sync(&mid, &prompt, &config, sender, security, Some(stop))
+            })
         })
         .await
     }

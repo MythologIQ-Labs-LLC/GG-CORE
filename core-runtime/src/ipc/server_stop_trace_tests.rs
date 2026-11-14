@@ -36,6 +36,17 @@ async fn cancel_emits_s1_then_s2_with_the_same_request_id() {
     send(&mut client, unknown).await;
     drain(&mut client, 1).await;
 
+    let events = test_capture::events();
+    let index = |message: &str| {
+        events
+            .iter()
+            .position(|e| e["fields"]["message"] == message && e["fields"]["request_id"] == 18_401)
+    };
+    let (i1, i2) = (
+        index("cancel request received"),
+        index("stop answered to caller"),
+    );
+    assert!(i1.unwrap() < i2.unwrap(), "S1 precedes S2 (review C2)");
     let s1 = stage("cancel request received", 18_401);
     assert_eq!(s1.len(), 1, "{s1:?}");
     assert_eq!(s1[0]["matched"], true);

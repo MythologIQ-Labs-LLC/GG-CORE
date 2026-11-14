@@ -93,13 +93,16 @@ async fn blocking_thread_events_and_release_share_the_queue_id() {
         "span reaches the blocking thread"
     );
     assert_eq!(events[at]["span"]["stream"], false);
-    let released = events[at..].iter().find(|e| {
-        e["fields"]["message"] == "worker released after stop"
-            && e["fields"]["queue_id"] == queue_id
+    // Queue ids restart at 1 per queue: match every field this request's S4
+    // must carry, after its own backend observation (review C3).
+    let released = events[at..].iter().any(|e| {
+        let f = &e["fields"];
+        f["message"] == "worker released after stop"
+            && f["queue_id"] == queue_id
+            && f["stream"] == false
+            && f["cancel_flag"] == true
     });
-    let released = released.expect("S4 after the backend observation");
-    assert_eq!(released["fields"]["stream"], false);
-    assert_eq!(released["fields"]["cancel_flag"], true);
+    assert!(released, "S4 after the backend observation");
     let raw = test_capture::raw();
     assert!(!raw.contains("secret prompt") && !raw.contains("secret output"));
     shutdown.cancel();

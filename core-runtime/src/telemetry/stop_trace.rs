@@ -31,6 +31,25 @@ pub fn dropped() -> u64 {
     DROPPED.load(Ordering::Relaxed)
 }
 
+/// S1: an authenticated `cancel_request` on its own connection. Emitted
+/// before the cancel is signalled, so it always precedes S2 (review C2).
+pub fn cancel_received(request_id: u64, matched: bool) {
+    let dropped = dropped();
+    tracing::info!(target: STOP_TARGET, request_id, matched, dropped, "cancel request received");
+}
+
+/// S2: the caller is being answered with a stop. The stream relay does not
+/// know the worker's queue id (`None`).
+pub fn answered(request_id: u64, queue_id: Option<u64>, cancelled: bool, stream: bool) {
+    let kind = if cancelled {
+        "cancelled"
+    } else {
+        "deadline_exceeded"
+    };
+    let dropped = dropped();
+    tracing::info!(target: STOP_TARGET, request_id, queue_id, kind, stream, dropped, "stop answered to caller");
+}
+
 /// `true` only for the exact value `1`.
 pub fn enabled(value: Option<&str>) -> bool {
     value == Some("1")
@@ -47,9 +66,7 @@ pub fn init_from_env() -> bool {
 
 fn install_with<S: Write + Send + 'static>(mut sink: S) -> bool {
     let (writer, lines) = channel(CHANNEL_LINES);
-    if tracing::subscriber::set_global_default(subscriber(writer)).is_err() {
-        return false;
-    }
+    // Writer first: a subscriber is never installed without its drain.
     let spawned = std::thread::Builder::new()
         .name("gg-stop-trace".into())
         .spawn(move || {
@@ -59,6 +76,9 @@ fn install_with<S: Write + Send + 'static>(mut sink: S) -> bool {
         });
     if spawned.is_err() {
         return false;
+    }
+    if tracing::subscriber::set_global_default(subscriber(writer)).is_err() {
+        return false; // the writer thread ends once its sender is dropped
     }
     started();
     true

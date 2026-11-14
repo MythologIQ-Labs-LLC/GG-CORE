@@ -69,14 +69,9 @@ impl IpcHandler {
         };
         let stop = |error: InferenceError| {
             flag.store(true, Ordering::Release);
-            // N7 (#184) stop trace; the worker logs its release with the same
-            // `queue_id`. Integers and the stop kind only.
-            let kind = match error {
-                InferenceError::Cancelled => "cancelled",
-                _ => "deadline_exceeded",
-            };
-            let dropped = crate::telemetry::stop_trace::dropped();
-            tracing::info!(target: "gg_core::stop", request_id = id.0, queue_id, kind, stream = false, dropped, "stop answered to caller");
+            // #184 stop trace S2; the worker's S4 carries the same `queue_id`.
+            let cancelled = matches!(error, InferenceError::Cancelled);
+            crate::telemetry::stop_trace::answered(id.0, Some(queue_id), cancelled, false);
             stopped(id, error)
         };
         let expiry = async {

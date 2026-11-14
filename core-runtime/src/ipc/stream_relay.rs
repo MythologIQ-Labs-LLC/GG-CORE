@@ -77,12 +77,12 @@ async fn relay_stream(
         let frame = tokio::select! {
             biased;
             () = cancel.cancelled() => {
-                answered(request_id, "cancelled");
+                crate::telemetry::stop_trace::answered(request_id.0, None, true, true);
                 Frame::Abort(StreamChunk::error(request_id, "cancelled".into()))
             }
             () = &mut deadline => {
                 cancel.cancel();
-                answered(request_id, "deadline_exceeded");
+                crate::telemetry::stop_trace::answered(request_id.0, None, false, true);
                 Frame::Abort(StreamChunk::error(request_id, "stream deadline exceeded".into()))
             }
             item = stream.next() => frame_for(request_id, item),
@@ -96,12 +96,6 @@ async fn relay_stream(
             }
         }
     }
-}
-
-/// #184 stop trace S2 for a stream: the abort frame is about to be written.
-fn answered(request_id: RequestId, kind: &'static str) {
-    let dropped = crate::telemetry::stop_trace::dropped();
-    tracing::info!(target: "gg_core::stop", request_id = request_id.0, kind, stream = true, dropped, "stop answered to caller");
 }
 
 fn frame_for(request_id: RequestId, item: Option<StreamItem>) -> Frame {
