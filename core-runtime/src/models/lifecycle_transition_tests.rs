@@ -119,3 +119,34 @@ async fn release_timeout_cannot_be_interpreted_as_permission_to_reload() {
         (true, 0)
     );
 }
+
+#[tokio::test]
+async fn missing_target_preflight_does_not_disrupt_current_model() {
+    let (lifecycle, limits) = setup(1_000);
+    let original = lifecycle
+        .load("a".into(), meta("a", 700), Arc::new(Weights(700)))
+        .await
+        .expect("source loaded");
+    let dir = tempfile::tempdir().expect("private model root");
+    std::fs::create_dir_all(dir.path().join("models")).expect("model directory");
+    let loader = crate::models::ModelLoader::new(dir.path().to_path_buf());
+
+    // Preflight the target using the same canonical loader that the daemon
+    // uses, *before* considering unload of the current model.
+    let failure = crate::models::prepare_model_admitted(
+        &loader,
+        Some(&limits),
+        "models/absent.gguf",
+        Some("b".into()),
+    )
+    .err()
+    .expect("a missing target must refuse");
+    assert!(
+        matches!(failure, crate::models::ModelOpError::Path(_)),
+        "{failure}"
+    );
+    assert!(lifecycle.is_loaded("a").await);
+    assert!(lifecycle.validate_handle(&original).await);
+    assert!(!lifecycle.is_loaded("b").await);
+    assert_eq!(limits.current_memory(), 700, "preflight did not evict A");
+}
