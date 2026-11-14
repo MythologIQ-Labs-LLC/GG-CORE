@@ -8,9 +8,12 @@ use crate::telemetry;
 
 /// One control bundle keeps cancellation and deadline tied to the same request
 /// without growing the worker's already-wide execution signature.
+#[derive(Clone)]
 struct StreamControl {
     cancel: tokio_util::sync::CancellationToken,
     deadline: Option<std::time::Instant>,
+    /// Streaming queue id, for the #184 stop-trace span.
+    queue_id: u64,
 }
 
 impl StreamControl {
@@ -59,6 +62,12 @@ pub(crate) async fn execute(
         }
     };
 
+    let control = StreamControl {
+        cancel: request.cancelled,
+        deadline: request.deadline,
+        queue_id: request.id,
+    };
+    let probe = control.clone();
     let start = std::time::Instant::now();
     let result = run_stream(
         engine,
@@ -67,19 +76,34 @@ pub(crate) async fn execute(
         request.config,
         request.token_sender,
         security,
-        StreamControl {
-            cancel: request.cancelled,
-            deadline: request.deadline,
-        },
+        control,
     )
     .await;
     let latency_ms = start.elapsed().as_millis() as u64;
+    trace_stream_release(&probe, latency_ms);
 
     match result {
         Ok(Ok(())) => telemetry::record_request_success(&model_id, latency_ms, 0),
         Ok(Err(e)) => telemetry::record_request_failure(&model_id, &e.to_string()),
         Err(e) => telemetry::record_request_failure(&model_id, &e.to_string()),
     }
+}
+
+/// #184 stop trace S4 for a stream. A stopped stream can return `Ok(())`,
+/// so the stop is decided by the control, not by the result.
+fn trace_stream_release(control: &StreamControl, run_ms: u64) {
+    if !control.should_stop() {
+        return;
+    }
+    tracing::info!(
+        target: "gg_core::stop",
+        queue_id = control.queue_id,
+        cancel_flag = control.cancel.is_cancelled(),
+        run_ms,
+        stream = true,
+        dropped = crate::telemetry::stop_trace::dropped(),
+        "worker released after stop"
+    );
 }
 
 /// Ingress scan for the streaming path. Returns `true` when admitted;
@@ -129,6 +153,8 @@ async fn run_stream(
         let sec_addr = security.map(|s| s as *const SecurityPipeline as usize);
         let mid = model_id.to_string();
         tokio::task::spawn_blocking(move || {
+            let span = super::worker::stop_scope(control.queue_id, true);
+            let _entered = span.enter();
             let engine = unsafe { &*(engine_addr as *const InferenceEngine) };
             let security = sec_addr.map(|a| unsafe { &*(a as *const SecurityPipeline) });
             let should_stop = || control.should_stop();
@@ -157,3 +183,7 @@ async fn run_stream(
         Ok(Err(err))
     }
 }
+
+#[cfg(test)]
+#[path = "worker_streaming_trace_tests.rs"]
+mod trace_tests;

@@ -217,3 +217,6 @@ async fn unauthenticated_nonstream_request_is_rejected() {
     drop(client);
     task.await.expect("connection task");
 }
+
+#[path = "server_stop_trace_tests.rs"]
+mod stop_trace;

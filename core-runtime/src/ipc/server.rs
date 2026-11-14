@@ -210,6 +210,9 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                         false
                     };
                     drop(streams);
+                    // #184 stop trace S1: authenticated, this connection only.
+                    let dropped = crate::telemetry::stop_trace::dropped();
+                    tracing::info!(target: "gg_core::stop", request_id = request_id.0, matched = cancelled, dropped, "cancel request received");
                     let response = IpcMessage::CancelResponse {
                         request_id,
                         cancelled,

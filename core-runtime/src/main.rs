@@ -106,6 +106,10 @@ async fn run_serve(args: &[String]) -> ExitCode {
         }
     };
 
+    // #184: opt-in stop-stage trace (GG_CORE_STOP_TRACE=1), stderr only.
+    if gg_core::telemetry::stop_trace::init_from_env() {
+        eprintln!("Stop-stage trace: enabled (gg_core::stop JSON lines on stderr)");
+    }
     if let Err(e) = fips_tests::run_power_on_self_tests() {
         eprintln!("FIPS self-test FAILED: {}", e);
         eprintln!("Cryptographic operations disabled. Aborting startup.");
