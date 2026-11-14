@@ -43,3 +43,9 @@ No HTTP, network listener, cloud fallback, signing or release action is authoriz
 Before calling this from the daemon, the authenticated controller must obtain an evidence-bound **per-model** support snapshot, including model/hash/format/task/hardware and current reservations, then enforce its local host policy. The current static catalog intentionally qualifies **no** cells and therefore selects nothing. This keeps incomplete capabilities from being advertised as usable or auto-selected.
 
 **Security note:** `qualified_paths` is currently an ordinary publicly constructible Rust field. It is not cryptographically attested. Never accept client-supplied `RuntimeBackendCapabilities` as a qualification authority; the eventual IPC response must be created from a trusted server-side registry of reviewed, exact-model acceptance receipts. A malicious caller can otherwise fabricate an eligible cell.
+
+## Deferred: memory budgets, host authority and model selection (#50 / #153)
+- **Scope of backend eligibility:** `backend_eligibility::evaluate_backends` and `select_qualified_backend` decide *backend* eligibility only. They do not know a model's resident or working size, choose a model, or change any budget or authority.
+- **Deferred to model selection:** checking a candidate model against the memory budget, host-authority rules (pinning a model rather than a backend, operator constraints) and model selection itself. These belong to the model-selection policy under #50 / #153 and are not implemented.
+- **In the meantime:** the existing admission and resident-budget checks (#193) apply unchanged to every load.
+

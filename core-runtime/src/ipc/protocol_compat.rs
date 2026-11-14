@@ -51,7 +51,9 @@
 //!         M::TypedInferenceResponse { .. } => 24,
 //!         M::ModelReleaseWaitRequest { .. } => 25,
 //!         M::ModelReleaseWaitResponse { .. } => 26,
-//!         M::Error { .. } => 27,
+//!         M::CapabilitiesRequest { .. } => 27,
+//!         M::CapabilitiesResponse { .. } => 28,
+//!         M::Error { .. } => 29,
 //!     }
 //! }
 //! # let _ = kind;
@@ -95,7 +97,9 @@ mod tests {
             M::TypedInferenceResponse { .. } => 24,
             M::ModelReleaseWaitRequest { .. } => 25,
             M::ModelReleaseWaitResponse { .. } => 26,
-            M::Error { .. } => 27,
+            M::CapabilitiesRequest { .. } => 27,
+            M::CapabilitiesResponse { .. } => 28,
+            M::Error { .. } => 29,
         }
     }
 

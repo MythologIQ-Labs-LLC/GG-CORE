@@ -7,8 +7,7 @@
 //! qualified_paths before this function is used in a serving controller.
 
 use super::backend_capabilities::{
-    BackendKind, ExecutionTarget, InferenceTask, RuntimeBackendCapabilities, ServingPath,
-    CAPABILITY_SCHEMA_VERSION,
+    BackendKind, ExecutionTarget, InferenceTask, RuntimeBackendCapabilities,
 };
 
 /// A caller's explicit task and execution target. No implicit cloud fallback.
@@ -41,33 +40,19 @@ pub fn select_qualified_backend(
     catalog: &[RuntimeBackendCapabilities],
     requirement: BackendRequirement,
 ) -> Result<&RuntimeBackendCapabilities, BackendRefusal> {
-    let mut matches = catalog.iter().filter(|backend| {
-        backend.schema_version == CAPABILITY_SCHEMA_VERSION
-            && backend.compiled_paths.contains(&ServingPath {
-                task: requirement.task,
-                target: requirement.target,
-            })
-            && backend.qualified_paths.contains(&ServingPath {
-                task: requirement.task,
-                target: requirement.target,
-            })
-            && (!requirement.streaming || backend.supports_streaming)
-            && requirement
-                .pinned_backend
-                .is_none_or(|pinned| backend.backend == pinned)
-    });
-    let first = matches.next().ok_or(BackendRefusal::NoQualifiedCandidate)?;
-    if matches.next().is_some() {
-        return Err(BackendRefusal::AmbiguousSelection);
+    let eligibility = super::backend_eligibility::evaluate_backends(catalog, requirement);
+    match eligibility.selected {
+        Some(index) => Ok(&catalog[index]),
+        None if eligibility.is_ambiguous() => Err(BackendRefusal::AmbiguousSelection),
+        None => Err(BackendRefusal::NoQualifiedCandidate),
     }
-    Ok(first)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::backend_capabilities::{
-        compiled_backend_capabilities, CAPABILITY_SCHEMA_VERSION,
+        compiled_backend_capabilities, ServingPath, CAPABILITY_SCHEMA_VERSION,
     };
 
     fn synthetic_qualified(

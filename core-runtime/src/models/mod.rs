@@ -4,7 +4,9 @@
 
 pub mod backend_capabilities;
 pub mod backend_dispatch;
+pub mod backend_eligibility;
 pub mod backend_selection;
+pub mod capability_snapshot;
 pub mod manifest;
 pub mod pool;
 pub mod pool_types;
