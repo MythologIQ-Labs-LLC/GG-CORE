@@ -42,6 +42,37 @@ GG-CORE is a Rust inference kernel built around four constraints:
 
 GG-CORE is the **local inference runtime**, not a plugin, a desktop interface, or an external-provider router. The consuming application owns its UI and provider choices. GG-CORE can run as a local IPC daemon or be consumed in-process through Rust, C FFI, or Python bindings. The secure public inference path is `Runtime::infer` / `Runtime::infer_stream`: prompt scanning happens before execution, and output sanitization happens before results leave the runtime.
 
+
+### Upstream runtime, downstream applications
+
+**GG-CORE is the independent upstream product. CoreForge is one downstream consumer.**
+GG-CORE can be installed, configured, served, tested, released and used **without
+CoreForge**. CoreForge packages an approved GG-CORE build as a local inference
+sidecar and communicates with it over authenticated local IPC. Other compatible
+applications, services, CLIs and language bindings can consume GG-CORE through
+its documented interfaces without using CoreForge.
+
+| Boundary | GG-CORE owns | A downstream host such as CoreForge owns |
+| --- | --- | --- |
+| Product and release | Standalone runtime, model execution, supported platform/backend matrix, versioned interfaces, producer artifacts and security qualification | Its own application, installer, integrations, release gates and adoption of an **exact verified** GG-CORE version |
+| Runtime and control | Model admission, inference, local IPC authentication/protocol, runtime-side resource limits and compute-side safeguards | UI, onboarding, personas, voice, app settings, user permissions, external-provider selection and host-side lifecycle |
+| User experience | Reusable inference capability; no CoreForge-specific UI or agent policy | May present local inference as an **integral, seamless** feature without changing the underlying producer/consumer boundary |
+
+**Dependency direction is one-way:** CoreForge depends on GG-CORE's public
+interfaces and qualified artifacts; GG-CORE does not depend on CoreForge's
+source, packaging, configuration, identity, personas, UI, test environment or
+release schedule. CoreForge acceptance cannot substitute for GG-CORE's
+standalone release qualification, and GG-CORE passing its own tests does not
+prove CoreForge's installed workflows.
+
+"Usable anywhere" is the architectural goal, **not** a claim of universal
+platform or model support today. Actual interoperability is constrained by
+documented operating systems, native dependencies, model/backend capabilities,
+supported ABI/IPC protocol versions, authentication and independently verified
+consumer compatibility. See the [standalone architecture](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md)
+and the [CoreForge-specific downstream contract](docs/integration/COREFORGE_PRODUCER_CONTRACT.md).
+
+
 ```mermaid
 flowchart LR
     Host[Standalone caller or application]
