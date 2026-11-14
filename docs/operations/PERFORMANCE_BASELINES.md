@@ -1,4 +1,6 @@
-# Performance Baselines for Canary Analysis
+# Performance Baselines
+
+> **Historical/conditional:** This early canary/rollout proposal is not an installed GG-CORE v1 benchmark or an automatic deployment capability. GG-CORE is an upstream standalone runtime; CoreForge may separately consume qualified versions. See [the standalone workflow map](../architecture/WORKFLOW_AND_RELEASE_BOUNDARIES.md). for Canary Analysis
 
 **Version:** 0.8.1
 **Last Updated:** 2026-02-20
@@ -7,7 +9,7 @@
 ## Overview
 
 This document defines performance baselines and thresholds for automated canary
-deployment decisions in COREFORGE CORE Runtime. These metrics ensure safe
+deployment decisions in GG-CORE standalone runtime. These metrics ensure safe
 progressive rollouts with automatic rollback on performance degradation.
 
 ---
