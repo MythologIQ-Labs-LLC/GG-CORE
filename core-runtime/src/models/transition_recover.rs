@@ -8,8 +8,9 @@
 use std::sync::Arc;
 
 use super::{prepare, ColdSwitchRequest, LoadFailure, Preparer, SwitchOutcome};
+use crate::models::lifecycle::LifecycleError;
 use crate::models::lifecycle::{ModelLifecycle, ModelSource};
-use crate::models::model_ops::register_prepared;
+use crate::models::model_ops::{register_prepared, ModelOpError};
 
 pub(super) async fn recover(
     lifecycle: &Arc<ModelLifecycle>,
@@ -49,7 +50,8 @@ async fn retire_target(
     }
 }
 
-/// Reload A from its recorded path; refuse a file whose bytes changed.
+/// Reload A from its recorded path. The preparer refuses a file whose
+/// digest differs from the record before any backend reads it.
 async fn restore_source(
     lifecycle: &Arc<ModelLifecycle>,
     prep: &Arc<dyn Preparer>,
@@ -61,26 +63,27 @@ async fn restore_source(
         cause,
         rollback_error,
     };
-    let (prepared, found) =
-        match prepare(lifecycle, prep, &source.relative_path, &req.from_id).await {
-            Ok(pair) => pair,
-            Err(e) => return failed(format!("source reload failed: {e}"), cause),
-        };
-    if found.sha256 != source.sha256 {
-        drop(prepared); // never registered: no handle, budget returned
-        let msg = "source file changed since it was loaded (sha256 mismatch); not restored";
-        return failed(msg.into(), cause);
-    }
+    let expected = Some(source.sha256.clone());
+    let path = &source.relative_path;
+    let (prepared, found) = match prepare(lifecycle, prep, path, &req.from_id, expected).await {
+        Ok(pair) => pair,
+        Err(e) => return failed(format!("source reload refused or failed: {e}"), cause),
+    };
     match register_prepared(lifecycle, prepared).await {
         Ok(loaded) => {
-            if let Some(handle) = lifecycle.get_handle(&req.from_id).await {
-                lifecycle.record_source(handle, found);
-            }
+            let handle = crate::models::ModelHandle::new(loaded.handle_id);
+            lifecycle.record_source(handle, found).await;
             SwitchOutcome::RolledBack {
                 cause,
                 restored_handle: loaded.handle_id,
             }
         }
+        Err(ModelOpError::Lifecycle(LifecycleError::AlreadyLoaded(id))) => failed(
+            format!(
+                "another instance of '{id}' was loaded during recovery outside the operator authority; it serves, but it is not the verified source"
+            ),
+            cause,
+        ),
         Err(e) => failed(format!("source registration failed: {e}"), cause),
     }
 }

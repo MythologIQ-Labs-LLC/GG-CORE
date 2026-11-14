@@ -16,16 +16,16 @@ use super::{resident, LifecycleError, ModelHandle, ModelLifecycle};
 
 /// Where an operator-loaded model came from, bound to the bytes it loaded.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelSource {
+pub(crate) struct ModelSource {
     /// `base_path`-relative path the model was loaded from.
-    pub relative_path: String,
+    pub(crate) relative_path: String,
     /// SHA-256 of the file, hashed before the load with its identity
     /// re-checked after (or the manifest's verified digest).
-    pub sha256: String,
+    pub(crate) sha256: String,
 }
 
 /// Held operator authority; dropping it releases the authority.
-pub type OperationGuard = OwnedMutexGuard<()>;
+pub(crate) type OperationGuard = OwnedMutexGuard<()>;
 
 /// Authority plus per-handle sources (one `ModelLifecycle` field).
 #[derive(Default)]
@@ -47,29 +47,36 @@ impl OpsState {
 
 impl ModelLifecycle {
     /// Take the operator authority now, or `None` if another operation holds it.
-    pub fn try_begin_operation(&self) -> Option<OperationGuard> {
+    pub(crate) fn try_begin_operation(&self) -> Option<OperationGuard> {
         Arc::clone(&self.ops.authority).try_lock_owned().ok()
     }
 
     /// Take the operator authority, waiting at most `wait` (`None`: busy).
-    pub async fn begin_operation_within(&self, wait: Duration) -> Option<OperationGuard> {
+    pub(crate) async fn begin_operation_within(&self, wait: Duration) -> Option<OperationGuard> {
         let lock = Arc::clone(&self.ops.authority).lock_owned();
         tokio::time::timeout(wait, lock).await.ok()
     }
 
-    /// Record the verified source of a still-loaded handle.
-    pub fn record_source(&self, handle: ModelHandle, source: ModelSource) {
-        self.ops.sources().insert(handle.id(), source);
+    /// Record the verified source of `handle`, only while that exact handle
+    /// is still loaded (checked under the index lock), so a source can never
+    /// attach to an instance a bypass path loaded in its place.
+    pub(crate) async fn record_source(&self, handle: ModelHandle, source: ModelSource) -> bool {
+        let index = self.index.read().await;
+        let loaded = index.handle_to_id.contains_key(&handle.id());
+        if loaded {
+            self.ops.sources().insert(handle.id(), source);
+        }
+        loaded
     }
 
     /// The recorded source of a loaded handle, if an operator path loaded it.
-    pub fn source(&self, handle: ModelHandle) -> Option<ModelSource> {
+    pub(crate) fn source(&self, handle: ModelHandle) -> Option<ModelSource> {
         self.ops.sources().get(&handle.id()).cloned()
     }
 
     /// Unload `model_id` only if it is still exactly `expected`; checked under
     /// the index write lock, so a concurrent replacement is never unloaded.
-    pub async fn unload_expected(
+    pub(crate) async fn unload_expected(
         &self,
         model_id: &str,
         expected: ModelHandle,
@@ -77,15 +84,13 @@ impl ModelLifecycle {
         self.unload_matching(model_id, Some(expected)).await
     }
 
-    /// Resident budget bytes charged by loaded models other than `model_id`.
-    pub async fn resident_bytes_excluding(&self, model_id: &str) -> usize {
+    /// Resident budget bytes `model_id` currently charges (0 if not loaded).
+    pub(crate) async fn charged_bytes(&self, model_id: &str) -> usize {
         let index = self.index.read().await;
         index
             .residents
-            .iter()
-            .filter(|(id, _)| id.as_str() != model_id)
-            .map(|(_, resident)| resident.charged_bytes())
-            .sum()
+            .get(model_id)
+            .map_or(0, |r| r.charged_bytes())
     }
 
     /// [`Self::unload`], refused if `expected` no longer names the instance.

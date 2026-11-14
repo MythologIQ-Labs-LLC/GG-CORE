@@ -80,6 +80,12 @@ pub(super) fn target(bytes: usize, sha: &str) -> Target {
 pub(super) struct Fake {
     pub(super) targets: Mutex<HashMap<String, Target>>,
     pub(super) holders: Mutex<HashMap<String, Arc<dyn Model>>>,
+    /// Readiness verdict per prepared instance (keyed by `Arc` address).
+    ready: Mutex<HashMap<usize, Option<String>>>,
+}
+
+fn addr(model: &Arc<dyn Model>) -> usize {
+    Arc::as_ptr(model) as *const () as usize
 }
 
 impl Fake {
@@ -116,8 +122,12 @@ impl Preparer for Fake {
         path: &str,
         id: Option<String>,
         limits: Option<&ResourceLimits>,
+        expected_sha256: Option<&str>,
     ) -> Result<(PreparedModel, ModelSource), ModelOpError> {
         let t = self.get(path)?;
+        if expected_sha256.is_some_and(|want| want != t.sha) {
+            return Err(ModelOpError::Backend(SOURCE_CHANGED.into()));
+        }
         if let Some(e) = t.prepare_err {
             return Err(ModelOpError::Backend(e));
         }
@@ -128,6 +138,10 @@ impl Preparer for Fake {
             None => None,
         };
         let model: Arc<dyn Model> = Arc::new(Weights(t.memory));
+        self.ready
+            .lock()
+            .unwrap()
+            .insert(addr(&model), t.ready_err.clone());
         if t.held {
             self.holders
                 .lock()
@@ -142,14 +156,8 @@ impl Preparer for Fake {
         Ok((PreparedModel::for_test(&id, model, guard), source))
     }
     fn verify_ready(&self, model: &Arc<dyn Model>) -> Result<(), String> {
-        let found = self
-            .targets
-            .lock()
-            .unwrap()
-            .values()
-            .find(|t| t.memory == model.memory_usage())
-            .cloned();
-        found.and_then(|t| t.ready_err).map_or(Ok(()), Err)
+        let verdict = self.ready.lock().unwrap().get(&addr(model)).cloned();
+        verdict.flatten().map_or(Ok(()), Err)
     }
 }
 

@@ -93,7 +93,8 @@ async fn over_budget_estimate_and_bad_target_are_refused_before_disruption() {
     ]);
     let a = operator_load(&lc, &fake, "a.gguf", "a").await;
     operator_load(&lc, &fake, "c.gguf", "c").await;
-    assert_eq!(lc.resident_bytes_excluding("a").await, 300);
+    assert_eq!(lc.charged_bytes("a").await, 400);
+    assert_eq!(lc.charged_bytes("c").await, 300);
     let out = switch(&lc, &fake, request("a", a, "big.gguf", "big")).await;
     let want = SwitchRefusal::OverBudget {
         needed: 800,
@@ -128,4 +129,37 @@ async fn unload_expected_refuses_a_replaced_instance() {
     let err = lc.unload_expected("a", stale).await.unwrap_err();
     assert!(matches!(err, LifecycleError::StaleHandle(_)));
     assert!(lc.validate_handle(&a).await);
+}
+
+#[tokio::test]
+async fn operator_load_records_the_source_and_respects_the_authority() {
+    let (lc, _) = lifecycle(1_000);
+    let fake = Fake::with(&[("a.gguf", target(400, "sha-a"))]);
+    let prep: Arc<dyn Preparer> = Arc::clone(&fake) as Arc<dyn Preparer>;
+    let held = lc.try_begin_operation().expect("free");
+    let wait = Duration::from_millis(30);
+    let busy = load_operated(&lc, &prep, "a.gguf", Some("a".into()), wait).await;
+    assert!(matches!(busy, Err(crate::models::ModelOpError::Busy)));
+    assert!(!lc.is_loaded("a").await, "nothing loaded while busy");
+    drop(held);
+    let loaded = load_operated(&lc, &prep, "a.gguf", Some("a".into()), wait)
+        .await
+        .expect("operator load");
+    let handle = crate::models::ModelHandle::new(loaded.handle_id);
+    assert_eq!(lc.source(handle).unwrap().sha256, "sha-a");
+    assert_eq!(lc.get_handle("a").await, Some(handle));
+}
+
+#[tokio::test]
+async fn a_source_never_attaches_to_an_unloaded_handle() {
+    let (lc, _) = lifecycle(1_000);
+    let fake = Fake::with(&[("a.gguf", target(400, "sha-a"))]);
+    let a = operator_load(&lc, &fake, "a.gguf", "a").await;
+    lc.unload("a").await.unwrap();
+    let source = ModelSource {
+        relative_path: "a.gguf".into(),
+        sha256: "sha-a".into(),
+    };
+    assert!(!lc.record_source(a, source).await);
+    assert!(lc.source(a).is_none());
 }

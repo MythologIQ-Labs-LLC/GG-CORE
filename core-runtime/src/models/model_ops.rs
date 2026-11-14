@@ -199,28 +199,10 @@ pub async fn load_model_operated(
     workers: usize,
     wait: std::time::Duration,
 ) -> Result<LoadedModel, ModelOpError> {
-    use super::transition::{CanonicalPreparer, Preparer};
-    let _authority = lifecycle
-        .begin_operation_within(wait)
-        .await
-        .ok_or(ModelOpError::Busy)?;
-    let prep = CanonicalPreparer {
-        loader: Arc::clone(loader),
-        workers,
-    };
-    let (path, limits) = (
-        relative_path.to_string(),
-        lifecycle.resource_limits().cloned(),
-    );
-    let (prepared, source) =
-        tokio::task::spawn_blocking(move || prep.prepare_sourced(&path, model_id, limits.as_ref()))
-            .await
-            .map_err(|e| ModelOpError::Backend(format!("load task failed: {e}")))??;
-    let loaded = register_prepared(lifecycle, prepared).await?;
-    if let Some(handle) = lifecycle.get_handle(&loaded.model_id).await {
-        lifecycle.record_source(handle, source);
-    }
-    Ok(loaded)
+    use super::transition::{load_operated, CanonicalPreparer, Preparer};
+    let loader = Arc::clone(loader);
+    let prep: Arc<dyn Preparer> = Arc::new(CanonicalPreparer { loader, workers });
+    load_operated(lifecycle, &prep, relative_path, model_id, wait).await
 }
 
 /// Operator unload: take the mutation authority within `wait`, then unload.

@@ -188,3 +188,18 @@ It is **not exposed over IPC by default** (see "Exposure").
   - **R3:** a release timeout during recovery returns `RollbackFailed(ReleasePending)`, covered by test 15.
   - **R4:** the record-time hash of B is stated and measured. Three more tests: a bypass unload drops the source; `resident_bytes_excluding` with another resident; the IPC unload busy bound.
   - **R5:** a `JoinError` maps to an explicit unknown-state report.
+
+## Independent review (2026-11-14): APPROVE WITH CONDITIONS, all addressed
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| 1. Source recorded against a re-looked-up handle | Medium | Sources are recorded against the handle `register_prepared` returned. `record_source` inserts only while that handle is still in the index (checked under the index lock). Test: a source never attaches to an unloaded handle. |
+| 2. Rollback parsed a substituted file | Medium | `prepare_sourced(…, expected_sha256)` refuses a mismatched digest right after hashing, before any backend reads the file. |
+| 3. Manifest models hashed twice | Medium | The manifest's verified digest is reused, and dispatch still verifies it. Manifest-free GGUF is hashed once. The cost and the 30 s busy error are documented in `IPC_PROTOCOL_SCHEMA.md`. |
+| 4. Missing tests | Medium | Added `load_operated` busy and source-recording tests. Preload and IPC now share `transition::load_operated`, so a fake can exercise it. |
+| 5. Optimistic budget estimate | Low | The estimate is now `total − (current_memory − A's charge)`, which counts draining releases and working memory. |
+| 6. Fragile `verify_ready` keying | Low | Readiness is keyed by `Arc` address. |
+| 7. Real test did not prove an in-flight request | Low | It runs a 96-token in-flight request and asserts that the switch's release waited at least 100 ms. Memory probes are measurements, not assertions. |
+| 8. Public API | Low | The authority, source, `unload_expected` and charge APIs are `pub(crate)`. Only `load_model_operated`/`unload_model_operated` are public, for the daemon binary. |
+| 9. `AlreadyLoaded` during recovery | Low | Reported distinctly: another instance serves, but it is not the verified source. |
+| 10. Identity check limits | Low | Documented as a residual limit in `CanonicalPreparer::prepare_sourced`: identity is length plus file id, and the `models/` tree is trusted. |

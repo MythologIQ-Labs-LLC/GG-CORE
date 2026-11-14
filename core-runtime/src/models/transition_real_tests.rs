@@ -162,7 +162,7 @@ async fn run_pair(base: &str, a_path: &str, b_path: &str) {
     );
 
     let engine = Arc::clone(&rig.engine);
-    let in_flight = tokio::spawn(async move { ask(&engine, "a", 48).await });
+    let in_flight = tokio::spawn(async move { ask(&engine, "a", 96).await });
     tokio::time::sleep(Duration::from_millis(300)).await;
     let first = cold(&rig, "a", b_path, "b").await;
     let held = in_flight.await.expect("in-flight task");
@@ -175,7 +175,12 @@ async fn run_pair(base: &str, a_path: &str, b_path: &str) {
             held.is_ok()
         ),
     );
-    assert!(matches!(first, SwitchOutcome::Switched { .. }), "{first:?}");
+    let SwitchOutcome::Switched { release_ms, .. } = first else {
+        panic!("{first:?}")
+    };
+    // The switch waited for the in-flight request to release A: it really
+    // was in flight when admissions closed (not finished before the unload).
+    assert!(release_ms >= 100, "release waited only {release_ms} ms");
     assert!(
         held.is_ok(),
         "the in-flight request on A completed exactly once: {held:?}"

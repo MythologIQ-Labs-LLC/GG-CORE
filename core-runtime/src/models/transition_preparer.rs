@@ -28,11 +28,14 @@ pub(crate) trait Preparer: Send + Sync + 'static {
     fn preflight(&self, relative_path: &str) -> Result<TargetFacts, ModelOpError>;
 
     /// Load through the canonical path and bind the result to its bytes.
+    /// With `expected_sha256`, a file whose digest differs is refused before
+    /// any backend reads it (rollback must never parse a substitute).
     fn prepare_sourced(
         &self,
         relative_path: &str,
         model_id: Option<String>,
         limits: Option<&ResourceLimits>,
+        expected_sha256: Option<&str>,
     ) -> Result<(PreparedModel, ModelSource), ModelOpError>;
 
     /// Readiness of a freshly loaded model. The production check is the
@@ -63,18 +66,36 @@ impl Preparer for CanonicalPreparer {
         }
     }
 
-    /// Hash before the load, load, then re-check the file identity, so the
-    /// recorded digest is the digest of the bytes the backend actually read
-    /// (audit R1). A manifest-declared digest is also verified by the load.
+    /// Bind the load to its bytes (audit R1). A manifest model's digest is
+    /// the manifest's: the canonical load verifies it before the backend
+    /// reads the file and re-checks identity after, so it is not hashed
+    /// twice. A manifest-free model is hashed here first, then loaded, then
+    /// its identity re-checked. Residual limit (as for manifest models):
+    /// identity is length plus file id, so a same-length in-place rewrite of
+    /// a trusted `models/` file between hash and load is not detected.
     fn prepare_sourced(
         &self,
         relative_path: &str,
         model_id: Option<String>,
         limits: Option<&ResourceLimits>,
+        expected_sha256: Option<&str>,
     ) -> Result<(PreparedModel, ModelSource), ModelOpError> {
         let validated = self.loader.validate_path(relative_path)?;
-        let (sha256, identity) =
-            hash_file(validated.as_path()).map_err(|e| ModelOpError::Backend(e.to_string()))?;
+        let path = validated.as_path();
+        let declared = match plan_backend(path) {
+            Ok(BackendChoice::GgufManifest(m) | BackendChoice::Onnx(m)) => Some(m.sha256),
+            _ => None,
+        };
+        let (sha256, identity) = match declared {
+            Some(digest) => (digest.to_ascii_lowercase(), None),
+            None => {
+                let (digest, identity) = hash_file(path).map_err(backend_err)?;
+                (digest, Some(identity))
+            }
+        };
+        if expected_sha256.is_some_and(|want| !want.eq_ignore_ascii_case(&sha256)) {
+            return Err(ModelOpError::Backend(SOURCE_CHANGED.into()));
+        }
         let prepared = prepare_model_admitted_for_workers(
             &self.loader,
             limits,
@@ -82,12 +103,21 @@ impl Preparer for CanonicalPreparer {
             model_id,
             self.workers,
         )?;
-        check_identity_unchanged(validated.as_path(), &identity)
-            .map_err(|e| ModelOpError::Backend(e.to_string()))?;
+        if let Some(identity) = identity {
+            check_identity_unchanged(path, &identity).map_err(backend_err)?;
+        }
         let source = ModelSource {
             relative_path: relative_path.to_string(),
             sha256,
         };
         Ok((prepared, source))
     }
+}
+
+/// Refusal text for a source file whose bytes no longer match its record.
+pub(crate) const SOURCE_CHANGED: &str =
+    "source file changed since it was loaded (sha256 mismatch); not loaded";
+
+fn backend_err(e: crate::engine::InferenceError) -> ModelOpError {
+    ModelOpError::Backend(e.to_string())
 }

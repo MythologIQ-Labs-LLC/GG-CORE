@@ -216,7 +216,7 @@ pub use release::MAX_RELEASE_WAIT;
 
 #[path = "lifecycle_operations.rs"]
 mod operations;
-pub use operations::{ModelSource, OperationGuard};
+pub(crate) use operations::{ModelSource, OperationGuard};
 
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]

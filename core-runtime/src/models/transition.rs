@@ -20,7 +20,7 @@ use super::lifecycle::{
 };
 use super::registry::ModelHandle;
 
-pub(crate) use preparer::{CanonicalPreparer, Preparer, TargetFacts};
+pub(crate) use preparer::{CanonicalPreparer, Preparer, TargetFacts, SOURCE_CHANGED};
 
 /// One operator request to switch the serving model from A to B.
 #[derive(Debug, Clone)]
@@ -171,7 +171,7 @@ async fn preconditions(
 }
 
 /// Validate A's recorded path and B's target without reading model bytes,
-/// then estimate whether B fits once A's resident bytes are returned.
+/// then estimate (re-checked at load) whether B fits once A's bytes return.
 async fn preflight(
     lifecycle: &ModelLifecycle,
     prep: &Arc<dyn Preparer>,
@@ -188,7 +188,10 @@ async fn preflight(
         .map_err(|e| SwitchRefusal::Preflight(e.to_string()))?
         .map_err(|e| SwitchRefusal::Preflight(e.to_string()))?;
     if let Some(limits) = lifecycle.resource_limits() {
-        let others = lifecycle.resident_bytes_excluding(&req.from_id).await as u64;
+        // Everything charged now (other residents, draining releases, request
+        // working memory) except A's resident bytes, which the switch returns.
+        let a = lifecycle.charged_bytes(&req.from_id).await;
+        let others = limits.current_memory().saturating_sub(a) as u64;
         let available = (limits.max_total_memory() as u64).saturating_sub(others);
         if facts.size_bytes > available {
             return Err(SwitchRefusal::OverBudget {
@@ -205,6 +208,7 @@ mod preparer;
 
 #[path = "transition_load.rs"]
 mod load;
+pub(crate) use load::load_operated;
 use load::{load_checked, prepare, LoadFailure};
 
 #[path = "transition_recover.rs"]
