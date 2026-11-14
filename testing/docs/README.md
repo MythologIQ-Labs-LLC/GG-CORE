@@ -1,6 +1,6 @@
 # Testing Infrastructure
 
-This directory contains all testing infrastructure for the COREFORGE CORE Runtime.
+This directory contains historical and current testing infrastructure for the **GG-CORE standalone inference runtime**. Test maturity depends on the exact source and installed artifact; CoreForge is not a prerequisite.
 
 ## Directory Structure
 
