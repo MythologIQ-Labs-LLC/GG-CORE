@@ -37,10 +37,10 @@ pub enum BackendRefusal {
 ///
 /// The caller is responsible for ensuring entries originate from trusted,
 /// evidence-bound local state; this function is not a certification oracle.
-pub fn select_qualified_backend<'a>(
-    catalog: &'a [RuntimeBackendCapabilities],
+pub fn select_qualified_backend(
+    catalog: &[RuntimeBackendCapabilities],
     requirement: BackendRequirement,
-) -> Result<&'a RuntimeBackendCapabilities, BackendRefusal> {
+) -> Result<&RuntimeBackendCapabilities, BackendRefusal> {
     let mut matches = catalog.iter().filter(|backend| {
         backend.schema_version == CAPABILITY_SCHEMA_VERSION
             && backend.compiled_paths.contains(&ServingPath {
