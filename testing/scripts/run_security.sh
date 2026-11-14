@@ -11,7 +11,7 @@ set -e
   
 echo "=========================================="  
   
-echo "COREFORGE CORE Runtime - Security Tests"  
+echo "GG-CORE Standalone Runtime - Security Tests"  
   
 echo "=========================================="  
   
