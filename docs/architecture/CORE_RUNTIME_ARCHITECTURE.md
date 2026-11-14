@@ -46,9 +46,9 @@ flowchart TD
     Embed --> Secure
     Secure --> Admission[Queue, scheduler and resource admission]
     Admission --> Registered[Registered Model trait instance]
-    Loader[Local path, manifest and integrity validation] --> Lifecycle[Lifecycle, registry and resident reservation]
+    Loader[Local path, manifest, integrity and backend dispatch] --> Lifecycle[Lifecycle, registry and resident reservation]
     Lifecycle --> Registered
-    Registered --> Backend{Backend dispatch}
+    Registered --> Backend{Loaded Model implementation}
     Backend -->|GGUF| GGUF[llama.cpp CPU generation]
     Backend -->|ONNX source path| ONNX[Candle ONNX CPU embed/classify]
     GGUF --> Out[Output / streaming sanitation]
