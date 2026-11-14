@@ -1,6 +1,6 @@
 # GG-CORE Roadmap
 
-**Qualification checkpoint: 2026-11-05.** `0.10.0-rc.1` at `main@d55ba50a` passed Rust, CodeQL and packaged Linux/Windows/macOS GGUF inference. **As of this checkpoint, no public tag existed**; see [Releases](https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases) for current publication status. Owner-controlled publication [#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130), performance [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136) and switching [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137) remain distinct.
+**Release status reconciled 2026-11-14.** [`v0.10.0-rc.1`](https://github.com/MythologIQ-Labs-LLC/GG-CORE/releases/tag/v0.10.0-rc.1) was **published on 2026-11-05**, after the `main@d55ba50a` qualification checkpoint. The current protected `main@1032d1b` includes separately qualified #195, #193 and #183 corrections but is **not tagged v1**. Switching and backend-capability changes remain in isolated development branches. The active product target is an independent GG-CORE v1.0.0 runtime, **not** a CoreForge integration checkpoint. Release governance [#161](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/161), performance [#136](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/136), and switching [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137) remain distinct.
 **Product:** GG-CORE (Greatest Good - Contained Offline Restricted Execution) is a local CPU inference runtime with authenticated IPC, not a plugin or external inference router. Security containment varies by platform; see `SECURITY.md`.
 
 This roadmap is rebuilt from code, green CI, `docs/FEATURE_INDEX.md`,
@@ -106,12 +106,12 @@ These were previously listed as "complete"; that overstated them:
 ## Planned
 
 ### Near-term (owned, sequenced)
-1. **Publish the qualified RC:** reconcile final docs, requalify any new source SHA, verify private vulnerability reporting, obtain owner GO, then publish `v0.10.0-rc.1` and validate downloaded artifacts. See #130.
+1. **Preserve published RC1 and qualify standalone v1:** `v0.10.0-rc.1` is already published and immutable. Follow owner-approved #161 scope, exact-source qualification, cross-platform real-model acceptance and **owned-binary Windows signing** before tagging a new v1 release candidate; no automatic CoreForge release dependency.
 2. **Keep dependency advisories current:** preserve the Cargo lockfile, cargo-deny policy and weekly Dependabot checks. The `pin-utils` advisory was resolved by #141; do not suppress a later feed failure without risk review.
 3. **MSRV/toolchain reproducibility:** `Cargo.toml` declares Rust 1.97; CI uses floating stable. Only change this in a separately qualified maintenance PR if drift creates a repeatable problem.
 4. **Performance evidence (#136):** real packaged model throughput, latency, memory, and security overhead on comparable hosts before making claims.
 5. **Embedded consumer contract (#112–#114):** stable API, exact-version distribution and downstream conformance are future milestones, not silent assurances of this RC.
-6. **Adaptive model switching (#137):** real model loading, memory reclamation and active-request correctness; not required by one-resident-model RC.
+6. **Cold model switching (#137, policy #153 settled):** source-qualified in-process Windows A→B→A on `feat/v1-cold-switch-policy-20261113-no-ci`; a new authenticated IPC/status implementation exists on `feat/v1-switch-ipc-20261114-no-ci` but is not yet native-qualified. Gate on task-specific readiness, reconnect status, multi-client real-model transitions and repeated-cycle handle checks. Not in published RC1.
 
 ### Backend capability epic (issues #48–#52)
 ADR-first: backend capability contract, `RuntimeBackendCapabilities` schema,
