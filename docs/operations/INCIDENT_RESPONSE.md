@@ -2,9 +2,9 @@
 
 **Document Version:** 1.0.0
 **Last Updated:** 2026-02-18
-**Applies To:** COREFORGE CORE Runtime v0.6.0+
+**Applies To:** GG-CORE (procedural template; historical 2026-02 baseline)
 
-This document defines incident response procedures for the COREFORGE CORE Runtime, including severity classification, response workflows, and deployment-specific incident handling.
+This document defines incident response procedures for the GG-CORE standalone runtime, including severity classification, response workflows, and deployment-specific incident handling.
 
 ---
 
@@ -388,7 +388,7 @@ GG-CORE telemetry status
 ### SEV1 Initial Notification
 
 ```
-[SEV1 INCIDENT] COREFORGE CORE Runtime - Complete Outage
+[SEV1 INCIDENT] GG-CORE standalone runtime - Complete Outage
 
 Status: INVESTIGATING
 Impact: All inference requests failing
@@ -409,7 +409,7 @@ Incident Channel: #incident-YYYYMMDD-core
 ### SEV1 Update Template
 
 ```
-[SEV1 UPDATE] COREFORGE CORE Runtime
+[SEV1 UPDATE] GG-CORE standalone runtime
 
 Status: MITIGATING / MONITORING / RESOLVED
 Time: YYYY-MM-DD HH:MM UTC
@@ -428,7 +428,7 @@ Next Update: [Time]
 ### SEV2 Initial Notification
 
 ```
-[SEV2 INCIDENT] COREFORGE CORE Runtime - Partial Degradation
+[SEV2 INCIDENT] GG-CORE standalone runtime - Partial Degradation
 
 Status: INVESTIGATING
 Impact: [Description of affected functionality]
@@ -444,7 +444,7 @@ Next Update: [Time - within 1 hour]
 ### Resolution Notification
 
 ```
-[RESOLVED] COREFORGE CORE Runtime - [Incident Title]
+[RESOLVED] GG-CORE standalone runtime - [Incident Title]
 
 Resolution Time: YYYY-MM-DD HH:MM UTC
 Duration: [X hours Y minutes]
