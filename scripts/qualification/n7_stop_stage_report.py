@@ -1,39 +1,65 @@
-"""Join GG-CORE #184 stop-stage events with packaged stop-tail results.
+"""Fail-closed evidence gate for GG-CORE #184 stop-stage measurements.
 
 Input: an output directory of n7_packaged_stop_tail.ps1 (results.jsonl plus
-<tag>.err daemon stderr files). Daemons launched with GG_CORE_STOP_TRACE=1
-write `gg_core::stop` JSON lines to stderr. Raw stderr also holds llama.cpp
-native logs (including the model path): only `gg_core::stop` JSON lines are
-read here, and raw .err files are never committed as evidence.
+<tag>.err daemon stderr), or --trace FILE: the committed filtered trace
+(`N7_STOP_STAGE_TRACE_*.jsonl`, one parsed `gg_core::stop` event per line
+with its `tag`). Raw stderr also holds llama.cpp native logs (including the
+model path): only `gg_core::stop` JSON lines are ever read, and raw .err
+files are never committed.
 
-Per stop this prints daemon-clock stage deltas (S1 cancel received, S2
-answered, S3 backend observed, S4 worker released), S4 -> CPU quiet on the
-unix clock (S0 anchor), and per label/kind/config p50/p95/max. It then
-evaluates the plan's pre-stated rules: S2->S3 <= last_decode_ms + 5 ms in
->= 95% of traced stops, identical uncancelled output across daemons, and
-trace on/off throughput within 3%.
+Output: DESCRIPTIVE statistics (every run, incomplete traces counted and
+kept out of the stage columns), then the ACCEPTANCE rules, evaluated on
+complete traced runs only. The rules are the ones pre-stated in
+N7_STOP_STAGE_TRACE_PLAN.md (Revision 2 F6/F7, audit A2, review C4); none
+is stricter:
+  R1 no dropped trace lines and no missing required stage in traced runs
+  R2 no queued cancel reached the backend (no S3/S4)
+  R3 the full matrix is present: every label x config x stop kind has at
+     least --reps runs, every traced-label stop was joined, recoveries ran
+  R4 every stop ended correctly (explicit error code, cancel ACK + one
+     terminal frame, quiesced; queued: both busy requests succeeded) and
+     every recovery request succeeded on a live daemon
+  R5 S2->S3 <= last_decode_ms + 5 ms in >= 95% of timed traced stops, with
+     at least one timed stop per traced running-stop cell
+  R6 trace on/off uncancelled throughput median ratio within 0.97..1.03
+  R7 exactly one uncancelled output hash per config across --hash-labels
+Exit 0 = every rule passes, 1 = a rule failed, 2 = malformed/missing input.
+Joins are valid only for the harness as run: one client, one stop at a
+time, non-streaming (review N7-R2).
 
-Usage: python -I n7_stop_stage_report.py <out-dir> [--rows]
+Usage: python -I n7_stop_stage_report.py <out-dir> [--trace FILE] [--results FILE]
+       [--labels c1,main,newoff,newon] [--trace-label newon]
+       [--off-label newoff] [--hash-labels main,newoff,newon]
+       [--contexts 8192,16384] [--threads 0,1,2] [--reps 3] [--rows]
 """
 
+import argparse
 import json
 import pathlib
 import statistics
 import sys
 
 STOPS = ("prefillCancel", "prefillDeadline", "decodeCancel", "queuedCancel")
+RUNNING = ("prefillCancel", "prefillDeadline", "decodeCancel")
+CODES = {"prefillCancel": "cancelled", "decodeCancel": "cancelled",
+         "queuedCancel": "cancelled", "prefillDeadline": "deadline_exceeded"}
+FRAMES = "cancel_response,inference_response"
 
 
-def load_events(err_path):
+class BadInput(Exception):
+    """Malformed or missing evidence (exit 2)."""
+
+
+def parse_err(path):
     events = []
-    for line in err_path.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if not line.startswith("{"):
             continue
         try:
             e = json.loads(line)
         except ValueError:
-            continue
+            continue  # native / eprintln lines are not stop-trace evidence
         if e.get("target") != "gg_core::stop":
             continue
         fields = dict(e.get("fields", {}))
@@ -43,18 +69,64 @@ def load_events(err_path):
     return events
 
 
+def load_jsonl(path, what):
+    if not path.exists():
+        raise BadInput(f"missing {what}: {path}")
+    rows = []
+    for n, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except ValueError as e:
+            raise BadInput(f"{path.name}:{n}: not JSON ({e})") from e
+    if not rows:
+        raise BadInput(f"empty {what}: {path}")
+    return rows
+
+
+def load_traces(out, trace_file, rows):
+    if trace_file:
+        traces = {}
+        for e in load_jsonl(pathlib.Path(trace_file), "trace file"):
+            if not isinstance(e, dict) or not {"tag", "message", "t"} <= e.keys():
+                raise BadInput(f"trace event without tag/message/t: {e}")
+            traces.setdefault(e["tag"], []).append(e)
+        return traces
+    tags = {r["tag"] for r in rows if r.get("kind") in STOPS}
+    return {t: parse_err(out / f"{t}.err") for t in tags if (out / f"{t}.err").exists()}
+
+
+def validate(rows):
+    for r in rows:
+        if not isinstance(r, dict) or "kind" not in r:
+            raise BadInput(f"row without kind: {r}")
+        if r["kind"] in STOPS + ("throughput", "recover"):
+            if not isinstance(r.get("tag"), str) or r["tag"].count("-") < 2:
+                raise BadInput(f"row with malformed tag: {r}")
+        if r["kind"] in STOPS and not isinstance(r.get("requestId"), int):
+            raise BadInput(f"stop row without integer requestId: {r}")
+        if r["kind"] == "throughput" and r.get("ok") and not isinstance(r.get("ms"), (int, float)):
+            raise BadInput(f"throughput row without ms: {r}")
+
+
+def split_tag(tag):
+    label, ctx, threads = tag.rsplit("-", 2)
+    return label, f"{ctx}-{threads}"
+
+
 def to_unix(events, t):
-    """Map a daemon uptime stamp to unix ms through S0 (`stop trace started`)."""
     s0 = [e for e in events if e.get("message") == "stop trace started"]
     return round(s0[0]["unix_ms"] + (t - s0[0]["t"]) * 1000, 1) if s0 else None
 
 
 def stages_for(events, request_id, kind):
+    """Join S1..S4 for one non-streaming stop (single-client harness only)."""
     msg = lambda e, m: e.get("message") == m and e.get("stream") is not True
     s1 = [e for e in events if msg(e, "cancel request received") and e.get("request_id") == request_id]
     s2 = [e for e in events if msg(e, "stop answered to caller") and e.get("request_id") == request_id]
     if not s2:
-        return None
+        return {"incomplete": True, "missing": "S2", "queued_reached_backend": False}
     qid, t2 = s2[0].get("queue_id"), s2[0]["t"]
     s3 = [e for e in events if msg(e, "backend stop observed") and e.get("queue_id") == qid and e["t"] >= t2 - 1]
     s4 = [e for e in events if msg(e, "worker released after stop") and e.get("queue_id") == qid and e["t"] >= t2 - 1]
@@ -68,95 +140,165 @@ def stages_for(events, request_id, kind):
         row["release_ms"] = round((s4[0]["t"] - s3[0]["t"]) * 1000, 1)
     if s4:
         row["s4_unix_ms"] = to_unix(events, s4[0]["t"])
-    # Audit A2 / review C4: any dropped line in this daemon's trace, or a
-    # stage that must exist but is missing, makes the join unsafe.
     any_drop = max((e.get("dropped", 0) for e in events), default=0) > 0
-    missing = (kind != "queuedCancel" and not s4) or (kind == "queuedCancel" and (s3 or s4))
-    row["incomplete"] = bool(any_drop or missing)
-    row["queued_reached_backend"] = kind == "queuedCancel" and bool(s3 or s4)
+    reached = kind == "queuedCancel" and bool(s3 or s4)
+    no_s4 = kind != "queuedCancel" and not s4
+    row["incomplete"] = bool(any_drop or no_s4 or reached)
+    row["missing"] = "dropped lines" if any_drop else ("S4" if no_s4 else None)
+    row["queued_reached_backend"] = reached
     return row
 
 
-def pct(values, q):
-    values = sorted(v for v in values if v is not None)
-    if not values:
-        return None
-    return values[max(0, min(len(values) - 1, round(q * (len(values) - 1))))]
-
-
-def split_tag(tag):
-    label, ctx, threads = tag.rsplit("-", 2)
-    return label, f"{ctx}-{threads}"
-
-
-def join(out, rows):
-    cache, joined = {}, []
+def join(rows, traces, trace_label):
+    joined = []
     for r in rows:
         if r.get("kind") not in STOPS:
             continue
-        tag = r["tag"]
-        if tag not in cache:
-            err = out / f"{tag}.err"
-            cache[tag] = load_events(err) if err.exists() else []
-        st = stages_for(cache[tag], r.get("requestId"), r["kind"]) if cache[tag] else None
-        if st and st.get("s4_unix_ms") and r.get("stopSentUnixMs") is not None:
-            st["s4_to_quiet_ms"] = round(r["stopSentUnixMs"] + (r.get("tailWallMs") or 0) - st["s4_unix_ms"], 1)
+        st = None
+        if split_tag(r["tag"])[0] == trace_label:
+            st = stages_for(traces.get(r["tag"], []), r["requestId"], r["kind"])
+            if st.get("s4_unix_ms") and r.get("stopSentUnixMs") is not None:
+                st["s4_to_quiet_ms"] = round(r["stopSentUnixMs"] + (r.get("tailWallMs") or 0) - st["s4_unix_ms"], 1)
         joined.append({**r, "stages": st})
     return joined
 
 
-def summary(joined):
+def pct(values, q):
+    values = sorted(v for v in values if v is not None)
+    return values[max(0, min(len(values) - 1, round(q * (len(values) - 1))))] if values else None
+
+
+def describe(joined):
+    print("DESCRIPTIVE (all runs; stage columns from complete traces only)")
+    print("label kind config n tail_p50 tail_p95 tail_max incomplete observe_max last_decode_max release_max s4_to_quiet_max")
     groups = {}
     for j in joined:
         label, cfg = split_tag(j["tag"])
         groups.setdefault((label, j["kind"], cfg), []).append(j)
-    print("label kind config n ok tail_p50 tail_p95 tail_max observe_max last_decode_max release_max s4_to_quiet_max")
     for (label, kind, cfg), js in sorted(groups.items()):
         tails = [j.get("tailWallMs") for j in js]
-        st = [j["stages"] for j in js if j["stages"] and not j["stages"]["incomplete"]]
-        ok = sum(1 for j in js if j.get("errorCode") in ("cancelled", "deadline_exceeded")
-                 and (kind != "queuedCancel" or j.get("busyOk") == 2))
-        col = lambda k: max((s[k] for s in st if s.get(k) is not None), default=None)
-        print(label, kind, cfg, len(js), ok, pct(tails, .5), pct(tails, .95), max((t for t in tails if t is not None), default=None),
-              col("observe_ms"), col("last_decode_ms"), col("release_ms"), col("s4_to_quiet_ms"))
+        st = [j["stages"] for j in js if j["stages"]]
+        ok = [s for s in st if not s["incomplete"]]
+        col = lambda k: max((s[k] for s in ok if s.get(k) is not None), default=None)
+        print(label, kind, cfg, len(js), pct(tails, .5), pct(tails, .95), max((t for t in tails if t is not None), default=None),
+              len(st) - len(ok), col("observe_ms"), col("last_decode_ms"), col("release_ms"), col("s4_to_quiet_ms"))
 
 
-def rules(rows, joined):
-    st = [j["stages"] for j in joined if j["stages"]]
-    print(f"\nruns excluded (dropped lines or missing stage): {sum(1 for s in st if s['incomplete'])}")
-    print(f"queued cancels that reached the backend: {sum(1 for s in st if s['queued_reached_backend'])}")
-    timed = [s for s in st if not s["incomplete"] and "observe_ms" in s and s.get("last_decode_ms") is not None]
-    ok = sum(1 for s in timed if s["observe_ms"] <= s["last_decode_ms"] + 5)
-    print(f"S2->S3 <= last_decode_ms + 5 ms: {ok}/{len(timed)}")
-    tp = [r for r in rows if r.get("kind") == "throughput" and r.get("ok")]
-    by_cfg = {}
-    for r in tp:
-        label, cfg = split_tag(r["tag"])
-        by_cfg.setdefault(cfg, {}).setdefault(label, []).append(r)
-    print("\nconfig label median_ms outputs")
-    for cfg, labels in sorted(by_cfg.items()):
-        for label, rs in sorted(labels.items()):
-            print(cfg, label, statistics.median(r["ms"] for r in rs), sorted({r["outputSha"] for r in rs}))
-        if "newon" in labels and "newoff" in labels:
-            on = statistics.median(r["ms"] for r in labels["newon"])
-            off = statistics.median(r["ms"] for r in labels["newoff"])
-            print(f"  {cfg} trace on/off median ratio {on / off:.3f} (rule: within 0.97..1.03)")
-    shas = {r["outputSha"] for r in tp}
-    print(f"\ndistinct uncancelled output hashes across all daemons: {len(shas)} {sorted(shas)}")
+def stop_ok(j):
+    if j.get("errorCode") != CODES[j["kind"]]:
+        return False
+    if j["kind"] != "prefillDeadline" and j.get("frames") != FRAMES:
+        return False
+    if j["kind"] == "queuedCancel":
+        return j.get("busyOk") == 2
+    return j.get("quiesced") is True
+
+
+def r3_matrix(joined, rows, a, configs):
+    count = {}
+    for j in joined:
+        key = (*split_tag(j["tag"]), j["kind"])
+        count[key] = count.get(key, 0) + 1
+    short = [f"{l}/{c}/{k}={count.get((l, c, k), 0)}" for l in a.labels for c in configs
+             for k in STOPS if count.get((l, c, k), 0) < a.reps]
+    traced = sum(1 for j in joined if j["stages"] is not None)
+    recov = sum(1 for r in rows if r.get("kind") == "recover")
+    need = len(configs) * a.reps
+    ok = not short and traced >= need * len(STOPS) and recov >= need * len(a.labels)
+    return ok, f"short cells {short[:6]}{'...' if len(short) > 6 else ''}; traced {traced}; recoveries {recov}"
+
+
+def r5_observe(traced, joined, a, configs):
+    timed = [(j, j["stages"]) for j in joined if j["stages"] and not j["stages"]["incomplete"]
+             and "observe_ms" in j["stages"] and j["stages"].get("last_decode_ms") is not None]
+    within = sum(1 for _, s in timed if s["observe_ms"] <= s["last_decode_ms"] + 5)
+    cells = {(split_tag(j["tag"])[1], j["kind"]) for j, _ in timed}
+    need = {(c, k) for c in configs for k in RUNNING}
+    ok = bool(timed) and not (need - cells) and within >= 0.95 * len(timed)
+    return ok, f"{within}/{len(timed)} within; cells without a timed stop: {sorted(need - cells)[:4]}"
+
+
+def throughput(rows, a, configs):
+    tp = {}
+    for r in rows:
+        if r.get("kind") == "throughput":
+            label, cfg = split_tag(r["tag"])
+            tp.setdefault(cfg, {}).setdefault(label, []).append(r)
+    ratios, hashes = {}, {}
+    for cfg in configs:
+        on = [r["ms"] for r in tp.get(cfg, {}).get(a.trace_label, []) if r.get("ok")]
+        off = [r["ms"] for r in tp.get(cfg, {}).get(a.off_label, []) if r.get("ok")]
+        ratios[cfg] = statistics.median(on) / statistics.median(off) if on and off else None
+        hashes[cfg] = {r.get("outputSha") for l in a.hash_labels for r in tp.get(cfg, {}).get(l, [])}
+    r6 = all(v is not None and 0.97 <= v <= 1.03 for v in ratios.values())
+    r7 = all(len(h) == 1 and None not in h for h in hashes.values())
+    d6 = " ".join(f"{c}={'none' if v is None else f'{v:.3f}'}" for c, v in ratios.items())
+    d7 = " ".join(f"{c}={sorted(map(str, h))}" for c, h in hashes.items())
+    return (r6, d6), (r7, d7)
+
+
+def rules(rows, joined, a):
+    configs = [f"ctx{c}-t{t}" for c in a.contexts for t in a.threads]
+    traced = [j["stages"] for j in joined if j["stages"] is not None]
+    bad_stops = [f"{j['tag']}/{j['kind']}/rep{j.get('rep')}" for j in joined if not stop_ok(j)]
+    bad_recov = [r["tag"] for r in rows if r.get("kind") == "recover" and not (r.get("ok") and r.get("alive"))]
+    incomplete = [s for s in traced if s["incomplete"]]
+    reached = [s for s in traced if s["queued_reached_backend"]]
+    r6, r7 = throughput(rows, a, configs)
+    results = [
+        ("R1 no dropped lines or missing stages in traced runs", not incomplete,
+         f"{len(incomplete)} incomplete of {len(traced)} traced"),
+        ("R2 no queued cancel reached the backend", not reached, f"{len(reached)} reached"),
+        ("R3 full matrix present and traced", *r3_matrix(joined, rows, a, configs)),
+        ("R4 every stop and recovery correct", not bad_stops and not bad_recov,
+         f"bad stops {bad_stops[:6]}; bad recoveries {bad_recov[:6]}"),
+        ("R5 S2->S3 <= last_decode_ms + 5 ms in >= 95% of timed stops", *r5_observe(traced, joined, a, configs)),
+        ("R6 trace on/off throughput median ratio within 0.97..1.03", *r6),
+        ("R7 one uncancelled output hash per config across hash labels", *r7),
+    ]
+    print("\nACCEPTANCE (complete traced runs only)")
+    for name, ok, detail in results:
+        print(f"{'PASS' if ok else 'FAIL'} {name}: {detail}")
+    return all(ok for _, ok, _ in results)
+
+
+def args_of(argv):
+    p = argparse.ArgumentParser()
+    p.add_argument("out")
+    p.add_argument("--trace")
+    p.add_argument("--results", help="results JSONL (default <out>/results.jsonl)")
+    p.add_argument("--labels", default="c1,main,newoff,newon")
+    p.add_argument("--trace-label", default="newon")
+    p.add_argument("--off-label", default="newoff")
+    p.add_argument("--hash-labels", default="main,newoff,newon")
+    p.add_argument("--contexts", default="8192,16384")
+    p.add_argument("--threads", default="0,1,2")
+    p.add_argument("--reps", type=int, default=3)
+    p.add_argument("--rows", action="store_true")
+    a = p.parse_args(argv)
+    a.labels, a.hash_labels = a.labels.split(","), a.hash_labels.split(",")
+    a.contexts, a.threads = a.contexts.split(","), a.threads.split(",")
+    return a
 
 
 def main(argv):
-    out = pathlib.Path(argv[1])
-    rows = [json.loads(x) for x in (out / "results.jsonl").read_text(encoding="utf-8-sig").splitlines() if x.strip()]
-    joined = join(out, rows)
-    if "--rows" in argv:
+    a = args_of(argv)
+    try:
+        out = pathlib.Path(a.out)
+        rows = load_jsonl(pathlib.Path(a.results) if a.results else out / "results.jsonl", "results")
+        validate(rows)
+        joined = join(rows, load_traces(out, a.trace, rows), a.trace_label)
+    except BadInput as e:
+        print(f"MALFORMED INPUT: {e}")
+        return 2
+    if a.rows:
         for j in joined:
-            print(json.dumps({k: j.get(k) for k in ("tag", "kind", "rep", "tailWallMs", "terminalMs",
-                                                    "errorCode", "busyOk", "quiesced", "stages")}))
-    summary(joined)
-    rules(rows, joined)
-    return 0
+            print(json.dumps({k: j.get(k) for k in ("tag", "kind", "rep", "tailWallMs", "errorCode", "busyOk", "quiesced", "stages")}))
+    describe(joined)
+    passed = rules(rows, joined, a)
+    print(f"\nVERDICT: {'PASS' if passed else 'FAIL'}")
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main(sys.argv[1:]))
