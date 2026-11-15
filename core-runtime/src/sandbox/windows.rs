@@ -115,7 +115,7 @@ fn apply_job_object_limits(config: &SandboxConfig) -> Result<isize, String> {
     unsafe {
         // Create a job object
         let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-        if job == 0 {
+        if job.is_null() {
             return Err("Failed to create job object".to_string());
         }
 
@@ -179,7 +179,7 @@ fn apply_job_object_limits(config: &SandboxConfig) -> Result<isize, String> {
             );
         }
 
-        Ok(job)
+        Ok(job as isize)
     }
 }
 
@@ -189,7 +189,9 @@ impl Drop for WindowsSandbox {
             #[cfg(target_os = "windows")]
             // SAFETY: handle was obtained from CreateJobObjectW and is valid until closed.
             unsafe {
-                windows_sys::Win32::Foundation::CloseHandle(handle);
+                windows_sys::Win32::Foundation::CloseHandle(
+                    handle as windows_sys::Win32::Foundation::HANDLE,
+                );
             }
         }
     }
