@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/gg-core-banner.webp" alt="GG-CORE: Local Inference Runtime, powering CoreForge" width="600">
+  <img src="docs/assets/gg-core-banner.webp" alt="GG-CORE: Standalone Local Inference Runtime" width="600">
 </p>
 
 <h1 align="center">GG-CORE</h1>
@@ -40,7 +40,7 @@ GG-CORE is a Rust inference kernel built around four constraints:
 | **Restricted** | Accept authenticated requests through Unix sockets or Windows named pipes instead of granting ambient application authority. |
 | **Execution** | Perform model compute only. GG-CORE does not own business logic, tools, external data, agent policy, or system actions. |
 
-GG-CORE is the **local inference runtime**, not a plugin, a desktop interface, or an external-provider router. The consuming application owns its UI and provider choices. GG-CORE can run as a local IPC daemon or be consumed in-process through Rust, C FFI, or Python bindings. The secure public inference path is `Runtime::infer` / `Runtime::infer_stream`: prompt scanning happens before execution, and output sanitization happens before results leave the runtime.
+GG-CORE is a **standalone upstream local inference runtime**, not a plugin, a desktop interface, or an external-provider router. CoreForge is one downstream consumer, not an architectural prerequisite. The consuming application owns its UI and provider choices. GG-CORE can run as a local IPC daemon or be consumed in-process through Rust, C FFI, or Python bindings. The secure public inference path is `Runtime::infer` / `Runtime::infer_stream`: prompt scanning happens before execution, and output sanitization happens before results leave the runtime.
 
 ```mermaid
 flowchart LR
@@ -58,6 +58,8 @@ flowchart LR
     B -. no HTTP / REST / WebSocket .-> J[No network inference surface]
     H -. no tool or business authority .-> K[Pure execution boundary]
 ```
+
+**Serving boundary:** This diagram describes backend components, not uniform availability through every public interface. The authenticated standalone IPC inference protocol currently serves GGUF text generation; typed ONNX embedding and classification responses are **not yet supported over standalone IPC** (tracked by [#171](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171)). Do not interpret ONNX model loading or library-level evaluation as installed, end-to-end typed serving support.
 
 ## Start here
 
@@ -84,7 +86,7 @@ The labels below are part of the product contract:
 | --- | --- | --- |
 | Secure Rust inference façade | **Verified** | `Runtime::infer` and `infer_stream` are the sole external engine path; direct engine execution is crate-private. |
 | GGUF text generation | **Verified + Conditional** | Real-model E2E coverage exists for Qwen 2.5 0.5B Q4_K_M. Other llama.cpp-compatible GGUF families are expected, not blanket-certified. |
-| ONNX embedding and classification | **Verified + Conditional (not an RC package surface)** | Enabled with `onnx` in source; CPU execution; selected by a sibling `manifest.json`; classification requires ordered labels. The GGUF/FFI-only RC archives do not qualify this backend for installed use. |
+| ONNX embedding and classification | **Verified + Conditional (not an RC package surface)** | Enabled with `onnx` in source; CPU execution; selected by a sibling `manifest.json`; classification requires ordered labels. The GGUF/FFI-only RC archives do not qualify this backend for installed use; the current standalone IPC protocol does not return typed ONNX embedding/classification results ([#171](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171)). |
 | Local IPC daemon | **Verified + Conditional** | Server, authentication, probes, status, inference, streaming, cancellation, metrics, and model listing exist. A model must already be registered. |
 | Standalone first-run model bootstrap | **Verified + Conditional** | Startup `serve --model ... --model-id ...`, authenticated CLI load/unload and model-gated readiness pass packaged real-GGUF acceptance on all three supported build platforms; requires local model and token ([#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130)). |
 | Adaptive speculative decoding | **Experimental** | Wired behind `advanced`, off by default, with correctness and fallback tests. Current `main` does not claim a demonstrated wall-clock speedup. |
@@ -548,7 +550,7 @@ GG-CORE/
 └── .github/workflows/          Cross-platform CI and feature matrix
 ```
 
-The living code-grounded architecture overview is [`docs/architecture/CORE_RUNTIME_ARCHITECTURE.md`](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md).
+The canonical architecture document map is [`ARCHITECTURE_INDEX.md`](ARCHITECTURE_INDEX.md). The living code-grounded architecture overview is [`docs/architecture/CORE_RUNTIME_ARCHITECTURE.md`](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md).
 
 ---
 
