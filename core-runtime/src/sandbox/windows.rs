@@ -189,7 +189,9 @@ impl Drop for WindowsSandbox {
             #[cfg(target_os = "windows")]
             // SAFETY: handle was obtained from CreateJobObjectW and is valid until closed.
             unsafe {
-                windows_sys::Win32::Foundation::CloseHandle(handle as windows_sys::Win32::Foundation::HANDLE);
+                windows_sys::Win32::Foundation::CloseHandle(
+                    handle as windows_sys::Win32::Foundation::HANDLE,
+                );
             }
         }
     }
