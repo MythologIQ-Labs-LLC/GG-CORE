@@ -550,7 +550,7 @@ GG-CORE/
 └── .github/workflows/          Cross-platform CI and feature matrix
 ```
 
-The living code-grounded architecture overview is [`docs/architecture/CORE_RUNTIME_ARCHITECTURE.md`](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md).
+The canonical architecture document map is [`ARCHITECTURE_INDEX.md`](ARCHITECTURE_INDEX.md). The living code-grounded architecture overview is [`docs/architecture/CORE_RUNTIME_ARCHITECTURE.md`](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md).
 
 ---
 
