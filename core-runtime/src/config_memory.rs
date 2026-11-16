@@ -12,6 +12,7 @@ use std::ffi::OsStr;
 use std::fmt;
 
 use crate::memory::ResourceLimitsConfig;
+use super::resource::ResourceConfigError;
 
 /// Variable naming the total memory ceiling (bytes).
 pub const TOTAL_VAR: &str = "GG_CORE_MAX_TOTAL_MEMORY";
@@ -173,12 +174,15 @@ pub fn per_call_ceiling_strict() -> Option<usize> {
 pub enum ConfigError {
     /// An invalid or contradictory memory limit.
     Memory(MemoryConfigError),
+    /// An explicitly invalid non-memory resource setting (#194).
+    Resource(ResourceConfigError),
 }
 
 impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Memory(e) => e.fmt(f),
+            Self::Resource(e) => e.fmt(f),
         }
     }
 }
@@ -187,6 +191,7 @@ impl std::error::Error for ConfigError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Memory(e) => Some(e),
+            Self::Resource(e) => Some(e),
         }
     }
 }
@@ -194,6 +199,12 @@ impl std::error::Error for ConfigError {
 impl From<MemoryConfigError> for ConfigError {
     fn from(e: MemoryConfigError) -> Self {
         Self::Memory(e)
+    }
+}
+
+impl From<ResourceConfigError> for ConfigError {
+    fn from(e: ResourceConfigError) -> Self {
+        Self::Resource(e)
     }
 }
 
