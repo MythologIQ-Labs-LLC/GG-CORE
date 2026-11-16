@@ -129,8 +129,9 @@ pub(crate) fn load_gguf_config() -> Result<GgufEnvConfig, ConfigError> {
     Ok(GgufEnvConfig {
         n_ctx: resource::from_env("GG_CORE_N_CTX", 2048u32, 128, u32::MAX,
                                   "decimal u32 >= 128")?,
-        n_threads: resource::from_env("GG_CORE_N_THREADS", 0u32, 0, u32::MAX,
-                                      "decimal u32 (0 = auto)")?,
+        n_threads: resource::from_env("GG_CORE_N_THREADS", 0u32, 0,
+                                      i32::MAX as u32,
+                                      "decimal integer in 0..=2147483647 (0 = auto)")?,
     })
 }
 
