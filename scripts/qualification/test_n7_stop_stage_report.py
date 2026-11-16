@@ -386,6 +386,31 @@ class Gate(unittest.TestCase):
         events[2]["t"] = float("inf")
         self.assertEqual(run(rows, events)[0], 2)
 
+    def test_nonfinite_native_decode_duration_is_malformed(self):
+        rows, events = evidence()
+        next(e for e in events if e["message"] == "backend stop observed")["last_decode_ms"] = float("nan")
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_negative_native_decode_duration_is_malformed(self):
+        rows, events = evidence()
+        next(e for e in events if e["message"] == "backend stop observed")["last_decode_ms"] = -1
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_non_integer_queue_id_is_malformed(self):
+        rows, events = evidence()
+        next(e for e in events if e["message"] == "backend stop observed")["queue_id"] = "1"
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_invalid_dropped_count_is_malformed(self):
+        rows, events = evidence()
+        next(e for e in events if e["message"] == "stop answered to caller")["dropped"] = -1
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_untyped_matched_flag_is_malformed(self):
+        rows, events = evidence()
+        next(e for e in events if e["message"] == "cancel request received")["matched"] = "true"
+        self.assertEqual(run(rows, events)[0], 2)
+
     def test_non_numeric_trace_time_is_malformed(self):
         rows, events = evidence()
         events[2]["t"] = "soon"
