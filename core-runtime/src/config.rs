@@ -1,9 +1,9 @@
 //! Runtime configuration loading from environment variables.
 //!
 //! All configuration values are loaded from `GG_CORE_*` environment variables
-//! with sensible defaults. Most invalid values fall back to defaults; the two
-//! memory limits are strict (see [`memory`]): an invalid or contradictory
-//! value is an error from [`try_load`], never a silently relaxed limit.
+//! with existing defaults when absent. Explicit memory and resource limits
+//! are strict (#182, #194): invalid values fail `try_load`, never silently
+//! substitute a default or clamp operator intent.
 //!
 //! # Environment Variables
 //!
@@ -34,7 +34,10 @@ use crate::scheduler::{BatchConfig, RequestQueueConfig};
 
 #[path = "config_memory.rs"]
 pub mod memory;
+#[path = "config_resource.rs"]
+pub mod resource;
 pub use memory::{ConfigError, MemoryConfigError, MemoryLimits};
+pub use resource::ResourceConfigError;
 
 /// Effective runtime configuration summary (serializable).
 #[derive(Debug, Clone)]
@@ -92,40 +95,14 @@ pub struct EnvConfig {
     pub connections: ConnectionConfig,
 }
 
-/// Parse a `usize` env var, returning `default` on missing or invalid.
-fn parse_usize(key: &str, default: usize) -> usize {
-    match std::env::var(key) {
-        Ok(val) => val.parse::<usize>().unwrap_or(default),
-        Err(_) => default,
-    }
-}
-
-/// Parse a `u32` env var, returning `default` on missing or invalid.
-fn parse_u32(key: &str, default: u32) -> u32 {
-    match std::env::var(key) {
-        Ok(val) => val.parse::<u32>().unwrap_or(default),
-        Err(_) => default,
-    }
-}
-
-/// Parse a `u64` env var, returning `default` on missing or invalid.
-fn parse_u64(key: &str, default: u64) -> u64 {
-    match std::env::var(key) {
-        Ok(val) => val.parse::<u64>().unwrap_or(default),
-        Err(_) => default,
-    }
-}
-
 /// Load queue configuration from environment.
-fn load_queue_config() -> RequestQueueConfig {
-    let max_pending = parse_usize("GG_CORE_MAX_QUEUE_DEPTH", 256);
-    let max_context_tokens = parse_usize("GG_CORE_MAX_CONTEXT_TOKENS", 4096);
-    let max_pending = max_pending.max(1);
-    let max_context_tokens = max_context_tokens.max(1);
-    RequestQueueConfig {
-        max_pending,
-        max_context_tokens,
-    }
+fn load_queue_config() -> Result<RequestQueueConfig, ConfigError> {
+    Ok(RequestQueueConfig {
+        max_pending: resource::from_env("GG_CORE_MAX_QUEUE_DEPTH", 256usize, 1,
+                                        usize::MAX, "decimal integer >= 1")?,
+        max_context_tokens: resource::from_env("GG_CORE_MAX_CONTEXT_TOKENS", 4096usize,
+                                               1, usize::MAX, "decimal integer >= 1")?,
+    })
 }
 
 /// Deprecated: the explicit `GG_CORE_MAX_MEMORY_PER_CALL`, `None` when unset.
@@ -138,50 +115,56 @@ pub fn per_call_ceiling_from_env() -> Option<usize> {
 }
 
 /// Load batch configuration from environment.
-fn load_batch_config() -> BatchConfig {
-    let max_batch_size = parse_usize("GG_CORE_BATCH_MAX_REQUESTS", 8);
-    let max_total_tokens = parse_usize("GG_CORE_BATCH_MAX_TOKENS", 4096);
-    let max_batch_size = max_batch_size.max(1);
-    let max_total_tokens = max_total_tokens.max(1);
-    BatchConfig {
-        max_batch_size,
-        max_total_tokens,
-    }
+fn load_batch_config() -> Result<BatchConfig, ConfigError> {
+    Ok(BatchConfig {
+        max_batch_size: resource::from_env("GG_CORE_BATCH_MAX_REQUESTS", 8usize, 1,
+                                            usize::MAX, "decimal integer >= 1")?,
+        max_total_tokens: resource::from_env("GG_CORE_BATCH_MAX_TOKENS", 4096usize, 1,
+                                             usize::MAX, "decimal integer >= 1")?,
+    })
 }
 
-/// Load GGUF engine configuration from environment.
+/// Fallible GGUF settings, also used by the daemon's common resolver.
+fn try_load_gguf_config() -> Result<GgufEnvConfig, ConfigError> {
+    Ok(GgufEnvConfig {
+        n_ctx: resource::from_env("GG_CORE_N_CTX", 2048u32, 128, u32::MAX,
+                                  "decimal u32 >= 128")?,
+        n_threads: resource::from_env("GG_CORE_N_THREADS", 0u32, 0, u32::MAX,
+                                      "decimal u32 (0 = auto)")?,
+    })
+}
+
+/// Compatibility helper: keep the existing signature but never silently
+/// fall back when an explicit GGUF value is invalid.
 pub(crate) fn load_gguf_config() -> GgufEnvConfig {
-    let n_ctx = parse_u32("GG_CORE_N_CTX", 2048);
-    let n_threads = parse_u32("GG_CORE_N_THREADS", 0);
-    let n_ctx = n_ctx.max(128); // floor: 128 tokens minimum
-    GgufEnvConfig { n_ctx, n_threads }
+    try_load_gguf_config().unwrap_or_else(|e| panic!("invalid GGUF configuration: {e}"))
 }
 
 /// Load IPC server configuration from environment.
-fn load_ipc_server_config() -> IpcServerConfig {
-    const DEFAULT_FRAME: usize = 16 * 1024 * 1024; // 16 MiB
-    const MIN_FRAME: usize = 4096; // floor: 4 KiB
-    let max_frame_size = parse_usize("GG_CORE_IPC_FRAME_LIMIT", DEFAULT_FRAME);
-    let max_frame_size = max_frame_size.max(MIN_FRAME);
-    let stall = parse_u64("GG_CORE_STREAM_STALL_MS", 5_000).max(100);
-    let stream_stall = Duration::from_millis(stall);
-    IpcServerConfig {
+fn load_ipc_server_config() -> Result<IpcServerConfig, ConfigError> {
+    const DEFAULT_FRAME: usize = 16 * 1024 * 1024;
+    let max_frame_size = resource::from_env("GG_CORE_IPC_FRAME_LIMIT", DEFAULT_FRAME,
+                                            4096usize, usize::MAX, "decimal integer >= 4096")?;
+    let stall = resource::from_env("GG_CORE_STREAM_STALL_MS", 5_000u64, 100,
+                                   u64::MAX, "decimal u64 >= 100")?;
+    Ok(IpcServerConfig {
         max_frame_size,
-        stream_stall,
-    }
+        stream_stall: Duration::from_millis(stall),
+    })
 }
 
 /// Load connection pool configuration from environment.
-fn load_connection_config() -> ConnectionConfig {
-    let max_connections = parse_usize("GG_CORE_MAX_CONNECTIONS", 64);
-    let max_connections = max_connections.max(1);
-    ConnectionConfig { max_connections }
+fn load_connection_config() -> Result<ConnectionConfig, ConfigError> {
+    Ok(ConnectionConfig {
+        max_connections: resource::from_env("GG_CORE_MAX_CONNECTIONS", 64usize, 1,
+                                            usize::MAX, "decimal integer >= 1")?,
+    })
 }
 
 /// Load all configuration from environment variables.
 ///
 /// # Panics
-/// When a memory limit is invalid or contradictory (see [`try_load`]):
+/// When a memory or resource setting is invalid (see [`try_load`]):
 /// this signature cannot report the error, and substituting a different
 /// limit is exactly what #182 forbids. New callers should use [`try_load`].
 pub fn load() -> EnvConfig {
@@ -190,32 +173,33 @@ pub fn load() -> EnvConfig {
 
 /// Load all configuration from environment variables.
 ///
-/// Memory limits are strict and return [`ConfigError`]; other missing or
-/// invalid values fall back to safe defaults.
+/// Absent values use documented defaults; invalid explicit values return
+/// [`ConfigError`] before runtime initialization and IPC bind.
 pub fn try_load() -> Result<EnvConfig, ConfigError> {
     let mem = memory::from_env()?;
-    let concurrent = parse_usize("GG_CORE_MAX_CONCURRENT", 2).max(1);
+    let concurrent = resource::from_env("GG_CORE_MAX_CONCURRENT", 2usize, 1,
+                                        usize::MAX, "decimal integer >= 1")?;
     let auth_token = std::env::var("CORE_AUTH_TOKEN").unwrap_or_default();
-    let max_context_length = parse_usize("GG_CORE_MAX_CONTEXT", 4096);
-    let max_context_length = max_context_length.clamp(1, 1_000_000);
-    let shutdown_secs = parse_u64("GG_CORE_SHUTDOWN_TIMEOUT", 30);
-    let session_secs = parse_u64("GG_CORE_SESSION_TIMEOUT", 3600);
-    let shutdown_secs = shutdown_secs.max(1);
-    let session_secs = session_secs.max(1);
+    let max_context_length = resource::from_env("GG_CORE_MAX_CONTEXT", 4096usize,
+                                                1, 1_000_000, "decimal integer in 1..=1000000")?;
+    let shutdown_secs = resource::from_env("GG_CORE_SHUTDOWN_TIMEOUT", 30u64,
+                                           1, u64::MAX, "decimal u64 >= 1")?;
+    let session_secs = resource::from_env("GG_CORE_SESSION_TIMEOUT", 3600u64,
+                                          1, u64::MAX, "decimal u64 >= 1")?;
 
     Ok(EnvConfig {
         base_path: PathBuf::from("."),
         auth_token,
         max_context_length,
-        request_queue: load_queue_config(),
+        request_queue: load_queue_config()?,
         resource_limits: mem.to_resource_limits(concurrent),
         per_call_ceiling: mem.per_call_ceiling,
-        batch: load_batch_config(),
+        batch: load_batch_config()?,
         shutdown_timeout: Duration::from_secs(shutdown_secs),
         session_timeout: Duration::from_secs(session_secs),
-        gguf: load_gguf_config(),
-        ipc_server: load_ipc_server_config(),
-        connections: load_connection_config(),
+        gguf: try_load_gguf_config()?,
+        ipc_server: load_ipc_server_config()?,
+        connections: load_connection_config()?,
     })
 }
 
