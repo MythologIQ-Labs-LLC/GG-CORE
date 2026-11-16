@@ -39,6 +39,7 @@ Usage: python -I n7_stop_stage_report.py <out-dir> [--trace FILE] [--results FIL
 
 import argparse
 import json
+import math
 import pathlib
 import statistics
 import sys
@@ -70,8 +71,10 @@ def parse_err(path):
         fields.update(e.get("span", {}) or {})
         try:
             fields["t"] = float(str(e["timestamp"]).strip().rstrip("s"))
-        except (KeyError, ValueError) as err:
+        except (KeyError, ValueError, TypeError) as err:
             raise BadInput(f"{path.name}: stop-trace line without a valid timestamp ({err})") from err
+        if not math.isfinite(fields["t"]):
+            raise BadInput(f"{path.name}: stop-trace timestamp must be finite")
         events.append(fields)
     return events
 
@@ -98,8 +101,9 @@ def load_traces(out, trace_file, rows):
         for e in load_jsonl(pathlib.Path(trace_file), "trace file"):
             if not isinstance(e, dict) or not {"tag", "message", "t"} <= e.keys():
                 raise BadInput(f"trace event without tag/message/t: {e}")
-            if isinstance(e["t"], bool) or not isinstance(e["t"], (int, float)):
-                raise BadInput(f"trace event with non-numeric t: {e}")
+            if (isinstance(e["t"], bool) or not isinstance(e["t"], (int, float))
+                    or not math.isfinite(e["t"])):
+                raise BadInput(f"trace event without finite numeric t: {e}")
             traces.setdefault(e["tag"], []).append(e)
         return traces
     tags = {r["tag"] for r in rows if r.get("kind") in STOPS}
@@ -123,8 +127,10 @@ def validate(rows):
             if key in seen:
                 raise BadInput(f"duplicate stop row for {key}")
             seen.add(key)
-        if r["kind"] == "throughput" and r.get("ok") and not isinstance(r.get("ms"), (int, float)):
-            raise BadInput(f"throughput row without ms: {r}")
+        if r["kind"] == "throughput" and r.get("ok"):
+            ms = r.get("ms")
+            if type(ms) not in (int, float) or not math.isfinite(ms) or ms <= 0:
+                raise BadInput(f"throughput row without positive finite ms: {r}")
 
 
 def split_tag(tag):
