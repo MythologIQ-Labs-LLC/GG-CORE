@@ -12,7 +12,9 @@ param(
     [int[]]$Threads = @(1, 2, 0),    # 0 = daemon auto (min(logical,16)/2 workers)
     [int[]]$Contexts = @(8192, 16384),
     [int]$Reps = 3,
-    [string[]]$TraceLabels = @()     # labels launched with GG_CORE_STOP_TRACE=1 (stage events on stderr)
+    [string[]]$TraceLabels = @(),    # labels launched with GG_CORE_STOP_TRACE=1 (stage events on stderr)
+    [string]$ModelPath = 'C:\Preview\models\qwen2.5-0.5b-instruct-q4_k_m.gguf',
+    [string]$RuntimeDir = 'C:\host\vcdlls'   # VC runtime DLLs copied beside each daemon ('' = none)
 )
 $ErrorActionPreference = 'Continue'
 # powershell -File passes a comma list as one string; accept both forms.
@@ -122,8 +124,8 @@ foreach ($pair in $Daemons) {
     $root = "C:\g184stop-$label"; Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force "$root\models\qwen" | Out-Null
     if (-not (Test-Path $exe)) { Rec @{ kind = 'identity'; label = $label; error = "missing $exe" }; continue }
-    Copy-Item $exe "$root\gg-core-cli.exe" -Force; Copy-Item C:\host\vcdlls\*.dll $root -Force
-    Copy-Item C:\Preview\models\qwen2.5-0.5b-instruct-q4_k_m.gguf "$root\models\qwen\model.gguf" -Force
+    Copy-Item $exe "$root\gg-core-cli.exe" -Force; if ($RuntimeDir) { Copy-Item "$RuntimeDir\*.dll" $root -Force }
+    Copy-Item $ModelPath "$root\models\qwen\model.gguf" -Force
     $sha = (Get-FileHash "$root\models\qwen\model.gguf").Hash.ToLower()
     @{ model_id = 'qwen'; name = 'Qwen2.5-0.5B-Instruct Q4_K_M'; version = '9217f5db'; capabilities = @('text_generation'); sha256 = $sha; size_bytes = (Get-Item "$root\models\qwen\model.gguf").Length; architecture = 'gguf'; license = 'Apache-2.0' } | ConvertTo-Json | Set-Content "$root\models\qwen\manifest.json" -Encoding ascii
     Rec @{ kind = 'identity'; label = $label; exe = $exe; exe_sha256 = (Get-FileHash "$root\gg-core-cli.exe").Hash.ToLower(); model_sha256 = $sha }
