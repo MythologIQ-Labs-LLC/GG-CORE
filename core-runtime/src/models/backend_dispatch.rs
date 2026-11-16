@@ -211,7 +211,9 @@ pub fn load_model_dispatch_for_workers(
         BackendChoice::GgufManifest(_) | BackendChoice::GgufDefault => {
             // Both manifest-free and verified GGUF models use the same
             // configured loader, with no model-family-specific behavior.
-            let env = crate::config::load_gguf_config();
+            let env = crate::config::load_gguf_config().map_err(|e| {
+                InferenceError::ModelError(format!("invalid GGUF configuration: {e}"))
+            })?;
             let gguf = gguf_load_config(&env, workers);
             load_gguf_model(model_path, model_id, &gguf)
         }
