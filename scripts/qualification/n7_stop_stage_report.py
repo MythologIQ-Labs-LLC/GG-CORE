@@ -136,15 +136,16 @@ def to_unix(events, t):
 
 
 def stages_for(events, request_id, kind):
-    """Join S1..S4 for one non-streaming stop (single-client harness only)."""
+    """Join one single-client, non-streaming stop; refuse impossible chronology."""
     msg = lambda e, m: e.get("message") == m and e.get("stream") is not True
     s1 = [e for e in events if msg(e, "cancel request received") and e.get("request_id") == request_id]
     s2 = [e for e in events if msg(e, "stop answered to caller") and e.get("request_id") == request_id]
     if len(s2) != 1:
         return {"incomplete": True, "missing": "S2" if not s2 else "duplicate S2", "queued_reached_backend": False}
     qid, t2 = s2[0].get("queue_id"), s2[0]["t"]
-    s3 = [e for e in events if msg(e, "backend stop observed") and e.get("queue_id") == qid and e["t"] >= t2 - 1]
-    s4 = [e for e in events if msg(e, "worker released after stop") and e.get("queue_id") == qid and e["t"] >= t2 - 1]
+    # No one-second lookback: a prior S3 cannot demonstrate a later stop.
+    s3 = [e for e in events if msg(e, "backend stop observed") and e.get("queue_id") == qid]
+    s4 = [e for e in events if msg(e, "worker released after stop") and e.get("queue_id") == qid]
     row = {"queue_id": qid, "kind": s2[0].get("kind"), "n_s3": len(s3), "n_s4": len(s4)}
     if s1:
         row["ack_ms"] = round((t2 - s1[0]["t"]) * 1000, 2)
@@ -157,16 +158,20 @@ def stages_for(events, request_id, kind):
         row["s4_unix_ms"] = to_unix(events, s4[0]["t"])
     any_drop = max((e.get("dropped", 0) for e in events), default=0) > 0
     reached = kind == "queuedCancel" and bool(s3 or s4)
-    # Review N7-R1 finding 1: a running stop needs exactly one S3 and one S4.
     no_s3 = kind != "queuedCancel" and len(s3) != 1
     no_s4 = kind != "queuedCancel" and len(s4) != 1
-    no_s1 = kind != "prefillDeadline" and len(s1) != 1  # explicit cancels need their arrival stage
-    row["incomplete"] = bool(any_drop or no_s1 or no_s3 or no_s4 or reached)
-    row["missing"] = ("dropped lines" if any_drop else "S1" if no_s1 else "S3" if no_s3
-                      else "S4" if no_s4 else None)
+    explicit = kind != "prefillDeadline"
+    no_s1 = explicit and (len(s1) != 1 or s1[0].get("matched") is not True)
+    wrong_kind = s2[0].get("kind") != CODES[kind] or not isinstance(qid, int)
+    bad_order = (explicit and len(s1) == 1 and s1[0]["t"] > t2
+                 or len(s3) == 1 and s3[0]["t"] < t2
+                 or len(s3) == 1 and len(s4) == 1 and s4[0]["t"] < s3[0]["t"])
+    row["incomplete"] = bool(any_drop or no_s1 or no_s3 or no_s4 or reached or bad_order or wrong_kind)
+    row["missing"] = ("dropped lines" if any_drop else "invalid S1" if no_s1
+                      else "stage order" if bad_order else "kind or queue" if wrong_kind
+                      else "S3" if no_s3 else "S4" if no_s4 else None)
     row["queued_reached_backend"] = reached
     return row
-
 
 def join(rows, traces, trace_label):
     joined = []
@@ -214,25 +219,27 @@ def stop_ok(j):
 
 
 def r3_matrix(joined, rows, a, configs):
-    count = {}
-    for j in joined:
-        key = (*split_tag(j["tag"]), j["kind"])
-        count[key] = count.get(key, 0) + 1
-    short = [f"{l}/{c}/{k}={count.get((l, c, k), 0)}" for l in a.labels for c in configs
-             for k in STOPS if count.get((l, c, k), 0) < a.reps]
-    traced = sum(1 for j in joined if j["stages"] is not None)
-    reps = {}
+    """Require exactly one record for each declared label/config/kind/rep."""
+    expected = {(l, c, k, rep) for l in a.labels for c in configs
+                for k in (*STOPS, "throughput", "recover") for rep in range(a.reps)}
+    counts = {}
     for r in rows:
-        if r.get("kind") == "recover":
-            reps.setdefault(split_tag(r["tag"]), set()).add(r.get("rep"))
-    # Distinct repetitions per label/config: surplus in one cell cannot hide a gap in another.
-    short += [f"{l}/{c}/recover={len(reps.get((l, c), ()))}" for l in a.labels for c in configs
-              if len(reps.get((l, c), ())) < a.reps]
-    recov = sum(len(v) for v in reps.values())
-    need = len(configs) * a.reps
-    ok = not short and traced >= need * len(STOPS)
-    return ok, f"short cells {short[:6]}{'...' if len(short) > 6 else ''}; traced {traced}; recoveries {recov}"
-
+        if r["kind"] not in (*STOPS, "throughput", "recover"):
+            continue
+        l, c = split_tag(r["tag"])
+        key = (l, c, r["kind"], r.get("rep"))
+        counts[key] = counts.get(key, 0) + 1
+    missing = expected - set(counts)
+    extra = set(counts) - expected
+    duplicate = {k for k, n in counts.items() if n != 1}
+    traced = sum(1 for j in joined if j["stages"] is not None)
+    required_traced = len(configs) * a.reps * len(STOPS)
+    ok = not (missing or extra or duplicate) and traced == required_traced
+    detail = (f"missing {sorted(map(str, missing))[:6]}; "
+              f"extra {sorted(map(str, extra))[:6]}; "
+              f"duplicate {sorted(map(str, duplicate))[:6]}; "
+              f"traced {traced}/{required_traced}")
+    return ok, detail
 
 def r5_observe(traced, joined, a, configs):
     running = [j for j in joined if j["stages"] is not None and j["kind"] in RUNNING]
