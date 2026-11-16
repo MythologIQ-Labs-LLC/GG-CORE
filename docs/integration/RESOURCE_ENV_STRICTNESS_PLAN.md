@@ -32,6 +32,15 @@ This is a source-level representability boundary, **not** a new performance
 or worker-policy limit. It needs source/packaged qualification and independent
 review before merging the plan correction or implementation.
 
+**IPC wire-format follow-up (#206, not yet qualified):** The server reads a
+four-byte little-endian frame length (`u32`). On 64-bit hosts, an explicit
+`GG_CORE_IPC_FRAME_LIMIT > 4,294,967,295` was parseable as `usize` but
+could never be represented by that IPC protocol. The strict implementation
+therefore accepts **4096..=4,294,967,295** on supported hosts and refuses
+larger explicit values. This follows the existing protocol's length cap,
+rather than silently advertising a frame allowance the runtime cannot serve.
+The source checks and boundary tests remain subject to execution and review.
+
 **Out of scope:** changing `CORE_AUTH_TOKEN`, model admission and inference algorithms; adding arbitrary new max caps; changing legitimate omitted-variable defaults; redefining the auto-thread sentinel; touching frozen RC1 or downstream CoreForge pins.
 
 ## Smallest safe implementation route (separate branch)
