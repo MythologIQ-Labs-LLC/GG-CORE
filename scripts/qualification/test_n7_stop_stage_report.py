@@ -366,6 +366,26 @@ class Gate(unittest.TestCase):
         next(r for r in rows if r["kind"] == "throughput" and r["tag"] == TAG_OFF)["outputSha"] = None
         self.assert_fails("R7", rows, events)
 
+    def test_zero_throughput_duration_is_malformed(self):
+        rows, events = evidence()
+        next(r for r in rows if r["kind"] == "throughput" and r["tag"] == TAG_OFF)["ms"] = 0
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_negative_throughput_duration_is_malformed(self):
+        rows, events = evidence()
+        next(r for r in rows if r["kind"] == "throughput" and r["tag"] == TAG_OFF)["ms"] = -1
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_nonfinite_throughput_duration_is_malformed(self):
+        rows, events = evidence()
+        next(r for r in rows if r["kind"] == "throughput" and r["tag"] == TAG_OFF)["ms"] = float("nan")
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_nonfinite_trace_time_is_malformed(self):
+        rows, events = evidence()
+        events[2]["t"] = float("inf")
+        self.assertEqual(run(rows, events)[0], 2)
+
     def test_non_numeric_trace_time_is_malformed(self):
         rows, events = evidence()
         events[2]["t"] = "soon"
