@@ -380,13 +380,31 @@ class Gate(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(gate.main([str(d), *ARGS]), 2)
 
-    def test_committed_fcfa3cc_evidence_passes(self):
+    def committed_gate(self, name, labels):
+        """Run the actual committed measurement through the gate, unchanged."""
         docs = HERE.parents[1] / "docs" / "integration"
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = gate.main([str(docs), "--results", str(docs / "N7_STOP_STAGE_RESULTS_n7stage.jsonl"),
-                              "--trace", str(docs / "N7_STOP_STAGE_TRACE_n7stage.jsonl")])
-        self.assertEqual(code, 0, out.getvalue())
+            code = gate.main([str(docs), "--results", str(docs / f"N7_STOP_STAGE_RESULTS_{name}.jsonl"),
+                              "--trace", str(docs / f"N7_STOP_STAGE_TRACE_{name}.jsonl"),
+                              "--labels", labels])
+        return code, out.getvalue()
+
+    def test_committed_fcfa3cc_evidence_passes(self):
+        code, text = self.committed_gate("n7stage", "c1,main,newoff,newon")
+        self.assertEqual(code, 0, text)
+        self.assertIn("VERDICT: PASS", text)
+
+    def test_committed_n7m2_integrated_evidence_passes(self):
+        code, text = self.committed_gate("n7m2", "main,newoff,newon")
+        self.assertEqual(code, 0, text)
+        self.assertIn("VERDICT: PASS", text)
+
+    def test_committed_n7m1_failed_evidence_stays_failed(self):
+        code, text = self.committed_gate("n7m1", "main,newoff,newon")
+        self.assertEqual(code, 1, text)
+        self.assertIn("VERDICT: FAIL", text)
+        self.assertIn("FAIL R3", text)
 
 
 if __name__ == "__main__":
