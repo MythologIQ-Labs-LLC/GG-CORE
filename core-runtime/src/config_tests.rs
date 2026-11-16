@@ -18,6 +18,7 @@ const ENV_KEYS: &[&str] = &[
     "GG_CORE_N_THREADS",
     "GG_CORE_IPC_FRAME_LIMIT",
     "GG_CORE_MAX_CONNECTIONS",
+    "GG_CORE_STREAM_STALL_MS",
     "CORE_AUTH_TOKEN",
 ];
 
@@ -65,15 +66,11 @@ fn test_ipc_frame_limit_override() {
 }
 
 #[test]
-fn test_ipc_frame_limit_floor() {
+fn explicit_ipc_frame_below_minimum_is_refused() {
     let _lock = env_guard();
     clear_env_vars();
     std::env::set_var("GG_CORE_IPC_FRAME_LIMIT", "0");
-    let cfg = try_load().unwrap();
-    assert!(
-        cfg.ipc_server.max_frame_size >= 4096,
-        "frame limit must have floor"
-    );
+    assert!(matches!(try_load(), Err(ConfigError::Resource(_))));
     clear_env_vars();
 }
 
@@ -96,34 +93,77 @@ fn test_env_vars_override_defaults() {
 }
 
 #[test]
-fn test_invalid_env_falls_back_to_default() {
+fn invalid_explicit_resource_values_fail_closed() {
     let _lock = env_guard();
     clear_env_vars();
-    std::env::set_var("GG_CORE_MAX_CONTEXT", "not_a_number");
-    std::env::set_var("GG_CORE_MAX_QUEUE_DEPTH", "abc");
-    std::env::set_var("GG_CORE_N_CTX", "xyz");
-    let cfg = try_load().unwrap();
-    assert_eq!(cfg.max_context_length, 4096);
-    assert_eq!(cfg.request_queue.max_pending, 256);
-    assert_eq!(cfg.gguf.n_ctx, 2048);
+    let vars = [
+        "GG_CORE_MAX_CONTEXT",
+        "GG_CORE_MAX_QUEUE_DEPTH",
+        "GG_CORE_MAX_CONTEXT_TOKENS",
+        "GG_CORE_MAX_CONCURRENT",
+        "GG_CORE_BATCH_MAX_REQUESTS",
+        "GG_CORE_BATCH_MAX_TOKENS",
+        "GG_CORE_SHUTDOWN_TIMEOUT",
+        "GG_CORE_SESSION_TIMEOUT",
+        "GG_CORE_N_CTX",
+        "GG_CORE_N_THREADS",
+        "GG_CORE_IPC_FRAME_LIMIT",
+        "GG_CORE_MAX_CONNECTIONS",
+        "GG_CORE_STREAM_STALL_MS",
+    ];
+    for var in vars {
+        std::env::set_var(var, "not_a_number");
+        let err = try_load().unwrap_err();
+        assert!(matches!(err, ConfigError::Resource(_)), "{var}: {err}");
+        std::env::remove_var(var);
+    }
     clear_env_vars();
 }
 
 #[test]
-fn test_max_context_length_validation() {
+fn explicit_resource_boundaries_are_not_silently_clamped() {
     let _lock = env_guard();
     clear_env_vars();
-    std::env::set_var("GG_CORE_MAX_CONTEXT", "0");
-    let cfg = try_load().unwrap();
-    assert!(
-        cfg.max_context_length >= 1,
-        "max_context_length must be > 0"
-    );
-
-    std::env::set_var("GG_CORE_MAX_CONTEXT", "9999999");
-    let cfg = try_load().unwrap();
-    assert!(cfg.max_context_length <= 1_000_000, "must be clamped");
+    for (var, value) in [
+        ("GG_CORE_MAX_CONTEXT", "0"),
+        ("GG_CORE_MAX_CONTEXT", "1000001"),
+        ("GG_CORE_MAX_CONCURRENT", "0"),
+        ("GG_CORE_MAX_QUEUE_DEPTH", "0"),
+        ("GG_CORE_N_CTX", "127"),
+        ("GG_CORE_IPC_FRAME_LIMIT", "4095"),
+        ("GG_CORE_STREAM_STALL_MS", "99"),
+        ("GG_CORE_SHUTDOWN_TIMEOUT", "0"),
+        ("GG_CORE_SESSION_TIMEOUT", "0"),
+    ] {
+        std::env::set_var(var, value);
+        let err = try_load().unwrap_err();
+        assert!(matches!(err, ConfigError::Resource(_)), "{var}={value}: {err}");
+        std::env::remove_var(var);
+    }
     clear_env_vars();
+}
+
+#[test]
+fn gguf_config_refuses_invalid_explicit_settings() {
+    let _lock = env_guard();
+    clear_env_vars();
+    std::env::set_var("GG_CORE_N_THREADS", "invalid");
+    assert!(matches!(load_gguf_config(), Err(ConfigError::Resource(_))));
+    std::env::set_var("GG_CORE_N_THREADS", "0");
+    assert_eq!(load_gguf_config().unwrap().n_threads, 0);
+    std::env::set_var("GG_CORE_N_THREADS", "5");
+    assert_eq!(load_gguf_config().unwrap().n_threads, 5);
+    clear_env_vars();
+}
+
+#[test]
+fn load_panics_on_invalid_resource_setting() {
+    let _lock = env_guard();
+    clear_env_vars();
+    std::env::set_var("GG_CORE_MAX_CONCURRENT", "0");
+    let result = std::panic::catch_unwind(load);
+    clear_env_vars();
+    assert!(result.is_err(), "load() must not silently clamp an invalid setting");
 }
 
 #[test]
@@ -214,7 +254,7 @@ fn explicit_thread_env_override_is_honoured() {
     let _lock = env_guard();
     clear_env_vars();
     std::env::set_var("GG_CORE_N_THREADS", "5");
-    let n_threads = load_gguf_config().n_threads;
+    let n_threads = load_gguf_config().unwrap().n_threads;
     std::env::remove_var("GG_CORE_N_THREADS");
     assert_eq!(n_threads, 5);
     for workers in [1, 2, 4, 8] {
