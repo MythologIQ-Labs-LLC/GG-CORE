@@ -61,6 +61,44 @@ fn explicit_resource_boundaries_are_not_silently_clamped() {
 }
 
 #[test]
+fn valid_lower_bound_values_are_preserved_exactly() {
+    let _lock = env_guard();
+    clear_env();
+    for (var, value) in [
+        ("GG_CORE_MAX_CONTEXT", "1"),
+        ("GG_CORE_MAX_QUEUE_DEPTH", "1"),
+        ("GG_CORE_MAX_CONTEXT_TOKENS", "1"),
+        ("GG_CORE_MAX_CONCURRENT", "1"),
+        ("GG_CORE_BATCH_MAX_REQUESTS", "1"),
+        ("GG_CORE_BATCH_MAX_TOKENS", "1"),
+        ("GG_CORE_SHUTDOWN_TIMEOUT", "1"),
+        ("GG_CORE_SESSION_TIMEOUT", "1"),
+        ("GG_CORE_N_CTX", "128"),
+        ("GG_CORE_N_THREADS", "0"),
+        ("GG_CORE_IPC_FRAME_LIMIT", "4096"),
+        ("GG_CORE_MAX_CONNECTIONS", "1"),
+        ("GG_CORE_STREAM_STALL_MS", "100"),
+    ] {
+        std::env::set_var(var, value);
+    }
+    let cfg = try_load().expect("documented explicit minima must remain valid");
+    assert_eq!(cfg.max_context_length, 1);
+    assert_eq!(cfg.request_queue.max_pending, 1);
+    assert_eq!(cfg.request_queue.max_context_tokens, 1);
+    assert_eq!(cfg.resource_limits.max_concurrent, 1);
+    assert_eq!(cfg.batch.max_batch_size, 1);
+    assert_eq!(cfg.batch.max_total_tokens, 1);
+    assert_eq!(cfg.shutdown_timeout.as_secs(), 1);
+    assert_eq!(cfg.session_timeout.as_secs(), 1);
+    assert_eq!(cfg.gguf.n_ctx, 128);
+    assert_eq!(cfg.gguf.n_threads, 0);
+    assert_eq!(cfg.ipc_server.max_frame_size, 4096);
+    assert_eq!(cfg.connections.max_connections, 1);
+    assert_eq!(cfg.ipc_server.stream_stall.as_millis(), 100);
+    clear_env();
+}
+
+#[test]
 fn gguf_config_refuses_invalid_explicit_settings() {
     let _lock = env_guard();
     clear_env();
