@@ -114,6 +114,8 @@ def validate(rows):
         if r["kind"] in STOPS + ("throughput", "recover"):
             if not isinstance(r.get("tag"), str) or r["tag"].count("-") < 2:
                 raise BadInput(f"row with malformed tag: {r}")
+        if r["kind"] in STOPS + ("throughput", "recover") and (type(r.get("rep")) is not int or r["rep"] < 0):
+            raise BadInput(f"measurement row without nonnegative integer repetition: {r}")
         if r["kind"] in STOPS and not isinstance(r.get("requestId"), int):
             raise BadInput(f"stop row without integer requestId: {r}")
         if r["kind"] in STOPS:
