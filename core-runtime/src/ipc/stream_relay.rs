@@ -76,9 +76,13 @@ async fn relay_stream(
     loop {
         let frame = tokio::select! {
             biased;
-            () = cancel.cancelled() => Frame::Abort(StreamChunk::error(request_id, "cancelled".into())),
+            () = cancel.cancelled() => {
+                crate::telemetry::stop_trace::answered(request_id.0, None, true, true);
+                Frame::Abort(StreamChunk::error(request_id, "cancelled".into()))
+            }
             () = &mut deadline => {
                 cancel.cancel();
+                crate::telemetry::stop_trace::answered(request_id.0, None, false, true);
                 Frame::Abort(StreamChunk::error(request_id, "stream deadline exceeded".into()))
             }
             item = stream.next() => frame_for(request_id, item),

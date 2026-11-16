@@ -45,7 +45,8 @@ ENVIRONMENT:
     CORE_AUTH_TOKEN      Shared auth token (required by serve; CLI uses it too)
     GG_CORE_ALLOW_INSECURE_NO_AUTH=1  Dev-only: serve without a token
     GG_CORE_SANDBOX      Process sandbox: enforce|seccomp|off
-    RUST_LOG             Log level (debug, info, warn, error)
+    GG_CORE_STOP_TRACE=1 Diagnostics: stop/cancel stage timings as JSON
+                         lines on stderr (no prompts, output or paths)
 
 EXIT CODES:
     0  Success / Healthy

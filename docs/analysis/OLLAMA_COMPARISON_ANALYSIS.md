@@ -1,5 +1,7 @@
 # Ollama Performance Comparison Analysis
 
+> **HISTORICAL / NOT COMPARABLE / NOT RELEASE EVIDENCE.** These February 2026 figures compare isolated microbenchmarks and estimated Ollama operations, not matched end-to-end workloads. The claimed thousands-fold speedups and infrastructure-vs-model projections must **not** be cited as measured GG-CORE advantages, current GG-CORE performance, or a basis for backend selection. Units and assumptions are inconsistent in portions of the latency table. Run paired, reproducible, model-matched latency/throughput/memory tests before making any comparative claim. GG-CORE is a standalone upstream runtime; CoreForge is only a downstream consumer.
+
 **Date:** 2026-02-15  
 **Status:** 🔄 PARTIAL COMPARISON (Infrastructure Only)  
 **Analysis Type:** Competitive Benchmarking
@@ -8,9 +10,9 @@
 
 ## Executive Summary
 
-This document compares COREFORGE CORE Runtime's optimized infrastructure performance against Ollama's known performance characteristics.
+This historical draft compares isolated GG-CORE infrastructure microbenchmarks to estimated Ollama characteristics. The methodology cannot support a product performance ranking.
 
-**Key Finding:** Our infrastructure overhead (~361 ns) is approximately **2,770x to 27,700x faster** than Ollama's HTTP API overhead (~1-10 ms), positioning us extremely well for competitive performance once model inference is integrated.
+**Historical claim (not verified):** An earlier draft asserted a 2,770x–27,700x advantage from non-equivalent measurements. This is not an observed end-to-end comparative result.
 
 **Important Note:** This comparison focuses on infrastructure overhead only. A complete comparison requires end-to-end latency measurements with actual model inference.
 

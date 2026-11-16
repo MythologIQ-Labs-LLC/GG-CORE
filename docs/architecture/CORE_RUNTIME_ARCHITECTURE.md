@@ -5,10 +5,10 @@
 contract + interface specs), the ADRs in `docs/architecture/`. Where this doc and the code
 disagree, the code wins — fix this doc.
 
-GG-CORE (**Greatest Good — Contained Offline Restricted Execution**) is a sandboxed, offline
-inference engine that performs **model execution only**. It has no authority over data, tools, or
-system actions. In the COREFORGE stack it is the compute tier:
-GG-CORE is the **default local inference runtime** and needs no Synapse plugin. The consuming application can optionally choose a Synapse-configured **external** provider instead; neither GG-CORE nor its process security is supplied through Synapse.
+GG-CORE (**Greatest Good — Contained Offline Restricted Execution**) is a standalone upstream
+local inference runtime, independently deployable and consumable by unrelated applications.
+It performs **model execution only**. Its OS containment varies by platform and deployment. It has no authority over data, tools, or
+system actions. CoreForge is one downstream consumer: within that application, GG-CORE is the **default local inference runtime** and needs no Synapse plugin. The consuming application can optionally choose a Synapse-configured **external** provider instead; neither GG-CORE nor its process security is supplied through Synapse.
 
 ## 1. C.O.R.E. design principles
 
@@ -39,7 +39,7 @@ prioritizes system stability over any individual request.
 
 `core-runtime/Cargo.toml` declares `crate-type = ["rlib", "cdylib"]`. GG-CORE is consumable four ways
 from a single build:
-- **Rust rlib** — embed `gg_core` directly (the COREFORGE path).
+- **Rust rlib** — embed `gg_core` directly (one downstream CoreForge integration path).
 - **C ABI (cdylib)** — the C header `core-runtime/include/gg_core.h` (cbindgen) over
   `core-runtime/src/ffi/`.
 - **Python (PyO3)** — `core-runtime/src/python/` (feature `python`).

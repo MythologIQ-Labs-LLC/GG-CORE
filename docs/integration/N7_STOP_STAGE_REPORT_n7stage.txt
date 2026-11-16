@@ -1,0 +1,135 @@
+label kind config n ok tail_p50 tail_p95 tail_max observe_max last_decode_max release_max s4_to_quiet_max
+c1 decodeCancel ctx16384-t0 3 3 114 119 119 None None None None
+c1 decodeCancel ctx16384-t1 3 3 107 117 117 None None None None
+c1 decodeCancel ctx16384-t2 3 3 221 223 223 None None None None
+c1 decodeCancel ctx8192-t0 3 3 115 123 123 None None None None
+c1 decodeCancel ctx8192-t1 3 3 111 112 112 None None None None
+c1 decodeCancel ctx8192-t2 3 3 112 115 115 None None None None
+c1 prefillCancel ctx16384-t0 3 3 316 1088 1088 None None None None
+c1 prefillCancel ctx16384-t1 3 3 3099 3647 3647 None None None None
+c1 prefillCancel ctx16384-t2 3 3 993 1554 1554 None None None None
+c1 prefillCancel ctx8192-t0 3 3 759 1338 1338 None None None None
+c1 prefillCancel ctx8192-t1 3 3 3181 3756 3756 None None None None
+c1 prefillCancel ctx8192-t2 3 3 927 1562 1562 None None None None
+c1 prefillDeadline ctx16384-t0 3 3 890 897 897 None None None None
+c1 prefillDeadline ctx16384-t1 3 3 2629 3188 3188 None None None None
+c1 prefillDeadline ctx16384-t2 3 3 995 2646 2646 None None None None
+c1 prefillDeadline ctx8192-t0 3 3 783 1006 1006 None None None None
+c1 prefillDeadline ctx8192-t1 3 3 2789 3332 3332 None None None None
+c1 prefillDeadline ctx8192-t2 3 3 974 2759 2759 None None None None
+c1 queuedCancel ctx16384-t0 3 3 None None None None None None None
+c1 queuedCancel ctx16384-t1 3 3 None None None None None None None
+c1 queuedCancel ctx16384-t2 3 3 None None None None None None None
+c1 queuedCancel ctx8192-t0 3 3 None None None None None None None
+c1 queuedCancel ctx8192-t1 3 3 None None None None None None None
+c1 queuedCancel ctx8192-t2 3 3 None None None None None None None
+main decodeCancel ctx16384-t0 3 3 125 215 215 None None None None
+main decodeCancel ctx16384-t1 3 3 111 112 112 None None None None
+main decodeCancel ctx16384-t2 3 3 115 216 216 None None None None
+main decodeCancel ctx8192-t0 3 3 111 114 114 None None None None
+main decodeCancel ctx8192-t1 3 3 113 123 123 None None None None
+main decodeCancel ctx8192-t2 3 3 207 217 217 None None None None
+main prefillCancel ctx16384-t0 3 3 224 323 323 None None None None
+main prefillCancel ctx16384-t1 3 3 322 652 652 None None None None
+main prefillCancel ctx16384-t2 3 3 331 535 535 None None None None
+main prefillCancel ctx8192-t0 3 3 333 660 660 None None None None
+main prefillCancel ctx8192-t1 3 3 346 673 673 None None None None
+main prefillCancel ctx8192-t2 3 3 331 456 456 None None None None
+main prefillDeadline ctx16384-t0 3 3 345 547 547 None None None None
+main prefillDeadline ctx16384-t1 3 3 327 330 330 None None None None
+main prefillDeadline ctx16384-t2 3 3 453 666 666 None None None None
+main prefillDeadline ctx8192-t0 3 3 551 757 757 None None None None
+main prefillDeadline ctx8192-t1 3 3 217 338 338 None None None None
+main prefillDeadline ctx8192-t2 3 3 440 759 759 None None None None
+main queuedCancel ctx16384-t0 3 3 None None None None None None None
+main queuedCancel ctx16384-t1 3 3 None None None None None None None
+main queuedCancel ctx16384-t2 3 3 None None None None None None None
+main queuedCancel ctx8192-t0 3 3 None None None None None None None
+main queuedCancel ctx8192-t1 3 3 None None None None None None None
+main queuedCancel ctx8192-t2 3 3 None None None None None None None
+newoff decodeCancel ctx16384-t0 3 3 110 111 111 None None None None
+newoff decodeCancel ctx16384-t1 3 3 113 116 116 None None None None
+newoff decodeCancel ctx16384-t2 3 3 110 212 212 None None None None
+newoff decodeCancel ctx8192-t0 3 3 113 121 121 None None None None
+newoff decodeCancel ctx8192-t1 3 3 109 111 111 None None None None
+newoff decodeCancel ctx8192-t2 3 3 109 116 116 None None None None
+newoff prefillCancel ctx16384-t0 3 3 331 673 673 None None None None
+newoff prefillCancel ctx16384-t1 3 3 230 663 663 None None None None
+newoff prefillCancel ctx16384-t2 3 3 326 559 559 None None None None
+newoff prefillCancel ctx8192-t0 3 3 447 768 768 None None None None
+newoff prefillCancel ctx8192-t1 3 3 220 658 658 None None None None
+newoff prefillCancel ctx8192-t2 3 3 315 551 551 None None None None
+newoff prefillDeadline ctx16384-t0 3 3 332 445 445 None None None None
+newoff prefillDeadline ctx16384-t1 3 3 330 433 433 None None None None
+newoff prefillDeadline ctx16384-t2 3 3 446 766 766 None None None None
+newoff prefillDeadline ctx8192-t0 3 3 321 436 436 None None None None
+newoff prefillDeadline ctx8192-t1 3 3 229 434 434 None None None None
+newoff prefillDeadline ctx8192-t2 3 3 550 668 668 None None None None
+newoff queuedCancel ctx16384-t0 3 3 None None None None None None None
+newoff queuedCancel ctx16384-t1 3 3 None None None None None None None
+newoff queuedCancel ctx16384-t2 3 3 None None None None None None None
+newoff queuedCancel ctx8192-t0 3 3 None None None None None None None
+newoff queuedCancel ctx8192-t1 3 3 None None None None None None None
+newoff queuedCancel ctx8192-t2 3 3 None None None None None None None
+newon decodeCancel ctx16384-t0 3 3 110 217 217 3.9 9.34 8.3 203.9
+newon decodeCancel ctx16384-t1 3 3 116 118 118 24.0 23.942 7.5 89.0
+newon decodeCancel ctx16384-t2 3 3 113 221 221 12.5 14.678 10.0 199.5
+newon decodeCancel ctx8192-t0 3 3 120 125 125 4.4 9.611 8.4 114.1
+newon decodeCancel ctx8192-t1 3 3 123 126 126 17.3 23.851 4.0 109.4
+newon decodeCancel ctx8192-t2 3 3 213 226 226 13.2 15.657 4.4 206.7
+newon prefillCancel ctx16384-t0 3 3 332 444 444 252.8 691.684 8.3 181.1
+newon prefillCancel ctx16384-t1 3 3 223 230 230 184.8 626.562 6.5 100.5
+newon prefillCancel ctx16384-t2 3 3 322 436 436 321.0 654.828 10.6 164.2
+newon prefillCancel ctx8192-t0 3 3 439 768 768 583.2 640.819 11.5 172.6
+newon prefillCancel ctx8192-t1 3 3 123 220 220 208.5 651.464 4.0 89.7
+newon prefillCancel ctx8192-t2 3 3 320 569 569 371.2 683.082 8.5 187.5
+newon prefillDeadline ctx16384-t0 3 3 427 661 661 450.0 705.87 9.2 202.7
+newon prefillDeadline ctx16384-t1 3 3 330 333 333 306.9 625.44 10.6 86.8
+newon prefillDeadline ctx16384-t2 3 3 431 673 673 547.7 684.053 11.1 147.5
+newon prefillDeadline ctx8192-t0 3 3 549 668 668 458.7 683.355 10.4 199.7
+newon prefillDeadline ctx8192-t1 3 3 225 434 434 326.0 636.761 8.3 103.9
+newon prefillDeadline ctx8192-t2 3 3 548 774 774 569.0 684.265 8.7 195.5
+newon queuedCancel ctx16384-t0 3 3 None None None None None None None
+newon queuedCancel ctx16384-t1 3 3 None None None None None None None
+newon queuedCancel ctx16384-t2 3 3 None None None None None None None
+newon queuedCancel ctx8192-t0 3 3 None None None None None None None
+newon queuedCancel ctx8192-t1 3 3 None None None None None None None
+newon queuedCancel ctx8192-t2 3 3 None None None None None None None
+
+runs excluded (dropped lines or missing stage): 0
+queued cancels that reached the backend: 0
+S2->S3 <= last_decode_ms + 5 ms: 54/54
+
+config label median_ms outputs
+ctx16384-t0 c1 7040 ['57822580A271832B']
+ctx16384-t0 main 7546 ['57822580A271832B']
+ctx16384-t0 newoff 7469 ['57822580A271832B']
+ctx16384-t0 newon 7466 ['57822580A271832B']
+  ctx16384-t0 trace on/off median ratio 1.000 (rule: within 0.97..1.03)
+ctx16384-t1 c1 28588 ['57822580A271832B']
+ctx16384-t1 main 30276 ['57822580A271832B']
+ctx16384-t1 newoff 30600 ['57822580A271832B']
+ctx16384-t1 newon 30346 ['57822580A271832B']
+  ctx16384-t1 trace on/off median ratio 0.992 (rule: within 0.97..1.03)
+ctx16384-t2 c1 15408 ['57822580A271832B']
+ctx16384-t2 main 15759 ['57822580A271832B']
+ctx16384-t2 newoff 15681 ['57822580A271832B']
+ctx16384-t2 newon 15905 ['57822580A271832B']
+  ctx16384-t2 trace on/off median ratio 1.014 (rule: within 0.97..1.03)
+ctx8192-t0 c1 6992 ['57822580A271832B']
+ctx8192-t0 main 7556 ['57822580A271832B']
+ctx8192-t0 newoff 7444 ['57822580A271832B']
+ctx8192-t0 newon 7579 ['57822580A271832B']
+  ctx8192-t0 trace on/off median ratio 1.018 (rule: within 0.97..1.03)
+ctx8192-t1 c1 29404 ['57822580A271832B']
+ctx8192-t1 main 30379 ['57822580A271832B']
+ctx8192-t1 newoff 29976 ['57822580A271832B']
+ctx8192-t1 newon 30062 ['57822580A271832B']
+  ctx8192-t1 trace on/off median ratio 1.003 (rule: within 0.97..1.03)
+ctx8192-t2 c1 15643 ['57822580A271832B']
+ctx8192-t2 main 16117 ['57822580A271832B']
+ctx8192-t2 newoff 15977 ['57822580A271832B']
+ctx8192-t2 newon 15772 ['57822580A271832B']
+  ctx8192-t2 trace on/off median ratio 0.987 (rule: within 0.97..1.03)
+
+distinct uncancelled output hashes across all daemons: 1 ['57822580A271832B']

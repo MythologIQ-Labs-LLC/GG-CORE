@@ -13,6 +13,8 @@ mod prefill;
 mod prefill_schedule;
 #[cfg(all(feature = "gguf", feature = "advanced"))]
 pub mod speculative_session;
+#[cfg(feature = "gguf")]
+mod stop_observe;
 #[cfg(all(test, feature = "gguf"))]
 mod test_fixture;
 pub mod threads;
