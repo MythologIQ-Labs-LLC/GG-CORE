@@ -129,24 +129,49 @@ def verify_spec(spec, root):
     return binary
 
 
+def verify_version(binary, env, expected):
+    result = invoke(binary, env, ["version", "--json"], timeout=10)
+    if result.returncode:
+        raise AcceptanceError("version-command-failed")
+    try:
+        version = json.loads(result.stdout)
+    except ValueError as exc:
+        raise AcceptanceError("version-invalid-json") from exc
+    if version.get("commit") != expected or "onnx" not in version.get("features", []):
+        raise AcceptanceError("producer-identity-or-feature-mismatch")
+
+
+def exercise_models(binary, env, spec):
+    embed, classifier = spec["embedding"]["id"], spec["classification"]["id"]
+    a = finite_vector(typed(binary, env, "embed", embed, "A man eats his lunch."))
+    b = finite_vector(typed(binary, env, "embed", embed, "A person is eating a meal."))
+    c = finite_vector(typed(binary, env, "embed", embed, "A rocket enters orbit."))
+    if cosine(a, b) <= cosine(a, c):
+        raise AcceptanceError("embedding-semantic-order")
+    expected_classification(typed(binary, env, "classify", classifier,
+                                  "I loved this movie."), "POSITIVE")
+    expected_classification(typed(binary, env, "classify", classifier,
+                                  "I hated this movie."), "NEGATIVE")
+    refused = invoke(binary, env, ["classify", "--model", embed, "--text", "Example."])
+    required_refusal(refused, "not supported", "wrong-task")
+    denied_env = dict(env, CORE_AUTH_TOKEN=secrets.token_hex(32))
+    denied = invoke(binary, denied_env, ["embed", "--model", embed, "--text", "Example."],
+                    timeout=30)
+    required_refusal(denied, "authentication failed", "wrong-auth")
+    finite_vector(typed(binary, env, "embed", embed, "A person is eating a meal."))
+    return {"typed_embedding": "pass", "similarity_order": "pass",
+            "typed_classification": "pass", "wrong_task": "pass", "wrong_auth": "pass"}
+
+
 def run_checks(binary, spec, stage, timeout):
-    # A fresh random local endpoint and token bind this run to its daemon.
-    # Never weaken resource limits or the OS sandbox through environment overrides.
+    # A fresh endpoint/token tie the client to the daemon; no resource/sandbox overrides.
     env = {k: v for k, v in os.environ.items() if k != "CORE_AUTH_TOKEN" and not k.startswith("GG_CORE_")}
     env["CORE_AUTH_TOKEN"] = secrets.token_hex(32)
     with tempfile.TemporaryDirectory(prefix="gg171-") as temp:
         socket = (r"\\.\pipe\gg171-" + secrets.token_hex(8) if os.name == "nt"
                   else str(Path(temp) / "gg-core.sock"))
         env["GG_CORE_SOCKET_PATH"] = socket
-        version = invoke(binary, env, ["version", "--json"], timeout=10)
-        if version.returncode:
-            raise AcceptanceError("version-command-failed")
-        try:
-            v = json.loads(version.stdout)
-        except ValueError as exc:
-            raise AcceptanceError("version-invalid-json") from exc
-        if v.get("commit") != spec["source_commit"] or "onnx" not in v.get("features", []):
-            raise AcceptanceError("producer-identity-or-feature-mismatch")
+        verify_version(binary, env, spec["source_commit"])
         args = [str(binary), "serve"]
         for task in ("embedding", "classification"):
             m = spec[task]
@@ -161,30 +186,12 @@ def run_checks(binary, spec, stage, timeout):
                 if time.monotonic() >= deadline:
                     raise AcceptanceError("daemon-startup-timeout")
                 try:
-                    probe = invoke(binary, env, ["models", "list", "--json"], timeout=5)
-                    if probe.returncode == 0:
+                    if invoke(binary, env, ["models", "list", "--json"], timeout=5).returncode == 0:
                         break
                 except AcceptanceError:
                     pass
                 time.sleep(1)
-            embed, classifier = spec["embedding"]["id"], spec["classification"]["id"]
-            a = finite_vector(typed(binary, env, "embed", embed, "A man eats his lunch."))
-            b = finite_vector(typed(binary, env, "embed", embed, "A person is eating a meal."))
-            c = finite_vector(typed(binary, env, "embed", embed, "A rocket enters orbit."))
-            if cosine(a, b) <= cosine(a, c):
-                raise AcceptanceError("embedding-semantic-order")
-            expected_classification(typed(binary, env, "classify", classifier,
-                                          "I loved this movie."), "POSITIVE")
-            expected_classification(typed(binary, env, "classify", classifier,
-                                          "I hated this movie."), "NEGATIVE")
-            refused = invoke(binary, env, ["classify", "--model", embed,
-                                           "--text", "Example."], timeout=90)
-            required_refusal(refused, "not supported", "wrong-task")
-            denied_env = dict(env, CORE_AUTH_TOKEN=secrets.token_hex(32))
-            denied = invoke(binary, denied_env, ["embed", "--model", embed,
-                                                 "--text", "Example."], timeout=30)
-            required_refusal(denied, "authentication failed", "wrong-auth")
-            finite_vector(typed(binary, env, "embed", embed, "A person is eating a meal."))
+            return exercise_models(binary, env, spec)
         finally:
             daemon.terminate()
             try:
@@ -192,8 +199,6 @@ def run_checks(binary, spec, stage, timeout):
             except subprocess.TimeoutExpired:
                 daemon.kill()
                 daemon.wait(timeout=10)
-    return {"typed_embedding": "pass", "similarity_order": "pass",
-            "typed_classification": "pass", "wrong_task": "pass", "wrong_auth": "pass"}
 
 
 def main(argv=None):
