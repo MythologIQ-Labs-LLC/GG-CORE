@@ -129,6 +129,24 @@ class Gate(unittest.TestCase):
         rows = [r for r in rows if r["kind"] != "recover" or r["tag"] != TAG_ON]
         self.assert_fails("R3", rows, events)
 
+    def test_r3_surplus_recovery_cannot_hide_a_missing_one(self):
+        rows, events = evidence()
+        off = next(r for r in rows if r["kind"] == "recover" and r["tag"] == TAG_OFF)
+        rows = [r for r in rows if r["kind"] != "recover" or r["tag"] != TAG_ON] + [{**off, "rep": 1}]
+        self.assert_fails("R3", rows, events)
+
+    def test_r1_explicit_cancel_without_arrival_stage_fails(self):
+        rows, events = evidence()
+        events = [e for e in events if e["message"] != "cancel request received"]
+        self.assert_fails("R1", rows, events)
+
+    def test_r1_deadline_needs_no_arrival_stage(self):
+        rows, events = evidence()
+        self.assertFalse(any(e["message"] == "cancel request received" and e.get("request_id") == 106
+                             for e in events), "fixture: the deadline stop has no S1")
+        code, text = run(rows, events)
+        self.assertEqual(code, 0, text)
+
     def test_r4_wrong_error_code_fails(self):
         rows, events = evidence()
         next(r for r in rows if r["kind"] == "prefillDeadline")["errorCode"] = "cancelled"

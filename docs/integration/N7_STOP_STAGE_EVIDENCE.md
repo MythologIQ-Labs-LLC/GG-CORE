@@ -54,7 +54,7 @@ Ignored tests:
 - Its IPC and scheduler edits only add stop-trace calls; their test files and the adversarial review cover them.
 - The only runtime change that `main` brought in after `fcfa3cc`'s base is the `windows-sys` 0.61 handle-type migration in `sandbox/windows.rs`. It does not touch the stop path.
 
-**Evidence gate on the committed files.** `n7_stop_stage_report.py` was run with `--labels main,newoff,newon` and the pre-stated thresholds. It has 41 synthetic tests, all passing: one negative per rule, malformed input, the review cases, and the committed `fcfa3cc` evidence passing.
+**Evidence gate on the committed files.** `n7_stop_stage_report.py` was run with `--labels main,newoff,newon` and the pre-stated thresholds. It has 44 synthetic tests, all passing: one negative per rule, malformed input, the review cases (including Codex P2: S1 required for explicit cancels, recoveries counted per label and configuration), and the committed `fcfa3cc` evidence passing. Both committed runs give the same verdict under the tightened checks.
 
 **Packaged measurement, run 1 (batch `n7m1`): FAIL, recorded and not used.** The gate exits 1 on R1, R5, R6 and R7.
 - **Cause.** For about 16 minutes the whole VM slowed. The untraced `main` daemon was hit too: its recovery requests took 12–20 s instead of about 1.4 s.

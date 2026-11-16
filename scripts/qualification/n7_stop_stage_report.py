@@ -160,8 +160,10 @@ def stages_for(events, request_id, kind):
     # Review N7-R1 finding 1: a running stop needs exactly one S3 and one S4.
     no_s3 = kind != "queuedCancel" and len(s3) != 1
     no_s4 = kind != "queuedCancel" and len(s4) != 1
-    row["incomplete"] = bool(any_drop or no_s3 or no_s4 or reached)
-    row["missing"] = "dropped lines" if any_drop else ("S3" if no_s3 else ("S4" if no_s4 else None))
+    no_s1 = kind != "prefillDeadline" and len(s1) != 1  # explicit cancels need their arrival stage
+    row["incomplete"] = bool(any_drop or no_s1 or no_s3 or no_s4 or reached)
+    row["missing"] = ("dropped lines" if any_drop else "S1" if no_s1 else "S3" if no_s3
+                      else "S4" if no_s4 else None)
     row["queued_reached_backend"] = reached
     return row
 
@@ -219,9 +221,16 @@ def r3_matrix(joined, rows, a, configs):
     short = [f"{l}/{c}/{k}={count.get((l, c, k), 0)}" for l in a.labels for c in configs
              for k in STOPS if count.get((l, c, k), 0) < a.reps]
     traced = sum(1 for j in joined if j["stages"] is not None)
-    recov = sum(1 for r in rows if r.get("kind") == "recover")
+    reps = {}
+    for r in rows:
+        if r.get("kind") == "recover":
+            reps.setdefault(split_tag(r["tag"]), set()).add(r.get("rep"))
+    # Distinct repetitions per label/config: surplus in one cell cannot hide a gap in another.
+    short += [f"{l}/{c}/recover={len(reps.get((l, c), ()))}" for l in a.labels for c in configs
+              if len(reps.get((l, c), ())) < a.reps]
+    recov = sum(len(v) for v in reps.values())
     need = len(configs) * a.reps
-    ok = not short and traced >= need * len(STOPS) and recov >= need * len(a.labels)
+    ok = not short and traced >= need * len(STOPS)
     return ok, f"short cells {short[:6]}{'...' if len(short) > 6 else ''}; traced {traced}; recoveries {recov}"
 
 
