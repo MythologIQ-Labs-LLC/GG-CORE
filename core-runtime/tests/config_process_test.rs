@@ -57,6 +57,7 @@ fn invalid_explicit_overrides_fail_show_and_validate_equally() {
         ("GG_CORE_SESSION_TIMEOUT", "0"),
         ("GG_CORE_N_CTX", "127"),
         ("GG_CORE_N_THREADS", "abc"),
+        ("GG_CORE_N_THREADS", "2147483648"),
         ("GG_CORE_IPC_FRAME_LIMIT", "4095"),
         ("GG_CORE_MAX_CONNECTIONS", "0"),
         ("GG_CORE_STREAM_STALL_MS", "99"),
