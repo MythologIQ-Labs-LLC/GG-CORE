@@ -150,8 +150,10 @@ class Gate(unittest.TestCase):
     # Adversarial matrix identity: counts without repetition identities are insufficient.
     def test_r3_duplicate_stop_rep_hides_missing_rep_fails(self):
         rows, events = evidence()
-        rows.append({**next(r for r in rows if r["kind"] == "prefillCancel" and r["tag"] == TAG_OFF),
-                     "requestId": 99001})
+        old = next(r for r in rows if r["kind"] == "prefillCancel" and r["tag"] == TAG_OFF)
+        rows.remove(old)
+        rows.extend([{**old, "rep": 1, "requestId": 99001},
+                     {**old, "rep": 1, "requestId": 99002}])
         self.assert_fails("R3", rows, events)
 
     def test_r3_out_of_range_stop_rep_fails(self):
