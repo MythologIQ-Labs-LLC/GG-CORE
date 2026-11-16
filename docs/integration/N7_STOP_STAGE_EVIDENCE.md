@@ -9,6 +9,17 @@ On the pinned Qwen2.5-0.5B, the stop tail that #184 reported is fixed in `main` 
 
 There is no measured post-observation work to remove, so this branch **makes no compute change**. The remaining tail is one in-flight native decode (up to 0.71 s here). A hard bound below that needs a native abort callback, which `llama-cpp-2` 0.1.161 does not expose. That is an owner decision; see Limits.
 
+## Which source these results belong to
+- **Every measurement in this file was made on source `fcfa3cc`** (base `1032d1b`) and its daemon `5632E1E5…80C1`. They are kept unchanged as the historical baseline.
+- They are **not** results for the later integration head that merges current `main`. That head is qualified separately, on a GG-CORE-only build VM, and recorded in its own section once it has run.
+- The `c1` comparison daemon in `N7_STOP_STAGE_RESULTS_n7stage.jsonl` is the historical pre-#195 producer binary (`3FA16661…3F40`, GG-CORE source `ae55c976`). The integration-head measurement uses only daemons built from GG-CORE source on the GG-CORE VM.
+
+## Scope of the stage correlation (review N7-R2)
+The stage joins (S1–S4 by `request_id`, then by `queue_id` and time) are qualified **only for the recorded harness**: one client, one stop at a time, non-streaming requests.
+- The 54/54 stage observations do **not** establish behaviour with several clients stopping at once, where a `request_id` is unique only per connection.
+- They do **not** establish packaged streaming stops either: streaming S2 has no `queue_id` and is joined by order, and the harness runs no streaming stop. Streaming events are covered by unit tests only.
+- The evidence gate (`scripts/qualification/n7_stop_stage_report.py`) applies the same joins and carries the same limit.
+
 ## Identity
 | Item | Value |
 |---|---|
