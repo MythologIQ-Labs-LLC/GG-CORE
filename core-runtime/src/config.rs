@@ -125,19 +125,13 @@ fn load_batch_config() -> Result<BatchConfig, ConfigError> {
 }
 
 /// Fallible GGUF settings, also used by the daemon's common resolver.
-fn try_load_gguf_config() -> Result<GgufEnvConfig, ConfigError> {
+pub(crate) fn load_gguf_config() -> Result<GgufEnvConfig, ConfigError> {
     Ok(GgufEnvConfig {
         n_ctx: resource::from_env("GG_CORE_N_CTX", 2048u32, 128, u32::MAX,
                                   "decimal u32 >= 128")?,
         n_threads: resource::from_env("GG_CORE_N_THREADS", 0u32, 0, u32::MAX,
                                       "decimal u32 (0 = auto)")?,
     })
-}
-
-/// Compatibility helper: keep the existing signature but never silently
-/// fall back when an explicit GGUF value is invalid.
-pub(crate) fn load_gguf_config() -> GgufEnvConfig {
-    try_load_gguf_config().unwrap_or_else(|e| panic!("invalid GGUF configuration: {e}"))
 }
 
 /// Load IPC server configuration from environment.
@@ -197,7 +191,7 @@ pub fn try_load() -> Result<EnvConfig, ConfigError> {
         batch: load_batch_config()?,
         shutdown_timeout: Duration::from_secs(shutdown_secs),
         session_timeout: Duration::from_secs(session_secs),
-        gguf: try_load_gguf_config()?,
+        gguf: load_gguf_config()?,
         ipc_server: load_ipc_server_config()?,
         connections: load_connection_config()?,
     })
