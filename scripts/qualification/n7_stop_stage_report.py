@@ -19,13 +19,17 @@ is stricter:
   R4 every stop ended correctly (explicit error code, cancel ACK + one
      terminal frame, quiesced; queued: both busy requests succeeded) and
      every recovery request succeeded on a live daemon
-  R5 S2->S3 <= last_decode_ms + 5 ms in >= 95% of timed traced stops, with
-     at least one timed stop per traced running-stop cell
+  R5 S2->S3 <= last_decode_ms + 5 ms (0 + 5 ms for a setup-phase stop) in
+     >= 95% of traced running stops; every traced running stop must be timed
+     (exactly one S2, S3 and S4) and every running-stop cell represented
   R6 trace on/off uncancelled throughput median ratio within 0.97..1.03
   R7 exactly one uncancelled output hash per config across --hash-labels
 Exit 0 = every rule passes, 1 = a rule failed, 2 = malformed/missing input.
 Joins are valid only for the harness as run: one client, one stop at a
-time, non-streaming (review N7-R2).
+time, non-streaming (review N7-R2). Lines dropped at the very end of a
+daemon's trace leave no later `dropped` count; R1/R5 then catch them as
+missing stages. Duplicate (tag, requestId) rows and settings that would make
+a rule vacuous (same on/off label, reps < 1, labels missing) exit 2.
 
 Usage: python -I n7_stop_stage_report.py <out-dir> [--trace FILE] [--results FILE]
        [--labels c1,main,newoff,newon] [--trace-label newon]
@@ -64,7 +68,10 @@ def parse_err(path):
             continue
         fields = dict(e.get("fields", {}))
         fields.update(e.get("span", {}) or {})
-        fields["t"] = float(str(e["timestamp"]).strip().rstrip("s"))
+        try:
+            fields["t"] = float(str(e["timestamp"]).strip().rstrip("s"))
+        except (KeyError, ValueError) as err:
+            raise BadInput(f"{path.name}: stop-trace line without a valid timestamp ({err})") from err
         events.append(fields)
     return events
 
@@ -91,6 +98,8 @@ def load_traces(out, trace_file, rows):
         for e in load_jsonl(pathlib.Path(trace_file), "trace file"):
             if not isinstance(e, dict) or not {"tag", "message", "t"} <= e.keys():
                 raise BadInput(f"trace event without tag/message/t: {e}")
+            if isinstance(e["t"], bool) or not isinstance(e["t"], (int, float)):
+                raise BadInput(f"trace event with non-numeric t: {e}")
             traces.setdefault(e["tag"], []).append(e)
         return traces
     tags = {r["tag"] for r in rows if r.get("kind") in STOPS}
@@ -98,6 +107,7 @@ def load_traces(out, trace_file, rows):
 
 
 def validate(rows):
+    seen = set()
     for r in rows:
         if not isinstance(r, dict) or "kind" not in r:
             raise BadInput(f"row without kind: {r}")
@@ -106,6 +116,11 @@ def validate(rows):
                 raise BadInput(f"row with malformed tag: {r}")
         if r["kind"] in STOPS and not isinstance(r.get("requestId"), int):
             raise BadInput(f"stop row without integer requestId: {r}")
+        if r["kind"] in STOPS:
+            key = (r["tag"], r["requestId"])
+            if key in seen:
+                raise BadInput(f"duplicate stop row for {key}")
+            seen.add(key)
         if r["kind"] == "throughput" and r.get("ok") and not isinstance(r.get("ms"), (int, float)):
             raise BadInput(f"throughput row without ms: {r}")
 
@@ -125,8 +140,8 @@ def stages_for(events, request_id, kind):
     msg = lambda e, m: e.get("message") == m and e.get("stream") is not True
     s1 = [e for e in events if msg(e, "cancel request received") and e.get("request_id") == request_id]
     s2 = [e for e in events if msg(e, "stop answered to caller") and e.get("request_id") == request_id]
-    if not s2:
-        return {"incomplete": True, "missing": "S2", "queued_reached_backend": False}
+    if len(s2) != 1:
+        return {"incomplete": True, "missing": "S2" if not s2 else "duplicate S2", "queued_reached_backend": False}
     qid, t2 = s2[0].get("queue_id"), s2[0]["t"]
     s3 = [e for e in events if msg(e, "backend stop observed") and e.get("queue_id") == qid and e["t"] >= t2 - 1]
     s4 = [e for e in events if msg(e, "worker released after stop") and e.get("queue_id") == qid and e["t"] >= t2 - 1]
@@ -142,9 +157,11 @@ def stages_for(events, request_id, kind):
         row["s4_unix_ms"] = to_unix(events, s4[0]["t"])
     any_drop = max((e.get("dropped", 0) for e in events), default=0) > 0
     reached = kind == "queuedCancel" and bool(s3 or s4)
-    no_s4 = kind != "queuedCancel" and not s4
-    row["incomplete"] = bool(any_drop or no_s4 or reached)
-    row["missing"] = "dropped lines" if any_drop else ("S4" if no_s4 else None)
+    # Review N7-R1 finding 1: a running stop needs exactly one S3 and one S4.
+    no_s3 = kind != "queuedCancel" and len(s3) != 1
+    no_s4 = kind != "queuedCancel" and len(s4) != 1
+    row["incomplete"] = bool(any_drop or no_s3 or no_s4 or reached)
+    row["missing"] = "dropped lines" if any_drop else ("S3" if no_s3 else ("S4" if no_s4 else None))
     row["queued_reached_backend"] = reached
     return row
 
@@ -209,13 +226,15 @@ def r3_matrix(joined, rows, a, configs):
 
 
 def r5_observe(traced, joined, a, configs):
-    timed = [(j, j["stages"]) for j in joined if j["stages"] and not j["stages"]["incomplete"]
-             and "observe_ms" in j["stages"] and j["stages"].get("last_decode_ms") is not None]
-    within = sum(1 for _, s in timed if s["observe_ms"] <= s["last_decode_ms"] + 5)
+    running = [j for j in joined if j["stages"] is not None and j["kind"] in RUNNING]
+    timed = [(j, j["stages"]) for j in running if not j["stages"]["incomplete"] and "observe_ms" in j["stages"]]
+    # A setup-phase stop had no decode in flight: it must be observed within 0 + 5 ms.
+    within = sum(1 for _, s in timed if s["observe_ms"] <= (s.get("last_decode_ms") or 0) + 5)
     cells = {(split_tag(j["tag"])[1], j["kind"]) for j, _ in timed}
     need = {(c, k) for c in configs for k in RUNNING}
-    ok = bool(timed) and not (need - cells) and within >= 0.95 * len(timed)
-    return ok, f"{within}/{len(timed)} within; cells without a timed stop: {sorted(need - cells)[:4]}"
+    ok = bool(timed) and len(timed) == len(running) and not (need - cells) and within >= 0.95 * len(timed)
+    return ok, (f"{within}/{len(timed)} within; {len(running) - len(timed)} traced running stops untimed; "
+                f"cells without a timed stop: {sorted(need - cells)[:4]}")
 
 
 def throughput(rows, a, configs):
@@ -224,16 +243,24 @@ def throughput(rows, a, configs):
         if r.get("kind") == "throughput":
             label, cfg = split_tag(r["tag"])
             tp.setdefault(cfg, {}).setdefault(label, []).append(r)
-    ratios, hashes = {}, {}
+    ratios, hashes, short = {}, {}, []
     for cfg in configs:
+        for l in sorted({a.trace_label, a.off_label, *a.hash_labels}):
+            good = [r for r in tp.get(cfg, {}).get(l, []) if r.get("ok") and r.get("outputSha")]
+            if len(good) < a.reps:
+                short.append(f"{cfg}/{l}={len(good)}")
         on = [r["ms"] for r in tp.get(cfg, {}).get(a.trace_label, []) if r.get("ok")]
         off = [r["ms"] for r in tp.get(cfg, {}).get(a.off_label, []) if r.get("ok")]
         ratios[cfg] = statistics.median(on) / statistics.median(off) if on and off else None
         hashes[cfg] = {r.get("outputSha") for l in a.hash_labels for r in tp.get(cfg, {}).get(l, [])}
-    r6 = all(v is not None and 0.97 <= v <= 1.03 for v in ratios.values())
-    r7 = all(len(h) == 1 and None not in h for h in hashes.values())
+    r6 = not short and all(v is not None and 0.97 <= v <= 1.03 for v in ratios.values())
+    r7 = not short and all(len(h) == 1 and None not in h for h in hashes.values())
     d6 = " ".join(f"{c}={'none' if v is None else f'{v:.3f}'}" for c, v in ratios.items())
+    if short:
+        d6 += f"; throughput rows short: {short[:6]}"
     d7 = " ".join(f"{c}={sorted(map(str, h))}" for c, h in hashes.items())
+    if short:
+        d7 += f"; throughput rows short: {short[:6]}"
     return (r6, d6), (r7, d7)
 
 
@@ -281,9 +308,24 @@ def args_of(argv):
     return a
 
 
+def check_args(a):
+    """Settings that would make a rule vacuous are malformed input (review N7-R1 finding 3)."""
+    if a.trace_label == a.off_label:
+        raise BadInput("--trace-label and --off-label must differ")
+    if a.reps < 1:
+        raise BadInput("--reps must be >= 1")
+    if not {a.trace_label, a.off_label} <= set(a.hash_labels):
+        raise BadInput("--hash-labels must include the trace-on and trace-off labels")
+    if not {a.trace_label, a.off_label, *a.hash_labels} <= set(a.labels):
+        raise BadInput("--labels must include the trace, off and hash labels")
+    if not all(a.contexts) or not all(a.threads):
+        raise BadInput("--contexts/--threads must not be empty")
+
+
 def main(argv):
     a = args_of(argv)
     try:
+        check_args(a)
         out = pathlib.Path(a.out)
         rows = load_jsonl(pathlib.Path(a.results) if a.results else out / "results.jsonl", "results")
         validate(rows)

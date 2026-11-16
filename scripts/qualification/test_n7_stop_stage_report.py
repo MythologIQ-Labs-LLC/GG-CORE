@@ -227,6 +227,76 @@ class Gate(unittest.TestCase):
         events[1].pop("t")
         self.assertEqual(run(rows, events)[0], 2)
 
+    # Re-review findings (2026-11-15): each previously passing bad input now fails.
+    def test_running_stop_without_backend_observation_fails(self):
+        rows, events = evidence()
+        events = [e for e in events if not (e["message"] == "backend stop observed" and e["queue_id"] == 5)]
+        code, text = run(rows, events)
+        self.assertEqual(code, 1, text)
+        self.assertTrue({"R1", "R5"} <= failed_rules(text), text)
+
+    def test_setup_phase_stop_is_checked_not_skipped(self):
+        rows, events = evidence()
+        for e in events:
+            if e["message"] == "backend stop observed":
+                e.pop("last_decode_ms")  # setup: nothing in flight, observed 200 ms after S2
+                e["phase"] = "setup"
+        self.assert_fails("R5", rows, events)
+
+    def test_duplicate_request_id_is_malformed(self):
+        rows, events = evidence()
+        dup = dict(next(r for r in rows if r["kind"] == "decodeCancel" and r["tag"] == TAG_ON))
+        dup["kind"] = "prefillDeadline"
+        rows.append(dup)
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_duplicate_answer_event_is_incomplete(self):
+        rows, events = evidence()
+        events.append(dict(next(e for e in events if e["message"] == "stop answered to caller")))
+        self.assert_fails("R1", rows, events)
+
+    def test_same_trace_and_off_label_is_malformed(self):
+        rows, events = evidence()
+        self.assertEqual(run(rows, events, extra=["--off-label", "newon"])[0], 2)
+
+    def test_hash_labels_missing_on_off_labels_is_malformed(self):
+        rows, events = evidence()
+        self.assertEqual(run(rows, events, extra=["--hash-labels", "newon"])[0], 2)
+
+    def test_zero_reps_is_malformed(self):
+        rows, events = evidence()
+        self.assertEqual(run(rows, events, extra=["--reps", "0"])[0], 2)
+
+    def test_hash_label_not_in_labels_is_malformed(self):
+        rows, events = evidence()
+        self.assertEqual(run(rows, events, extra=["--hash-labels", "newoff,newon,main"])[0], 2)
+
+    def test_missing_hash_label_throughput_fails(self):
+        rows, events = evidence()
+        rows = [r for r in rows if not (r["kind"] == "throughput" and r["tag"] == TAG_OFF)]
+        code, text = run(rows, events)
+        self.assertEqual(code, 1, text)
+        self.assertTrue({"R6", "R7"} <= failed_rules(text), text)
+
+    def test_throughput_without_output_hash_fails(self):
+        rows, events = evidence()
+        next(r for r in rows if r["kind"] == "throughput" and r["tag"] == TAG_OFF)["outputSha"] = None
+        self.assert_fails("R7", rows, events)
+
+    def test_non_numeric_trace_time_is_malformed(self):
+        rows, events = evidence()
+        events[2]["t"] = "soon"
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_err_line_without_timestamp_is_malformed(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = pathlib.Path(d)
+            rows, _ = evidence()
+            (d / "results.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+            (d / f"{TAG_ON}.err").write_text(json.dumps({"target": "gg_core::stop", "fields": {"message": "x"}}), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(gate.main([str(d), *ARGS]), 2)
+
     def test_committed_fcfa3cc_evidence_passes(self):
         docs = HERE.parents[1] / "docs" / "integration"
         out = io.StringIO()
