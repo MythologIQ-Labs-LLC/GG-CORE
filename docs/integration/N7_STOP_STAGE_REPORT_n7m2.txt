@@ -1,0 +1,85 @@
+DESCRIPTIVE (all runs; stage columns from complete traces only)
+label kind config n tail_p50 tail_p95 tail_max incomplete observe_max last_decode_max release_max s4_to_quiet_max
+main decodeCancel ctx16384-t0 3 125 213 213 0 None None None None
+main decodeCancel ctx16384-t1 3 104 106 106 0 None None None None
+main decodeCancel ctx16384-t2 3 116 126 126 0 None None None None
+main decodeCancel ctx8192-t0 3 114 217 217 0 None None None None
+main decodeCancel ctx8192-t1 3 112 117 117 0 None None None None
+main decodeCancel ctx8192-t2 3 110 112 112 0 None None None None
+main prefillCancel ctx16384-t0 3 544 893 893 0 None None None None
+main prefillCancel ctx16384-t1 3 555 655 655 0 None None None None
+main prefillCancel ctx16384-t2 3 653 671 671 0 None None None None
+main prefillCancel ctx8192-t0 3 562 783 783 0 None None None None
+main prefillCancel ctx8192-t1 3 556 668 668 0 None None None None
+main prefillCancel ctx8192-t2 3 443 656 656 0 None None None None
+main prefillDeadline ctx16384-t0 3 549 767 767 0 None None None None
+main prefillDeadline ctx16384-t1 3 345 549 549 0 None None None None
+main prefillDeadline ctx16384-t2 3 347 663 663 0 None None None None
+main prefillDeadline ctx8192-t0 3 324 540 540 0 None None None None
+main prefillDeadline ctx8192-t1 3 220 444 444 0 None None None None
+main prefillDeadline ctx8192-t2 3 315 786 786 0 None None None None
+main queuedCancel ctx16384-t0 3 None None None 0 None None None None
+main queuedCancel ctx16384-t1 3 None None None 0 None None None None
+main queuedCancel ctx16384-t2 3 None None None 0 None None None None
+main queuedCancel ctx8192-t0 3 None None None 0 None None None None
+main queuedCancel ctx8192-t1 3 None None None 0 None None None None
+main queuedCancel ctx8192-t2 3 None None None 0 None None None None
+newoff decodeCancel ctx16384-t0 3 115 117 117 0 None None None None
+newoff decodeCancel ctx16384-t1 3 113 116 116 0 None None None None
+newoff decodeCancel ctx16384-t2 3 110 116 116 0 None None None None
+newoff decodeCancel ctx8192-t0 3 111 114 114 0 None None None None
+newoff decodeCancel ctx8192-t1 3 111 124 124 0 None None None None
+newoff decodeCancel ctx8192-t2 3 114 222 222 0 None None None None
+newoff prefillCancel ctx16384-t0 3 327 564 564 0 None None None None
+newoff prefillCancel ctx16384-t1 3 556 657 657 0 None None None None
+newoff prefillCancel ctx16384-t2 3 539 658 658 0 None None None None
+newoff prefillCancel ctx8192-t0 3 677 812 812 0 None None None None
+newoff prefillCancel ctx8192-t1 3 442 667 667 0 None None None None
+newoff prefillCancel ctx8192-t2 3 224 549 549 0 None None None None
+newoff prefillDeadline ctx16384-t0 3 439 544 544 0 None None None None
+newoff prefillDeadline ctx16384-t1 3 209 660 660 0 None None None None
+newoff prefillDeadline ctx16384-t2 3 431 680 680 0 None None None None
+newoff prefillDeadline ctx8192-t0 3 331 550 550 0 None None None None
+newoff prefillDeadline ctx8192-t1 3 552 553 553 0 None None None None
+newoff prefillDeadline ctx8192-t2 3 329 442 442 0 None None None None
+newoff queuedCancel ctx16384-t0 3 None None None 0 None None None None
+newoff queuedCancel ctx16384-t1 3 None None None 0 None None None None
+newoff queuedCancel ctx16384-t2 3 None None None 0 None None None None
+newoff queuedCancel ctx8192-t0 3 None None None 0 None None None None
+newoff queuedCancel ctx8192-t1 3 None None None 0 None None None None
+newoff queuedCancel ctx8192-t2 3 None None None 0 None None None None
+newon decodeCancel ctx16384-t0 3 219 225 225 0 7.3 8.689 169.4 160.0
+newon decodeCancel ctx16384-t1 3 104 106 106 0 20.5 23.082 57.7 40.8
+newon decodeCancel ctx16384-t2 3 115 117 117 0 13.5 13.401 55.0 79.8
+newon decodeCancel ctx8192-t0 3 118 209 209 0 7.8 8.8 62.7 145.2
+newon decodeCancel ctx8192-t1 3 108 116 116 0 21.1 23.079 43.3 59.1
+newon decodeCancel ctx8192-t2 3 116 225 225 0 13.2 13.718 51.6 163.1
+newon prefillCancel ctx16384-t0 3 670 883 883 0 675.7 735.735 61.3 146.7
+newon prefillCancel ctx16384-t1 3 555 650 650 0 613.8 619.196 61.9 90.3
+newon prefillCancel ctx16384-t2 3 775 777 777 0 633.3 638.023 77.2 204.6
+newon prefillCancel ctx8192-t0 3 436 656 656 0 432.7 744.371 177.1 203.5
+newon prefillCancel ctx8192-t1 3 441 553 553 0 516.1 608.967 61.7 31.7
+newon prefillCancel ctx8192-t2 3 776 792 792 0 613.8 638.03 141.9 173.2
+newon prefillDeadline ctx16384-t0 3 548 882 882 0 676.2 756.96 58.5 179.4
+newon prefillDeadline ctx16384-t1 3 550 669 669 0 565.7 619.129 103.9 62.7
+newon prefillDeadline ctx16384-t2 3 439 771 771 0 617.7 655.25 127.3 159.2
+newon prefillDeadline ctx8192-t0 3 337 767 767 0 571.2 833.964 59.4 136.2
+newon prefillDeadline ctx8192-t1 3 542 550 550 0 551.8 600.507 53.4 64.3
+newon prefillDeadline ctx8192-t2 3 332 337 337 0 209.8 638.219 38.5 173.4
+newon queuedCancel ctx16384-t0 3 None None None 0 None None None None
+newon queuedCancel ctx16384-t1 3 None None None 0 None None None None
+newon queuedCancel ctx16384-t2 3 None None None 0 None None None None
+newon queuedCancel ctx8192-t0 3 None None None 0 None None None None
+newon queuedCancel ctx8192-t1 3 None None None 0 None None None None
+newon queuedCancel ctx8192-t2 3 None None None 0 None None None None
+
+ACCEPTANCE (complete traced runs only)
+PASS R1 no dropped lines or missing stages in traced runs: 0 incomplete of 72 traced
+PASS R2 no queued cancel reached the backend: 0 reached
+PASS R3 full matrix present and traced: short cells []; traced 72; recoveries 54
+PASS R4 every stop and recovery correct: bad stops []; bad recoveries []
+PASS R5 S2->S3 <= last_decode_ms + 5 ms in >= 95% of timed stops: 54/54 within; 0 traced running stops untimed; cells without a timed stop: []
+PASS R6 trace on/off throughput median ratio within 0.97..1.03: ctx8192-t0=1.017 ctx8192-t1=1.009 ctx8192-t2=0.993 ctx16384-t0=1.013 ctx16384-t1=1.009 ctx16384-t2=1.007
+PASS R7 one uncancelled output hash per config across hash labels: ctx8192-t0=['57822580A271832B'] ctx8192-t1=['57822580A271832B'] ctx8192-t2=['57822580A271832B'] ctx16384-t0=['57822580A271832B'] ctx16384-t1=['57822580A271832B'] ctx16384-t2=['57822580A271832B']
+
+VERDICT: PASS
