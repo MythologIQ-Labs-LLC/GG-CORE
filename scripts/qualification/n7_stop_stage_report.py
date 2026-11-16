@@ -175,6 +175,7 @@ def stages_for(events, request_id, kind):
     row["queued_reached_backend"] = reached
     return row
 
+
 def join(rows, traces, trace_label):
     joined = []
     for r in rows:
@@ -242,6 +243,7 @@ def r3_matrix(joined, rows, a, configs):
               f"duplicate {sorted(map(str, duplicate))[:6]}; "
               f"traced {traced}/{required_traced}")
     return ok, detail
+
 
 def r5_observe(traced, joined, a, configs):
     running = [j for j in joined if j["stages"] is not None and j["kind"] in RUNNING]
