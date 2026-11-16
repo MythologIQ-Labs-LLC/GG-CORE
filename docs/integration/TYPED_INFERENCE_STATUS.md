@@ -1,32 +1,42 @@
-# v1.0.0 typed inference engine: staged ONNX integration
+# GG-CORE v1.0.0 typed ONNX inference: implementation and evidence status
 
-**Status: developmental source-only foundation. Not a supported IPC, SDK, CLI or product feature yet.**
-Related: [#171 typed ONNX IPC](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171), [#169 backend/manifest correctness](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/169), [#160 model matrix](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/160) and [#161 release gate](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/161).
+**Status (2026-11-16): Implemented in main source; current-v1 packaged/installed qualification is incomplete.** This corrects the original, now-stale source-only foundation description. Do not call the frozen v0.10.0-rc.1 release an ONNX-serving product, or mistake a merged implementation for an approved v1.0.0 model/platform support matrix.
 
-The runtime is **model-agnostic**. Qwen is only the owner's preferred first GGUF quality fixture. The existing `Arc<dyn Model>` can hold GGUF text generators and ONNX embedding/classification models, but the shipped queue, worker and IPC schema currently support **generation-shaped responses only**. A successful ONNX model load is not proof that embeddings/classification can be served through authenticated IPC.
+**Source authorities:** [#171 typed serving](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171), [#160 supported capability matrix](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/160), [#161 integrated release gate](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/161), and [root architecture index](../../ARCHITECTURE_INDEX.md). GG-CORE is an upstream standalone inference runtime. CoreForge is an optional downstream consumer.
 
-## Source increment
+## What is implemented in current source
 
-New crate-private `InferenceEngine::run_typed_controlled` in `core-runtime/src/engine/inference_typed.rs` permits **only Embedding and TextClassification** tasks, when the selected model declares the requested capability. The existing text-generation path remains unchanged.
+| Component | Source | Implemented behavior |
+| --- | --- | --- |
+| Typed engine | core-runtime/src/engine/inference_typed.rs | Backend-neutral embedding, embedding batch and text classification with explicit task/model/input/output verification and bounded results |
+| IPC protocol | core-runtime/src/ipc/protocol_typed.rs | Additive typed request/response within existing JSON V1; closed task/result types, structured errors and optional negotiated feature |
+| Authenticated handler | core-runtime/src/ipc/handler_typed.rs | Shared admission, timeout/cancel/shutdown controls and explicit refusal; not a direct ONNX bypass |
+| Worker pipeline | core-runtime/src/scheduler/worker_typed.rs | Shared bounded queue, ingress screening on all texts, memory admission and filtered/text-safe egress |
+| Standalone CLI | core-runtime/src/cli/typed_cmd.rs | Authenticated embed and classify commands through IPC, without local/ungoverned model execution |
+| Real IPC integration test | core-runtime/tests/typed_ipc_test.rs | Windows named pipe and actual Candle ONNX execution on a tiny synthetic fixture: 401/closed unauthenticated, golden vector/batch, wrong-task and injection refusal |
 
-It validates text/batch inputs, rejects unsupported shapes (including ambiguous classifier batch), enforces model existence, per-call memory budget, context limits, typed output shape, finite embedding values, bounded embedding dimensionality, finite label confidences, and per-request cancellation/deadline both **before and after** the native backend call. The function never silently encodes non-text results into a generation response.
+The source path was built through merged PRs [#172](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/172), [#173](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/173), [#174](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/174), and [#175](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/175). The newer #49 capability snapshot is informational and cannot turn an untested model into a released support claim.
 
-**Critical security limit:** the typed function is *crate-private* and **not connected to any external interface**. Calling it directly does not run the production worker's ingress scanner, egress scanner, queue/admission, session authentication, or request-owner lifecycle. It must **NOT be exposed over IPC, FFI, HTTP, Python or other consumers** until those invariants are implemented together. Backends may not guarantee mid-call cancellation; a late return is converted to an error, but an uncooperative backend still needs runtime/OS execution bounds.
+## Historical real-model evidence, not exact-current-main qualification
 
-The draft adds mock-based unit regressions under `core-runtime/src/engine/inference_typed_tests.rs` for valid single/batched embeddings and classification, task/model mismatch, wrong output type, invalid dimensions/NaNs, invalid labels, missing inputs, memory bounds, and cancellation. These tests have **not** been run with a Rust toolchain in this authoring session.
+The [November 7 offline Windows Sandbox receipt](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171#issuecomment-6700630814) reports license- and hash-verified real MiniLM-L6-v2 embeddings and DistilBERT SST-2 classification, served through authenticated typed IPC in an isolated Windows guest:
 
-## Next minimum viable implementation, without weakening containment
+- MiniLM embedding batch returned 384-dimensional finite vectors and the intended semantic similarity ordering.
+- DistilBERT returned the expected positive/negative labels and high confidence.
+- Unsupported task and incorrect authentication were refused; unload/reload worked.
+- Multiple GGUF model families were swapped while both ONNX models remained resident; working-set reclamation was measured under explicit raised limits.
+- Historical evidence source was a local integration build, not a published stable v1 artifact. The same receipt identified a default-memory policy defect and retained working set after a failed allocation.
 
-1. **Version/capability negotiation:** Preserve the frozen v0.10.0-rc.1 `inference_request`/response wire contract unchanged. Add an opt-in, authenticated *typed* IPC opcode with explicit `task`, a bounded text or text-batch input, a typed result enum and a consistent error. No generation-shaped embedding vectors, fallback to the wrong model, or unrequested task promotion.
-2. **Production queue path:** Introduce typed requests into the SAME bounded scheduler/admission, cancel/deadline and worker security pipeline used by GGUF. Ingress must check **every input item** with the same policy, and **every output** must be filtered/logged/redacted under explicit typed safety rules; avoid a direct `handler → engine` bypass.
-3. **Privacy and frame-size security:** Bound vectors, batches and label text before serialization. Reject overflow, NaN/Infinity, invalid dimensions/counts and outputs exceeding IPC `max_frame_size`. Authenticate metadata and capability negotiation appropriately. Do not write vectors, raw prompts, labels, paths or secrets to default logs.
-4. **Consumer interfaces:** A standalone `embed` and `classify` CLI or native SDK call should use typed, versioned IPC. There is **no requirement for public HTTP**, and the inference daemon must have **no outbound downloader/network privilege**.
-5. **Real backend acceptance:** Pin licensed ONNX embedding and classification weights with SHA-256, tokenizer, ordered labels and exact runtime architecture. Execute clean installed GG-CORE with IPC auth enabled; verify real vector values, class labels and unsupported model/task failures. Repeat model load/unload/reload and GGUF↔ONNX transition with measured RSS, memory reclamation, queue/cancel and threat-model negatives.
-6. **Backward compatibility:** Existing GGUF text-generation `infer` CLI, streaming chunks, timeout/error codes, downstream CoreForge pin, and published RC1 continue working unmodified. Do not call ONNX text generation supported until [#115](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/115) has actual decode support and acceptance.
-7. **Independent validation:** Native Rust `cargo fmt --check`, `cargo test --locked`, relevant feature combinations (`onnx`, `gguf`, `ffi`), strict clippy, Windows/Linux/macOS per support matrix, redacted local sandbox evidence. No CI charges or release mutation unless separately authorized.
+A [follow-up memory-admission receipt](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171#issuecomment-6701144320) reports successful model runs under corrected default accounting. It is still evidence for its recorded integration identity, not automatic proof for every later merged runtime commit or operating system.
 
-## Qualification disposition
+## What remains required
 
-This source increment establishes **backend-neutral typed inference semantics**, not public ONNX interoperability. It intentionally fails closed if task, model capability, input shape or output type do not agree. **NO-GO for claiming model-agnostic ONNX serving until the queue, IPC, CLI/SDK, privacy and packaged real-model evidence above pass.**
+1. Re-run pinned, licensed real MiniLM and DistilBERT typed inference against the **current exact producer source and packaged/installed binaries** under default production auth, security and resource settings. Verify model/tokenizer/labels/hash, output semantics, task refusal, privacy and provenance.
+2. Establish actual Windows/Linux/macOS support cells with the approved operating-system/feature matrix. The original Windows real-model receipt does not prove Unix/macOS execution or a public wheel/SDK.
+3. Qualify failed-load cleanup, concurrent model admission, long-run behavior, cancellation/deadline/stream interactions, GGUF backward compatibility and memory limits on real models. Source unit tests and synthetic fixtures alone cannot provide these receipts.
+4. Track secure A-to-B-to-A switching, actual RSS/mmap release, readiness and recovery under [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137). Do not duplicate that implementation under #171.
+5. Align capability and version negotiation with the [#112 embedded contract](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/112), and add real downstream conformance under [#114](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/114). Never treat ONNX embeddings/classification as ONNX text generation; the latter remains separately governed by [#115](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/115).
 
-The existing frozen v0.10.0-rc.1 release and CoreForge consumer pins must remain untouched. Owner expects a complete, long-lived GG-CORE v1.0.0, not a narrower product defined around one preferred model.
+**Security and authority boundary:** All inference remains offline-first, authenticated over local IPC, and behind the existing scanner/admission/egress controls. The daemon has no implicit network, downloader, filesystem expansion, tool-use, or cloud fallback authority. Valid model imports must be staged by an independently authorized host component.
+
+**Release disposition:** #171 stays open for current-v1 installed acceptance. The frozen v0.10.0-rc.1 release and CoreForge consumer pins remain unchanged. No CodeQL result, passing source test or historic sandbox run alone authorizes v1.0.0 publication.
