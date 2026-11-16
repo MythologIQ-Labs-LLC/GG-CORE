@@ -90,3 +90,6 @@ fn spawn_worker(runtime: &Runtime, shutdown: &tokio_util::sync::CancellationToke
         shutdown.clone(),
     );
 }
+
+#[path = "server_capability_tests.rs"]
+mod capability_tests;

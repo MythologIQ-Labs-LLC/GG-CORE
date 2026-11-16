@@ -18,4 +18,14 @@ impl InferenceEngine {
             .get(model_id)
             .map(|m| m.memory_usage())
     }
+
+    /// Visit every registered model under one engine read lock. The visitor
+    /// is synchronous: it must not await or take another lock, so the lock
+    /// order cannot invert against load/unload. No `Arc` escapes.
+    pub(crate) async fn inspect_models(&self, mut visit: impl FnMut(&str, &dyn super::Model)) {
+        let models = self.models.read().await;
+        for (id, model) in models.iter() {
+            visit(id, model.as_ref());
+        }
+    }
 }

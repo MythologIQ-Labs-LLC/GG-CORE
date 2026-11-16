@@ -83,7 +83,7 @@ pub struct IpcHandler {
     /// Session authentication manager (public for FFI access)
     pub auth: Arc<SessionAuth>,
     queue: Arc<RequestQueue>,
-    config: IpcHandlerConfig,
+    pub(super) config: IpcHandlerConfig,
     shutdown: Arc<ShutdownCoordinator>,
     health_handler: HealthHandler,
     metrics_store: Arc<MetricsStore>,
@@ -93,7 +93,7 @@ pub struct IpcHandler {
     /// Path-validating loader bound to the runtime's base path (B-41, #106).
     pub(super) model_loader: Arc<crate::models::ModelLoader>,
     /// Streaming path (gguf feature) and typed capability listing.
-    inference_engine: Arc<InferenceEngine>,
+    pub(super) inference_engine: Arc<InferenceEngine>,
 }
 
 impl IpcHandler {
@@ -217,6 +217,12 @@ impl IpcHandler {
                 self.require_auth(session).await?;
                 let response = self.handle_warmup(request.model_id, request.tokens).await;
                 Ok((IpcMessage::WarmupResponse(response), None))
+            }
+
+            IpcMessage::CapabilitiesRequest => {
+                self.require_auth(session).await?; // AUTH REQUIRED (#49)
+                let response = self.handle_capabilities().await;
+                Ok((IpcMessage::CapabilitiesResponse(response), None))
             }
 
             IpcMessage::ModelLoadRequest(request) => {

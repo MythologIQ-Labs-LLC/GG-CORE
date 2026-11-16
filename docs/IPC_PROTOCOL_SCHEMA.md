@@ -276,6 +276,20 @@ open; only authentication failures terminate it.
 { "type": "model_unload_response", "success": false, "model_id": "ghost", "error": "lifecycle: model not loaded: ghost" }
 ```
 
+**Capability snapshot (additive in V1, authenticated; #49/#50).** `capabilities_request` (no fields) answers `capabilities_response { snapshot }` on an authenticated session. Unauthenticated callers get `error{code:401}`, after which the connection closes.
+
+The snapshot is read-only JSON. `snapshot.schema_version` is the **capability schema version** (currently 1), not the IPC protocol version. Its fields are separate facts, and none is inferred from another:
+
+| Field | Meaning |
+|---|---|
+| `compiled` | Backends and the exact task × target paths built into this binary. This is not a support claim. |
+| `loaded` | Each serving model's `model_id`, `handle_id`, detected `backend` (or `null`), and `paths` (its declared tasks that the detected backend serves). A model of unknown backend lists `declared_only_paths` instead. |
+| `hardware` | `logical_cpus`. `accelerators: null` means "not reported", not "none present". |
+| `qualified` | Evidence-qualified cells. Empty until a trusted evidence registry exists. |
+| `operator` | `offline_only`, `network_listener`, `auth_required` (from configuration), and `budget` (`null` when no budget is configured). |
+
+GPU serving is never inferred from detection or build features, and ONNX generation is never inferred from embedding or classification. A client-sent `capabilities_response` is refused with `error{code:400}`, the connection stays open, and nothing is ingested.
+
 **Release of an unloaded instance (additive in V1, authenticated).** An unload answers as soon as the model leaves the registry. A request still running on it keeps the instance — its native memory and resident budget — until that request completes, is cancelled, disconnects or reaches its deadline (streams default to 30 s; non-streaming and typed requests **without** `timeout_ms` have no deadline). Until then `models_request` lists the instance with `state: "unloading"`, its original `handle_id` and metadata `name`, and counts its bytes in `total_memory_bytes`; a load can be refused because those bytes are still charged.
 
 ```json
