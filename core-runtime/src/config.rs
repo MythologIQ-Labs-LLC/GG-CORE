@@ -224,3 +224,7 @@ impl EnvConfig {
 #[cfg(test)]
 #[path = "config_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "config_resource_env_tests.rs"]
+mod resource_env_tests;
