@@ -147,6 +147,59 @@ class Gate(unittest.TestCase):
         code, text = run(rows, events)
         self.assertEqual(code, 0, text)
 
+    # Adversarial matrix identity: counts without repetition identities are insufficient.
+    def test_r3_duplicate_stop_rep_hides_missing_rep_fails(self):
+        rows, events = evidence()
+        rows.append({**next(r for r in rows if r["kind"] == "prefillCancel" and r["tag"] == TAG_OFF),
+                     "requestId": 99001})
+        self.assert_fails("R3", rows, events)
+
+    def test_r3_out_of_range_stop_rep_fails(self):
+        rows, events = evidence()
+        next(r for r in rows if r["kind"] == "prefillCancel" and r["tag"] == TAG_OFF)["rep"] = 9
+        self.assert_fails("R3", rows, events)
+
+    def test_r3_duplicate_throughput_rep_fails(self):
+        rows, events = evidence()
+        rows.append(dict(next(r for r in rows if r["kind"] == "throughput" and r["tag"] == TAG_OFF)))
+        self.assert_fails("R3", rows, events)
+
+    def test_r3_duplicate_recovery_rep_fails(self):
+        rows, events = evidence()
+        rows.append(dict(next(r for r in rows if r["kind"] == "recover" and r["tag"] == TAG_OFF)))
+        self.assert_fails("R3", rows, events)
+
+    def test_r1_backend_observation_before_answer_fails(self):
+        rows, events = evidence()
+        s2 = next(e for e in events if e["message"] == "stop answered to caller")
+        s3 = next(e for e in events if e["message"] == "backend stop observed")
+        s3["t"] = s2["t"] - 0.1
+        self.assert_fails("R1", rows, events)
+
+    def test_r1_worker_release_before_backend_observation_fails(self):
+        rows, events = evidence()
+        s3 = next(e for e in events if e["message"] == "backend stop observed")
+        s4 = next(e for e in events if e["message"] == "worker released after stop")
+        s4["t"] = s3["t"] - 0.01
+        self.assert_fails("R1", rows, events)
+
+    def test_r1_cancel_arrival_after_answer_fails(self):
+        rows, events = evidence()
+        s1 = next(e for e in events if e["message"] == "cancel request received")
+        s2 = next(e for e in events if e["message"] == "stop answered to caller")
+        s1["t"] = s2["t"] + 0.01
+        self.assert_fails("R1", rows, events)
+
+    def test_r1_unmatched_cancel_arrival_fails(self):
+        rows, events = evidence()
+        next(e for e in events if e["message"] == "cancel request received")["matched"] = False
+        self.assert_fails("R1", rows, events)
+
+    def test_r1_wrong_answer_kind_fails(self):
+        rows, events = evidence()
+        next(e for e in events if e["message"] == "stop answered to caller")["kind"] = "deadline_exceeded"
+        self.assert_fails("R1", rows, events)
+
     def test_r4_wrong_error_code_fails(self):
         rows, events = evidence()
         next(r for r in rows if r["kind"] == "prefillDeadline")["errorCode"] = "cancelled"
