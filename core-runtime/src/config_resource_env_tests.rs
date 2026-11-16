@@ -111,6 +111,17 @@ fn explicit_threads_must_fit_the_native_gguf_thread_integer() {
 }
 
 #[test]
+fn ipc_frame_limit_must_fit_the_wire_format_length_prefix() {
+    let _lock = env_guard();
+    clear_env();
+    std::env::set_var("GG_CORE_IPC_FRAME_LIMIT", "4294967296");
+    assert!(matches!(try_load(), Err(ConfigError::Resource(_))));
+    std::env::set_var("GG_CORE_IPC_FRAME_LIMIT", "4294967295");
+    assert_eq!(try_load().unwrap().ipc_server.max_frame_size, u32::MAX as usize);
+    clear_env();
+}
+
+#[test]
 fn gguf_config_refuses_invalid_explicit_settings() {
     let _lock = env_guard();
     clear_env();
