@@ -14,7 +14,7 @@ pub fn run_show() {
     let _ = try_show();
 }
 
-/// Print effective config; on an invalid memory limit print the error to
+/// Print effective config; on an invalid explicit setting print the error to
 /// stderr, no values, and return 1.
 pub fn try_show() -> i32 {
     match config::try_load() {
@@ -50,44 +50,21 @@ pub fn run_defaults() {
     println!("GG_CORE_STREAM_STALL_MS=5000");
 }
 
-/// Validate configuration for obvious misconfigurations.
+/// Validate the exact settings used by serve and config show.
 ///
-/// Returns 0 if valid, 1 if any warnings are found.
+/// Returns 0 on success, 1 for any invalid explicit memory/resource value.
+/// No post-clamp warnings: the resolver now rejects those values up front.
 pub fn run_validate() -> i32 {
-    // Memory limits are resolved strictly: an invalid value or a per-call
-    // ceiling above the total is refused before any limit could be relaxed.
-    let cfg = match config::try_load() {
-        Ok(env) => env.effective_config(),
+    match config::try_load() {
+        Ok(_) => {
+            println!("Configuration is valid.");
+            0
+        }
         Err(e) => {
             eprintln!("ERROR: {e}");
-            return 1;
-        }
-    };
-    let mut warnings = 0;
-
-    if let Some(raw) = raw_stream_stall() {
-        if raw < 100 {
-            eprintln!("WARNING: GG_CORE_STREAM_STALL_MS ({raw}) is below 100; 100 is used");
-            warnings += 1;
+            1
         }
     }
-
-    if cfg.resource_max_concurrent == 0 {
-        eprintln!("WARNING: GG_CORE_MAX_CONCURRENT is 0; no requests will be processed");
-        warnings += 1;
-    }
-
-    if warnings == 0 {
-        println!("Configuration is valid.");
-        0
-    } else {
-        1
-    }
-}
-
-/// The explicitly set stall value, before the 100 ms floor is applied.
-fn raw_stream_stall() -> Option<u64> {
-    std::env::var("GG_CORE_STREAM_STALL_MS").ok()?.parse().ok()
 }
 
 /// `GG_CORE_MAX_MEMORY_PER_CALL` as the runtime applies it.
@@ -146,6 +123,9 @@ mod tests {
         "GG_CORE_SESSION_TIMEOUT",
         "GG_CORE_N_CTX",
         "GG_CORE_N_THREADS",
+        "GG_CORE_IPC_FRAME_LIMIT",
+        "GG_CORE_MAX_CONNECTIONS",
+        "GG_CORE_STREAM_STALL_MS",
     ];
 
     fn clear_env() {
@@ -174,16 +154,12 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_warns_when_concurrent_zero() {
-        // config.rs clamps concurrent = concurrent.max(1), so setting 0
-        // yields effective value 1. Validate sees 1 (not 0) and passes.
-        // This tests the guard is transparent to end users.
+    fn validate_rejects_explicit_zero_concurrency() {
         let _lock = env_guard();
         clear_env();
         std::env::set_var("GG_CORE_MAX_CONCURRENT", "0");
-        let code = run_validate();
-        // After clamping, effective concurrent == 1, no warning expected.
-        assert_eq!(code, 0);
+        assert_eq!(run_validate(), 1);
+        assert_eq!(try_show(), 1);
         clear_env();
     }
 

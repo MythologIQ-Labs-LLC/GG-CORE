@@ -214,6 +214,8 @@ The most important runtime settings are:
 
 Use `gg-core-cli config defaults`, `config show`, and `config validate` to inspect the effective configuration surface. **For long prompts, set `GG_CORE_N_CTX=4096` as well as matching admission limits before starting**; `GG_CORE_MAX_CONTEXT=4096` alone does not enlarge the native GGUF window.
 
+**Strict resource overrides (planned in #194, draft #206):** when implemented and qualified, explicitly configured numeric resource variables must be plain decimal values within their documented bounds. Invalid values will be refused rather than silently clamped or replaced with defaults. `GG_CORE_N_THREADS=0` remains auto; nonzero values must fit the GGUF native `i32` thread count. The IPC frame limit must fit the 32-bit length prefix. Unset defaults and the existing strict memory ceilings remain unchanged.
+
 ### 3. Start the process
 
 Linux or macOS:

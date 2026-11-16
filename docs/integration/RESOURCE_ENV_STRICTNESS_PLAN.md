@@ -21,6 +21,26 @@ The `core-runtime/src/cli/config_cmd.rs::run_validate` path reads the *post-clam
 | `GG_CORE_SHUTDOWN_TIMEOUT`, `GG_CORE_SESSION_TIMEOUT` | Bad text → default; zero → 1 | Strict decimal `u64` **>= 1**; refuse malformed, zero and overflow; preserve existing duration semantics | 30 and 3600 seconds |
 | `GG_CORE_MAX_TOTAL_MEMORY`, `GG_CORE_MAX_MEMORY_PER_CALL` | Already strict via `config_memory.rs` | **No behavior change.** Retain exact explicit memory authority, contradictions refused | Existing host-derived/optional defaults |
 
+**Implementation discovery (#206, not yet qualified):** The GGUF native backend stores
+resolved threads as `i32` (`engine/gguf/backend.rs::resolve_threads`).
+Previously, `GG_CORE_N_THREADS` values above `i32::MAX` were accepted as `u32`
+but silently changed to four threads by `i32::try_from(...).unwrap_or(4)`.
+That contradicts the explicit-value requirement. For this variable only,
+the strict implementation therefore accepts **0..=2,147,483,647** and refuses
+larger values rather than pretending to apply them. Zero remains auto.
+This is a source-level representability boundary, **not** a new performance
+or worker-policy limit. It needs source/packaged qualification and independent
+review before merging the plan correction or implementation.
+
+**IPC wire-format follow-up (#206, not yet qualified):** The server reads a
+four-byte little-endian frame length (`u32`). On 64-bit hosts, an explicit
+`GG_CORE_IPC_FRAME_LIMIT > 4,294,967,295` was parseable as `usize` but
+could never be represented by that IPC protocol. The strict implementation
+therefore accepts **4096..=4,294,967,295** on supported hosts and refuses
+larger explicit values. This follows the existing protocol's length cap,
+rather than silently advertising a frame allowance the runtime cannot serve.
+The source checks and boundary tests remain subject to execution and review.
+
 **Out of scope:** changing `CORE_AUTH_TOKEN`, model admission and inference algorithms; adding arbitrary new max caps; changing legitimate omitted-variable defaults; redefining the auto-thread sentinel; touching frozen RC1 or downstream CoreForge pins.
 
 ## Smallest safe implementation route (separate branch)
