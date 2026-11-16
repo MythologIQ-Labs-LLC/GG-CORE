@@ -10,6 +10,7 @@ pub mod prometheus;
 pub mod security_log;
 pub mod span_export;
 mod spans;
+pub mod stop_trace;
 mod store;
 
 pub use buckets::{BucketedHistogram, BucketedHistogramSnapshot};

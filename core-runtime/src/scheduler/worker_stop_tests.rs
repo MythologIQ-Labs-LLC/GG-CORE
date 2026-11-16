@@ -195,3 +195,6 @@ async fn backend_ignoring_stop_still_yields_explicit_failure() {
     assert!(err.contains("Deadline exceeded"), "{err}");
     shutdown.cancel();
 }
+
+#[path = "worker_stop_trace_tests.rs"]
+mod trace;

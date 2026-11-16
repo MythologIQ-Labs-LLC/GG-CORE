@@ -13,6 +13,7 @@ use llama_cpp_2::token::LlamaToken;
 
 use super::backend::decode;
 use super::prefill_schedule::{self, MAX_PREFILL_CHUNK};
+use super::stop_observe::Phase;
 use crate::engine::InferenceError;
 
 /// Optional cooperative stop check, polled before every chunk.
@@ -80,10 +81,10 @@ fn decode_chunked(
 ) -> Result<bool, InferenceError> {
     let mut offset = 0;
     while offset < tokens.len() {
-        if stop_requested(should_stop) {
+        let left = tokens.len() - offset;
+        if super::stop_observe::stopped(should_stop, Phase::Prefill, begin + offset, left) {
             return Ok(false);
         }
-        let left = tokens.len() - offset;
         let len = size(begin + offset, left).clamp(1, left);
         #[cfg(test)]
         recorder::record(len);

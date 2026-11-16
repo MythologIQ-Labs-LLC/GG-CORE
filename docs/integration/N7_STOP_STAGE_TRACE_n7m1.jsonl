@@ -1,0 +1,234 @@
+{"tag": "newon-ctx16384-t0", "message": "stop trace started", "unix_ms": 1794821968902, "dropped": 0, "t": 2.69e-05}
+{"tag": "newon-ctx16384-t0", "message": "cancel request received", "request_id": 1410, "matched": true, "dropped": 0, "t": 13.1121406}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1410, "queue_id": 2, "kind": "cancelled", "stream": false, "dropped": 0, "t": 13.1122023}
+{"tag": "newon-ctx16384-t0", "message": "backend stop observed", "phase": "prefill", "done": 256, "remaining": 2261, "last_decode_tokens": 256, "last_decode_ms": 683.395, "dropped": 0, "queue_id": 2, "stream": false, "name": "stop_scope", "t": 13.5943914}
+{"tag": "newon-ctx16384-t0", "message": "worker released after stop", "queue_id": 2, "cancel_flag": true, "deadline_passed": false, "run_ms": 2106, "stream": false, "dropped": 0, "t": 13.7166924}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1411, "queue_id": 3, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 15.9943982}
+{"tag": "newon-ctx16384-t0", "message": "backend stop observed", "phase": "prefill", "done": 256, "remaining": 2261, "last_decode_tokens": 256, "last_decode_ms": 697.419, "dropped": 0, "queue_id": 3, "stream": false, "name": "stop_scope", "t": 16.1918819}
+{"tag": "newon-ctx16384-t0", "message": "worker released after stop", "queue_id": 3, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 205, "run_ms": 2205, "stream": false, "dropped": 0, "t": 16.199174}
+{"tag": "newon-ctx16384-t0", "message": "cancel request received", "request_id": 1412, "matched": true, "dropped": 0, "t": 19.0568602}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1412, "queue_id": 4, "kind": "cancelled", "stream": false, "dropped": 0, "t": 19.0569051}
+{"tag": "newon-ctx16384-t0", "message": "backend stop observed", "phase": "decode", "done": 103, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 8.644, "dropped": 0, "queue_id": 4, "stream": false, "name": "stop_scope", "t": 19.0621584}
+{"tag": "newon-ctx16384-t0", "message": "worker released after stop", "queue_id": 4, "cancel_flag": true, "deadline_passed": false, "run_ms": 2567, "stream": false, "dropped": 0, "t": 19.1232078}
+{"tag": "newon-ctx16384-t0", "message": "cancel request received", "request_id": 1415, "matched": true, "dropped": 0, "t": 20.0293363}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1415, "queue_id": 7, "kind": "cancelled", "stream": false, "dropped": 0, "t": 20.0293704}
+{"tag": "newon-ctx16384-t0", "message": "cancel request received", "request_id": 1418, "matched": true, "dropped": 0, "t": 45.5794312}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1418, "queue_id": 10, "kind": "cancelled", "stream": false, "dropped": 0, "t": 45.5794791}
+{"tag": "newon-ctx16384-t0", "message": "backend stop observed", "phase": "prefill", "done": 256, "remaining": 2261, "last_decode_tokens": 256, "last_decode_ms": 700.999, "dropped": 0, "queue_id": 10, "stream": false, "name": "stop_scope", "t": 45.7453592}
+{"tag": "newon-ctx16384-t0", "message": "worker released after stop", "queue_id": 10, "cancel_flag": true, "deadline_passed": false, "run_ms": 2179, "stream": false, "dropped": 0, "t": 45.7530468}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1419, "queue_id": 11, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 48.64335}
+{"tag": "newon-ctx16384-t0", "message": "backend stop observed", "phase": "prefill", "done": 512, "remaining": 2005, "last_decode_tokens": 256, "last_decode_ms": 709.631, "dropped": 0, "queue_id": 11, "stream": false, "name": "stop_scope", "t": 49.028277}
+{"tag": "newon-ctx16384-t0", "message": "worker released after stop", "queue_id": 11, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 509, "run_ms": 3009, "stream": false, "dropped": 0, "t": 49.1457156}
+{"tag": "newon-ctx16384-t0", "message": "cancel request received", "request_id": 1420, "matched": true, "dropped": 0, "t": 52.4360456}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1420, "queue_id": 12, "kind": "cancelled", "stream": false, "dropped": 0, "t": 52.4360897}
+{"tag": "newon-ctx16384-t0", "message": "backend stop observed", "phase": "decode", "done": 159, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 8.902, "dropped": 0, "queue_id": 12, "stream": false, "name": "stop_scope", "t": 52.4450043}
+{"tag": "newon-ctx16384-t0", "message": "worker released after stop", "queue_id": 12, "cancel_flag": true, "deadline_passed": false, "run_ms": 3073, "stream": false, "dropped": 0, "t": 52.4968207}
+{"tag": "newon-ctx16384-t0", "message": "cancel request received", "request_id": 1423, "matched": true, "dropped": 0, "t": 53.3991121}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1423, "queue_id": 15, "kind": "cancelled", "stream": false, "dropped": 0, "t": 53.3991461}
+{"tag": "newon-ctx16384-t0", "message": "cancel request received", "request_id": 1426, "matched": true, "dropped": 0, "t": 79.5408562}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1426, "queue_id": 18, "kind": "cancelled", "stream": false, "dropped": 0, "t": 79.5409017}
+{"tag": "newon-ctx16384-t0", "message": "backend stop observed", "phase": "prefill", "done": 512, "remaining": 2005, "last_decode_tokens": 256, "last_decode_ms": 677.885, "dropped": 0, "queue_id": 18, "stream": false, "name": "stop_scope", "t": 79.7105347}
+{"tag": "newon-ctx16384-t0", "message": "worker released after stop", "queue_id": 18, "cancel_flag": true, "deadline_passed": false, "run_ms": 2682, "stream": false, "dropped": 0, "t": 79.7176468}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1427, "queue_id": 19, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 83.1434271}
+{"tag": "newon-ctx16384-t0", "message": "backend stop observed", "phase": "prefill", "done": 768, "remaining": 1749, "last_decode_tokens": 256, "last_decode_ms": 758.058, "dropped": 0, "queue_id": 19, "stream": false, "name": "stop_scope", "t": 83.6754407}
+{"tag": "newon-ctx16384-t0", "message": "worker released after stop", "queue_id": 19, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 596, "run_ms": 3596, "stream": false, "dropped": 0, "t": 83.7331972}
+{"tag": "newon-ctx16384-t0", "message": "cancel request received", "request_id": 1428, "matched": true, "dropped": 0, "t": 87.5891504}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1428, "queue_id": 20, "kind": "cancelled", "stream": false, "dropped": 0, "t": 87.5892016}
+{"tag": "newon-ctx16384-t0", "message": "backend stop observed", "phase": "decode", "done": 225, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 8.733, "dropped": 0, "queue_id": 20, "stream": false, "name": "stop_scope", "t": 87.5971651}
+{"tag": "newon-ctx16384-t0", "message": "worker released after stop", "queue_id": 20, "cancel_flag": true, "deadline_passed": false, "run_ms": 3572, "stream": false, "dropped": 0, "t": 87.651507}
+{"tag": "newon-ctx16384-t0", "message": "cancel request received", "request_id": 1431, "matched": true, "dropped": 0, "t": 88.5698045}
+{"tag": "newon-ctx16384-t0", "message": "stop answered to caller", "request_id": 1431, "queue_id": 23, "kind": "cancelled", "stream": false, "dropped": 0, "t": 88.5698277}
+{"tag": "newon-ctx16384-t1", "message": "stop trace started", "unix_ms": 1794820513168, "dropped": 0, "t": 2.83e-05}
+{"tag": "newon-ctx16384-t1", "message": "cancel request received", "request_id": 1266, "matched": true, "dropped": 0, "t": 33.3851527}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1266, "queue_id": 2, "kind": "cancelled", "stream": false, "dropped": 0, "t": 33.3851787}
+{"tag": "newon-ctx16384-t1", "message": "backend stop observed", "phase": "prefill", "done": 64, "remaining": 2453, "last_decode_tokens": 64, "last_decode_ms": 604.84, "dropped": 0, "queue_id": 2, "stream": false, "name": "stop_scope", "t": 33.7489478}
+{"tag": "newon-ctx16384-t1", "message": "worker released after stop", "queue_id": 2, "cancel_flag": true, "deadline_passed": false, "run_ms": 1947, "stream": false, "dropped": 0, "t": 33.8220139}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1267, "queue_id": 3, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 36.0629305}
+{"tag": "newon-ctx16384-t1", "message": "backend stop observed", "phase": "prefill", "done": 128, "remaining": 2389, "last_decode_tokens": 64, "last_decode_ms": 595.29, "dropped": 0, "queue_id": 3, "stream": false, "name": "stop_scope", "t": 36.5368282}
+{"tag": "newon-ctx16384-t1", "message": "worker released after stop", "queue_id": 3, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 541, "run_ms": 2541, "stream": false, "dropped": 0, "t": 36.6000751}
+{"tag": "newon-ctx16384-t1", "message": "cancel request received", "request_id": 1268, "matched": true, "dropped": 0, "t": 39.3474345}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1268, "queue_id": 4, "kind": "cancelled", "stream": false, "dropped": 0, "t": 39.3474676}
+{"tag": "newon-ctx16384-t1", "message": "backend stop observed", "phase": "decode", "done": 45, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 24.868, "dropped": 0, "queue_id": 4, "stream": false, "name": "stop_scope", "t": 39.3713709}
+{"tag": "newon-ctx16384-t1", "message": "worker released after stop", "queue_id": 4, "cancel_flag": true, "deadline_passed": false, "run_ms": 2572, "stream": false, "dropped": 0, "t": 39.4101739}
+{"tag": "newon-ctx16384-t1", "message": "cancel request received", "request_id": 1271, "matched": true, "dropped": 0, "t": 40.2979978}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1271, "queue_id": 7, "kind": "cancelled", "stream": false, "dropped": 0, "t": 40.2980262}
+{"tag": "newon-ctx16384-t1", "message": "cancel request received", "request_id": 1274, "matched": true, "dropped": 0, "t": 105.3815426}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1274, "queue_id": 10, "kind": "cancelled", "stream": false, "dropped": 0, "t": 105.381574}
+{"tag": "newon-ctx16384-t1", "message": "backend stop observed", "phase": "prefill", "done": 128, "remaining": 2389, "last_decode_tokens": 64, "last_decode_ms": 594.51, "dropped": 0, "queue_id": 10, "stream": false, "name": "stop_scope", "t": 105.8681129}
+{"tag": "newon-ctx16384-t1", "message": "worker released after stop", "queue_id": 10, "cancel_flag": true, "deadline_passed": false, "run_ms": 2558, "stream": false, "dropped": 0, "t": 105.9306835}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1275, "queue_id": 11, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 108.6871821}
+{"tag": "newon-ctx16384-t1", "message": "backend stop observed", "phase": "prefill", "done": 128, "remaining": 2389, "last_decode_tokens": 64, "last_decode_ms": 606.553, "dropped": 0, "queue_id": 11, "stream": false, "name": "stop_scope", "t": 108.8742829}
+{"tag": "newon-ctx16384-t1", "message": "worker released after stop", "queue_id": 11, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 205, "run_ms": 2705, "stream": false, "dropped": 0, "t": 108.8802847}
+{"tag": "newon-ctx16384-t1", "message": "cancel request received", "request_id": 1276, "matched": true, "dropped": 0, "t": 112.1378587}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1276, "queue_id": 12, "kind": "cancelled", "stream": false, "dropped": 0, "t": 112.1378882}
+{"tag": "newon-ctx16384-t1", "message": "backend stop observed", "phase": "decode", "done": 62, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 22.871, "dropped": 0, "queue_id": 12, "stream": false, "name": "stop_scope", "t": 112.1495631}
+{"tag": "newon-ctx16384-t1", "message": "worker released after stop", "queue_id": 12, "cancel_flag": true, "deadline_passed": false, "run_ms": 3059, "stream": false, "dropped": 0, "t": 112.1959246}
+{"tag": "newon-ctx16384-t1", "message": "cancel request received", "request_id": 1279, "matched": true, "dropped": 0, "t": 113.0924504}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1279, "queue_id": 15, "kind": "cancelled", "stream": false, "dropped": 0, "t": 113.0924946}
+{"tag": "newon-ctx16384-t1", "message": "cancel request received", "request_id": 1282, "matched": true, "dropped": 0, "t": 179.0442374}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1282, "queue_id": 18, "kind": "cancelled", "stream": false, "dropped": 0, "t": 179.0442648}
+{"tag": "newon-ctx16384-t1", "message": "backend stop observed", "phase": "prefill", "done": 192, "remaining": 2325, "last_decode_tokens": 64, "last_decode_ms": 598.661, "dropped": 0, "queue_id": 18, "stream": false, "name": "stop_scope", "t": 179.589083}
+{"tag": "newon-ctx16384-t1", "message": "worker released after stop", "queue_id": 18, "cancel_flag": true, "deadline_passed": false, "run_ms": 3051, "stream": false, "dropped": 0, "t": 179.5948511}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1283, "queue_id": 19, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 182.8203431}
+{"tag": "newon-ctx16384-t1", "message": "backend stop observed", "phase": "prefill", "done": 192, "remaining": 2325, "last_decode_tokens": 64, "last_decode_ms": 610.978, "dropped": 0, "queue_id": 19, "stream": false, "name": "stop_scope", "t": 182.9153175}
+{"tag": "newon-ctx16384-t1", "message": "worker released after stop", "queue_id": 19, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 110, "run_ms": 3110, "stream": false, "dropped": 0, "t": 182.9209573}
+{"tag": "newon-ctx16384-t1", "message": "cancel request received", "request_id": 1284, "matched": true, "dropped": 0, "t": 186.6799491}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1284, "queue_id": 20, "kind": "cancelled", "stream": false, "dropped": 0, "t": 186.6799782}
+{"tag": "newon-ctx16384-t1", "message": "backend stop observed", "phase": "decode", "done": 89, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 22.757, "dropped": 0, "queue_id": 20, "stream": false, "name": "stop_scope", "t": 186.6961279}
+{"tag": "newon-ctx16384-t1", "message": "worker released after stop", "queue_id": 20, "cancel_flag": true, "deadline_passed": false, "run_ms": 3595, "stream": false, "dropped": 0, "t": 186.7616244}
+{"tag": "newon-ctx16384-t1", "message": "cancel request received", "request_id": 1287, "matched": true, "dropped": 0, "t": 187.6588606}
+{"tag": "newon-ctx16384-t1", "message": "stop answered to caller", "request_id": 1287, "queue_id": 23, "kind": "cancelled", "stream": false, "dropped": 0, "t": 187.6588866}
+{"tag": "newon-ctx16384-t2", "message": "stop trace started", "unix_ms": 1794821171946, "dropped": 0, "t": 2.79e-05}
+{"tag": "newon-ctx16384-t2", "message": "cancel request received", "request_id": 1338, "matched": true, "dropped": 0, "t": 48.138699}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1338, "queue_id": 2, "kind": "cancelled", "stream": false, "dropped": 0, "t": 48.1387429}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1339, "queue_id": 3, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 50.3758519}
+{"tag": "newon-ctx16384-t2", "message": "cancel request received", "request_id": 1340, "matched": true, "dropped": 0, "t": 53.1224129}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1340, "queue_id": 4, "kind": "cancelled", "stream": false, "dropped": 0, "t": 53.1224567}
+{"tag": "newon-ctx16384-t2", "message": "cancel request received", "request_id": 1343, "matched": true, "dropped": 0, "t": 53.9849109}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1343, "queue_id": 7, "kind": "cancelled", "stream": false, "dropped": 0, "t": 53.9849517}
+{"tag": "newon-ctx16384-t2", "message": "backend stop observed", "phase": "prefill", "done": 0, "remaining": 2517, "dropped": 0, "queue_id": 2, "stream": false, "name": "stop_scope", "t": 70.6491426}
+{"tag": "newon-ctx16384-t2", "message": "worker released after stop", "queue_id": 2, "cancel_flag": true, "deadline_passed": false, "run_ms": 24064, "stream": false, "dropped": 0, "t": 70.6899202}
+{"tag": "newon-ctx16384-t2", "message": "backend stop observed", "phase": "prefill", "done": 0, "remaining": 2517, "dropped": 0, "queue_id": 3, "stream": false, "name": "stop_scope", "t": 81.2577644}
+{"tag": "newon-ctx16384-t2", "message": "worker released after stop", "queue_id": 3, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 31211, "run_ms": 33211, "stream": false, "dropped": 0, "t": 81.5725506}
+{"tag": "newon-ctx16384-t2", "message": "cancel request received", "request_id": 1346, "matched": true, "dropped": 0, "t": 172.1429399}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1346, "queue_id": 10, "kind": "cancelled", "stream": false, "dropped": 0, "t": 172.1429831}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1347, "queue_id": 11, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 174.8892199}
+{"tag": "newon-ctx16384-t2", "message": "cancel request received", "request_id": 1348, "matched": true, "dropped": 0, "t": 178.1342212}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1348, "queue_id": 12, "kind": "cancelled", "stream": false, "dropped": 0, "t": 178.1342606}
+{"tag": "newon-ctx16384-t2", "message": "cancel request received", "request_id": 1351, "matched": true, "dropped": 0, "t": 178.970112}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1351, "queue_id": 15, "kind": "cancelled", "stream": false, "dropped": 0, "t": 178.9701479}
+{"tag": "newon-ctx16384-t2", "message": "backend stop observed", "phase": "prefill", "done": 0, "remaining": 2517, "dropped": 0, "queue_id": 10, "stream": false, "name": "stop_scope", "t": 199.0874861}
+{"tag": "newon-ctx16384-t2", "message": "worker released after stop", "queue_id": 10, "cancel_flag": true, "deadline_passed": false, "run_ms": 29095, "stream": false, "dropped": 0, "t": 199.233225}
+{"tag": "newon-ctx16384-t2", "message": "backend stop observed", "phase": "prefill", "done": 0, "remaining": 2517, "dropped": 0, "queue_id": 11, "stream": false, "name": "stop_scope", "t": 201.5004004}
+{"tag": "newon-ctx16384-t2", "message": "worker released after stop", "queue_id": 11, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 26680, "run_ms": 29180, "stream": false, "dropped": 0, "t": 201.5560203}
+{"tag": "newon-ctx16384-t2", "message": "cancel request received", "request_id": 1354, "matched": true, "dropped": 0, "t": 295.7176564}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1354, "queue_id": 18, "kind": "cancelled", "stream": false, "dropped": 0, "t": 295.7177045}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1355, "queue_id": 19, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 298.9574228}
+{"tag": "newon-ctx16384-t2", "message": "cancel request received", "request_id": 1356, "matched": true, "dropped": 0, "t": 302.690742}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1356, "queue_id": 20, "kind": "cancelled", "stream": false, "dropped": 0, "t": 302.6907823}
+{"tag": "newon-ctx16384-t2", "message": "cancel request received", "request_id": 1359, "matched": true, "dropped": 0, "t": 303.5498436}
+{"tag": "newon-ctx16384-t2", "message": "stop answered to caller", "request_id": 1359, "queue_id": 23, "kind": "cancelled", "stream": false, "dropped": 0, "t": 303.5498812}
+{"tag": "newon-ctx16384-t2", "message": "backend stop observed", "phase": "prefill", "done": 0, "remaining": 2517, "dropped": 0, "queue_id": 18, "stream": false, "name": "stop_scope", "t": 319.0608595}
+{"tag": "newon-ctx16384-t2", "message": "worker released after stop", "queue_id": 18, "cancel_flag": true, "deadline_passed": false, "run_ms": 25915, "stream": false, "dropped": 0, "t": 319.1197427}
+{"tag": "newon-ctx16384-t2", "message": "backend stop observed", "phase": "prefill", "done": 0, "remaining": 2517, "dropped": 0, "queue_id": 19, "stream": false, "name": "stop_scope", "t": 328.7291133}
+{"tag": "newon-ctx16384-t2", "message": "worker released after stop", "queue_id": 19, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 29843, "run_ms": 32843, "stream": false, "dropped": 0, "t": 328.7851273}
+{"tag": "newon-ctx8192-t0", "message": "stop trace started", "unix_ms": 1794819966690, "dropped": 0, "t": 3.32e-05}
+{"tag": "newon-ctx8192-t0", "message": "cancel request received", "request_id": 1194, "matched": true, "dropped": 0, "t": 13.1142126}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1194, "queue_id": 2, "kind": "cancelled", "stream": false, "dropped": 0, "t": 13.1142611}
+{"tag": "newon-ctx8192-t0", "message": "backend stop observed", "phase": "prefill", "done": 256, "remaining": 2261, "last_decode_tokens": 256, "last_decode_ms": 666.402, "dropped": 0, "queue_id": 2, "stream": false, "name": "stop_scope", "t": 13.5482912}
+{"tag": "newon-ctx8192-t0", "message": "worker released after stop", "queue_id": 2, "cancel_flag": true, "deadline_passed": false, "run_ms": 1997, "stream": false, "dropped": 0, "t": 13.6024508}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1195, "queue_id": 3, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 15.9056577}
+{"tag": "newon-ctx8192-t0", "message": "backend stop observed", "phase": "prefill", "done": 256, "remaining": 2261, "last_decode_tokens": 256, "last_decode_ms": 678.406, "dropped": 0, "queue_id": 3, "stream": false, "name": "stop_scope", "t": 16.0298615}
+{"tag": "newon-ctx8192-t0", "message": "worker released after stop", "queue_id": 3, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 132, "run_ms": 2132, "stream": false, "dropped": 0, "t": 16.0349235}
+{"tag": "newon-ctx8192-t0", "message": "cancel request received", "request_id": 1196, "matched": true, "dropped": 0, "t": 18.9816561}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1196, "queue_id": 4, "kind": "cancelled", "stream": false, "dropped": 0, "t": 18.9817054}
+{"tag": "newon-ctx8192-t0", "message": "backend stop observed", "phase": "decode", "done": 124, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 10.442, "dropped": 0, "queue_id": 4, "stream": false, "name": "stop_scope", "t": 18.9897472}
+{"tag": "newon-ctx8192-t0", "message": "worker released after stop", "queue_id": 4, "cancel_flag": true, "deadline_passed": false, "run_ms": 2572, "stream": false, "dropped": 0, "t": 19.0414527}
+{"tag": "newon-ctx8192-t0", "message": "cancel request received", "request_id": 1199, "matched": true, "dropped": 0, "t": 20.0648064}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1199, "queue_id": 7, "kind": "cancelled", "stream": false, "dropped": 0, "t": 20.0648684}
+{"tag": "newon-ctx8192-t0", "message": "cancel request received", "request_id": 1202, "matched": true, "dropped": 0, "t": 45.7499963}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1202, "queue_id": 10, "kind": "cancelled", "stream": false, "dropped": 0, "t": 45.7500386}
+{"tag": "newon-ctx8192-t0", "message": "backend stop observed", "phase": "prefill", "done": 512, "remaining": 2005, "last_decode_tokens": 256, "last_decode_ms": 665.938, "dropped": 0, "queue_id": 10, "stream": false, "name": "stop_scope", "t": 46.4030979}
+{"tag": "newon-ctx8192-t0", "message": "worker released after stop", "queue_id": 10, "cancel_flag": true, "deadline_passed": false, "run_ms": 2722, "stream": false, "dropped": 0, "t": 46.459707}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1203, "queue_id": 11, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 49.2728575}
+{"tag": "newon-ctx8192-t0", "message": "backend stop observed", "phase": "prefill", "done": 512, "remaining": 2005, "last_decode_tokens": 256, "last_decode_ms": 695.081, "dropped": 0, "queue_id": 11, "stream": false, "name": "stop_scope", "t": 49.6451842}
+{"tag": "newon-ctx8192-t0", "message": "worker released after stop", "queue_id": 11, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 503, "run_ms": 3003, "stream": false, "dropped": 0, "t": 49.7676758}
+{"tag": "newon-ctx8192-t0", "message": "cancel request received", "request_id": 1204, "matched": true, "dropped": 0, "t": 53.0635063}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1204, "queue_id": 12, "kind": "cancelled", "stream": false, "dropped": 0, "t": 53.0635523}
+{"tag": "newon-ctx8192-t0", "message": "backend stop observed", "phase": "decode", "done": 170, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 10.551, "dropped": 0, "queue_id": 12, "stream": false, "name": "stop_scope", "t": 53.0744633}
+{"tag": "newon-ctx8192-t0", "message": "worker released after stop", "queue_id": 12, "cancel_flag": true, "deadline_passed": false, "run_ms": 3056, "stream": false, "dropped": 0, "t": 53.1185764}
+{"tag": "newon-ctx8192-t0", "message": "cancel request received", "request_id": 1207, "matched": true, "dropped": 0, "t": 54.048398}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1207, "queue_id": 15, "kind": "cancelled", "stream": false, "dropped": 0, "t": 54.0484344}
+{"tag": "newon-ctx8192-t0", "message": "cancel request received", "request_id": 1210, "matched": true, "dropped": 0, "t": 79.9640924}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1210, "queue_id": 18, "kind": "cancelled", "stream": false, "dropped": 0, "t": 79.9641367}
+{"tag": "newon-ctx8192-t0", "message": "backend stop observed", "phase": "prefill", "done": 512, "remaining": 2005, "last_decode_tokens": 256, "last_decode_ms": 699.117, "dropped": 0, "queue_id": 18, "stream": false, "name": "stop_scope", "t": 80.1835495}
+{"tag": "newon-ctx8192-t0", "message": "worker released after stop", "queue_id": 18, "cancel_flag": true, "deadline_passed": false, "run_ms": 2725, "stream": false, "dropped": 0, "t": 80.1884699}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1211, "queue_id": 19, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 83.5300235}
+{"tag": "newon-ctx8192-t0", "message": "backend stop observed", "phase": "prefill", "done": 768, "remaining": 1749, "last_decode_tokens": 256, "last_decode_ms": 723.279, "dropped": 0, "queue_id": 19, "stream": false, "name": "stop_scope", "t": 84.0132604}
+{"tag": "newon-ctx8192-t0", "message": "worker released after stop", "queue_id": 19, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 505, "run_ms": 3505, "stream": false, "dropped": 0, "t": 84.0286338}
+{"tag": "newon-ctx8192-t0", "message": "cancel request received", "request_id": 1212, "matched": true, "dropped": 0, "t": 87.9048146}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1212, "queue_id": 20, "kind": "cancelled", "stream": false, "dropped": 0, "t": 87.9048661}
+{"tag": "newon-ctx8192-t0", "message": "backend stop observed", "phase": "decode", "done": 221, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 8.838, "dropped": 0, "queue_id": 20, "stream": false, "name": "stop_scope", "t": 87.9134519}
+{"tag": "newon-ctx8192-t0", "message": "worker released after stop", "queue_id": 20, "cancel_flag": true, "deadline_passed": false, "run_ms": 3567, "stream": false, "dropped": 0, "t": 87.9702313}
+{"tag": "newon-ctx8192-t0", "message": "cancel request received", "request_id": 1215, "matched": true, "dropped": 0, "t": 88.9768198}
+{"tag": "newon-ctx8192-t0", "message": "stop answered to caller", "request_id": 1215, "queue_id": 23, "kind": "cancelled", "stream": false, "dropped": 0, "t": 88.976854}
+{"tag": "newon-ctx8192-t1", "message": "stop trace started", "unix_ms": 1794819117713, "dropped": 0, "t": 4.41e-05}
+{"tag": "newon-ctx8192-t1", "message": "cancel request received", "request_id": 1050, "matched": true, "dropped": 0, "t": 33.8960426}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1050, "queue_id": 2, "kind": "cancelled", "stream": false, "dropped": 0, "t": 33.8960745}
+{"tag": "newon-ctx8192-t1", "message": "backend stop observed", "phase": "prefill", "done": 64, "remaining": 2453, "last_decode_tokens": 64, "last_decode_ms": 603.185, "dropped": 0, "queue_id": 2, "stream": false, "name": "stop_scope", "t": 34.3993293}
+{"tag": "newon-ctx8192-t1", "message": "worker released after stop", "queue_id": 2, "cancel_flag": true, "deadline_passed": false, "run_ms": 2063, "stream": false, "dropped": 0, "t": 34.4576931}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1051, "queue_id": 3, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 36.6881614}
+{"tag": "newon-ctx8192-t1", "message": "backend stop observed", "phase": "prefill", "done": 128, "remaining": 2389, "last_decode_tokens": 64, "last_decode_ms": 596.66, "dropped": 0, "queue_id": 3, "stream": false, "name": "stop_scope", "t": 37.1978062}
+{"tag": "newon-ctx8192-t1", "message": "worker released after stop", "queue_id": 3, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 566, "run_ms": 2566, "stream": false, "dropped": 0, "t": 37.2518548}
+{"tag": "newon-ctx8192-t1", "message": "cancel request received", "request_id": 1052, "matched": true, "dropped": 0, "t": 39.9819277}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1052, "queue_id": 4, "kind": "cancelled", "stream": false, "dropped": 0, "t": 39.9819563}
+{"tag": "newon-ctx8192-t1", "message": "backend stop observed", "phase": "decode", "done": 47, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 23.515, "dropped": 0, "queue_id": 4, "stream": false, "name": "stop_scope", "t": 40.0027486}
+{"tag": "newon-ctx8192-t1", "message": "worker released after stop", "queue_id": 4, "cancel_flag": true, "deadline_passed": false, "run_ms": 2533, "stream": false, "dropped": 0, "t": 40.0075827}
+{"tag": "newon-ctx8192-t1", "message": "cancel request received", "request_id": 1055, "matched": true, "dropped": 0, "t": 40.9583769}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1055, "queue_id": 7, "kind": "cancelled", "stream": false, "dropped": 0, "t": 40.9584508}
+{"tag": "newon-ctx8192-t1", "message": "cancel request received", "request_id": 1058, "matched": true, "dropped": 0, "t": 105.2541149}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1058, "queue_id": 10, "kind": "cancelled", "stream": false, "dropped": 0, "t": 105.2541483}
+{"tag": "newon-ctx8192-t1", "message": "backend stop observed", "phase": "prefill", "done": 128, "remaining": 2389, "last_decode_tokens": 64, "last_decode_ms": 597.297, "dropped": 0, "queue_id": 10, "stream": false, "name": "stop_scope", "t": 105.711709}
+{"tag": "newon-ctx8192-t1", "message": "worker released after stop", "queue_id": 10, "cancel_flag": true, "deadline_passed": false, "run_ms": 2513, "stream": false, "dropped": 0, "t": 105.7672657}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1059, "queue_id": 11, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 108.5440736}
+{"tag": "newon-ctx8192-t1", "message": "backend stop observed", "phase": "prefill", "done": 128, "remaining": 2389, "last_decode_tokens": 64, "last_decode_ms": 594.456, "dropped": 0, "queue_id": 11, "stream": false, "name": "stop_scope", "t": 108.6964393}
+{"tag": "newon-ctx8192-t1", "message": "worker released after stop", "queue_id": 11, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 171, "run_ms": 2671, "stream": false, "dropped": 0, "t": 108.7002397}
+{"tag": "newon-ctx8192-t1", "message": "cancel request received", "request_id": 1060, "matched": true, "dropped": 0, "t": 111.9936678}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1060, "queue_id": 12, "kind": "cancelled", "stream": false, "dropped": 0, "t": 111.9936971}
+{"tag": "newon-ctx8192-t1", "message": "backend stop observed", "phase": "decode", "done": 63, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 22.729, "dropped": 0, "queue_id": 12, "stream": false, "name": "stop_scope", "t": 112.0151541}
+{"tag": "newon-ctx8192-t1", "message": "worker released after stop", "queue_id": 12, "cancel_flag": true, "deadline_passed": false, "run_ms": 3061, "stream": false, "dropped": 0, "t": 112.0527371}
+{"tag": "newon-ctx8192-t1", "message": "cancel request received", "request_id": 1063, "matched": true, "dropped": 0, "t": 112.9743113}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1063, "queue_id": 15, "kind": "cancelled", "stream": false, "dropped": 0, "t": 112.974347}
+{"tag": "newon-ctx8192-t1", "message": "cancel request received", "request_id": 1066, "matched": true, "dropped": 0, "t": 177.5954837}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1066, "queue_id": 18, "kind": "cancelled", "stream": false, "dropped": 0, "t": 177.5955189}
+{"tag": "newon-ctx8192-t1", "message": "backend stop observed", "phase": "prefill", "done": 192, "remaining": 2325, "last_decode_tokens": 64, "last_decode_ms": 606.212, "dropped": 0, "queue_id": 18, "stream": false, "name": "stop_scope", "t": 178.1565219}
+{"tag": "newon-ctx8192-t1", "message": "worker released after stop", "queue_id": 18, "cancel_flag": true, "deadline_passed": false, "run_ms": 3070, "stream": false, "dropped": 0, "t": 178.1624219}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1067, "queue_id": 19, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 181.5189944}
+{"tag": "newon-ctx8192-t1", "message": "backend stop observed", "phase": "prefill", "done": 192, "remaining": 2325, "last_decode_tokens": 64, "last_decode_ms": 600.611, "dropped": 0, "queue_id": 19, "stream": false, "name": "stop_scope", "t": 181.6617419}
+{"tag": "newon-ctx8192-t1", "message": "worker released after stop", "queue_id": 19, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 148, "run_ms": 3148, "stream": false, "dropped": 0, "t": 181.66545}
+{"tag": "newon-ctx8192-t1", "message": "cancel request received", "request_id": 1068, "matched": true, "dropped": 0, "t": 185.4654038}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1068, "queue_id": 20, "kind": "cancelled", "stream": false, "dropped": 0, "t": 185.4654359}
+{"tag": "newon-ctx8192-t1", "message": "backend stop observed", "phase": "decode", "done": 85, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 23.545, "dropped": 0, "queue_id": 20, "stream": false, "name": "stop_scope", "t": 185.4813865}
+{"tag": "newon-ctx8192-t1", "message": "worker released after stop", "queue_id": 20, "cancel_flag": true, "deadline_passed": false, "run_ms": 3561, "stream": false, "dropped": 0, "t": 185.5231249}
+{"tag": "newon-ctx8192-t1", "message": "cancel request received", "request_id": 1071, "matched": true, "dropped": 0, "t": 186.5964172}
+{"tag": "newon-ctx8192-t1", "message": "stop answered to caller", "request_id": 1071, "queue_id": 23, "kind": "cancelled", "stream": false, "dropped": 0, "t": 186.5964704}
+{"tag": "newon-ctx8192-t2", "message": "stop trace started", "unix_ms": 1794819620894, "dropped": 0, "t": 3.21e-05}
+{"tag": "newon-ctx8192-t2", "message": "cancel request received", "request_id": 1122, "matched": true, "dropped": 0, "t": 20.0559593}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1122, "queue_id": 2, "kind": "cancelled", "stream": false, "dropped": 0, "t": 20.0559904}
+{"tag": "newon-ctx8192-t2", "message": "backend stop observed", "phase": "prefill", "done": 128, "remaining": 2389, "last_decode_tokens": 128, "last_decode_ms": 616.536, "dropped": 0, "queue_id": 2, "stream": false, "name": "stop_scope", "t": 20.4436122}
+{"tag": "newon-ctx8192-t2", "message": "worker released after stop", "queue_id": 2, "cancel_flag": true, "deadline_passed": false, "run_ms": 1955, "stream": false, "dropped": 0, "t": 20.504582}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1123, "queue_id": 3, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 22.8422605}
+{"tag": "newon-ctx8192-t2", "message": "backend stop observed", "phase": "prefill", "done": 256, "remaining": 2261, "last_decode_tokens": 128, "last_decode_ms": 623.177, "dropped": 0, "queue_id": 3, "stream": false, "name": "stop_scope", "t": 23.451006}
+{"tag": "newon-ctx8192-t2", "message": "worker released after stop", "queue_id": 3, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 673, "run_ms": 2673, "stream": false, "dropped": 0, "t": 23.5087003}
+{"tag": "newon-ctx8192-t2", "message": "cancel request received", "request_id": 1124, "matched": true, "dropped": 0, "t": 26.3534207}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1124, "queue_id": 4, "kind": "cancelled", "stream": false, "dropped": 0, "t": 26.3534784}
+{"tag": "newon-ctx8192-t2", "message": "backend stop observed", "phase": "decode", "done": 73, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 13.818, "dropped": 0, "queue_id": 4, "stream": false, "name": "stop_scope", "t": 26.3581351}
+{"tag": "newon-ctx8192-t2", "message": "worker released after stop", "queue_id": 4, "cancel_flag": true, "deadline_passed": false, "run_ms": 2566, "stream": false, "dropped": 0, "t": 26.4169441}
+{"tag": "newon-ctx8192-t2", "message": "cancel request received", "request_id": 1127, "matched": true, "dropped": 0, "t": 27.3111404}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1127, "queue_id": 7, "kind": "cancelled", "stream": false, "dropped": 0, "t": 27.3112135}
+{"tag": "newon-ctx8192-t2", "message": "cancel request received", "request_id": 1130, "matched": true, "dropped": 0, "t": 64.4397573}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1130, "queue_id": 10, "kind": "cancelled", "stream": false, "dropped": 0, "t": 64.4398019}
+{"tag": "newon-ctx8192-t2", "message": "backend stop observed", "phase": "prefill", "done": 256, "remaining": 2261, "last_decode_tokens": 128, "last_decode_ms": 644.261, "dropped": 0, "queue_id": 10, "stream": false, "name": "stop_scope", "t": 64.9399754}
+{"tag": "newon-ctx8192-t2", "message": "worker released after stop", "queue_id": 10, "cancel_flag": true, "deadline_passed": false, "run_ms": 2505, "stream": false, "dropped": 0, "t": 64.9442864}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1131, "queue_id": 11, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 67.8344495}
+{"tag": "newon-ctx8192-t2", "message": "backend stop observed", "phase": "prefill", "done": 256, "remaining": 2261, "last_decode_tokens": 128, "last_decode_ms": 646.369, "dropped": 0, "queue_id": 11, "stream": false, "name": "stop_scope", "t": 67.9439569}
+{"tag": "newon-ctx8192-t2", "message": "worker released after stop", "queue_id": 11, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 126, "run_ms": 2626, "stream": false, "dropped": 0, "t": 67.9480329}
+{"tag": "newon-ctx8192-t2", "message": "cancel request received", "request_id": 1132, "matched": true, "dropped": 0, "t": 71.2959698}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1132, "queue_id": 12, "kind": "cancelled", "stream": false, "dropped": 0, "t": 71.2960214}
+{"tag": "newon-ctx8192-t2", "message": "backend stop observed", "phase": "decode", "done": 117, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 13.843, "dropped": 0, "queue_id": 12, "stream": false, "name": "stop_scope", "t": 71.2976458}
+{"tag": "newon-ctx8192-t2", "message": "worker released after stop", "queue_id": 12, "cancel_flag": true, "deadline_passed": false, "run_ms": 3066, "stream": false, "dropped": 0, "t": 71.3509555}
+{"tag": "newon-ctx8192-t2", "message": "cancel request received", "request_id": 1135, "matched": true, "dropped": 0, "t": 72.2599753}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1135, "queue_id": 15, "kind": "cancelled", "stream": false, "dropped": 0, "t": 72.2600085}
+{"tag": "newon-ctx8192-t2", "message": "cancel request received", "request_id": 1138, "matched": true, "dropped": 0, "t": 110.0714194}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1138, "queue_id": 18, "kind": "cancelled", "stream": false, "dropped": 0, "t": 110.071464}
+{"tag": "newon-ctx8192-t2", "message": "backend stop observed", "phase": "prefill", "done": 256, "remaining": 2261, "last_decode_tokens": 128, "last_decode_ms": 625.605, "dropped": 0, "queue_id": 18, "stream": false, "name": "stop_scope", "t": 110.1204274}
+{"tag": "newon-ctx8192-t2", "message": "worker released after stop", "queue_id": 18, "cancel_flag": true, "deadline_passed": false, "run_ms": 2554, "stream": false, "dropped": 0, "t": 110.1247725}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1139, "queue_id": 19, "kind": "deadline_exceeded", "stream": false, "dropped": 0, "t": 113.5260892}
+{"tag": "newon-ctx8192-t2", "message": "backend stop observed", "phase": "prefill", "done": 384, "remaining": 2133, "last_decode_tokens": 128, "last_decode_ms": 669.619, "dropped": 0, "queue_id": 19, "stream": false, "name": "stop_scope", "t": 113.7206968}
+{"tag": "newon-ctx8192-t2", "message": "worker released after stop", "queue_id": 19, "cancel_flag": true, "deadline_passed": true, "overdue_ms": 205, "run_ms": 3205, "stream": false, "dropped": 0, "t": 113.7249632}
+{"tag": "newon-ctx8192-t2", "message": "cancel request received", "request_id": 1140, "matched": true, "dropped": 0, "t": 117.5984925}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1140, "queue_id": 20, "kind": "cancelled", "stream": false, "dropped": 0, "t": 117.5985424}
+{"tag": "newon-ctx8192-t2", "message": "backend stop observed", "phase": "decode", "done": 141, "remaining": 0, "last_decode_tokens": 1, "last_decode_ms": 13.387, "dropped": 0, "queue_id": 20, "stream": false, "name": "stop_scope", "t": 117.6108167}
+{"tag": "newon-ctx8192-t2", "message": "worker released after stop", "queue_id": 20, "cancel_flag": true, "deadline_passed": false, "run_ms": 3564, "stream": false, "dropped": 0, "t": 117.6604718}
+{"tag": "newon-ctx8192-t2", "message": "cancel request received", "request_id": 1143, "matched": true, "dropped": 0, "t": 118.5536687}
+{"tag": "newon-ctx8192-t2", "message": "stop answered to caller", "request_id": 1143, "queue_id": 23, "kind": "cancelled", "stream": false, "dropped": 0, "t": 118.5537016}

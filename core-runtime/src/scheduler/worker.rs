@@ -115,8 +115,16 @@ fn trace_stop_release(
         deadline_passed = control.is_expired(),
         overdue_ms = control.overdue().map(|d| d.as_millis() as u64),
         run_ms,
+        stream = false,
+        dropped = crate::telemetry::stop_trace::dropped(),
         "worker released after stop"
     );
+}
+
+/// #184 stop-trace span: backend stop observations on this request's
+/// blocking thread inherit `queue_id`. Queue ids are unique per `stream`.
+pub(super) fn stop_scope(queue_id: u64, stream: bool) -> tracing::Span {
+    tracing::info_span!(target: "gg_core::stop", "stop_scope", queue_id, stream)
 }
 
 /// Ingress scan. Returns the request when admitted; on rejection sends the
@@ -168,8 +176,11 @@ async fn run_blocking(
     let prompt = request.prompt.clone();
     let params = request.params.clone();
     let handle = tokio::runtime::Handle::current();
+    let span = stop_scope(request.id, false);
     tokio::task::spawn_blocking(move || {
-        handle.block_on(engine.run_controlled(&model_id, &prompt, &params, &control, max_memory))
+        let _entered = span.enter();
+        let run = engine.run_controlled(&model_id, &prompt, &params, &control, max_memory);
+        handle.block_on(tracing::Instrument::instrument(run, span.clone()))
     })
     .await
     .unwrap_or_else(|e| {

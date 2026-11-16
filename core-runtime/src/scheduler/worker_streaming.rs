@@ -11,9 +11,20 @@ use crate::telemetry;
 struct StreamControl {
     cancel: tokio_util::sync::CancellationToken,
     deadline: Option<std::time::Instant>,
+    /// Streaming queue id, for the #184 stop-trace span (gguf only).
+    #[cfg_attr(not(feature = "gguf"), allow(dead_code))]
+    queue_id: u64,
 }
 
 impl StreamControl {
+    fn of(request: &StreamingQueuedRequest) -> Self {
+        Self {
+            cancel: request.cancelled.clone(),
+            deadline: request.deadline,
+            queue_id: request.id,
+        }
+    }
+
     fn should_stop(&self) -> bool {
         self.cancel.is_cancelled()
             || self
@@ -59,6 +70,7 @@ pub(crate) async fn execute(
         }
     };
 
+    let control = StreamControl::of(&request);
     let start = std::time::Instant::now();
     let result = run_stream(
         engine,
@@ -67,10 +79,7 @@ pub(crate) async fn execute(
         request.config,
         request.token_sender,
         security,
-        StreamControl {
-            cancel: request.cancelled,
-            deadline: request.deadline,
-        },
+        control,
     )
     .await;
     let latency_ms = start.elapsed().as_millis() as u64;
@@ -80,6 +89,41 @@ pub(crate) async fn execute(
         Ok(Err(e)) => telemetry::record_request_failure(&model_id, &e.to_string()),
         Err(e) => telemetry::record_request_failure(&model_id, &e.to_string()),
     }
+}
+
+/// Run the backend inside the request's #184 stop-trace span and report S4
+/// the moment it returns, so a deadline passing later never marks a stream
+/// that had already finished.
+#[cfg(feature = "gguf")]
+fn traced<T>(
+    control: &StreamControl,
+    run: impl FnOnce(&(dyn Fn() -> bool + Send + Sync)) -> T,
+) -> T {
+    let span = super::worker::stop_scope(control.queue_id, true);
+    let _entered = span.enter();
+    let start = std::time::Instant::now();
+    let should_stop = || control.should_stop();
+    let out = run(&should_stop);
+    trace_stream_release(control, start.elapsed().as_millis() as u64);
+    out
+}
+
+/// #184 stop trace S4 for a stream. A stopped stream can return `Ok(())`,
+/// so the stop is decided by the control, not by the result.
+#[cfg_attr(not(feature = "gguf"), allow(dead_code))]
+fn trace_stream_release(control: &StreamControl, run_ms: u64) {
+    if !control.should_stop() {
+        return;
+    }
+    tracing::info!(
+        target: "gg_core::stop",
+        queue_id = control.queue_id,
+        cancel_flag = control.cancel.is_cancelled(),
+        run_ms,
+        stream = true,
+        dropped = crate::telemetry::stop_trace::dropped(),
+        "worker released after stop"
+    );
 }
 
 /// Ingress scan for the streaming path. Returns `true` when admitted;
@@ -122,17 +166,17 @@ async fn run_stream(
 ) -> Result<Result<(), crate::engine::inference::InferenceError>, tokio::task::JoinError> {
     #[cfg(feature = "gguf")]
     {
-        // Cast to usize to avoid capturing raw pointers (which are !Send).
-        // SAFETY: the caller awaits the JoinHandle, so both the engine and the
-        // security pipeline references outlive the spawned task.
+        // usize casts avoid capturing !Send raw pointers. SAFETY: the caller awaits
+        // the JoinHandle, so the engine and security pipeline outlive the task.
         let engine_addr = engine as *const InferenceEngine as usize;
         let sec_addr = security.map(|s| s as *const SecurityPipeline as usize);
         let mid = model_id.to_string();
         tokio::task::spawn_blocking(move || {
             let engine = unsafe { &*(engine_addr as *const InferenceEngine) };
             let security = sec_addr.map(|a| unsafe { &*(a as *const SecurityPipeline) });
-            let should_stop = || control.should_stop();
-            engine.run_stream_sync(&mid, &prompt, &config, sender, security, Some(&should_stop))
+            traced(&control, |stop| {
+                engine.run_stream_sync(&mid, &prompt, &config, sender, security, Some(stop))
+            })
         })
         .await
     }
@@ -157,3 +201,7 @@ async fn run_stream(
         Ok(Err(err))
     }
 }
+
+#[cfg(test)]
+#[path = "worker_streaming_trace_tests.rs"]
+mod trace_tests;

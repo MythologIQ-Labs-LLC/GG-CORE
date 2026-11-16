@@ -202,14 +202,10 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                         let _ = write_half.write_frame(err.as_bytes()).await;
                         continue;
                     }
-                    let streams = active_requests.lock().await;
-                    let cancelled = if let Some(cancel) = streams.get(&request_id.0) {
-                        cancel.cancel();
-                        true
-                    } else {
-                        false
-                    };
-                    drop(streams);
+                    let token = active_requests.lock().await.get(&request_id.0).cloned();
+                    // #184 S1 (this connection only), before the cancel wakes the handler.
+                    crate::telemetry::stop_trace::cancel_received(request_id.0, token.is_some());
+                    let cancelled = token.map(|t| t.cancel()).is_some();
                     let response = IpcMessage::CancelResponse {
                         request_id,
                         cancelled,

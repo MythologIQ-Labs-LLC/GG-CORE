@@ -17,7 +17,8 @@ use llama_cpp_2::token::LlamaToken;
 use crate::engine::{FinishReason, GenerationResult, InferenceConfig, InferenceError};
 use crate::security::stream_sanitizer::StreamSanitizer;
 
-use super::prefill::{decode_prompt, decode_range, stop_requested, PrefillShape, StopCheck};
+use super::prefill::{decode_prompt, decode_range, PrefillShape, StopCheck};
+use super::stop_observe::{setup_stop, stopped, Phase};
 
 /// Holds the loaded llama-cpp-2 model and a handle to the process backend.
 pub struct LlamaBackendInner {
@@ -106,7 +107,7 @@ impl LlamaBackendInner {
     ) -> Result<GenerationResult, InferenceError> {
         let tokens = self.tokenize(prompt)?;
         let max_tok = config.max_tokens.unwrap_or(256);
-        if stop_requested(is_cancelled) {
+        if setup_stop(is_cancelled) {
             return Ok(cancelled_result());
         }
         let mut ctx = self.create_context()?;
@@ -134,7 +135,7 @@ impl LlamaBackendInner {
         mut sanitizer: Option<&mut StreamSanitizer>,
     ) -> Result<(), InferenceError> {
         let tokens = self.tokenize(prompt)?;
-        if stop_requested(is_cancelled) {
+        if setup_stop(is_cancelled) {
             return Ok(());
         }
         let mut ctx = self.create_context()?;
@@ -154,7 +155,7 @@ impl LlamaBackendInner {
         let mut acc: Vec<LlamaToken> = Vec::new();
         for offset in 0..limit {
             let pos = start_pos + offset as i32;
-            if is_cancelled.as_ref().is_some_and(|f| f()) {
+            if stopped(is_cancelled, Phase::Decode, offset, 0) {
                 break;
             }
             // Use -1 to sample from the last token that had logits computed
@@ -389,7 +390,7 @@ impl LlamaBackendInner {
         let limit = (max_tok as usize).min(ctx.n_ctx() as usize - tokens.len());
         for offset in 0..limit {
             let pos = start_pos + offset as i32;
-            if is_cancelled.as_ref().is_some_and(|f| f()) {
+            if stopped(is_cancelled, Phase::Decode, offset, 0) {
                 return Ok((out, FinishReason::Cancelled));
             }
             let tok = sampler.sample(ctx, -1);
@@ -434,8 +435,7 @@ pub(super) fn decode(
     ctx: &mut LlamaContext<'_>,
     batch: &mut LlamaBatch,
 ) -> Result<(), InferenceError> {
-    ctx.decode(batch)
-        .map_err(|e| InferenceError::ModelError(format!("decode: {e}")))
+    super::stop_observe::timed_decode(ctx, batch)
 }
 
 fn cancelled_result() -> GenerationResult {
