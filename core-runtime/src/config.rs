@@ -139,7 +139,8 @@ pub(crate) fn load_gguf_config() -> Result<GgufEnvConfig, ConfigError> {
 fn load_ipc_server_config() -> Result<IpcServerConfig, ConfigError> {
     const DEFAULT_FRAME: usize = 16 * 1024 * 1024;
     let max_frame_size = resource::from_env("GG_CORE_IPC_FRAME_LIMIT", DEFAULT_FRAME,
-                                            4096usize, usize::MAX, "decimal integer >= 4096")?;
+                                            4096usize, u32::MAX as usize,
+                                            "decimal integer in 4096..=4294967295")?;
     let stall = resource::from_env("GG_CORE_STREAM_STALL_MS", 5_000u64, 100,
                                    u64::MAX, "decimal u64 >= 100")?;
     Ok(IpcServerConfig {
