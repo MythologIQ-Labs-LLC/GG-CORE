@@ -11,8 +11,8 @@
 use std::ffi::OsStr;
 use std::fmt;
 
-use crate::memory::ResourceLimitsConfig;
 use super::resource::ResourceConfigError;
+use crate::memory::ResourceLimitsConfig;
 
 /// Variable naming the total memory ceiling (bytes).
 pub const TOTAL_VAR: &str = "GG_CORE_MAX_TOTAL_MEMORY";

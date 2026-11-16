@@ -98,10 +98,20 @@ pub struct EnvConfig {
 /// Load queue configuration from environment.
 fn load_queue_config() -> Result<RequestQueueConfig, ConfigError> {
     Ok(RequestQueueConfig {
-        max_pending: resource::from_env("GG_CORE_MAX_QUEUE_DEPTH", 256usize, 1,
-                                        usize::MAX, "decimal integer >= 1")?,
-        max_context_tokens: resource::from_env("GG_CORE_MAX_CONTEXT_TOKENS", 4096usize,
-                                               1, usize::MAX, "decimal integer >= 1")?,
+        max_pending: resource::from_env(
+            "GG_CORE_MAX_QUEUE_DEPTH",
+            256usize,
+            1,
+            usize::MAX,
+            "decimal integer >= 1",
+        )?,
+        max_context_tokens: resource::from_env(
+            "GG_CORE_MAX_CONTEXT_TOKENS",
+            4096usize,
+            1,
+            usize::MAX,
+            "decimal integer >= 1",
+        )?,
     })
 }
 
@@ -117,32 +127,60 @@ pub fn per_call_ceiling_from_env() -> Option<usize> {
 /// Load batch configuration from environment.
 fn load_batch_config() -> Result<BatchConfig, ConfigError> {
     Ok(BatchConfig {
-        max_batch_size: resource::from_env("GG_CORE_BATCH_MAX_REQUESTS", 8usize, 1,
-                                            usize::MAX, "decimal integer >= 1")?,
-        max_total_tokens: resource::from_env("GG_CORE_BATCH_MAX_TOKENS", 4096usize, 1,
-                                             usize::MAX, "decimal integer >= 1")?,
+        max_batch_size: resource::from_env(
+            "GG_CORE_BATCH_MAX_REQUESTS",
+            8usize,
+            1,
+            usize::MAX,
+            "decimal integer >= 1",
+        )?,
+        max_total_tokens: resource::from_env(
+            "GG_CORE_BATCH_MAX_TOKENS",
+            4096usize,
+            1,
+            usize::MAX,
+            "decimal integer >= 1",
+        )?,
     })
 }
 
 /// Fallible GGUF settings, also used by the daemon's common resolver.
 pub(crate) fn load_gguf_config() -> Result<GgufEnvConfig, ConfigError> {
     Ok(GgufEnvConfig {
-        n_ctx: resource::from_env("GG_CORE_N_CTX", 2048u32, 128, u32::MAX,
-                                  "decimal u32 >= 128")?,
-        n_threads: resource::from_env("GG_CORE_N_THREADS", 0u32, 0,
-                                      i32::MAX as u32,
-                                      "decimal integer in 0..=2147483647 (0 = auto)")?,
+        n_ctx: resource::from_env(
+            "GG_CORE_N_CTX",
+            2048u32,
+            128,
+            u32::MAX,
+            "decimal u32 >= 128",
+        )?,
+        n_threads: resource::from_env(
+            "GG_CORE_N_THREADS",
+            0u32,
+            0,
+            i32::MAX as u32,
+            "decimal integer in 0..=2147483647 (0 = auto)",
+        )?,
     })
 }
 
 /// Load IPC server configuration from environment.
 fn load_ipc_server_config() -> Result<IpcServerConfig, ConfigError> {
     const DEFAULT_FRAME: usize = 16 * 1024 * 1024;
-    let max_frame_size = resource::from_env("GG_CORE_IPC_FRAME_LIMIT", DEFAULT_FRAME,
-                                            4096usize, u32::MAX as usize,
-                                            "decimal integer in 4096..=4294967295")?;
-    let stall = resource::from_env("GG_CORE_STREAM_STALL_MS", 5_000u64, 100,
-                                   u64::MAX, "decimal u64 >= 100")?;
+    let max_frame_size = resource::from_env(
+        "GG_CORE_IPC_FRAME_LIMIT",
+        DEFAULT_FRAME,
+        4096usize,
+        u32::MAX as usize,
+        "decimal integer in 4096..=4294967295",
+    )?;
+    let stall = resource::from_env(
+        "GG_CORE_STREAM_STALL_MS",
+        5_000u64,
+        100,
+        u64::MAX,
+        "decimal u64 >= 100",
+    )?;
     Ok(IpcServerConfig {
         max_frame_size,
         stream_stall: Duration::from_millis(stall),
@@ -152,8 +190,13 @@ fn load_ipc_server_config() -> Result<IpcServerConfig, ConfigError> {
 /// Load connection pool configuration from environment.
 fn load_connection_config() -> Result<ConnectionConfig, ConfigError> {
     Ok(ConnectionConfig {
-        max_connections: resource::from_env("GG_CORE_MAX_CONNECTIONS", 64usize, 1,
-                                            usize::MAX, "decimal integer >= 1")?,
+        max_connections: resource::from_env(
+            "GG_CORE_MAX_CONNECTIONS",
+            64usize,
+            1,
+            usize::MAX,
+            "decimal integer >= 1",
+        )?,
     })
 }
 
@@ -173,15 +216,35 @@ pub fn load() -> EnvConfig {
 /// [`ConfigError`] before runtime initialization and IPC bind.
 pub fn try_load() -> Result<EnvConfig, ConfigError> {
     let mem = memory::from_env()?;
-    let concurrent = resource::from_env("GG_CORE_MAX_CONCURRENT", 2usize, 1,
-                                        usize::MAX, "decimal integer >= 1")?;
+    let concurrent = resource::from_env(
+        "GG_CORE_MAX_CONCURRENT",
+        2usize,
+        1,
+        usize::MAX,
+        "decimal integer >= 1",
+    )?;
     let auth_token = std::env::var("CORE_AUTH_TOKEN").unwrap_or_default();
-    let max_context_length = resource::from_env("GG_CORE_MAX_CONTEXT", 4096usize,
-                                                1, 1_000_000, "decimal integer in 1..=1000000")?;
-    let shutdown_secs = resource::from_env("GG_CORE_SHUTDOWN_TIMEOUT", 30u64,
-                                           1, u64::MAX, "decimal u64 >= 1")?;
-    let session_secs = resource::from_env("GG_CORE_SESSION_TIMEOUT", 3600u64,
-                                          1, u64::MAX, "decimal u64 >= 1")?;
+    let max_context_length = resource::from_env(
+        "GG_CORE_MAX_CONTEXT",
+        4096usize,
+        1,
+        1_000_000,
+        "decimal integer in 1..=1000000",
+    )?;
+    let shutdown_secs = resource::from_env(
+        "GG_CORE_SHUTDOWN_TIMEOUT",
+        30u64,
+        1,
+        u64::MAX,
+        "decimal u64 >= 1",
+    )?;
+    let session_secs = resource::from_env(
+        "GG_CORE_SESSION_TIMEOUT",
+        3600u64,
+        1,
+        u64::MAX,
+        "decimal u64 >= 1",
+    )?;
 
     Ok(EnvConfig {
         base_path: PathBuf::from("."),

@@ -4,12 +4,21 @@ use super::*;
 use crate::test_env::env_guard;
 
 const KEYS: &[&str] = &[
-    "GG_CORE_MAX_CONTEXT", "GG_CORE_MAX_QUEUE_DEPTH", "GG_CORE_MAX_CONTEXT_TOKENS",
-    "GG_CORE_MAX_MEMORY_PER_CALL", "GG_CORE_MAX_TOTAL_MEMORY",
-    "GG_CORE_MAX_CONCURRENT", "GG_CORE_BATCH_MAX_REQUESTS",
-    "GG_CORE_BATCH_MAX_TOKENS", "GG_CORE_SHUTDOWN_TIMEOUT",
-    "GG_CORE_SESSION_TIMEOUT", "GG_CORE_N_CTX", "GG_CORE_N_THREADS",
-    "GG_CORE_IPC_FRAME_LIMIT", "GG_CORE_MAX_CONNECTIONS", "GG_CORE_STREAM_STALL_MS",
+    "GG_CORE_MAX_CONTEXT",
+    "GG_CORE_MAX_QUEUE_DEPTH",
+    "GG_CORE_MAX_CONTEXT_TOKENS",
+    "GG_CORE_MAX_MEMORY_PER_CALL",
+    "GG_CORE_MAX_TOTAL_MEMORY",
+    "GG_CORE_MAX_CONCURRENT",
+    "GG_CORE_BATCH_MAX_REQUESTS",
+    "GG_CORE_BATCH_MAX_TOKENS",
+    "GG_CORE_SHUTDOWN_TIMEOUT",
+    "GG_CORE_SESSION_TIMEOUT",
+    "GG_CORE_N_CTX",
+    "GG_CORE_N_THREADS",
+    "GG_CORE_IPC_FRAME_LIMIT",
+    "GG_CORE_MAX_CONNECTIONS",
+    "GG_CORE_STREAM_STALL_MS",
 ];
 
 fn clear_env() {
@@ -23,10 +32,18 @@ fn invalid_explicit_resource_values_fail_closed() {
     let _lock = env_guard();
     clear_env();
     for var in [
-        "GG_CORE_MAX_CONTEXT", "GG_CORE_MAX_QUEUE_DEPTH", "GG_CORE_MAX_CONTEXT_TOKENS",
-        "GG_CORE_MAX_CONCURRENT", "GG_CORE_BATCH_MAX_REQUESTS", "GG_CORE_BATCH_MAX_TOKENS",
-        "GG_CORE_SHUTDOWN_TIMEOUT", "GG_CORE_SESSION_TIMEOUT", "GG_CORE_N_CTX",
-        "GG_CORE_N_THREADS", "GG_CORE_IPC_FRAME_LIMIT", "GG_CORE_MAX_CONNECTIONS",
+        "GG_CORE_MAX_CONTEXT",
+        "GG_CORE_MAX_QUEUE_DEPTH",
+        "GG_CORE_MAX_CONTEXT_TOKENS",
+        "GG_CORE_MAX_CONCURRENT",
+        "GG_CORE_BATCH_MAX_REQUESTS",
+        "GG_CORE_BATCH_MAX_TOKENS",
+        "GG_CORE_SHUTDOWN_TIMEOUT",
+        "GG_CORE_SESSION_TIMEOUT",
+        "GG_CORE_N_CTX",
+        "GG_CORE_N_THREADS",
+        "GG_CORE_IPC_FRAME_LIMIT",
+        "GG_CORE_MAX_CONNECTIONS",
         "GG_CORE_STREAM_STALL_MS",
     ] {
         std::env::set_var(var, "not_a_number");
@@ -54,7 +71,10 @@ fn explicit_resource_boundaries_are_not_silently_clamped() {
     ] {
         std::env::set_var(var, value);
         let err = try_load().unwrap_err();
-        assert!(matches!(err, ConfigError::Resource(_)), "{var}={value}: {err}");
+        assert!(
+            matches!(err, ConfigError::Resource(_)),
+            "{var}={value}: {err}"
+        );
         std::env::remove_var(var);
     }
     clear_env();
@@ -117,7 +137,10 @@ fn ipc_frame_limit_must_fit_the_wire_format_length_prefix() {
     std::env::set_var("GG_CORE_IPC_FRAME_LIMIT", "4294967296");
     assert!(matches!(try_load(), Err(ConfigError::Resource(_))));
     std::env::set_var("GG_CORE_IPC_FRAME_LIMIT", "4294967295");
-    assert_eq!(try_load().unwrap().ipc_server.max_frame_size, u32::MAX as usize);
+    assert_eq!(
+        try_load().unwrap().ipc_server.max_frame_size,
+        u32::MAX as usize
+    );
     clear_env();
 }
 
@@ -141,5 +164,8 @@ fn load_panics_on_invalid_resource_setting() {
     std::env::set_var("GG_CORE_MAX_CONCURRENT", "0");
     let result = std::panic::catch_unwind(load);
     clear_env();
-    assert!(result.is_err(), "load() must not silently clamp an invalid setting");
+    assert!(
+        result.is_err(),
+        "load() must not silently clamp an invalid setting"
+    );
 }
