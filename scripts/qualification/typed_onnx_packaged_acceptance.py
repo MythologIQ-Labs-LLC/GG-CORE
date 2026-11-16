@@ -103,6 +103,11 @@ def typed(binary, env, mode, model, prompt):
         raise AcceptanceError(f"{mode}-invalid-json") from exc
 
 
+def required_refusal(result, phrase, name):
+    if result.returncode == 0 or phrase.encode() not in result.stderr.lower():
+        raise AcceptanceError(f"{name}-refusal-not-proven")
+
+
 def verify_spec(spec, root):
     if not isinstance(spec, dict) or COMMIT.fullmatch(spec.get("source_commit", "")) is None:
         raise AcceptanceError("invalid-source-commit")
@@ -174,13 +179,12 @@ def run_checks(binary, spec, stage, timeout):
                                           "I hated this movie."), "NEGATIVE")
             refused = invoke(binary, env, ["classify", "--model", embed,
                                            "--text", "Example."], timeout=90)
-            if refused.returncode == 0:
-                raise AcceptanceError("wrong-task-accepted")
+            required_refusal(refused, "not supported", "wrong-task")
             denied_env = dict(env, CORE_AUTH_TOKEN=secrets.token_hex(32))
             denied = invoke(binary, denied_env, ["embed", "--model", embed,
                                                  "--text", "Example."], timeout=30)
-            if denied.returncode == 0:
-                raise AcceptanceError("wrong-auth-accepted")
+            required_refusal(denied, "authentication failed", "wrong-auth")
+            finite_vector(typed(binary, env, "embed", embed, "A person is eating a meal."))
         finally:
             daemon.terminate()
             try:
