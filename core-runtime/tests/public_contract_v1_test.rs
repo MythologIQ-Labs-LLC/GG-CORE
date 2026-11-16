@@ -17,12 +17,14 @@ use gg_core::models::{load_model_dispatch, load_model_dispatch_for_workers};
 use gg_core::{Runtime, RuntimeConfig};
 use serde_json::{json, Value};
 
+type Dispatch = fn(&Path, &str) -> Result<Arc<dyn Model>, InferenceError>;
+type WorkerDispatch = fn(&Path, &str, usize) -> Result<Arc<dyn Model>, InferenceError>;
+
 #[test]
 fn embedded_entry_points_bind_as_an_external_crate() {
     let _create: fn(RuntimeConfig) -> Runtime = Runtime::new;
-    let _old: fn(&Path, &str) -> Result<Arc<dyn Model>, InferenceError> = load_model_dispatch;
-    let _workers: fn(&Path, &str, usize) -> Result<Arc<dyn Model>, InferenceError> =
-        load_model_dispatch_for_workers;
+    let _old: Dispatch = load_model_dispatch;
+    let _workers: WorkerDispatch = load_model_dispatch_for_workers;
     let config = RuntimeConfig {
         auth_token: "test-token".into(),
         ..RuntimeConfig::default()
@@ -35,7 +37,10 @@ fn old_v1_handshake_defaults_still_decode() {
     assert_eq!(CURRENT_PROTOCOL_VERSION, ProtocolVersion::V1);
     let legacy = br#"{"type":"handshake","token":"test-token"}"#;
     match decode_message(legacy).expect("decode old handshake") {
-        IpcMessage::Handshake { token, protocol_version } => {
+        IpcMessage::Handshake {
+            token,
+            protocol_version,
+        } => {
             assert_eq!(token, "test-token");
             assert_eq!(protocol_version, None);
         }
@@ -43,7 +48,11 @@ fn old_v1_handshake_defaults_still_decode() {
     }
     let ack = br#"{"type":"handshake_ack","session_id":"legacy"}"#;
     match decode_message(ack).expect("decode old handshake acknowledgement") {
-        IpcMessage::HandshakeAck { session_id, protocol_version, features } => {
+        IpcMessage::HandshakeAck {
+            session_id,
+            protocol_version,
+            features,
+        } => {
             assert_eq!(session_id, "legacy");
             assert_eq!(protocol_version, ProtocolVersion::V1);
             assert!(features.is_empty());
