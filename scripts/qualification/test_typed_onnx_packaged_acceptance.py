@@ -1,6 +1,9 @@
 """Pure acceptance-probe regressions. No models, daemon, or network needed."""
+import contextlib
 import hashlib
+import io
 import json
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -50,13 +53,24 @@ class TestAcceptanceProbe(unittest.TestCase):
             a.expected_classification({"kind": "classification", "label": "NEGATIVE",
                                        "confidence": 0.91}, "POSITIVE")
 
+    def test_negative_cases_require_specific_error_evidence(self):
+        a.required_refusal(subprocess.CompletedProcess([], 1, b"", b"authentication failed"),
+                           "authentication failed", "wrong-auth")
+        with self.assertRaises(a.AcceptanceError):
+            a.required_refusal(subprocess.CompletedProcess([], 1, b"", b"connection refused"),
+                               "authentication failed", "wrong-auth")
+        with self.assertRaises(a.AcceptanceError):
+            a.required_refusal(subprocess.CompletedProcess([], 0, b"", b"not supported"),
+                               "not supported", "wrong-task")
+
     def test_fail_closed_receipt_with_bad_spec(self):
         with tempfile.TemporaryDirectory() as t:
             root = Path(t)
             spec = root / "bad.json"
             spec.write_text(json.dumps({"source_commit": "bad"}), encoding="utf-8")
             out = root / "receipt.json"
-            self.assertEqual(a.main(["--stage", t, "--spec", str(spec), "--receipt", str(out)]), 1)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(a.main(["--stage", t, "--spec", str(spec), "--receipt", str(out)]), 1)
             receipt = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(receipt["status"], "FAIL")
             self.assertEqual(receipt["error_code"], "invalid-source-commit")
