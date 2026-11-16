@@ -69,6 +69,10 @@ jobs:
           workspaces: core-runtime
       - name: Test suite (default features)
         run: cargo test --workspace
+      - name: Offline ONNX probe pure unit tests (#171)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: .
+        run: python3 -m unittest discover -s scripts/qualification -p 'test_typed_onnx_packaged_acceptance.py' -v
 
   features:
     name: features / ${{ matrix.feature }}
