@@ -55,6 +55,22 @@ class BadInput(Exception):
     """Malformed or missing evidence (exit 2)."""
 
 
+
+def validate_trace_fields(event):
+    """Reject untrusted stage payloads that could corrupt acceptance arithmetic."""
+    for field in ("request_id", "queue_id", "last_decode_tokens", "dropped", "unix_ms"):
+        value = event.get(field)
+        if value is not None and (type(value) is not int or value < 0):
+            raise BadInput(f"stop-trace field {field} must be a nonnegative integer")
+    value = event.get("last_decode_ms")
+    if value is not None and (type(value) not in (int, float)
+                              or not math.isfinite(value) or value < 0):
+        raise BadInput("stop-trace last_decode_ms must be finite and nonnegative")
+    for field in ("matched", "stream"):
+        if field in event and type(event[field]) is not bool:
+            raise BadInput(f"stop-trace field {field} must be boolean")
+
+
 def parse_err(path):
     events = []
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -75,6 +91,7 @@ def parse_err(path):
             raise BadInput(f"{path.name}: stop-trace line without a valid timestamp ({err})") from err
         if not math.isfinite(fields["t"]):
             raise BadInput(f"{path.name}: stop-trace timestamp must be finite")
+        validate_trace_fields(fields)
         events.append(fields)
     return events
 
@@ -104,6 +121,7 @@ def load_traces(out, trace_file, rows):
             if (isinstance(e["t"], bool) or not isinstance(e["t"], (int, float))
                     or not math.isfinite(e["t"])):
                 raise BadInput(f"trace event without finite numeric t: {e}")
+            validate_trace_fields(e)
             traces.setdefault(e["tag"], []).append(e)
         return traces
     tags = {r["tag"] for r in rows if r.get("kind") in STOPS}
