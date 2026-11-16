@@ -164,6 +164,16 @@ class Gate(unittest.TestCase):
         rows.append(dict(next(r for r in rows if r["kind"] == "throughput" and r["tag"] == TAG_OFF)))
         self.assert_fails("R3", rows, events)
 
+    def test_malformed_boolean_rep_is_refused(self):
+        rows, events = evidence()
+        next(r for r in rows if r["kind"] == "recover")["rep"] = True
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_malformed_negative_rep_is_refused(self):
+        rows, events = evidence()
+        next(r for r in rows if r["kind"] == "throughput")["rep"] = -1
+        self.assertEqual(run(rows, events)[0], 2)
+
     def test_r3_duplicate_recovery_rep_fails(self):
         rows, events = evidence()
         rows.append(dict(next(r for r in rows if r["kind"] == "recover" and r["tag"] == TAG_OFF)))
