@@ -31,7 +31,12 @@ use std::time::Duration;
 use crate::ipc::{ConnectionConfig, IpcServerConfig};
 use crate::memory::ResourceLimitsConfig;
 use crate::scheduler::{BatchConfig, RequestQueueConfig};
+use loaders::{
+    load_batch_config, load_connection_config, load_ipc_server_config, load_queue_config,
+};
 
+#[path = "config_loaders.rs"]
+mod loaders;
 #[path = "config_memory.rs"]
 pub mod memory;
 #[path = "config_resource.rs"]
@@ -95,26 +100,6 @@ pub struct EnvConfig {
     pub connections: ConnectionConfig,
 }
 
-/// Load queue configuration from environment.
-fn load_queue_config() -> Result<RequestQueueConfig, ConfigError> {
-    Ok(RequestQueueConfig {
-        max_pending: resource::from_env(
-            "GG_CORE_MAX_QUEUE_DEPTH",
-            256usize,
-            1,
-            usize::MAX,
-            "decimal integer >= 1",
-        )?,
-        max_context_tokens: resource::from_env(
-            "GG_CORE_MAX_CONTEXT_TOKENS",
-            4096usize,
-            1,
-            usize::MAX,
-            "decimal integer >= 1",
-        )?,
-    })
-}
-
 /// Deprecated: the explicit `GG_CORE_MAX_MEMORY_PER_CALL`, `None` when unset.
 ///
 /// # Panics
@@ -122,26 +107,6 @@ fn load_queue_config() -> Result<RequestQueueConfig, ConfigError> {
 #[deprecated(note = "use `config::try_load()?.per_call_ceiling`")]
 pub fn per_call_ceiling_from_env() -> Option<usize> {
     memory::per_call_ceiling_strict()
-}
-
-/// Load batch configuration from environment.
-fn load_batch_config() -> Result<BatchConfig, ConfigError> {
-    Ok(BatchConfig {
-        max_batch_size: resource::from_env(
-            "GG_CORE_BATCH_MAX_REQUESTS",
-            8usize,
-            1,
-            usize::MAX,
-            "decimal integer >= 1",
-        )?,
-        max_total_tokens: resource::from_env(
-            "GG_CORE_BATCH_MAX_TOKENS",
-            4096usize,
-            1,
-            usize::MAX,
-            "decimal integer >= 1",
-        )?,
-    })
 }
 
 /// Fallible GGUF settings, also used by the daemon's common resolver.
@@ -160,42 +125,6 @@ pub(crate) fn load_gguf_config() -> Result<GgufEnvConfig, ConfigError> {
             0,
             i32::MAX as u32,
             "decimal integer in 0..=2147483647 (0 = auto)",
-        )?,
-    })
-}
-
-/// Load IPC server configuration from environment.
-fn load_ipc_server_config() -> Result<IpcServerConfig, ConfigError> {
-    const DEFAULT_FRAME: usize = 16 * 1024 * 1024;
-    let max_frame_size = resource::from_env(
-        "GG_CORE_IPC_FRAME_LIMIT",
-        DEFAULT_FRAME,
-        4096usize,
-        u32::MAX as usize,
-        "decimal integer in 4096..=4294967295",
-    )?;
-    let stall = resource::from_env(
-        "GG_CORE_STREAM_STALL_MS",
-        5_000u64,
-        100,
-        u64::MAX,
-        "decimal u64 >= 100",
-    )?;
-    Ok(IpcServerConfig {
-        max_frame_size,
-        stream_stall: Duration::from_millis(stall),
-    })
-}
-
-/// Load connection pool configuration from environment.
-fn load_connection_config() -> Result<ConnectionConfig, ConfigError> {
-    Ok(ConnectionConfig {
-        max_connections: resource::from_env(
-            "GG_CORE_MAX_CONNECTIONS",
-            64usize,
-            1,
-            usize::MAX,
-            "decimal integer >= 1",
         )?,
     })
 }
