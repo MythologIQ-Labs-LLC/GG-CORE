@@ -75,6 +75,8 @@ Explicit values must be plain decimal byte counts of at least 1 MiB, and the per
 
 Inspect the effective configuration with `gg-core-cli config show|defaults|validate`.
 
+**Resource strictness implementation (draft #206, not released):** all 13 documented non-memory resource overrides will reject explicit invalid decimal, zero (except `GG_CORE_N_THREADS=0` automatic), overflow, or out-of-range values. A nonzero thread count must be at most 2,147,483,647 to fit the native GGUF `i32` interface; `GG_CORE_IPC_FRAME_LIMIT` must be at most 4,294,967,295 for the four-byte IPC frame length. Absent values retain existing defaults. `serve`, `config show` and `config validate` share the same resolver. These are proposed source changes awaiting native tests and merge; published RC1 behavior has not changed.
+
 ## 3. Standalone daemon
 
 The first-run journey on a clean checkout (binary: `gg-core-cli`):
