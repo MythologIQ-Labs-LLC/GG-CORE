@@ -99,6 +99,18 @@ fn valid_lower_bound_values_are_preserved_exactly() {
 }
 
 #[test]
+fn explicit_threads_must_fit_the_native_gguf_thread_integer() {
+    let _lock = env_guard();
+    clear_env();
+    std::env::set_var("GG_CORE_N_THREADS", "2147483648");
+    assert!(matches!(try_load(), Err(ConfigError::Resource(_))));
+    assert!(matches!(load_gguf_config(), Err(ConfigError::Resource(_))));
+    std::env::set_var("GG_CORE_N_THREADS", "2147483647");
+    assert_eq!(load_gguf_config().unwrap().n_threads, i32::MAX as u32);
+    clear_env();
+}
+
+#[test]
 fn gguf_config_refuses_invalid_explicit_settings() {
     let _lock = env_guard();
     clear_env();
