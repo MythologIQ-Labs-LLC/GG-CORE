@@ -32,7 +32,7 @@ pub(super) struct SwitchJournal {
 }
 
 pub(super) enum Admission {
-    New(ModelSwitchStatusResponse),
+    New,
     Repeat(ModelSwitchStatusResponse),
     Conflict,
     Capacity,
@@ -77,7 +77,7 @@ impl SwitchJournal {
                 finished_at: None,
             },
         );
-        Admission::New(status)
+        Admission::New
     }
 
     pub(super) fn status(&self, operation_id: &str) -> Option<ModelSwitchStatusResponse> {
@@ -166,7 +166,7 @@ mod tests {
     fn identical_retry_is_read_only_but_conflicting_payload_refuses() {
         let journal = SwitchJournal::default();
         let a = request('a', "b");
-        assert!(matches!(journal.reserve(a.clone()), Admission::New(_)));
+        assert!(matches!(journal.reserve(a.clone()), Admission::New));
         assert!(matches!(journal.reserve(a.clone()), Admission::Repeat(_)));
         let changed = request('a', "different");
         assert!(matches!(journal.reserve(changed), Admission::Conflict));
@@ -180,7 +180,7 @@ mod tests {
     fn finished_status_survives_retry_without_claiming_readiness() {
         let journal = SwitchJournal::default();
         let a = request('b', "c");
-        assert!(matches!(journal.reserve(a.clone()), Admission::New(_)));
+        assert!(matches!(journal.reserve(a.clone()), Admission::New));
         journal.complete(
             &a.operation_id,
             SwitchOutcome::Switched {
@@ -206,7 +206,7 @@ mod tests {
             let id = format!("{n:064x}");
             let mut r = request('f', "b");
             r.operation_id = id;
-            assert!(matches!(journal.reserve(r), Admission::New(_)));
+            assert!(matches!(journal.reserve(r), Admission::New));
         }
         assert!(matches!(
             journal.reserve(request('e', "b")),

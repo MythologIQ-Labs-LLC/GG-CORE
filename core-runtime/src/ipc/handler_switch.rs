@@ -40,7 +40,7 @@ impl IpcHandler {
                     message: "switch operation journal is at capacity".into(),
                 }
             }
-            Admission::New(_) => {}
+            Admission::New => {}
         }
 
         let workers =
