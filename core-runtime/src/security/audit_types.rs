@@ -1,6 +1,6 @@
 //! Types and structs for the enterprise security audit module.
 
-use chrono::{DateTime, Utc};
+use time::OffsetDateTime;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -56,7 +56,8 @@ impl std::fmt::Display for AuditCategory {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent {
     pub id: String,
-    pub timestamp: DateTime<Utc>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
     pub severity: AuditSeverity,
     pub category: AuditCategory,
     pub event_type: String,
@@ -79,9 +80,15 @@ impl AuditEvent {
     }
 
     pub fn to_log_string(&self) -> String {
+        let timestamp = self
+            .timestamp
+            .format(&time::macros::format_description!(
+                "[year]-[month]-[day] [hour]:[minute]:[second] UTC"
+            ))
+            .unwrap_or_else(|_| "invalid timestamp".to_string());
         format!(
             "[{}] {} [{}] {} - {} (actor={:?}, resource={:?}, success={})",
-            self.timestamp.format("%Y-%m-%d %H:%M:%S UTC"),
+            timestamp,
             self.severity,
             self.category,
             self.event_type,
@@ -153,7 +160,7 @@ impl AuditEventBuilder {
     pub fn build(self) -> Result<AuditEvent, &'static str> {
         Ok(AuditEvent {
             id: generate_event_id(),
-            timestamp: Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             severity: self.severity.ok_or("severity is required")?,
             category: self.category.ok_or("category is required")?,
             event_type: self.event_type.ok_or("event_type is required")?,
