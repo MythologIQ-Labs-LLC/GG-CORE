@@ -16,6 +16,7 @@ const KEYS: &[&str] = &[
     "GG_CORE_SESSION_TIMEOUT",
     "GG_CORE_N_CTX",
     "GG_CORE_N_THREADS",
+    "GG_CORE_N_GPU_LAYERS",
     "GG_CORE_IPC_FRAME_LIMIT",
     "GG_CORE_MAX_CONNECTIONS",
     "GG_CORE_STREAM_STALL_MS",
@@ -42,6 +43,7 @@ fn invalid_explicit_resource_values_fail_closed() {
         "GG_CORE_SESSION_TIMEOUT",
         "GG_CORE_N_CTX",
         "GG_CORE_N_THREADS",
+        "GG_CORE_N_GPU_LAYERS",
         "GG_CORE_IPC_FRAME_LIMIT",
         "GG_CORE_MAX_CONNECTIONS",
         "GG_CORE_STREAM_STALL_MS",
@@ -64,6 +66,7 @@ fn explicit_resource_boundaries_are_not_silently_clamped() {
         ("GG_CORE_MAX_CONCURRENT", "0"),
         ("GG_CORE_MAX_QUEUE_DEPTH", "0"),
         ("GG_CORE_N_CTX", "127"),
+        ("GG_CORE_N_GPU_LAYERS", "2147483648"),
         ("GG_CORE_IPC_FRAME_LIMIT", "4095"),
         ("GG_CORE_STREAM_STALL_MS", "99"),
         ("GG_CORE_SHUTDOWN_TIMEOUT", "0"),
@@ -95,6 +98,7 @@ fn valid_lower_bound_values_are_preserved_exactly() {
         ("GG_CORE_SESSION_TIMEOUT", "1"),
         ("GG_CORE_N_CTX", "128"),
         ("GG_CORE_N_THREADS", "0"),
+        ("GG_CORE_N_GPU_LAYERS", "0"),
         ("GG_CORE_IPC_FRAME_LIMIT", "4096"),
         ("GG_CORE_MAX_CONNECTIONS", "1"),
         ("GG_CORE_STREAM_STALL_MS", "100"),
@@ -112,6 +116,7 @@ fn valid_lower_bound_values_are_preserved_exactly() {
     assert_eq!(cfg.session_timeout.as_secs(), 1);
     assert_eq!(cfg.gguf.n_ctx, 128);
     assert_eq!(cfg.gguf.n_threads, 0);
+    assert_eq!(cfg.gguf.n_gpu_layers, 0);
     assert_eq!(cfg.ipc_server.max_frame_size, 4096);
     assert_eq!(cfg.connections.max_connections, 1);
     assert_eq!(cfg.ipc_server.stream_stall.as_millis(), 100);
@@ -168,4 +173,36 @@ fn load_panics_on_invalid_resource_setting() {
         result.is_err(),
         "load() must not silently clamp an invalid setting"
     );
+}
+
+#[test]
+fn explicit_gpu_offload_refuses_cpu_only_build() {
+    let _lock = env_guard();
+    clear_env();
+    std::env::set_var("GG_CORE_N_GPU_LAYERS", "1");
+    let result = load_gguf_config();
+    if cfg!(any(
+        feature = "gguf-cuda",
+        all(feature = "gguf-metal", target_os = "macos")
+    )) {
+        assert_eq!(result.unwrap().n_gpu_layers, 1);
+    } else {
+        assert!(
+            matches!(result, Err(ConfigError::Resource(_))),
+            "a CPU-only build must refuse requested native GPU offload"
+        );
+    }
+    clear_env();
+}
+
+#[test]
+fn gpu_layer_count_beyond_native_signed_range_fails_closed() {
+    let _lock = env_guard();
+    clear_env();
+    std::env::set_var("GG_CORE_N_GPU_LAYERS", "2147483648");
+    assert!(matches!(
+        load_gguf_config(),
+        Err(ConfigError::Resource(_))
+    ));
+    clear_env();
 }
