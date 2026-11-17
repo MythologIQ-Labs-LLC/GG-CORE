@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use super::protocol_switch_types::{
     ModelSwitchPhase, ModelSwitchRequest, ModelSwitchStatusResponse,
 };
-use crate::models::transition::{SwitchOutcome, SwitchRefusal};
+use crate::models::transition::SwitchOutcome;
 
 const MAX_RECORDS: usize = 64;
 const COMPLETED_TTL: Duration = Duration::from_secs(600);

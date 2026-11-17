@@ -80,6 +80,12 @@ impl IpcHandler {
         &self,
         request: ModelSwitchStatusRequest,
     ) -> IpcMessage {
+        if let Err(message) = request.validate() {
+            return IpcMessage::Error {
+                code: 400,
+                message: message.into(),
+            };
+        }
         // Authentication precedes this function. We never enumerate IDs, and
         // do not persist them across a daemon restart. A missing operation
         // must not be re-executed as a form of status recovery.

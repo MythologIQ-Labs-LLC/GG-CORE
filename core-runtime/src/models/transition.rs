@@ -1,7 +1,7 @@
 //! Conservative cold-switch transition coordinator (#137 / #153).
 //!
-//! Crate-private and not exposed over IPC: #153 still owes owner decisions on
-//! drain, cancellation, warm overlap and rollback. The switch never preempts
+//! Crate-private coordinator, accessed only through the #153-authorized
+//! authenticated cold-switch IPC path. The switch never preempts
 //! in-flight work, never hands KV state across models, never assumes memory
 //! was reclaimed and never falls back silently. Plan and audit:
 //! `docs/integration/V1_COLD_SWITCH_COORDINATOR_PLAN.md`.
@@ -10,9 +10,8 @@
 //! new admissions → bounded wait for A's real release → load B → registration
 //! check → (on failure) recover to A from its recorded, re-hashed source.
 
-// The coordinator is deliberately unreachable from production code until the
-// #153 switch policy is approved (no IPC message). Its items are exercised by
-// the model-free and real-model tests; only the load path is live.
+// Conservative state transitions remain not release-qualified. Their
+// behavioral contract is tested with model-free and real-model fixtures.
 #![cfg_attr(not(test), allow(dead_code, unused_imports))]
 
 use std::sync::Arc;

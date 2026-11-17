@@ -14,6 +14,11 @@ use serde::{Deserialize, Serialize};
 pub const MAX_SWITCH_WAIT_MS: u64 = 120_000;
 pub const SWITCH_OPERATION_ID_HEX_LEN: usize = 64;
 
+fn valid_operation_id(id: &str) -> bool {
+    id.len() == SWITCH_OPERATION_ID_HEX_LEN
+        && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
 /// A one-time, operator-issued cold transition. No implicit cancellation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -46,9 +51,7 @@ impl ModelSwitchRequest {
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.operation_id.len() != SWITCH_OPERATION_ID_HEX_LEN
-            || !self.operation_id.bytes().all(|b| b.is_ascii_hexdigit())
-        {
+        if !valid_operation_id(&self.operation_id) {
             return Err("operation_id must be a fresh 64-character hex token");
         }
         if self.from_id.is_empty() || self.from_id.len() > 256
@@ -77,6 +80,13 @@ pub struct ModelSwitchStatusRequest {
 impl ModelSwitchStatusRequest {
     pub fn new(operation_id: String) -> Self {
         Self { operation_id }
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if !valid_operation_id(&self.operation_id) {
+            return Err("operation_id must be 64 lowercase hex characters");
+        }
+        Ok(())
     }
 }
 
@@ -142,6 +152,21 @@ mod tests {
         r.expected_handle = 1;
         r.operation_id = "not-secret".into();
         assert!(r.validate().is_err());
+    }
+
+    #[test]
+    fn status_lookup_requires_bounded_lowercase_operation_id() {
+        let valid = ModelSwitchStatusRequest::new("a".repeat(64));
+        assert!(valid.validate().is_ok());
+        for invalid in ["A".repeat(64), "g".repeat(64), "a".repeat(65), String::new()] {
+            assert!(ModelSwitchStatusRequest::new(invalid).validate().is_err());
+        }
+        let mut req = ModelSwitchRequest::new(
+            "A".repeat(64), "source".into(), 1, "models/b.gguf".into(), "b".into(), 5000,
+        );
+        assert!(req.validate().is_err());
+        req.operation_id = "a".repeat(64);
+        assert!(req.validate().is_ok());
     }
 
     #[test]
