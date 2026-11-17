@@ -13,11 +13,12 @@ fn configured_context_and_threads_reach_the_model_loader() {
     let runtime = GgufEnvConfig {
         n_ctx: 8192,
         n_threads: 6,
+        n_gpu_layers: 3,
     };
     let load = gguf_load_config(&runtime, 4);
     assert_eq!(load.n_ctx, 8192);
     assert_eq!(load.n_threads, 6, "explicit override is not divided");
-    assert_eq!(load.n_gpu_layers, 0);
+    assert_eq!(load.n_gpu_layers, 3);
 }
 
 #[test]
@@ -29,6 +30,7 @@ fn daemon_auto_threads_are_cores_divided_by_workers() {
         let want = u32::try_from((cores / w).max(1)).unwrap();
         assert_eq!(gguf_load_config(&auto, w).n_threads, want, "workers {w}");
     }
+    assert_eq!(gguf_load_config(&auto, 1).n_gpu_layers, 0);
     let embedded = u32::try_from(cores).unwrap();
     assert_eq!(
         gguf_load_config(&auto, 1).n_threads,
@@ -42,6 +44,7 @@ fn explicit_thread_override_is_honoured_for_every_worker_count() {
     let explicit = GgufEnvConfig {
         n_ctx: 2048,
         n_threads: 5,
+        n_gpu_layers: 0,
     };
     for w in WORKERS {
         assert_eq!(gguf_load_config(&explicit, w).n_threads, 5, "workers {w}");
