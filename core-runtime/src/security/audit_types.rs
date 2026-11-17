@@ -1,8 +1,8 @@
 //! Types and structs for the enterprise security audit module.
 
-use time::OffsetDateTime;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use time::OffsetDateTime;
 
 /// Audit event severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
