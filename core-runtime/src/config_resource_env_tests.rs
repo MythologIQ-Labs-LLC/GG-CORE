@@ -200,9 +200,6 @@ fn gpu_layer_count_beyond_native_signed_range_fails_closed() {
     let _lock = env_guard();
     clear_env();
     std::env::set_var("GG_CORE_N_GPU_LAYERS", "2147483648");
-    assert!(matches!(
-        load_gguf_config(),
-        Err(ConfigError::Resource(_))
-    ));
+    assert!(matches!(load_gguf_config(), Err(ConfigError::Resource(_))));
     clear_env();
 }
