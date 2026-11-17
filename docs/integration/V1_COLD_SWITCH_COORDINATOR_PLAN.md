@@ -1,5 +1,8 @@
 # Cold-switch transition coordinator: plan (#137 / #153)
 
+> **Current-state notice (2026-11-16):** This is a preserved historical planning/audit record from the 2026-11-13 branch, not the current implementation or a v1 release claim. The owner settled conservative cold-switch behavior on 2026-11-14 in [#153](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/153#issuecomment-6879971853). Authenticated development IPC is now under qualification in [draft PR #211](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/211). Older statements below that policy is undecided or IPC is absent describe the *original branch*, not current source. **Readiness, installed switching and release acceptance remain unproven.**
+
+
 **Risk:** L2 (model lifecycle and memory authority; not authentication).
 **Base:** `main` `1032d1ba` plus Branch A tests (`3c582e65`).
 **Status:** plan for audit before implementation.

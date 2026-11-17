@@ -38,8 +38,9 @@ pub(crate) trait Preparer: Send + Sync + 'static {
         expected_sha256: Option<&str>,
     ) -> Result<(PreparedModel, ModelSource), ModelOpError>;
 
-    /// Readiness of a freshly loaded model. The production check is the
-    /// registration check alone; a smoke inference is an open #153 decision.
+    /// Development-only registration check for a newly loaded model.
+    /// Owner-approved #153 requires real task inference before reporting
+    /// serving readiness; a passing check here never establishes that.
     fn verify_ready(&self, _model: &Arc<dyn Model>) -> Result<(), String> {
         Ok(())
     }

@@ -60,7 +60,8 @@ pub(crate) enum SwitchRefusal {
 /// The truthful end state of a switch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SwitchOutcome {
-    /// B serves; A is unloaded and its memory was released.
+    /// B is registered after A released; serving readiness is not verified.
+    /// IPC must report loaded_unverified until a task-appropriate smoke.
     Switched {
         from_handle: u64,
         to_handle: u64,

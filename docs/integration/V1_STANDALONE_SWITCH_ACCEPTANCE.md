@@ -1,5 +1,8 @@
 # GG-CORE v1: standalone model-switch contract and qualification frontier
 
+> **Current-state notice (2026-11-16):** This is a preserved historical planning/audit record from the 2026-11-13 branch, not the current implementation or a v1 release claim. The owner settled conservative cold-switch behavior on 2026-11-14 in [#153](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/153#issuecomment-6879971853). Authenticated development IPC is now under qualification in [draft PR #211](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/211). Older statements below that policy is undecided or IPC is absent describe the *original branch*, not current source. **Readiness, installed switching and release acceptance remain unproven.**
+
+
 **Status:** implementation-stage safety prototype, **NOT** a production model-switch feature or v1.0.0 RC qualification. Owner approved the priority sequence (model switching → backend capability negotiation → standalone model I/O → GPU-qualified speculative decoding), but this is **not** an owner decision on unspecified transition/eviction/rollback policy in [#153](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/153).
 
 **Baseline:** protected `main@1032d1ba8a229b6690209d4661cba6706a721ea7` includes combined-tree-qualified #195 deterministic prefill, #193 strict admission budgets, and #183 held-instance release tracking. The published `v0.10.0-rc.1` is immutable. No CoreForge work belongs in this lane.

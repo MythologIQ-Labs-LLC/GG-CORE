@@ -1,5 +1,8 @@
 # Cold-switch coordinator: evidence (#137 / #153)
 
+> **Evidence provenance:** All reported tests, memory numbers and qualifications below belong to historical source `ac27fab` or its named predecessors, not to draft PR #211 or current packaged Windows GG-CORE. They do **not** establish authenticated switch IPC, current-model readiness, error-path reclamation or v1.0.0 release GO. Owner-approved #153 policy was settled later.
+
+
 **Branch:** `feat/v1-cold-switch-policy-20261113-no-ci`, based on `main` `1032d1ba`, whose tree is the qualified #195+#193+#183 tree `7b895ad3`.
 - **Authored tests:** `3c582e65`.
 - **Coordinator:** `0cf0c15` → `8ec8089` → `0c83567` (review fixes) → `ac27fab` (Clippy fixes). **Qualified commit: `ac27fab`.**
