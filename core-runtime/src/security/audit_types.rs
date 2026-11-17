@@ -56,7 +56,7 @@ impl std::fmt::Display for AuditCategory {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent {
     pub id: String,
-    #[serde(with = "time::serde::rfc3339")]
+    #[serde(with = "super::audit_timestamp")]
     pub timestamp: OffsetDateTime,
     pub severity: AuditSeverity,
     pub category: AuditCategory,
@@ -80,12 +80,7 @@ impl AuditEvent {
     }
 
     pub fn to_log_string(&self) -> String {
-        let timestamp = self
-            .timestamp
-            .format(&time::macros::format_description!(
-                "[year]-[month]-[day] [hour]:[minute]:[second] UTC"
-            ))
-            .unwrap_or_else(|_| "invalid timestamp".to_string());
+        let timestamp = super::audit_timestamp::format_utc_human(self.timestamp);
         format!(
             "[{}] {} [{}] {} - {} (actor={:?}, resource={:?}, success={})",
             timestamp,
