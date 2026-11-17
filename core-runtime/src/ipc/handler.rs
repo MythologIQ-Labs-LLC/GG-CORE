@@ -70,9 +70,13 @@ fn format_system_time(time: std::time::SystemTime) -> String {
     time.duration_since(std::time::UNIX_EPOCH)
         .map(|d| {
             let secs = d.as_secs();
-            let datetime = chrono::DateTime::from_timestamp(secs as i64, 0);
-            datetime
-                .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+            i64::try_from(secs)
+                .ok()
+                .and_then(|value| time::OffsetDateTime::from_unix_timestamp(value).ok())
+                .and_then(|dt| {
+                    dt.format(&time::format_description::well_known::Rfc3339)
+                        .ok()
+                })
                 .unwrap_or_else(|| format!("{}s", secs))
         })
         .unwrap_or_else(|_| "unknown".to_string())
