@@ -209,8 +209,8 @@ fn test_audit_timestamp_rfc3339_json_roundtrip() {
         .source("test")
         .build()
         .unwrap();
-    event.timestamp = time::OffsetDateTime::parse("2026-11-17T12:34:56Z", &Rfc3339)
-        .expect("known UTC timestamp");
+    event.timestamp =
+        time::OffsetDateTime::parse("2026-11-17T12:34:56Z", &Rfc3339).expect("known UTC timestamp");
 
     let value = serde_json::to_value(&event).unwrap();
     assert_eq!(value["timestamp"], "2026-11-17T12:34:56Z");
@@ -237,8 +237,8 @@ async fn test_audit_timestamp_range_queries_compare_instants() {
         .build()
         .unwrap();
 
-    event.timestamp = time::OffsetDateTime::parse("2026-11-17T12:34:56Z", &Rfc3339)
-        .expect("known timestamp");
+    event.timestamp =
+        time::OffsetDateTime::parse("2026-11-17T12:34:56Z", &Rfc3339).expect("known timestamp");
     logger.log(event).await;
 
     let start = time::OffsetDateTime::parse("2026-11-17T12:30:00Z", &Rfc3339).unwrap();
