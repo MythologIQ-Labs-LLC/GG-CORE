@@ -82,6 +82,24 @@ fn format_system_time(time: std::time::SystemTime) -> String {
         .unwrap_or_else(|_| "unknown".to_string())
 }
 
+#[cfg(test)]
+mod timestamp_format_tests {
+    use super::format_system_time;
+    use std::time::{Duration, UNIX_EPOCH};
+
+    #[test]
+    fn model_listing_timestamp_stays_utc_iso8601() {
+        let known_utc = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        assert_eq!(format_system_time(known_utc), "2023-11-14T22:13:20Z");
+    }
+
+    #[test]
+    fn pre_epoch_timestamp_keeps_unknown_fallback() {
+        let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
+        assert_eq!(format_system_time(before_epoch), "unknown");
+    }
+}
+
 /// Handles IPC message processing with authentication.
 pub struct IpcHandler {
     /// Session authentication manager (public for FFI access)
