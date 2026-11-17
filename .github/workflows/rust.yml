@@ -27,7 +27,7 @@ jobs:
       # Refuse lockfile drift before evaluating dependency policy.
       - name: Locked dependency graph gate
         working-directory: core-runtime
-        run: cargo metadata --locked --format-version 1 --no-deps
+        run: cargo metadata --locked --format-version 1 > /dev/null
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           manifest-path: core-runtime/Cargo.toml
