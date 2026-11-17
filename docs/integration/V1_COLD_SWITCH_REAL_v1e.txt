@@ -1,0 +1,12 @@
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>SmolLM2-1.7B-Instruct-Q4_K_M.gguf step=baseline private_mb=2 ws_mb=6 handles=79 
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>SmolLM2-1.7B-Instruct-Q4_K_M.gguf step=a_loaded private_mb=79 ws_mb=459 handles=92 handle=1 budget=485452288 out=368b1423f8a01e25
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>SmolLM2-1.7B-Instruct-Q4_K_M.gguf step=switched_to_b private_mb=753 ws_mb=1487 handles=105 outcome=Switched { from_handle: 1, to_handle: 2, release_ms: 1004, load_ms: 25838 } budget=1053827072 inflight_ok=true
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>SmolLM2-1.7B-Instruct-Q4_K_M.gguf step=b_serving private_mb=752 ws_mb=1762 handles=105 out=ed78f7dda461e6f0
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>SmolLM2-1.7B-Instruct-Q4_K_M.gguf step=back_to_a private_mb=81 ws_mb=462 handles=105 outcome=Switched { from_handle: 2, to_handle: 3, release_ms: 0, load_ms: 11914 } budget=485452288 out=368b1423f8a01e25 same_as_first=true
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>SmolLM2-1.7B-Instruct-Q4_K_M.gguf step=final_release private_mb=7 ws_mb=15 handles=104 released=(true, 0) budget=0
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>Phi-3.5-mini-instruct-Q4_K_M.gguf step=baseline private_mb=7 ws_mb=15 handles=104 
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>Phi-3.5-mini-instruct-Q4_K_M.gguf step=a_loaded private_mb=81 ws_mb=461 handles=105 handle=1 budget=485452288 out=368b1423f8a01e25
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>Phi-3.5-mini-instruct-Q4_K_M.gguf step=switched_to_b private_mb=1261 ws_mb=2505 handles=117 outcome=Switched { from_handle: 1, to_handle: 2, release_ms: 1010, load_ms: 57543 } budget=2392493952 inflight_ok=true
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>Phi-3.5-mini-instruct-Q4_K_M.gguf step=b_serving private_mb=1261 ws_mb=3492 handles=117 out=4df09339de7e61c2
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>Phi-3.5-mini-instruct-Q4_K_M.gguf step=back_to_a private_mb=81 ws_mb=461 handles=117 outcome=Switched { from_handle: 2, to_handle: 3, release_ms: 0, load_ms: 11865 } budget=485452288 out=368b1423f8a01e25 same_as_first=true
+SWITCH pair=qwen2.5-0.5b-instruct-q4_k_m.gguf>Phi-3.5-mini-instruct-Q4_K_M.gguf step=final_release private_mb=7 ws_mb=16 handles=116 released=(true, 0) budget=0
