@@ -40,6 +40,12 @@ impl IpcHandler {
                     message: "switch operation journal is at capacity".into(),
                 }
             }
+            Admission::Expired => {
+                return IpcMessage::Error {
+                    code: 409,
+                    message: "operation_id has expired and cannot be reused".into(),
+                }
+            }
             Admission::New => {}
         }
 

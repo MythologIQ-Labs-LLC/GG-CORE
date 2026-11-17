@@ -5,9 +5,11 @@
 //! The server never lists IDs, accepts client-written status, or retries a
 //! second model mutation for the same ID. This ledger is process-local and
 //! deliberately does not survive daemon restart; missing state is UNKNOWN
-//! to the caller, not a success or a new switch authorization.
+//! to the caller, not a success or a new switch authorization. An expired
+//! ID is kept as a bounded tombstone and refused, never re-admitted as new
+//! (the newest `MAX_EXPIRED_IDS` are retained; restart forgets them all).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -19,6 +21,7 @@ use crate::models::transition::SwitchOutcome;
 const MAX_RECORDS: usize = 64;
 const COMPLETED_TTL: Duration = Duration::from_secs(600);
 const MAX_DETAIL_CHARS: usize = 256;
+const MAX_EXPIRED_IDS: usize = 1024;
 
 struct Record {
     request: ModelSwitchRequest,
@@ -29,6 +32,7 @@ struct Record {
 #[derive(Default)]
 pub(super) struct SwitchJournal {
     records: Mutex<HashMap<String, Record>>,
+    expired: Mutex<VecDeque<String>>,
 }
 
 pub(super) enum Admission {
@@ -36,6 +40,9 @@ pub(super) enum Admission {
     Repeat(ModelSwitchStatusResponse),
     Conflict,
     Capacity,
+    /// The ID finished more than the TTL ago; its outcome is gone and the
+    /// ID can never start another switch.
+    Expired,
 }
 
 impl SwitchJournal {
@@ -47,13 +54,27 @@ impl SwitchJournal {
 
     pub(super) fn reserve(&self, request: ModelSwitchRequest) -> Admission {
         let mut records = self.lock();
+        let mut expired = self
+            .expired
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Make status lookup and replay semantics agree at the TTL boundary.
-        // Active operations are never expired.
-        records.retain(|_, entry| {
-            entry
+        // Active operations are never expired; expired IDs become tombstones.
+        records.retain(|id, entry| {
+            let live = entry
                 .finished_at
-                .is_none_or(|time| time.elapsed() < COMPLETED_TTL)
+                .is_none_or(|time| time.elapsed() < COMPLETED_TTL);
+            if !live {
+                if expired.len() >= MAX_EXPIRED_IDS {
+                    expired.pop_front();
+                }
+                expired.push_back(id.clone());
+            }
+            live
         });
+        if expired.contains(&request.operation_id) {
+            return Admission::Expired;
+        }
         if let Some(entry) = records.get(&request.operation_id) {
             return if entry.request == request {
                 Admission::Repeat(entry.status.clone())
@@ -148,73 +169,5 @@ fn safe_detail(s: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn request(id: char, target: &str) -> ModelSwitchRequest {
-        ModelSwitchRequest::new(
-            id.to_string().repeat(64),
-            "a".into(),
-            1,
-            format!("models/{target}.gguf"),
-            target.into(),
-            30000,
-        )
-    }
-
-    #[test]
-    fn identical_retry_is_read_only_but_conflicting_payload_refuses() {
-        let journal = SwitchJournal::default();
-        let a = request('a', "b");
-        assert!(matches!(journal.reserve(a.clone()), Admission::New));
-        assert!(matches!(journal.reserve(a.clone()), Admission::Repeat(_)));
-        let changed = request('a', "different");
-        assert!(matches!(journal.reserve(changed), Admission::Conflict));
-        assert_eq!(
-            journal.status(&a.operation_id).unwrap().phase,
-            ModelSwitchPhase::Running
-        );
-    }
-
-    #[test]
-    fn finished_status_survives_retry_without_claiming_readiness() {
-        let journal = SwitchJournal::default();
-        let a = request('b', "c");
-        assert!(matches!(journal.reserve(a.clone()), Admission::New));
-        journal.complete(
-            &a.operation_id,
-            SwitchOutcome::Switched {
-                from_handle: 1,
-                to_handle: 2,
-                release_ms: 12,
-                load_ms: 25,
-            },
-        );
-        let Admission::Repeat(status) = journal.reserve(a.clone()) else {
-            panic!("same id must never create a second switch");
-        };
-        assert_eq!(status.phase, ModelSwitchPhase::LoadedUnverified);
-        assert_eq!(status.to_handle, Some(2));
-        assert!(!status.ready);
-        assert_eq!(journal.status(&a.operation_id), Some(status));
-    }
-
-    #[test]
-    fn records_are_bounded_without_dropping_a_running_operation() {
-        let journal = SwitchJournal::default();
-        for n in 0..MAX_RECORDS {
-            let id = format!("{n:064x}");
-            let mut r = request('f', "b");
-            r.operation_id = id;
-            assert!(matches!(journal.reserve(r), Admission::New));
-        }
-        assert!(matches!(
-            journal.reserve(request('e', "b")),
-            Admission::Capacity
-        ));
-        assert_eq!(
-            journal.status(&format!("{:064x}", 0)).unwrap().phase,
-            ModelSwitchPhase::Running
-        );
-    }
-}
+#[path = "switch_journal_tests.rs"]
+mod tests;
