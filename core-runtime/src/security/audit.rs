@@ -3,8 +3,8 @@
 //! Provides the audit logger and global instance management.
 //! Types are in `audit_types.rs`.
 
-use time::OffsetDateTime;
 use std::sync::Arc;
+use time::OffsetDateTime;
 use tokio::sync::RwLock;
 
 pub use super::audit_types::*;
