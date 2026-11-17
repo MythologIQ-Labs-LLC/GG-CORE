@@ -21,6 +21,7 @@
 //! | `GG_CORE_SESSION_TIMEOUT` | 3600 | Session timeout (secs) |
 //! | `GG_CORE_N_CTX` | 2048 | GGUF context window size |
 //! | `GG_CORE_N_THREADS` | 0 | Threads per GGUF context; 0 = auto: daemon `max(1, min(logical, 16) / GG_CORE_MAX_CONCURRENT)`, embedded `min(logical, 16)` |
+//! | `GG_CORE_N_GPU_LAYERS` | 0 | Explicit GGUF layer offload count; requires a compiled `gguf-cuda` or macOS `gguf-metal` inference backend. Zero preserves CPU-only execution |
 //! | `GG_CORE_IPC_FRAME_LIMIT` | 16777216 | Max IPC frame size (bytes) |
 //! | `GG_CORE_MAX_CONNECTIONS` | 64 | Max concurrent IPC connections |
 //! | `GG_CORE_STREAM_STALL_MS` | 5000 | Longest wait for a non-reading stream client (min 100) |
@@ -61,6 +62,7 @@ pub struct EffectiveConfig {
     pub session_timeout_secs: u64,
     pub n_ctx: u32,
     pub n_threads: u32,
+    pub n_gpu_layers: u32,
     pub ipc_frame_limit: usize,
     pub max_connections: usize,
     pub stream_stall_ms: u64,
@@ -71,6 +73,8 @@ pub struct EffectiveConfig {
 pub struct GgufEnvConfig {
     pub n_ctx: u32,
     pub n_threads: u32,
+    /// Explicit GPU layer offload; zero means CPU-only.
+    pub n_gpu_layers: u32,
 }
 
 impl Default for GgufEnvConfig {
@@ -78,6 +82,7 @@ impl Default for GgufEnvConfig {
         Self {
             n_ctx: 2048,
             n_threads: 0,
+            n_gpu_layers: 0,
         }
     }
 }
@@ -111,6 +116,26 @@ pub fn per_call_ceiling_from_env() -> Option<usize> {
 
 /// Fallible GGUF settings, also used by the daemon's common resolver.
 pub(crate) fn load_gguf_config() -> Result<GgufEnvConfig, ConfigError> {
+    let n_gpu_layers = resource::from_env(
+        "GG_CORE_N_GPU_LAYERS",
+        0u32,
+        0,
+        i32::MAX as u32,
+        "decimal integer in 0..=2147483647",
+    )?;
+    // An explicitly requested GPU offload must never be silently ignored by
+    // a CPU-only build. Native installed GPU execution is qualified separately.
+    if n_gpu_layers > 0
+        && !cfg!(any(
+            feature = "gguf-cuda",
+            all(feature = "gguf-metal", target_os = "macos")
+        ))
+    {
+        return Err(ConfigError::Resource(ResourceConfigError::OutOfRange {
+            var: "GG_CORE_N_GPU_LAYERS",
+            expected: "0 unless GGUF CUDA/Metal inference is compiled for this platform",
+        }));
+    }
     Ok(GgufEnvConfig {
         n_ctx: resource::from_env(
             "GG_CORE_N_CTX",
@@ -126,6 +151,7 @@ pub(crate) fn load_gguf_config() -> Result<GgufEnvConfig, ConfigError> {
             i32::MAX as u32,
             "decimal integer in 0..=2147483647 (0 = auto)",
         )?,
+        n_gpu_layers,
     })
 }
 
@@ -208,6 +234,7 @@ impl EnvConfig {
             session_timeout_secs: self.session_timeout.as_secs(),
             n_ctx: self.gguf.n_ctx,
             n_threads: self.gguf.n_threads,
+            n_gpu_layers: self.gguf.n_gpu_layers,
             ipc_frame_limit: self.ipc_server.max_frame_size,
             max_connections: self.connections.max_connections,
             stream_stall_ms: self.ipc_server.stream_stall.as_millis() as u64,
