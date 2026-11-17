@@ -13,6 +13,31 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Temporary review-only resolver. It NEVER edits the repository or relaxes
+  # any locked supply-chain job. Remove this job once Cargo.lock is committed.
+  lockfile-candidate:
+    if: github.event_name == 'pull_request' && github.head_ref == 'fix/chrono-to-time-rustsec-20261117'
+    name: PR #215 lockfile candidate (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve manifest while retaining existing lockfile versions
+        working-directory: core-runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo metadata --format-version 1 > /dev/null
+          cargo metadata --locked --format-version 1 > /dev/null
+          echo 'LOCKFILE_RESOLUTION_VERIFIED'
+          echo 'BEGIN_GG_CORE_CARGO_LOCK_BASE64'
+          base64 -w0 Cargo.lock
+          echo
+          echo 'END_GG_CORE_CARGO_LOCK_BASE64'
+
   # Review C3: machine-enforced supply-chain gate. Advisories (RUSTSEC), the
   # C.O.R.E. forbidden-dependency bans, license allowlist, and registry pinning
   # all live in core-runtime/deny.toml.
