@@ -7,7 +7,7 @@
 ## v0.10.0-rc.1 Changes (additive: two new `error_code` values)
 
 - The daemon **refuses to start with an empty token**; a client must send the configured `CORE_AUTH_TOKEN` in `handshake`. (`GG_CORE_ALLOW_INSECURE_NO_AUTH=1` is a logged development-only exception.)
-- A session is bound to the connection that completed the handshake: `inference_request`, `cancel_request`, `warmup_request`, `model_load_request`, `model_unload_request` and `model_release_wait_request` must travel on that connection. `health_check`, `metrics_request`, `models_request` and the observability messages remain unauthenticated read-only probes. Warmup performs actual inference and therefore requires authentication.
+- A session is bound to the connection that completed the handshake: `inference_request`, `cancel_request`, `warmup_request`, `model_load_request`, `model_unload_request` and `model_release_wait_request`, `model_switch_request`, and `model_switch_status_request` must travel on that connection. `health_check`, `metrics_request`, `models_request` and the observability messages remain unauthenticated read-only probes. Warmup performs actual inference and therefore requires authentication.
 - `stream_chunk.error` is set (with `is_final: true`) for unknown model, validation and engine failures, and `inference_response.error`/`error_code` carries structured non-streaming failures (`admission_rejected`, `execution_failed`, `model_not_loaded`, `input_invalid`, `shutting_down`, and new in this release `cancelled`, `deadline_exceeded`). A client must treat either as a failed request; a client with a closed enum of codes must accept the two new values.
 - Non-streaming requests honor `timeout_ms` as a wall-clock deadline (queue wait, prompt prefill and generation) and can be cancelled by `cancel_request` on the same connection or by disconnect while they run. A stopped request answers `inference_response{error, error_code: "cancelled" | "deadline_exceeded", output: "", tokens_generated: 0}`, never a partial success. Responses to concurrent non-streaming requests on one connection may arrive in completion order; match them by `request_id`.
 - Transport: the Unix socket is created `0600`; the Windows named pipe is created with `FILE_FLAG_FIRST_PIPE_INSTANCE` and rejects remote clients.
@@ -290,6 +290,13 @@ The snapshot is read-only JSON. `snapshot.schema_version` is the **capability sc
 
 GPU serving is never inferred from detection or build features, and ONNX generation is never inferred from embedding or classification. A client-sent `capabilities_response` is refused with `error{code:400}`, the connection stays open, and nothing is ingested.
 
+**Operator serialization and source recording.**
+- **One operation at a time:** loads and unloads are serialized with the daemon's other model mutations: startup preload and the authenticated cold-switch coordinator (development branch only; not release-qualified).
+- **Busy error:** a request that cannot start within 30 s answers `success: false` with `error: "model operation busy: another load, unload or switch is in progress"`. Retry later.
+- **Hashing on load:** every load records the model file's SHA-256 so a later switch can restore exactly that model.
+  - A manifest model reuses its verified manifest digest.
+  - A manifest-free GGUF file is read in full once more before loading, which adds time proportional to the file size.
+
 **Release of an unloaded instance (additive in V1, authenticated).** An unload answers as soon as the model leaves the registry. A request still running on it keeps the instance — its native memory and resident budget — until that request completes, is cancelled, disconnects or reaches its deadline (streams default to 30 s; non-streaming and typed requests **without** `timeout_ms` have no deadline). Until then `models_request` lists the instance with `state: "unloading"`, its original `handle_id` and metadata `name`, and counts its bytes in `total_memory_bytes`; a load can be refused because those bytes are still charged.
 
 ```json
@@ -308,6 +315,37 @@ GPU serving is never inferred from detection or build features, and ONNX generat
 **Response ordering:** multiple release-wait requests should **not** be pipelined on the same authenticated connection. The server permits at most one active wait; while it is pending, another wait receives `error{code:409}`, but that rejection frame can appear before or after the first wait's response. The 409 error has no request ID. Clients needing independently concurrent waits should use separate authenticated connections and must not assume FIFO response ordering.
 
 **Clients that stop reading (all message types):** the daemon writes inline replies (`cancel_response`, `error` frames and ordinary responses) from the connection's reader. If the client stops reading, the reader waits on that reply, behind any frames already queued for the connection, each bounded by `GG_CORE_STREAM_STALL_MS` (default 5 000 ms). A client that stops reading entirely therefore delays its own later frames by at most that bound. A client that keeps reading slowly can delay them by the number of queued frames times the bound. When a write reaches the bound, the connection is closed. Requests the reader had not yet read, such as a queued `cancel_request`, are never answered: closing the connection cancels all of its requests and release waits instead.
+
+### Cold model switch (development-only additive V1 frames; authenticated)
+
+The model-switch implementation introduced on `feat/v1-switch-ipc-20261114-no-ci` is **not yet qualified for release**. A client must first complete the normal handshake and supply a **fresh cryptographically random** 32-byte (64 lowercase hex) operation ID. The server enforces its format but cannot assess how the caller generated the token. Keep the token secret: it is a reconnect capability in addition to ordinary session authentication.
+
+```json
+// Client → Server (authenticated); A's handle comes from a prior model listing
+{ "type": "model_switch_request",
+  "operation_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "from_id": "a", "expected_handle": 42,
+  "to_path": "models/b.gguf", "to_id": "b", "release_wait_ms": 30000 }
+
+// Server → Client: immediate, detached operation status (may still be running)
+{ "type": "model_switch_response", "operation_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "phase": "running", "ready": false, "from_id": "a", "to_id": "b" }
+
+// A disconnected client can reconnect with a fresh handshake and query its ID
+{ "type": "model_switch_status_request",
+  "operation_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" }
+{ "type": "model_switch_status_response",
+  "operation_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "phase": "loaded_unverified", "ready": false, "from_id": "a", "to_id": "b",
+  "to_handle": 43,
+  "detail": "registered; task-specific inference readiness is not yet verified" }
+```
+
+**Status phases:** `running`, `refused`, `release_pending`, `loaded_unverified`, `rolled_back_unverified`, `rollback_failed`, `unknown`. **No phase presently means operationally ready.** In particular, `loaded_unverified` is not `switched/ready`; a bounded real task-appropriate smoke inference and serving admission/readiness gating are release blockers. Do not market or script this as a completed supported model switch.
+
+**Retry and bounds:** repeating an identical operation ID and request returns the existing status without a second switch; a conflicting payload returns 409. A 64-record journal refuses when full (429), retains active records, and expires completed status after ten minutes. The journal is process-local, so after daemon restart a missing operation returns 404 and the client must reconcile models/release state, **not blindly retry a transition**. An invalid operation ID or oversized wait returns 400; no handshake returns 401. A status lookup returns 404 for unknown/expired IDs. `release_wait_ms` must be between 1 and 120000 inclusive.
+
+A client must not treat a missing response as proof the operation was cancelled: the daemon completes an admitted switch independently. This path does not add HTTP, cloud authority or a new model-loader implementation.
 
 ### Observability (unauthenticated, orchestrator pattern)
 
