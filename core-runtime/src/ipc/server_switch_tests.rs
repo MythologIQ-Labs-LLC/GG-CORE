@@ -26,7 +26,10 @@ async fn connect(d: &Daemon, authenticated: bool) -> (DuplexStream, tokio::task:
             },
         )
         .await;
-        assert!(matches!(receive(&mut client).await, IpcMessage::HandshakeAck { .. }));
+        assert!(matches!(
+            receive(&mut client).await,
+            IpcMessage::HandshakeAck { .. }
+        ));
     }
     (client, task)
 }
@@ -49,7 +52,11 @@ async fn switch_and_status_require_authentication() {
     let handle = d.lifecycle.get_handle("m").await.unwrap().id();
 
     let (mut client, server) = connect(&d, false).await;
-    send(&mut client, &IpcMessage::ModelSwitchRequest(request(handle))).await;
+    send(
+        &mut client,
+        &IpcMessage::ModelSwitchRequest(request(handle)),
+    )
+    .await;
     assert!(matches!(
         receive(&mut client).await,
         IpcMessage::Error { code: 401, .. }
@@ -83,8 +90,15 @@ async fn disconnected_caller_cannot_accidentally_start_a_second_switch() {
     let original = request(observed.id());
     let (mut client, _server) = connect(&d, true).await;
 
-    send(&mut client, &IpcMessage::ModelSwitchRequest(original.clone())).await;
-    assert!(matches!(receive(&mut client).await, IpcMessage::ModelSwitchResponse(_)));
+    send(
+        &mut client,
+        &IpcMessage::ModelSwitchRequest(original.clone()),
+    )
+    .await;
+    assert!(matches!(
+        receive(&mut client).await,
+        IpcMessage::ModelSwitchResponse(_)
+    ));
     drop(client);
 
     // A reconnect needs the normal handshake and its original operation ID.
@@ -114,7 +128,11 @@ async fn disconnected_caller_cannot_accidentally_start_a_second_switch() {
     assert_eq!(result.to_handle, None);
     assert!(d.lifecycle.validate_handle(&observed).await);
 
-    send(&mut retry, &IpcMessage::ModelSwitchRequest(original.clone())).await;
+    send(
+        &mut retry,
+        &IpcMessage::ModelSwitchRequest(original.clone()),
+    )
+    .await;
     match receive(&mut retry).await {
         IpcMessage::ModelSwitchResponse(s) => assert_eq!(s, result),
         other => panic!("retry must read old outcome: {other:?}"),

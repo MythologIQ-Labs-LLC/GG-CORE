@@ -16,7 +16,9 @@ pub const SWITCH_OPERATION_ID_HEX_LEN: usize = 64;
 
 fn valid_operation_id(id: &str) -> bool {
     id.len() == SWITCH_OPERATION_ID_HEX_LEN
-        && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// A one-time, operator-issued cold transition. No implicit cancellation.
@@ -54,9 +56,12 @@ impl ModelSwitchRequest {
         if !valid_operation_id(&self.operation_id) {
             return Err("operation_id must be a fresh 64-character hex token");
         }
-        if self.from_id.is_empty() || self.from_id.len() > 256
-            || self.to_id.is_empty() || self.to_id.len() > 256
-            || self.to_path.is_empty() || self.to_path.len() > 4096
+        if self.from_id.is_empty()
+            || self.from_id.len() > 256
+            || self.to_id.is_empty()
+            || self.to_id.len() > 256
+            || self.to_path.is_empty()
+            || self.to_path.len() > 4096
         {
             return Err("invalid source ID, target ID, or relative target path");
         }
@@ -141,7 +146,12 @@ mod tests {
     #[test]
     fn rejects_unbounded_or_ambiguous_transition_parameters() {
         let mut r = ModelSwitchRequest::new(
-            "a".repeat(64), "a".into(), 1, "models/b.gguf".into(), "b".into(), 5000,
+            "a".repeat(64),
+            "a".into(),
+            1,
+            "models/b.gguf".into(),
+            "b".into(),
+            5000,
         );
         assert!(r.validate().is_ok());
         r.release_wait_ms = 120_001;
@@ -158,11 +168,21 @@ mod tests {
     fn status_lookup_requires_bounded_lowercase_operation_id() {
         let valid = ModelSwitchStatusRequest::new("a".repeat(64));
         assert!(valid.validate().is_ok());
-        for invalid in ["A".repeat(64), "g".repeat(64), "a".repeat(65), String::new()] {
+        for invalid in [
+            "A".repeat(64),
+            "g".repeat(64),
+            "a".repeat(65),
+            String::new(),
+        ] {
             assert!(ModelSwitchStatusRequest::new(invalid).validate().is_err());
         }
         let mut req = ModelSwitchRequest::new(
-            "A".repeat(64), "source".into(), 1, "models/b.gguf".into(), "b".into(), 5000,
+            "A".repeat(64),
+            "source".into(),
+            1,
+            "models/b.gguf".into(),
+            "b".into(),
+            5000,
         );
         assert!(req.validate().is_err());
         req.operation_id = "a".repeat(64);

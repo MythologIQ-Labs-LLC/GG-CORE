@@ -19,6 +19,7 @@ GG-CORE is a **standalone, upstream local inference runtime**. CoreForge is one 
 | Structural design and interface planning | [Architecture Plan](docs/ARCHITECTURE_PLAN.md) | Intended interfaces; verify against code |
 | Public integration and supported features | [README](README.md), [Feature Index](docs/FEATURE_INDEX.md) | Per-feature and per-surface evidence, not assumed maturity |
 | Embedded API and IPC V1 compatibility | [v1 contract baseline](docs/integration/V1_EMBEDDED_CONTRACT_BASELINE.md), [IPC schema](docs/IPC_PROTOCOL_SCHEMA.md) | Pre-freeze source and wire evidence, not an installed release or ABI guarantee |
+| Conservative model lifecycle and cold-switch design | [standalone switching acceptance](docs/integration/V1_STANDALONE_SWITCH_ACCEPTANCE.md), [IPC contract](docs/IPC_PROTOCOL_SCHEMA.md), [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137) | Authenticated development implementation; never call registered models serving-ready without a real task probe |
 | Security and platform containment | [Security Policy](SECURITY.md) | Windows Job Objects do not isolate network or filesystem; platform guarantees vary |
 | Internal governance registry | [Governance Index](docs/GOVERNANCE_INDEX.md) | Process artifact map, separate from architecture ownership |
 | Speculative decoding | [ADR-007 TierSynergy](docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md) | Experimental/dormant paths must not be called production-qualified |

@@ -28,20 +28,23 @@ impl IpcHandler {
         let operation_id = request.operation_id.clone();
         match self.switch_journal.reserve(request.clone()) {
             Admission::Repeat(existing) => return IpcMessage::ModelSwitchResponse(existing),
-            Admission::Conflict => return IpcMessage::Error {
-                code: 409,
-                message: "operation_id was already used for a different transition".into(),
-            },
-            Admission::Capacity => return IpcMessage::Error {
-                code: 429,
-                message: "switch operation journal is at capacity".into(),
-            },
+            Admission::Conflict => {
+                return IpcMessage::Error {
+                    code: 409,
+                    message: "operation_id was already used for a different transition".into(),
+                }
+            }
+            Admission::Capacity => {
+                return IpcMessage::Error {
+                    code: 429,
+                    message: "switch operation journal is at capacity".into(),
+                }
+            }
             Admission::New(_) => {}
         }
 
-        let workers = crate::memory::ResourceLimits::worker_loops(
-            self.model_lifecycle.resource_limits(),
-        );
+        let workers =
+            crate::memory::ResourceLimits::worker_loops(self.model_lifecycle.resource_limits());
         let prep: Arc<dyn Preparer> = Arc::new(CanonicalPreparer {
             loader: Arc::clone(&self.model_loader),
             workers,
@@ -76,10 +79,7 @@ impl IpcHandler {
         }
     }
 
-    pub(super) fn read_model_switch(
-        &self,
-        request: ModelSwitchStatusRequest,
-    ) -> IpcMessage {
+    pub(super) fn read_model_switch(&self, request: ModelSwitchStatusRequest) -> IpcMessage {
         if let Err(message) = request.validate() {
             return IpcMessage::Error {
                 code: 400,

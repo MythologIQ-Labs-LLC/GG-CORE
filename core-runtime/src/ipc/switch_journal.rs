@@ -40,7 +40,9 @@ pub(super) enum Admission {
 
 impl SwitchJournal {
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, Record>> {
-        self.records.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.records
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     pub(super) fn reserve(&self, request: ModelSwitchRequest) -> Admission {
@@ -48,7 +50,9 @@ impl SwitchJournal {
         // Make status lookup and replay semantics agree at the TTL boundary.
         // Active operations are never expired.
         records.retain(|_, entry| {
-            entry.finished_at.is_none_or(|time| time.elapsed() < COMPLETED_TTL)
+            entry
+                .finished_at
+                .is_none_or(|time| time.elapsed() < COMPLETED_TTL)
         });
         if let Some(entry) = records.get(&request.operation_id) {
             return if entry.request == request {
@@ -79,7 +83,10 @@ impl SwitchJournal {
     pub(super) fn status(&self, operation_id: &str) -> Option<ModelSwitchStatusResponse> {
         let records = self.lock();
         let entry = records.get(operation_id)?;
-        if entry.finished_at.is_some_and(|time| time.elapsed() >= COMPLETED_TTL) {
+        if entry
+            .finished_at
+            .is_some_and(|time| time.elapsed() >= COMPLETED_TTL)
+        {
             return None;
         }
         Some(entry.status.clone())
@@ -124,11 +131,9 @@ impl SwitchJournal {
                 None,
                 Some(safe_detail(&format!("{cause}; rollback: {rollback_error}"))),
             ),
-            SwitchOutcome::Unknown { reason } => (
-                ModelSwitchPhase::Unknown,
-                None,
-                Some(safe_detail(&reason)),
-            ),
+            SwitchOutcome::Unknown { reason } => {
+                (ModelSwitchPhase::Unknown, None, Some(safe_detail(&reason)))
+            }
         };
         entry.status.phase = phase;
         entry.status.to_handle = to_handle;
@@ -165,7 +170,10 @@ mod tests {
         assert!(matches!(journal.reserve(a.clone()), Admission::Repeat(_)));
         let changed = request('a', "different");
         assert!(matches!(journal.reserve(changed), Admission::Conflict));
-        assert_eq!(journal.status(&a.operation_id).unwrap().phase, ModelSwitchPhase::Running);
+        assert_eq!(
+            journal.status(&a.operation_id).unwrap().phase,
+            ModelSwitchPhase::Running
+        );
     }
 
     #[test]
@@ -173,12 +181,15 @@ mod tests {
         let journal = SwitchJournal::default();
         let a = request('b', "c");
         assert!(matches!(journal.reserve(a.clone()), Admission::New(_)));
-        journal.complete(&a.operation_id, SwitchOutcome::Switched {
-            from_handle: 1,
-            to_handle: 2,
-            release_ms: 12,
-            load_ms: 25,
-        });
+        journal.complete(
+            &a.operation_id,
+            SwitchOutcome::Switched {
+                from_handle: 1,
+                to_handle: 2,
+                release_ms: 12,
+                load_ms: 25,
+            },
+        );
         let Admission::Repeat(status) = journal.reserve(a.clone()) else {
             panic!("same id must never create a second switch");
         };
@@ -197,8 +208,13 @@ mod tests {
             r.operation_id = id;
             assert!(matches!(journal.reserve(r), Admission::New(_)));
         }
-        assert!(matches!(journal.reserve(request('e', "b")), Admission::Capacity));
-        assert_eq!(journal.status(&format!("{:064x}", 0)).unwrap().phase,
-            ModelSwitchPhase::Running);
+        assert!(matches!(
+            journal.reserve(request('e', "b")),
+            Admission::Capacity
+        ));
+        assert_eq!(
+            journal.status(&format!("{:064x}", 0)).unwrap().phase,
+            ModelSwitchPhase::Running
+        );
     }
 }
