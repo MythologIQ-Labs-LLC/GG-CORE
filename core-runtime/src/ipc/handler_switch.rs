@@ -59,9 +59,10 @@ impl IpcHandler {
         match spawn_cold_switch(Arc::clone(&self.model_lifecycle), prep, switch) {
             Ok(task) => {
                 let journal = Arc::clone(&self.switch_journal);
+                let task_operation_id = operation_id.clone();
                 tokio::spawn(async move {
                     let outcome = join_switch(task).await;
-                    journal.complete(&operation_id, outcome);
+                    journal.complete(&task_operation_id, outcome);
                 });
             }
             Err(refusal) => {
