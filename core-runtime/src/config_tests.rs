@@ -16,6 +16,7 @@ const ENV_KEYS: &[&str] = &[
     "GG_CORE_SESSION_TIMEOUT",
     "GG_CORE_N_CTX",
     "GG_CORE_N_THREADS",
+    "GG_CORE_N_GPU_LAYERS",
     "GG_CORE_IPC_FRAME_LIMIT",
     "GG_CORE_MAX_CONNECTIONS",
     "GG_CORE_STREAM_STALL_MS",
@@ -49,6 +50,7 @@ fn test_defaults_are_sensible() {
     assert_eq!(cfg.session_timeout.as_secs(), 3600);
     assert_eq!(cfg.gguf.n_ctx, 2048);
     assert_eq!(cfg.gguf.n_threads, 0);
+    assert_eq!(cfg.gguf.n_gpu_layers, 0);
     assert_eq!(cfg.ipc_server.max_frame_size, 16 * 1024 * 1024);
     assert_eq!(cfg.connections.max_connections, 64);
 }
@@ -109,6 +111,7 @@ fn test_effective_config_contains_all_fields() {
     assert!(eff.shutdown_timeout_secs > 0);
     assert!(eff.session_timeout_secs > 0);
     assert!(eff.n_ctx >= 128);
+    assert_eq!(eff.n_gpu_layers, 0);
     assert!(eff.ipc_frame_limit > 0);
     assert!(eff.max_connections > 0);
 }
