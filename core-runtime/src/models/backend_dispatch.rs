@@ -141,7 +141,7 @@ fn gguf_load_config(env: &crate::config::GgufEnvConfig, workers: usize) -> GgufC
     GgufConfig {
         n_ctx: env.n_ctx,
         n_threads: crate::engine::gguf::threads::per_context_for_host(env.n_threads, workers),
-        ..GgufConfig::default()
+        n_gpu_layers: env.n_gpu_layers,
     }
 }
 
