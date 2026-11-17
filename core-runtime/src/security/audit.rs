@@ -3,7 +3,7 @@
 //! Provides the audit logger and global instance management.
 //! Types are in `audit_types.rs`.
 
-use chrono::{DateTime, Utc};
+use time::OffsetDateTime;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -84,8 +84,8 @@ impl AuditLogger {
 
     pub async fn get_events_by_time(
         &self,
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
+        start: OffsetDateTime,
+        end: OffsetDateTime,
     ) -> Vec<AuditEvent> {
         self.events
             .read()
