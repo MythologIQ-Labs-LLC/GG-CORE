@@ -174,7 +174,11 @@ async fn registration_growth_beyond_total_is_refused_and_rolled_back() {
 async fn cancelled_unload_waiting_on_engine_writer_keeps_registered_residency() {
     let (lc, limits) = setup(1_000);
     let handle = lc
-        .load("cancel-unload".into(), meta("cancel-unload", 600), Arc::new(Weights(600)))
+        .load(
+            "cancel-unload".into(),
+            meta("cancel-unload", 600),
+            Arc::new(Weights(600)),
+        )
         .await
         .expect("loaded model");
     assert_eq!(limits.current_memory(), 600);
@@ -197,7 +201,11 @@ async fn cancelled_unload_waiting_on_engine_writer_keeps_registered_residency() 
     assert!(lc.engine.has_model("cancel-unload").await);
     assert!(lc.is_loaded("cancel-unload").await);
     assert!(
-        lc.index.read().await.residents.contains_key("cancel-unload"),
+        lc.index
+            .read()
+            .await
+            .residents
+            .contains_key("cancel-unload"),
         "cancelled unload detached resident budget bookkeeping"
     );
     assert_eq!(limits.current_memory(), 600);
