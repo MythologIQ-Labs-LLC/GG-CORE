@@ -267,7 +267,12 @@ fn status_from_partial_ipc_is_degraded_not_healthy() {
         .message
         .contains("Metrics IPC"));
 
-    let missing_models = build_status(true, Some(healthy_report.clone()), Some(snapshot.clone()), None);
+    let missing_models = build_status(
+        true,
+        Some(healthy_report.clone()),
+        Some(snapshot.clone()),
+        None,
+    );
     assert_eq!(missing_models.health, HealthState::Degraded);
     assert_eq!(missing_models.recent_events.len(), 1);
     assert!(missing_models.recent_events[0]
@@ -287,7 +292,12 @@ fn status_from_partial_ipc_is_degraded_not_healthy() {
     unhealthy_report.state = RuntimeHealthState::Unhealthy;
     unhealthy_report.ready = false;
     unhealthy_report.accepting_requests = false;
-    let unhealthy = build_status(false, Some(unhealthy_report), Some(snapshot), Some(empty_models));
+    let unhealthy = build_status(
+        false,
+        Some(unhealthy_report),
+        Some(snapshot),
+        Some(empty_models),
+    );
     assert_eq!(unhealthy.health, HealthState::Unhealthy);
     assert!(unhealthy.recent_events.is_empty());
 
@@ -299,15 +309,20 @@ fn status_from_partial_ipc_is_degraded_not_healthy() {
         accepting_requests: true,
         ..healthy_report.clone()
     };
-    let degraded = build_status(false, Some(degraded_report), Some(MetricsSnapshot {
-        counters: HashMap::new(),
-        gauges: HashMap::new(),
-        histograms: HashMap::new(),
-        bucketed_histograms: HashMap::new(),
-    }), Some(ModelsListResponse {
-        models: Vec::new(),
-        total_memory_bytes: 0,
-    }));
+    let degraded = build_status(
+        false,
+        Some(degraded_report),
+        Some(MetricsSnapshot {
+            counters: HashMap::new(),
+            gauges: HashMap::new(),
+            histograms: HashMap::new(),
+            bucketed_histograms: HashMap::new(),
+        }),
+        Some(ModelsListResponse {
+            models: Vec::new(),
+            total_memory_bytes: 0,
+        }),
+    );
     assert_eq!(degraded.health, HealthState::Degraded);
 
     // A full health check returning no full report is incomplete even if
