@@ -202,3 +202,16 @@ fn cli_model_status_preserves_daemon_average_without_dividing_twice() {
     assert_eq!(models[1].avg_latency_ms, 40.0);
     assert_eq!(models[1].state, ModelState::Error);
 }
+
+#[test]
+fn cli_status_truncation_handles_multibyte_model_names_and_events() {
+    let label = "模型🚀one";
+    assert_eq!(truncate(label, 0), "");
+    assert_eq!(truncate(label, 2), "..");
+    assert_eq!(truncate(label, 3), "...");
+    assert_eq!(truncate(label, 6), "模...");
+    assert_eq!(truncate(label, 7), "模...");
+    assert_eq!(truncate(label, 9), "模型...");
+    assert_eq!(truncate(label, 13), label);
+    assert_eq!(truncate(&label.repeat(10), 27).len() <= 27, true);
+}
