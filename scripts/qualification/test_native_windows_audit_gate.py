@@ -80,7 +80,7 @@ class NativeAcceptanceContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         advertised = re.findall(
-            r"^\\s+MODEL_SHA256:\\s*([0-9a-f]{64})\\s*$",
+            r"^\s+MODEL_SHA256:\s*([0-9a-f]{64})\s*$",
             release_workflow,
             re.MULTILINE,
         )
