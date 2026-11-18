@@ -33,6 +33,29 @@ pub(in crate::scheduler) async fn acquire_guard(
     })
 }
 
+
+/// Execute admitted work on the blocking pool. The reservation is owned by the
+/// native task, NOT by its awaiter: aborting a worker future drops its
+/// JoinHandle but cannot stop running spawn_blocking work. The reservation
+/// must therefore remain charged until that closure completes or unwinds.
+///
+/// This shared boundary is used by normal, typed and streaming workers. It
+/// also prevents the three paths from silently diverging again (#219).
+pub(in crate::scheduler) async fn run_blocking_admitted<T, F>(
+    guard: Option<ResourceGuard>,
+    run: F,
+) -> Result<T, tokio::task::JoinError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || {
+        let _guard = guard;
+        run()
+    })
+    .await
+}
+
 #[cfg(test)]
 #[path = "worker_admission_tests.rs"]
 mod tests;
