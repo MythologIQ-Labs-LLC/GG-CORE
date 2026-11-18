@@ -297,6 +297,39 @@ fn dropping_loaded_lifecycle_with_live_model_does_not_credit_memory_early() {
     );
 }
 
+/// An abandoned PreparedModel is also a native backend owner. The
+/// private prepared reservation must survive its destructor's panic rather
+/// than allowing Rust's remaining-field cleanup to credit unsafe capacity.
+#[test]
+fn abandoned_prepared_model_destructor_panic_retains_resident_budget() {
+    let limits = crate::memory::ResourceLimits::new(
+        crate::memory::ResourceLimitsConfig {
+            max_memory_per_call: 10,
+            max_total_memory: 1_000,
+            max_concurrent: 1,
+        },
+    );
+    let started = Arc::new(AtomicBool::new(false));
+    let model: Arc<dyn Model> = Arc::new(PanickingWeights {
+        bytes: 400,
+        destructor_started: Arc::clone(&started),
+    });
+    let guard = limits.reserve_resident(400).unwrap();
+    let prepared = crate::models::PreparedModel::for_test("pending", model, Some(guard));
+
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        drop(prepared);
+    }));
+    assert!(panicked.is_err(), "failed native destructor must be observable");
+    assert!(started.load(Ordering::SeqCst));
+    assert_eq!(
+        limits.current_memory(),
+        400,
+        "aborted prepared model erroneously credited failed native destruction"
+    );
+    assert!(limits.reserve_resident(700).is_err());
+}
+
 /// A *refused registration* must use the same panic-safe model and
 /// reservation drop boundary as a successful model unload. If a losing model's
 /// native destructor panics, returning its charged bytes would be unsafe.
