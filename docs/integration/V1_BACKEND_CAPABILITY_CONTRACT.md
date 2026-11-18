@@ -49,3 +49,13 @@ Before calling this from the daemon, the authenticated controller must obtain an
 - **Deferred to model selection:** checking a candidate model against the memory budget, host-authority rules (pinning a model rather than a backend, operator constraints) and model selection itself. These belong to the model-selection policy under #50 / #153 and are not implemented.
 - **In the meantime:** the existing admission and resident-budget checks (#193) apply unchanged to every load.
 
+
+## Native accelerator compile-path candidate (PR #216, not release-qualified)
+
+The historical CPU-only statements above describe the earlier `main` snapshot. Draft [PR #216](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/216) adds optional `gguf-cuda` and `gguf-metal` features that compile llama.cpp **inference backends**, unlike the older `cuda`/`metal` device-management features. The daemon forwards an explicit `GG_CORE_N_GPU_LAYERS` count to the native GGUF model loader; zero remains the CPU default. A nonzero count on an unsupported build/platform is refused instead of silently ignored.
+
+`compiled_backend_capabilities()` reports a **GGUF text-generation/CUDA** compile path only when `gguf-cuda` is enabled and a **GGUF text-generation/Metal** compile path only under `gguf-metal` on macOS. It always reports GGUF CPU generation when GGUF is compiled and does not fabricate ONNX GPU execution. Its `qualified_paths` stays **empty** for every build, including GPU-enabled builds.
+
+The compiled path is a capability of the binary's *code graph*, **not** evidence of a present NVIDIA/Apple GPU, compatible driver, successful kernel execution, installed-model offload, or release support. The runtime's `hardware.accelerators` remains unknown until measured, and the loaded-model snapshot does not claim GPU use from a configured layer count. Native CUDA/Metal acceptance must record model/binary hashes, GPU utilization, VRAM, correct output, streaming, cancel/drop, memory reclamation, fallback/refusal and standalone packaging. In particular P0 [#219](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/219) must be resolved before any stream/offload release claim.
+
+Any consumer may inspect compiled paths, but a selector still must refuse a target with no **independently verified model+hardware+task** support evidence, irrespective of the compiled feature flag. No global qualification or model-routing approval is implied by this PR.
