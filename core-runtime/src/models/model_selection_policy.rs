@@ -43,5 +43,14 @@ fn plan_with_compiled_catalog<'a>(
 }
 
 #[cfg(test)]
-#[path = "model_selection_policy_tests.rs"]
-mod tests;
+#[path = "model_selection_test_support.rs"]
+mod test_support;
+#[cfg(test)]
+#[path = "model_selection_test_quality.rs"]
+mod test_quality;
+#[cfg(test)]
+#[path = "model_selection_test_authority.rs"]
+mod test_authority;
+#[cfg(test)]
+#[path = "model_selection_test_evidence.rs"]
+mod test_evidence;
