@@ -2,7 +2,9 @@
 
 use std::collections::HashSet;
 
-use super::{CandidateAssessment, ModelAction, ModelOffer, ModelSelectionPlan, PlanRefusal, SelectionPolicy};
+use super::{
+    CandidateAssessment, ModelAction, ModelOffer, ModelSelectionPlan, PlanRefusal, SelectionPolicy,
+};
 use crate::models::backend_capabilities::RuntimeBackendCapabilities;
 
 #[derive(Clone, Copy)]
@@ -100,7 +102,11 @@ fn evaluate<'a>(
 }
 
 fn best(candidates: &[Eligible], incumbent: Option<Eligible>) -> Result<Eligible, PlanRefusal> {
-    let minimum = candidates.iter().map(|c| c.cost_ms).min().unwrap_or(u64::MAX);
+    let minimum = candidates
+        .iter()
+        .map(|c| c.cost_ms)
+        .min()
+        .unwrap_or(u64::MAX);
     let mut tied = candidates.iter().copied().filter(|c| c.cost_ms == minimum);
     let first = tied.next().expect("nonempty candidates");
     if tied.next().is_none() {
