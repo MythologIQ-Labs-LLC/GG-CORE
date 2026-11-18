@@ -179,7 +179,15 @@ elif printf 'not a gguf' > models/rc-fake.gguf && [ -s models/rc-fake.gguf ]; th
 else
   bad "could not stage corrupt GGUF fixture; invalid-load test NOT RUN"
 fi
-"$BIN" models list --json 2>/dev/null | grep -q fake && bad "partial registry state" || ok "no partial state"
+# A failed or malformed model-list query must never pass the rollback/cleanup
+# check merely because grep failed to find "fake" in empty/invalid output.
+REGISTRY_JSON="$("$BIN" models list --json 2>/dev/null)"; REGISTRY_RC=$?
+if [ "$REGISTRY_RC" -eq 0 ] && [ -n "$PYTHON" ] && [ -f "$INSPECT" ] &&
+  printf '%s' "$REGISTRY_JSON" | "$PYTHON" "$INSPECT" absent-model fake; then
+  ok "no partial registry state for refused corrupt model"
+else
+  bad "partial state, invalid model-list JSON or model-list query failed"
+fi
 OUT2="$(with_timeout 180 "$BIN" infer --model qwen --prompt "2+2=" --max-tokens 6 2>&1)" && ok "inference after reload" || bad "inference after reload: $OUT2"
 
 echo "== auth boundary =="
