@@ -79,9 +79,13 @@ def validate_checkout(repo, expected_head, expected_model):
     head = checked_stdout(["git", "rev-parse", "HEAD"], repo)
     if head != expected_head:
         raise RuntimeError(f"Checkout {head} differs from expected {expected_head}")
-    dirty = checked_stdout(["git", "status", "--porcelain", "--untracked-files=no"], repo)
+    # Include untracked files: a local .cargo/config or source sidecar can change
+    # the compiled artifact despite an unchanged Git HEAD. Exclude only the
+    # independently hash-checked real fixture, never a whole source directory.
+    dirty = checked_stdout(["git", "status", "--porcelain", "--untracked-files=all",
+                            "--", ".", ":!" + MODEL_RELATIVE.as_posix()], repo)
     if dirty:
-        raise RuntimeError("Tracked source is modified; native evidence requires clean exact HEAD")
+        raise RuntimeError("Uncommitted or untracked source exists; native evidence requires exact HEAD")
     model = repo / MODEL_RELATIVE
     if not model.is_file():
         raise RuntimeError("Pinned real GGUF fixture missing")
