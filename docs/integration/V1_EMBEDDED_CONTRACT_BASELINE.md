@@ -35,6 +35,16 @@ New tests are **proposed until CI passes on the exact PR head**. Source compilat
 5. Never accept user-provided capability claims as qualification authority. Model and accelerator support require exact installed evidence.
 6. Apply the final owner inclusion matrix before v1 API freeze; all promised surfaces need explicit negative, cross-version and rollback tests.
 
+## Pre-v1 status latency quantile correction (CLI/JSON)
+
+Before this change, the `gg-core-cli status` implementation reported `p50_latency_ms` as the **minimum**, `p95_latency_ms` as `0.95 * maximum`, and `p99_latency_ms` as `0.99 * maximum`. These are **not sample percentiles**. The existing authenticated metrics snapshot exposes only `HistogramSummary { count, sum, min, max }`, insufficient to reconstruct any percentile from a multi-observation distribution.
+
+**Corrected source semantics:** `RequestStats.{p50,p95,p99}_latency_ms` are now `Option<f64>` in the Rust status API; serialized `status --json` fields are explicitly `null` when an observed quantile is unavailable. Human `status` shows `N/A` rather than fabricating milliseconds. The average remains the measured `sum/count` for a nonempty histogram. No new runtime telemetry collector, network transport or quantile computation has been invented.
+
+**Compatibility boundary:** this deliberately changes a **pre-v1 public Rust source type** from `f64` to `Option<f64>` and a CLI JSON value from a number to `null`. Rust consumers must handle `None`; JSON clients must accept nullable percentile fields. This is not wire compatibility with code that required a number. The V1 embedded/CLI status contract remains **unfrozen**, and this behavior requires explicit inclusion in #112 before freeze. This does not change the authenticated inference IPC framing or GGUF/ONNX execution paths.
+
+To implement real percentiles later, a trusted recorder must retain samples or a properly validated quantile distribution, attribute metrics to correct model/task and window, and independently verify end-to-end inference timing. Fake P95/P99 must never be used to qualify model selection, performance baselines or release support. The regression test constructs an adversarial `min=1, max=500, count=10, sum=1000` summary and verifies JSON `null` and `N/A`, not manufactured P50/P95/P99. This is source behavior, **not** a hardware benchmark or installed release receipt.
+
 ## Remaining dependencies and exit criteria
 
 - [#160](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/160): owner-approved supported API, language, platform and model/task matrix.
