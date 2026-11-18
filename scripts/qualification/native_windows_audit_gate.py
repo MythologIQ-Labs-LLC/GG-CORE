@@ -47,7 +47,10 @@ def command_matrix():
         *[("test_" + feature, ["cargo", "test", *flags, "--features", feature])
           for feature in ("advanced", "ffi", "python", "onnx", "gguf")],
         ("test_full", ["cargo", "test", *flags, "--features", "onnx,gguf,ffi", "--no-fail-fast"]),
-        ("cargo_deny", ["cargo", "deny", "check"]),
+        # cargo-deny has its own advisory DB fetcher. CARGO_NET_OFFLINE
+        # alone does not prohibit that network access; require offline mode
+        # and the already-provisioned, freshness-checked advisory database.
+        ("cargo_deny", ["cargo", "deny", "--offline", "--locked", "check"]),
         ("release_build", ["cargo", "build", *flags, "--release", "--features", "onnx,gguf,ffi"]),
     ]
 
