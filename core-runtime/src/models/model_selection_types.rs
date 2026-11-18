@@ -43,7 +43,9 @@ pub struct SelectionPolicy<'a> {
     /// Upper bound for one model's measured resident + working bytes.
     /// Does NOT replace global memory admission or transient peak checks.
     pub max_model_memory_bytes: u64,
-    /// Upper bound on the sum of separately measured p95 components; this is\n    /// NOT a measured percentile of end-to-end latency.\n    pub max_estimated_total_ms: u64,
+    /// Upper bound on the sum of separately measured p95 components; this is
+    /// NOT a measured percentile of end-to-end latency.
+    pub max_estimated_total_ms: u64,
     pub current_model_id: Option<&'a str>,
     pub allow_resident_reroute: bool,
     pub allow_cold_switch: bool,
