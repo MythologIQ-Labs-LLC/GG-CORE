@@ -43,7 +43,7 @@ pub struct SelectionPolicy<'a> {
     /// Upper bound for one model's measured resident + working bytes.
     /// Does NOT replace global memory admission or transient peak checks.
     pub max_model_memory_bytes: u64,
-    pub max_p95_total_ms: u64,
+    /// Upper bound on the sum of separately measured p95 components; this is\n    /// NOT a measured percentile of end-to-end latency.\n    pub max_estimated_total_ms: u64,
     pub current_model_id: Option<&'a str>,
     pub allow_resident_reroute: bool,
     pub allow_cold_switch: bool,
@@ -96,18 +96,18 @@ pub enum ModelAction<'a> {
     UseResident {
         model_id: &'a str,
         handle_id: u64,
-        expected_p95_ms: u64,
+        estimated_total_ms: u64,
     },
     /// No mutation: only an explicit authenticated host decision may reroute.
     ProposeResidentReroute {
         model_id: &'a str,
         handle_id: u64,
-        expected_p95_ms: u64,
+        estimated_total_ms: u64,
     },
     /// No mutation: only the canonical transition owner can unload/load.
     ProposeColdSwitch {
         model_id: &'a str,
-        expected_p95_ms: u64,
+        estimated_total_ms: u64,
     },
     Refuse(PlanRefusal),
 }
@@ -116,7 +116,7 @@ pub enum ModelAction<'a> {
 pub struct CandidateAssessment<'a> {
     pub model_id: &'a str,
     pub refusal: Option<CandidateRefusal>,
-    pub expected_p95_ms: Option<u64>,
+    pub estimated_total_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
