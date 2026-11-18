@@ -203,8 +203,15 @@ async fn cancelled_registration_waiting_on_engine_lock_publishes_no_partial_mode
         !lc.engine.has_model("pending-engine").await,
         "engine published cancelled model"
     );
-    assert!(!lc.is_loaded("pending-engine").await, "orphan lifecycle index");
-    assert_eq!(limits.current_memory(), 600, "native holder still owns bytes");
+    assert!(
+        !lc.is_loaded("pending-engine").await,
+        "orphan lifecycle index"
+    );
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "native holder still owns bytes"
+    );
     assert!(limits.reserve_resident(500).is_err());
 
     drop(native_owner);
