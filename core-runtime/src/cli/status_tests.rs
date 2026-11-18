@@ -174,3 +174,31 @@ fn missing_quantiles_are_displayed_as_unavailable() {
     assert_eq!(display_quantile(Some(-1.0)), "N/A");
     assert_eq!(display_quantile(Some(42.5)), "42.5ms");
 }
+
+#[test]
+fn cli_model_status_preserves_daemon_average_without_dividing_twice() {
+    use crate::ipc::protocol::{ModelInfo, ModelsListResponse};
+
+    let make_model = |name: &str, state: &str| ModelInfo {
+        handle_id: 42,
+        name: name.to_string(),
+        format: "gguf".to_string(),
+        size_bytes: 100,
+        memory_bytes: 200,
+        state: state.to_string(),
+        request_count: 10,
+        avg_latency_ms: 40.0,
+        loaded_at: "2026-11-18T00:00:00Z".to_string(),
+        capabilities: Vec::new(),
+    };
+    let response = ModelsListResponse {
+        models: vec![make_model("ready", "ready"), make_model("bad", "new-state")],
+        total_memory_bytes: 400,
+    };
+    let models = build_models_list(&Some(response));
+    assert_eq!(models.len(), 2);
+    assert_eq!(models[0].avg_latency_ms, 40.0);
+    assert_eq!(models[0].state, ModelState::Ready);
+    assert_eq!(models[1].avg_latency_ms, 40.0);
+    assert_eq!(models[1].state, ModelState::Error);
+}
