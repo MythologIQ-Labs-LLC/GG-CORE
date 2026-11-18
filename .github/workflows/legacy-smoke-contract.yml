@@ -1,0 +1,28 @@
+name: Legacy smoke contract
+on:
+  pull_request:
+    paths:
+      - scripts/e2e-proof.sh
+      - scripts/e2e-proof.ps1
+      - scripts/qualification/test_e2e_smoke_contract.py
+      - .github/workflows/legacy-smoke-contract.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/e2e-proof.sh
+      - scripts/e2e-proof.ps1
+      - scripts/qualification/test_e2e_smoke_contract.py
+      - .github/workflows/legacy-smoke-contract.yml
+
+permissions:
+  contents: read
+
+jobs:
+  model-free-contract:
+    name: Offline smoke truthfulness (model-free)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate bash syntax, failure behavior and evidence labels
+        run: python3 -m unittest discover -s scripts/qualification -p test_e2e_smoke_contract.py -v
