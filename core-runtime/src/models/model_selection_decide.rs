@@ -42,7 +42,7 @@ pub(super) fn plan<'a>(
         }
     };
     ModelSelectionPlan {
-        action: action_for(&offers[winner.index], winner.cost_ms, incumbent, policy),
+        action: consented_action(offers, winner, incumbent, policy),
         assessments,
     }
 }
@@ -179,5 +179,53 @@ fn action_for<'a>(
             expected_p95_ms,
         },
         None => ModelAction::Refuse(PlanRefusal::ColdSwitchNotAuthorized),
+    }
+}
+
+fn consented_action<'a>(
+    offers: &[ModelOffer<'a>],
+    winner: Eligible,
+    incumbent: Option<Eligible>,
+    policy: &SelectionPolicy<'_>,
+) -> ModelAction<'a> {
+    if requires_quality_escalation_approval(offers, winner, policy) {
+        return match incumbent {
+            Some(current) => action_for(
+                &offers[current.index],
+                current.cost_ms,
+                incumbent,
+                policy,
+            ),
+            None => ModelAction::Refuse(PlanRefusal::QualityEscalationNotAuthorized),
+        };
+    }
+    action_for(&offers[winner.index], winner.cost_ms, incumbent, policy)
+}
+
+/// Missing or inconsistent incumbent quality data cannot silently grant
+/// permission to escalate a request to another model.
+fn requires_quality_escalation_approval(
+    offers: &[ModelOffer<'_>],
+    winner: Eligible,
+    policy: &SelectionPolicy<'_>,
+) -> bool {
+    if policy.allow_quality_escalation || policy.pinned_model_id.is_some() {
+        return false;
+    }
+    let Some(current_id) = policy.current_model_id else {
+        return false;
+    };
+    let next = &offers[winner.index];
+    if next.model_id == current_id {
+        return false;
+    }
+    let previous_score = offers
+        .iter()
+        .find(|model| model.model_id == current_id)
+        .and_then(|model| model.quality_bps)
+        .filter(|score| *score <= 10_000);
+    match (previous_score, next.quality_bps) {
+        (Some(before), Some(after)) if after <= before => false,
+        _ => true,
     }
 }
