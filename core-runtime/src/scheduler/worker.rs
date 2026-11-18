@@ -240,3 +240,7 @@ mod stop_tests;
 #[cfg(test)]
 #[path = "worker_hol_tests.rs"]
 mod hol_tests;
+
+#[cfg(test)]
+#[path = "worker_admission_abort_tests.rs"]
+mod abort_admission_tests;
