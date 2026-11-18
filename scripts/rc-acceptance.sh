@@ -70,8 +70,31 @@ esac
 echo "== serving surface =="
 "$BIN" live >/dev/null 2>&1 && ok "live" || bad "live"
 "$BIN" ready >/dev/null 2>&1 && ok "ready" || bad "ready"
-"$BIN" status --json 2>/dev/null | grep -q '"health"' && ok "status --json" || bad "status"
-"$BIN" models list --json 2>/dev/null | grep -q qwen && ok "models list" || bad "models list"
+# The CLI can exit 0 for an unhealthy daemon. Substring grep could also
+# "verify" a different model (other-qwen) or an unrelated metadata field.
+# Use exact structural checks, shared with the lightweight smoke scripts.
+if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; sys.exit(sys.version_info[0] != 3)' >/dev/null 2>&1; then
+  PYTHON=python3
+elif command -v python >/dev/null 2>&1 && python -c 'import sys; sys.exit(sys.version_info[0] != 3)' >/dev/null 2>&1; then
+  PYTHON=python
+else
+  PYTHON=""
+fi
+INSPECT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/qualification/daemon_json_contract.py"
+STATUS_JSON="$("$BIN" status --json 2>/dev/null)"; STATUS_RC=$?
+if [ "$STATUS_RC" -eq 0 ] && [ -n "$PYTHON" ] && [ -f "$INSPECT" ] &&
+  printf '%s' "$STATUS_JSON" | "$PYTHON" "$INSPECT" health; then
+  ok "status --json (explicitly healthy)"
+else
+  bad "status --json (not healthy, invalid or parser unavailable)"
+fi
+MODELS_JSON="$("$BIN" models list --json 2>/dev/null)"; MODELS_RC=$?
+if [ "$MODELS_RC" -eq 0 ] && [ -n "$PYTHON" ] && [ -f "$INSPECT" ] &&
+  printf '%s' "$MODELS_JSON" | "$PYTHON" "$INSPECT" ready-model qwen; then
+  ok "models list (exact qwen, ready)"
+else
+  bad "models list (exact qwen not ready or invalid)"
+fi
 
 echo "== real inference =="
 OUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "What is the capital of France? Answer in one word." --max-tokens 24 2>&1)"; RC=$?
@@ -130,10 +153,6 @@ echo "== authenticated real-model IPC controls =="
 # The normal CLI smoke test establishes successful generation but does not
 # exercise cancellation while native generation is active. The standard-library
 # probe talks to the SAME packaged daemon through its actual socket/pipe.
-if command -v python3 >/dev/null 2>&1; then PYTHON=python3
-elif command -v python >/dev/null 2>&1; then PYTHON=python
-else PYTHON=""
-fi
 if [ -z "$PYTHON" ]; then
   bad "Python 3 required for cross-platform IPC control acceptance"
 elif with_timeout 420 "$PYTHON" "$BASE/scripts/rc-ipc-control-acceptance.py"; then
