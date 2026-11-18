@@ -37,7 +37,11 @@ pub(super) fn plan<'a>(
             && offers[choice.index].resident_handle.is_some()
     });
     let permitted = authorized_choices(offers, &viable, policy);
-    let ranked = if permitted.is_empty() { &viable } else { &permitted };
+    let ranked = if permitted.is_empty() {
+        &viable
+    } else {
+        &permitted
+    };
     let winner = match best(ranked, incumbent) {
         Ok(candidate) => stabilize(offers, candidate, incumbent, policy),
         Err(reason) => {
