@@ -22,6 +22,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      # Cargo deny can resolve a new graph if Cargo.toml and Cargo.lock drift.
+      # Refuse lockfile drift before evaluating dependency policy.
+      - name: Locked dependency graph gate
+        working-directory: core-runtime
+        run: cargo metadata --locked --format-version 1 > /dev/null
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           manifest-path: core-runtime/Cargo.toml
@@ -48,7 +54,7 @@ jobs:
       - name: Formatting gate
         run: cargo fmt --check
       - name: Lint gate (issue #54 surface on unix runners)
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
   test:
     name: test (${{ matrix.os }})
@@ -68,7 +74,7 @@ jobs:
         with:
           workspaces: core-runtime
       - name: Test suite (default features)
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
       - name: Offline ONNX probe pure unit tests (#171)
         if: matrix.os == 'ubuntu-latest'
         working-directory: .
@@ -102,9 +108,9 @@ jobs:
         if: matrix.feature == 'onnx'
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Clippy gate (${{ matrix.feature }})
-        run: cargo clippy --features ${{ matrix.feature }} --all-targets -- -D warnings
+        run: cargo clippy --locked --features ${{ matrix.feature }} --all-targets -- -D warnings
       - name: Test suite (${{ matrix.feature }})
-        run: cargo test --features ${{ matrix.feature }}
+        run: cargo test --locked --features ${{ matrix.feature }}
 
   # B-34: perf baseline + bench smoke gate. Runs the CI-safe (model-free, GPU-free,
   # default-feature) benches so they cannot silently rot; fails on compile error or
@@ -135,7 +141,7 @@ jobs:
             criterion-baseline-${{ runner.os }}-
       - name: Perf benches (default-feature, CI-safe set)
         run: |
-          cargo bench \
+          cargo bench --locked \
             --bench ipc_throughput --bench scheduler_throughput --bench concurrent_load \
             --bench memory_overhead --bench kv_cache_throughput \
             --bench generation_throughput --bench inference_latency \
