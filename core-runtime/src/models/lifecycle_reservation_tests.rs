@@ -134,6 +134,42 @@ async fn registration_growth_beyond_total_is_refused_and_rolled_back() {
     assert_eq!(limits.current_memory(), 0);
 }
 
+/// A duplicate-id refusal is not an unload: a native task can retain the
+/// losing prepared model after the registry refused its identity. The old
+/// separate `drop(model); drop(reservation)` credited its memory early (#219).
+#[tokio::test]
+async fn duplicate_id_refusal_keeps_budget_until_rejected_model_holder_exits() {
+    let (lc, limits) = setup(1_000);
+    lc.load("m".into(), meta("m", 300), Arc::new(Weights(300)))
+        .await
+        .unwrap();
+    let guard = limits.reserve_resident(400).unwrap();
+    let model: Arc<dyn Model> = Arc::new(Weights(400));
+    let native_holder = Arc::clone(&model);
+
+    let err = lc
+        .load_reserved("m".into(), meta("m", 400), model, Some(guard))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, LifecycleError::AlreadyLoaded(_)));
+    assert_eq!(limits.current_memory(), 700, "rejected model still lives");
+    assert!(
+        limits.reserve_resident(400).is_err(),
+        "second load must not overcommit while rejected backend is alive"
+    );
+
+    drop(native_holder);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while limits.current_memory() != 300 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("rejected model's budget was not returned on final drop");
+    lc.unload("m").await.unwrap();
+    assert_eq!(limits.current_memory(), 0);
+}
+
 #[tokio::test]
 async fn duplicate_id_releases_the_losing_reservation() {
     let (lc, limits) = setup(1_000);
