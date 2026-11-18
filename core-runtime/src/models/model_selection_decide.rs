@@ -7,6 +7,10 @@ use super::{
 };
 use crate::models::backend_capabilities::RuntimeBackendCapabilities;
 
+#[path = "model_selection_shortlist.rs"]
+mod shortlist;
+use shortlist::authorized_choices;
+
 #[derive(Clone, Copy)]
 struct Eligible {
     index: usize,
@@ -32,7 +36,9 @@ pub(super) fn plan<'a>(
         policy.current_model_id == Some(offers[choice.index].model_id)
             && offers[choice.index].resident_handle.is_some()
     });
-    let winner = match best(&viable, incumbent) {
+    let permitted = authorized_choices(offers, &viable, policy);
+    let ranked = if permitted.is_empty() { &viable } else { &permitted };
+    let winner = match best(ranked, incumbent) {
         Ok(candidate) => stabilize(offers, candidate, incumbent, policy),
         Err(reason) => {
             return ModelSelectionPlan {
