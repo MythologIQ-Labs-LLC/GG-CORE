@@ -128,7 +128,6 @@ async fn unboundable_model_is_refused_explicitly_without_reserving() {
     assert_eq!((l.current_memory(), l.current_concurrent()), (0, 0));
 }
 
-
 /// Model-free regression of the real shared blocking-admission boundary.
 /// The blocked native task owns its reservation and both Arcs even after its
 /// Tokio awaiter is aborted. A fake/synthetic inference response is not proof
@@ -169,7 +168,10 @@ async fn aborted_waiter_cannot_release_running_native_reservation() {
         .expect("blocking closure did not start")
         .expect("start signal dropped");
     waiter.abort();
-    assert!(waiter.await.expect_err("awaiting task aborted").is_cancelled());
+    assert!(waiter
+        .await
+        .expect_err("awaiting task aborted")
+        .is_cancelled());
 
     assert_eq!(limits.current_memory(), 64);
     assert_eq!(limits.current_concurrent(), 1);
@@ -177,7 +179,10 @@ async fn aborted_waiter_cannot_release_running_native_reservation() {
         limits.try_acquire_working(1).is_err(),
         "an abandoned awaiter must not admit overlapping native work"
     );
-    assert!(Arc::strong_count(&engine) > 1, "native engine owner was lost");
+    assert!(
+        Arc::strong_count(&engine) > 1,
+        "native engine owner was lost"
+    );
     assert!(
         Arc::strong_count(&security) > 1,
         "native security pipeline owner was lost"
@@ -199,10 +204,18 @@ async fn aborted_waiter_cannot_release_running_native_reservation() {
     assert_eq!(limits.current_memory(), 0);
     assert_eq!(Arc::strong_count(&engine), 1);
     assert_eq!(Arc::strong_count(&security), 1);
-    let second = limits.try_acquire_working(64).expect("slot released after exit");
-    assert_eq!((limits.current_memory(), limits.current_concurrent()), (64, 1));
+    let second = limits
+        .try_acquire_working(64)
+        .expect("slot released after exit");
+    assert_eq!(
+        (limits.current_memory(), limits.current_concurrent()),
+        (64, 1)
+    );
     drop(second);
-    assert_eq!((limits.current_memory(), limits.current_concurrent()), (0, 0));
+    assert_eq!(
+        (limits.current_memory(), limits.current_concurrent()),
+        (0, 0)
+    );
 }
 
 /// Panic is another exit path: the RAII reservation must be released once
@@ -221,6 +234,12 @@ async fn native_panic_releases_admission_without_a_leak() {
     .await
     .expect_err("panic must reach the join handle");
     assert!(err.is_panic());
-    assert_eq!((limits.current_memory(), limits.current_concurrent()), (0, 0));
-    assert!(limits.try_acquire_working(64).is_ok(), "admission leaked after panic");
+    assert_eq!(
+        (limits.current_memory(), limits.current_concurrent()),
+        (0, 0)
+    );
+    assert!(
+        limits.try_acquire_working(64).is_ok(),
+        "admission leaked after panic"
+    );
 }
