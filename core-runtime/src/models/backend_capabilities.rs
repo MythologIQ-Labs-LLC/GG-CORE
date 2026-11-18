@@ -78,21 +78,39 @@ pub struct RuntimeBackendCapabilities {
 
 /// Only backends with compiled implementation paths are declared.
 ///
-/// In the current GGUF/ONNX code, CPU is the only actual backend target.
-/// CUDA/Metal modules do not imply serving offload, and ONNX generation is
-/// not implemented. Even compiled tasks need a separately audited installed
-/// real-model support matrix before they can be advertised as qualified.
+/// GGUF CPU is always reachable with its native backend compiled. Native
+/// llama.cpp CUDA and macOS Metal serving paths are reachable only with
+/// their dedicated inference features. These are distinct from the `cuda`
+/// and `metal` device-management features. A compiled offload path says
+/// nothing about an installed model, driver, active GPU kernels, available
+/// VRAM, operator settings, or release support. ONNX generation is absent.
+/// `qualified_paths` remains empty pending pinned native acceptance.
 pub fn compiled_backend_capabilities() -> Vec<RuntimeBackendCapabilities> {
     let mut backends = Vec::new();
     if cfg!(feature = "gguf") {
+        let mut compiled_paths = vec![ServingPath::new(
+            InferenceTask::TextGeneration,
+            ExecutionTarget::Cpu,
+        )];
+        // Report reachable native inference backends, NOT installed or
+        // qualified acceleration. Device-only `cuda` / `metal` do not count.
+        if cfg!(feature = "gguf-cuda") {
+            compiled_paths.push(ServingPath::new(
+                InferenceTask::TextGeneration,
+                ExecutionTarget::Cuda,
+            ));
+        }
+        if cfg!(all(feature = "gguf-metal", target_os = "macos")) {
+            compiled_paths.push(ServingPath::new(
+                InferenceTask::TextGeneration,
+                ExecutionTarget::Metal,
+            ));
+        }
         backends.push(RuntimeBackendCapabilities {
             schema_version: CAPABILITY_SCHEMA_VERSION,
             backend: BackendKind::Gguf,
             model_formats: vec!["gguf".to_string()],
-            compiled_paths: vec![ServingPath {
-                task: InferenceTask::TextGeneration,
-                target: ExecutionTarget::Cpu,
-            }],
+            compiled_paths,
             supports_streaming: true,
             supports_kv_cache: true,
             qualified_paths: Vec::new(),
@@ -126,15 +144,42 @@ mod tests {
     use super::*;
 
     #[test]
-    fn no_false_acceleration_or_release_claims() {
-        for capabilities in compiled_backend_capabilities() {
+    fn compiled_offload_is_feature_exact_and_never_qualified_by_compilation() {
+        let backends = compiled_backend_capabilities();
+        for capabilities in &backends {
             assert_eq!(capabilities.schema_version, CAPABILITY_SCHEMA_VERSION);
-            assert!(capabilities
-                .compiled_paths
-                .iter()
-                .all(|path| path.target == ExecutionTarget::Cpu));
             assert!(capabilities.qualified_paths.is_empty());
         }
+        let gguf = backends.iter().find(|c| c.backend == BackendKind::Gguf);
+        if let Some(gguf) = gguf {
+            let has = |target| gguf.compiled_paths.contains(&ServingPath::new(
+                InferenceTask::TextGeneration,
+                target,
+            ));
+            assert!(has(ExecutionTarget::Cpu));
+            assert_eq!(has(ExecutionTarget::Cuda), cfg!(feature = "gguf-cuda"));
+            assert_eq!(
+                has(ExecutionTarget::Metal),
+                cfg!(all(feature = "gguf-metal", target_os = "macos"))
+            );
+            assert!(gguf.compiled_paths.iter().all(|p| p.task == InferenceTask::TextGeneration));
+        }
+    }
+
+    #[test]
+    fn gpu_device_management_alone_cannot_advertise_native_offload() {
+        let backends = compiled_backend_capabilities();
+        let native_cuda = backends.iter().any(|c| c.backend == BackendKind::Gguf
+            && c.compiled_paths.contains(&ServingPath::new(
+                InferenceTask::TextGeneration, ExecutionTarget::Cuda
+            )));
+        let native_metal = backends.iter().any(|c| c.backend == BackendKind::Gguf
+            && c.compiled_paths.contains(&ServingPath::new(
+                InferenceTask::TextGeneration, ExecutionTarget::Metal
+            )));
+        assert_eq!(native_cuda, cfg!(feature = "gguf-cuda"));
+        assert_eq!(native_metal, cfg!(all(feature = "gguf-metal", target_os = "macos")));
+        assert!(backends.iter().all(|c| c.qualified_paths.is_empty()));
     }
 
     #[test]
