@@ -162,3 +162,26 @@ fn model_backend_must_have_an_actual_compiled_serving_path() {
         Some(CandidateRefusal::PathNotCompiled)
     );
 }
+
+#[test]
+fn public_selector_uses_real_build_capabilities_not_test_catalog() {
+    let decision = plan_model_selection(&[light()], &policy());
+    if cfg!(feature = "gguf") {
+        assert!(matches!(
+            decision.action,
+            ModelAction::UseResident {
+                model_id: "light",
+                ..
+            }
+        ));
+    } else {
+        assert_eq!(
+            decision.action,
+            ModelAction::Refuse(PlanRefusal::NoEligibleModel)
+        );
+        assert_eq!(
+            decision.assessments[0].refusal,
+            Some(CandidateRefusal::PathNotCompiled)
+        );
+    }
+}
