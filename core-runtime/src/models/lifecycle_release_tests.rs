@@ -302,13 +302,11 @@ fn dropping_loaded_lifecycle_with_live_model_does_not_credit_memory_early() {
 /// than allowing Rust's remaining-field cleanup to credit unsafe capacity.
 #[test]
 fn abandoned_prepared_model_destructor_panic_retains_resident_budget() {
-    let limits = crate::memory::ResourceLimits::new(
-        crate::memory::ResourceLimitsConfig {
-            max_memory_per_call: 10,
-            max_total_memory: 1_000,
-            max_concurrent: 1,
-        },
-    );
+    let limits = crate::memory::ResourceLimits::new(crate::memory::ResourceLimitsConfig {
+        max_memory_per_call: 10,
+        max_total_memory: 1_000,
+        max_concurrent: 1,
+    });
     let started = Arc::new(AtomicBool::new(false));
     let model: Arc<dyn Model> = Arc::new(PanickingWeights {
         bytes: 400,
@@ -320,7 +318,10 @@ fn abandoned_prepared_model_destructor_panic_retains_resident_budget() {
     let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         drop(prepared);
     }));
-    assert!(panicked.is_err(), "failed native destructor must be observable");
+    assert!(
+        panicked.is_err(),
+        "failed native destructor must be observable"
+    );
     assert!(started.load(Ordering::SeqCst));
     assert_eq!(
         limits.current_memory(),
