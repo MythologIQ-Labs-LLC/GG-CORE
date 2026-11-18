@@ -4,7 +4,7 @@ use super::test_support::{choose, light, policy, quality};
 use super::*;
 
 #[test]
-fn quality_floor_first_then_lowest_total_cost_proposes_cold_switch() {
+fn quality_floor_first_then_additive_cost_estimate_proposes_cold_switch() {
     let options = [light(), quality()];
     let result = choose(&options, &policy());
     assert_eq!(
