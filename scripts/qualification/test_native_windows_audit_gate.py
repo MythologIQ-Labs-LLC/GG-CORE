@@ -25,9 +25,15 @@ class NativeAcceptanceContractTests(unittest.TestCase):
         })
         for label, command in steps.items():
             self.assertEqual(command[0], "cargo")
-            if label != "fmt" and label != "cargo_deny":
+            if label != "fmt":
+                # cargo-deny is not governed by CARGO_NET_OFFLINE alone:
+                # its advisory database fetch must be explicitly disabled.
                 self.assertIn("--locked", command, label)
                 self.assertIn("--offline", command, label)
+        self.assertEqual(
+            steps["cargo_deny"],
+            ["cargo", "deny", "--offline", "--locked", "check"],
+        )
         self.assertIn("--no-fail-fast", steps["test_full"])
         self.assertIn("audit_timestamp_compat_test", steps["audit_wire"])
 
