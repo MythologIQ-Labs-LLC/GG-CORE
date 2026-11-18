@@ -134,6 +134,52 @@ async fn registration_growth_beyond_total_is_refused_and_rolled_back() {
     assert_eq!(limits.current_memory(), 0);
 }
 
+/// Cancellation while waiting for the lifecycle's index write lock must
+/// not drop the preflight guard apart from the backend. Poll explicitly to
+/// Pending under a held lock, then drop the future: no timing or sleep is
+/// needed to establish the cancellation point.
+#[tokio::test]
+async fn cancelled_registration_waiting_on_index_lock_retains_model_budget() {
+    let (lc, limits) = setup(1_000);
+    let model: Arc<dyn Model> = Arc::new(Weights(600));
+    let external_native_owner = Arc::clone(&model);
+    let guard = limits.reserve_resident(600).expect("preflight reservation");
+    let locked_index = lc.index.write().await;
+    {
+        let mut load = Box::pin(lc.load_reserved(
+            "pending".into(),
+            meta("pending", 600),
+            model,
+            Some(guard),
+        ));
+        let waker = futures::task::noop_waker();
+        let mut cx = std::task::Context::from_waker(&waker);
+        assert!(
+            std::future::Future::poll(load.as_mut(), &mut cx).is_pending(),
+            "registration must wait on held index lock"
+        );
+        // The aborted future must keep its resident reservation with the
+        // still-live native Arc, not return it as an ordinary local variable.
+    }
+    drop(locked_index);
+
+    assert!(!lc.is_loaded("pending").await, "cancelled load was registered");
+    assert_eq!(limits.current_memory(), 600);
+    assert!(
+        limits.reserve_resident(500).is_err(),
+        "cancelled registration returned memory while native model was alive"
+    );
+
+    drop(external_native_owner);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while limits.current_memory() != 0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("aborted registration did not reclaim on final model drop");
+}
+
 /// A duplicate-id refusal is not an unload: a native task can retain the
 /// losing prepared model after the registry refused its identity. The old
 /// separate `drop(model); drop(reservation)` credited its memory early (#219).
