@@ -109,55 +109,48 @@ struct CompiledFeatures {
 fn compiled_for_features(features: CompiledFeatures) -> Vec<RuntimeBackendCapabilities> {
     let mut backends = Vec::new();
     if features.gguf {
-        let mut compiled_paths = vec![ServingPath::new(
-            InferenceTask::TextGeneration,
-            ExecutionTarget::Cpu,
-        )];
-        // Report reachable native inference backends, NOT installed or
-        // qualified acceleration. Device-only `cuda` / `metal` do not count.
-        if features.gguf_cuda {
-            compiled_paths.push(ServingPath::new(
-                InferenceTask::TextGeneration,
-                ExecutionTarget::Cuda,
-            ));
-        }
-        if features.gguf_metal_on_macos {
-            compiled_paths.push(ServingPath::new(
-                InferenceTask::TextGeneration,
-                ExecutionTarget::Metal,
-            ));
-        }
-        backends.push(RuntimeBackendCapabilities {
-            schema_version: CAPABILITY_SCHEMA_VERSION,
-            backend: BackendKind::Gguf,
-            model_formats: vec!["gguf".to_string()],
-            compiled_paths,
-            supports_streaming: true,
-            supports_kv_cache: true,
-            qualified_paths: Vec::new(),
-        });
+        backends.push(gguf_capabilities(features));
     }
     if features.onnx {
-        backends.push(RuntimeBackendCapabilities {
-            schema_version: CAPABILITY_SCHEMA_VERSION,
-            backend: BackendKind::Onnx,
-            model_formats: vec!["onnx".to_string()],
-            compiled_paths: vec![
-                ServingPath {
-                    task: InferenceTask::Embedding,
-                    target: ExecutionTarget::Cpu,
-                },
-                ServingPath {
-                    task: InferenceTask::Classification,
-                    target: ExecutionTarget::Cpu,
-                },
-            ],
-            supports_streaming: false,
-            supports_kv_cache: false,
-            qualified_paths: Vec::new(),
-        });
+        backends.push(onnx_capabilities());
     }
     backends
+}
+
+fn gguf_capabilities(features: CompiledFeatures) -> RuntimeBackendCapabilities {
+    let task = InferenceTask::TextGeneration;
+    let mut compiled_paths = vec![ServingPath::new(task, ExecutionTarget::Cpu)];
+    // Native backend code may be compiled without any actual GPU being used.
+    if features.gguf_cuda {
+        compiled_paths.push(ServingPath::new(task, ExecutionTarget::Cuda));
+    }
+    if features.gguf_metal_on_macos {
+        compiled_paths.push(ServingPath::new(task, ExecutionTarget::Metal));
+    }
+    RuntimeBackendCapabilities {
+        schema_version: CAPABILITY_SCHEMA_VERSION,
+        backend: BackendKind::Gguf,
+        model_formats: vec!["gguf".to_string()],
+        compiled_paths,
+        supports_streaming: true,
+        supports_kv_cache: true,
+        qualified_paths: Vec::new(),
+    }
+}
+
+fn onnx_capabilities() -> RuntimeBackendCapabilities {
+    RuntimeBackendCapabilities {
+        schema_version: CAPABILITY_SCHEMA_VERSION,
+        backend: BackendKind::Onnx,
+        model_formats: vec!["onnx".to_string()],
+        compiled_paths: vec![
+            ServingPath::new(InferenceTask::Embedding, ExecutionTarget::Cpu),
+            ServingPath::new(InferenceTask::Classification, ExecutionTarget::Cpu),
+        ],
+        supports_streaming: false,
+        supports_kv_cache: false,
+        qualified_paths: Vec::new(),
+    }
 }
 
 #[cfg(test)]
