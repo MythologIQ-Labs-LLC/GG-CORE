@@ -57,7 +57,11 @@ if /I "%~1"=="status" (
 )
 if /I "%~1"=="models" (
   if /I "%FAKE_MODE%"=="no-model" (echo {"models":[]}& exit /b 0)
-  echo {"models":[{"id":"qwen"}]}
+  if /I "%FAKE_MODE%"=="substring-name" (echo {"models":[{"name":"other-qwen","state":"ready"}]}& exit /b 0)
+  if /I "%FAKE_MODE%"=="loading-model" (echo {"models":[{"name":"qwen","state":"loading"}]}& exit /b 0)
+  if /I "%FAKE_MODE%"=="other-field" (echo {"models":[{"name":"phi","state":"ready","note":"qwen"}]}& exit /b 0)
+  if /I "%FAKE_MODE%"=="bad-json" (echo {"models":[& exit /b 0)
+  echo {"models":[{"name":"qwen","state":"ready"}]}
   exit /b 0
 )
 if /I "%~1"=="infer" (
@@ -80,6 +84,10 @@ exit /b 10
     Assert-Case 'no-gguf' 'ok' $true $false $false
     Assert-Case 'no-daemon' 'no-daemon' $true $true $false
     Assert-Case 'no-model-id' 'no-model' $true $true $false
+    Assert-Case 'substring-name' 'substring-name' $true $true $false
+    Assert-Case 'not-ready' 'loading-model' $true $true $false
+    Assert-Case 'decoy-metadata' 'other-field' $true $true $false
+    Assert-Case 'malformed-json' 'bad-json' $true $true $false
     Assert-Case 'infer-failed' 'infer-fail' $true $true $false
     Assert-Case 'wrong-answer' 'wrong-answer' $true $true $false
     Assert-Case 'stream-failed' 'stream-fail' $true $true $false
