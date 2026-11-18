@@ -47,8 +47,7 @@ fn check_authority_and_path(
     let Some(compiled_path) = compiled_path else {
         return Err(PathNotCompiled);
     };
-    if policy.require_streaming
-        && (!model.streaming_supported || !compiled_path.supports_streaming)
+    if policy.require_streaming && (!model.streaming_supported || !compiled_path.supports_streaming)
     {
         return Err(StreamingUnavailable);
     }
