@@ -18,8 +18,14 @@ note "Developer smoke only. NOT a signed/package, safety, cancellation or releas
 [[ -n "${CORE_AUTH_TOKEN:-}" ]] || die "CORE_AUTH_TOKEN is required for authenticated local IPC"
 [[ -f "$MODEL_FILE" ]] || die "local GGUF fixture missing: $MODEL_FILE (no implicit download)"
 [[ "$(head -c 4 "$MODEL_FILE")" == "GGUF" ]] || die "fixture is not GGUF (possibly a Git LFS pointer)"
-need sha256sum
-note "Local fixture SHA-256 (NOT proof of loaded daemon identity): $(sha256sum "$MODEL_FILE" | cut -d ' ' -f 1)"
+if command -v sha256sum >/dev/null 2>&1; then
+  hash="$(sha256sum "$MODEL_FILE" | cut -d ' ' -f 1)"
+elif command -v shasum >/dev/null 2>&1; then
+  hash="$(shasum -a 256 "$MODEL_FILE" | cut -d ' ' -f 1)"
+else
+  die "SHA-256 utility unavailable (sha256sum or shasum required)"
+fi
+note "Local fixture SHA-256 (NOT proof of loaded daemon identity): $hash"
 
 if [[ "${SKIP_BUILD:-false}" != "true" ]]; then
   need cargo
