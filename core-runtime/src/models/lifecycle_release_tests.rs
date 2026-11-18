@@ -127,14 +127,21 @@ fn without_a_runtime_release_reclaims_only_after_last_holder_drops() {
     assert_eq!(lc.releasing_models().len(), 1);
     assert_eq!(limits.current_memory(), 600);
     std::thread::sleep(Duration::from_millis(100));
-    assert_eq!(limits.current_memory(), 600, "native holder still owns model");
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "native holder still owns model"
+    );
 
     drop(holder);
     let start = Instant::now();
     while !lc.releasing_models().is_empty() && start.elapsed() < Duration::from_secs(5) {
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(lc.releasing_models().is_empty(), "release supervisor did not drain");
+    assert!(
+        lc.releasing_models().is_empty(),
+        "release supervisor did not drain"
+    );
     assert_eq!(limits.current_memory(), 0, "model release returned budget");
 }
 
@@ -154,7 +161,11 @@ fn runtime_shutdown_preserves_resident_budget_until_model_is_released() {
     drop(rt);
 
     std::thread::sleep(Duration::from_millis(100));
-    assert_eq!(limits.current_memory(), 600, "runtime shutdown freed live bytes");
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "runtime shutdown freed live bytes"
+    );
     let tracked = lc.releasing_models();
     assert_eq!(tracked.len(), 1);
     assert_eq!(tracked[0].state, LoadedModelState::Unloading);
@@ -164,7 +175,10 @@ fn runtime_shutdown_preserves_resident_budget_until_model_is_released() {
     while !lc.releasing_models().is_empty() && start.elapsed() < Duration::from_secs(5) {
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(lc.releasing_models().is_empty(), "release failed after runtime drop");
+    assert!(
+        lc.releasing_models().is_empty(),
+        "release failed after runtime drop"
+    );
     assert_eq!(limits.current_memory(), 0);
 }
 
