@@ -248,12 +248,16 @@ fn status_from_partial_ipc_is_degraded_not_healthy() {
     let missing_metrics = build_status(true, None, None, Some(empty_models.clone()));
     assert_eq!(missing_metrics.health, HealthState::Degraded);
     assert_eq!(missing_metrics.recent_events.len(), 1);
-    assert!(missing_metrics.recent_events[0].message.contains("Metrics IPC"));
+    assert!(missing_metrics.recent_events[0]
+        .message
+        .contains("Metrics IPC"));
 
     let missing_models = build_status(true, None, Some(snapshot.clone()), None);
     assert_eq!(missing_models.health, HealthState::Degraded);
     assert_eq!(missing_models.recent_events.len(), 1);
-    assert!(missing_models.recent_events[0].message.contains("Models IPC"));
+    assert!(missing_models.recent_events[0]
+        .message
+        .contains("Models IPC"));
 
     let both_missing = build_status(true, None, None, None);
     assert_eq!(both_missing.health, HealthState::Degraded);
