@@ -40,7 +40,10 @@ fn cooldown_stays_with_eligible_incumbent_even_if_other_model_is_faster() {
     let result = choose(&[light(), quality()], &p);
     assert!(matches!(
         result.action,
-        ModelAction::UseResident { model_id: "light", .. }
+        ModelAction::UseResident {
+            model_id: "light",
+            ..
+        }
     ));
 }
 
@@ -81,7 +84,10 @@ fn equal_cost_prefers_existing_resident_to_avoid_thrashing() {
     let result = choose(&[high, light()], &policy());
     assert!(matches!(
         result.action,
-        ModelAction::UseResident { model_id: "light", .. }
+        ModelAction::UseResident {
+            model_id: "light",
+            ..
+        }
     ));
 }
 
@@ -92,7 +98,9 @@ fn no_switch_authority_prefers_an_eligible_incumbent_over_a_better_cold_option()
     let result = choose(&[light(), quality()], &p);
     assert!(matches!(
         result.action,
-        ModelAction::UseResident { model_id: "light", .. }
+        ModelAction::UseResident {
+            model_id: "light",
+            ..
+        }
     ));
 }
-
