@@ -61,6 +61,7 @@ impl LlamaBackendInner {
     /// Load a GGUF model from disk.
     pub fn load(path: &Path, config: &super::GgufConfig) -> Result<Self, InferenceError> {
         let backend = process_backend()?;
+        super::offload::check(backend, config.n_gpu_layers)?;
         let model_params = LlamaModelParams::default().with_n_gpu_layers(config.n_gpu_layers);
         let model = LlamaModel::load_from_file(backend, path, &model_params)
             .map_err(|e| InferenceError::ModelError(format!("load: {e}")))?;
