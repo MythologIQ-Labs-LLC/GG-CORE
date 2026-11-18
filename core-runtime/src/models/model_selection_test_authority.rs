@@ -49,9 +49,15 @@ fn pinned_model_never_falls_back_to_faster_option() {
     let result = choose(&[light(), quality()], &p);
     assert!(matches!(
         result.action,
-        ModelAction::UseResident { model_id: "light", .. }
+        ModelAction::UseResident {
+            model_id: "light",
+            ..
+        }
     ));
-    assert_eq!(result.assessments[1].refusal, Some(CandidateRefusal::NotPinned));
+    assert_eq!(
+        result.assessments[1].refusal,
+        Some(CandidateRefusal::NotPinned)
+    );
 }
 
 #[test]
@@ -59,7 +65,10 @@ fn pin_to_unapproved_model_fails_policy_validation() {
     let mut p = policy();
     p.pinned_model_id = Some("outsider");
     let result = choose(&[light()], &p);
-    assert_eq!(result.action, ModelAction::Refuse(PlanRefusal::InvalidPolicy));
+    assert_eq!(
+        result.action,
+        ModelAction::Refuse(PlanRefusal::InvalidPolicy)
+    );
 }
 
 #[test]
@@ -92,4 +101,3 @@ fn explicit_host_limits_cannot_be_invalid_or_silently_clamped() {
         ModelAction::Refuse(PlanRefusal::InvalidPolicy)
     );
 }
-
