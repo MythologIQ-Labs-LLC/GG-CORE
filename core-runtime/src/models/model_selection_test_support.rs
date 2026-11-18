@@ -2,6 +2,10 @@
 //! synthetic policy input, NOT a real-world model or platform qualification.
 
 use super::*;
+use super::super::backend_capabilities::{
+    BackendKind, ExecutionTarget, InferenceTask, RuntimeBackendCapabilities,
+    ServingPath, CAPABILITY_SCHEMA_VERSION,
+};
 
 const ALLOWED: &[&str] = &["light", "quality", "onnx"];
 
