@@ -116,18 +116,56 @@ async fn unlimited_lifecycles_track_release_too() {
     );
 }
 
+/// The supervisor does not depend on Tokio being active at the unload call.
+/// It keeps the budget charged while the native holder is live, then returns
+/// capacity after the actual final model reference is released.
 #[test]
-fn without_a_runtime_a_held_instance_never_reads_released() {
+fn without_a_runtime_release_reclaims_only_after_last_holder_drops() {
     let (lc, limits) = setup(1_000);
     let holder = futures::executor::block_on(load_held(&lc, "a", 600));
     futures::executor::block_on(lc.unload("a")).unwrap();
+    assert_eq!(lc.releasing_models().len(), 1);
+    assert_eq!(limits.current_memory(), 600);
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(limits.current_memory(), 600, "native holder still owns model");
+
     drop(holder);
-    assert_eq!(lc.releasing_models().len(), 1, "stays listed: fail closed");
-    assert_eq!(
-        limits.current_memory(),
-        600,
-        "budget kept, never returned early"
-    );
+    let start = Instant::now();
+    while !lc.releasing_models().is_empty() && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(lc.releasing_models().is_empty(), "release supervisor did not drain");
+    assert_eq!(limits.current_memory(), 0, "model release returned budget");
+}
+
+/// Dropping a Tokio runtime aborts its async tasks but must not abort model
+/// resident ownership while a detached native inference thread still holds
+/// the model. The background supervisor is intentionally runtime-independent.
+#[test]
+fn runtime_shutdown_preserves_resident_budget_until_model_is_released() {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let (lc, limits) = setup(1_000);
+    let holder = rt.block_on(load_held(&lc, "a", 600));
+    rt.block_on(lc.unload("a")).unwrap();
+    assert_eq!(limits.current_memory(), 600);
+    drop(rt);
+
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(limits.current_memory(), 600, "runtime shutdown freed live bytes");
+    let tracked = lc.releasing_models();
+    assert_eq!(tracked.len(), 1);
+    assert_eq!(tracked[0].state, LoadedModelState::Unloading);
+
+    drop(holder);
+    let start = Instant::now();
+    while !lc.releasing_models().is_empty() && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(lc.releasing_models().is_empty(), "release failed after runtime drop");
+    assert_eq!(limits.current_memory(), 0);
 }
 
 /// R1: an unload racing listings never makes a held instance disappear or
