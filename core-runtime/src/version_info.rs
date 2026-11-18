@@ -16,6 +16,14 @@ pub fn compiled_features() -> Vec<&'static str> {
     if cfg!(feature = "gguf") {
         f.push("gguf");
     }
+    // These enable actual llama.cpp inference kernels; `cuda`/`metal`
+    // below refer only to the separate device-management modules.
+    if cfg!(feature = "gguf-cuda") {
+        f.push("gguf-cuda");
+    }
+    if cfg!(feature = "gguf-metal") {
+        f.push("gguf-metal");
+    }
     if cfg!(feature = "onnx") {
         f.push("onnx");
     }
@@ -86,6 +94,26 @@ mod tests {
         assert!(doc["features"].is_array());
         assert_eq!(doc["protocol_version"], "V1");
         assert!(doc["target"].as_str().unwrap().contains('-'));
+    }
+
+    #[test]
+    fn native_gguf_accelerator_features_are_reported_distinctly() {
+        let compiled = compiled_features();
+        assert_eq!(compiled.contains(&"gguf-cuda"), cfg!(feature = "gguf-cuda"));
+        assert_eq!(compiled.contains(&"gguf-metal"), cfg!(feature = "gguf-metal"));
+        // The device-management feature is not a native llama.cpp inference
+        // feature, and neither should be silently inferred from the other.
+        assert_eq!(compiled.contains(&"cuda"), cfg!(feature = "cuda"));
+        assert_eq!(compiled.contains(&"metal"), cfg!(feature = "metal"));
+        let json: serde_json::Value = serde_json::from_str(&version_json()).unwrap();
+        assert_eq!(
+            json["features"].as_array().unwrap().iter().any(|f| f == "gguf-cuda"),
+            cfg!(feature = "gguf-cuda")
+        );
+        assert_eq!(
+            json["features"].as_array().unwrap().iter().any(|f| f == "gguf-metal"),
+            cfg!(feature = "gguf-metal")
+        );
     }
 
     #[test]
