@@ -90,3 +90,6 @@ exit /b 10
 }
 Write-Output "RESULT cases=$script:cases failures=$script:failures (synthetic only)"
 if ($script:failures -gt 0) { exit 1 }
+# A preceding expected negative native-process case leaves LASTEXITCODE=1.
+# Emit success explicitly so the shell does not mistake it for a failing gate.
+exit 0
