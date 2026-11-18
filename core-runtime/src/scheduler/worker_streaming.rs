@@ -1,5 +1,7 @@
 //! Streaming execution helpers for the worker loop.
 
+use std::sync::Arc;
+
 use super::streaming_queue::StreamingQueuedRequest;
 use crate::engine::InferenceEngine;
 use crate::memory::ResourceLimits;
@@ -35,14 +37,14 @@ impl StreamControl {
 
 /// Execute a streaming inference request with resource control.
 pub(crate) async fn execute(
-    engine: &InferenceEngine,
+    engine: &Arc<InferenceEngine>,
     resource_limits: Option<&ResourceLimits>,
-    security: Option<&SecurityPipeline>,
+    security: Option<&Arc<SecurityPipeline>>,
     request: StreamingQueuedRequest,
 ) {
     let model_id = request.model_id.clone();
 
-    if !scan_ingress(security, &request).await {
+    if !scan_ingress(security.map(|s| &**s), &request).await {
         return;
     }
     if request.is_cancelled() || request.is_expired() {
@@ -155,27 +157,30 @@ async fn scan_ingress(
 }
 
 /// Run streaming inference on a blocking thread.
+///
+/// The blocking task owns `Arc` clones of the engine and security pipeline. A
+/// `spawn_blocking` task is not cancelled when this future is dropped (worker
+/// shutdown, an aborted caller, or a runtime torn down mid-stream), so it must
+/// never borrow from the caller: a borrowed pipeline was freed under a running
+/// stream and faulted in the terminal sanitizer flush (#137 dump, 0xc0000005).
 async fn run_stream(
-    engine: &InferenceEngine,
+    engine: &Arc<InferenceEngine>,
     model_id: &str,
     prompt: String,
     config: crate::engine::InferenceConfig,
     sender: crate::engine::TokenStreamSender,
-    security: Option<&SecurityPipeline>,
+    security: Option<&Arc<SecurityPipeline>>,
     control: StreamControl,
 ) -> Result<Result<(), crate::engine::inference::InferenceError>, tokio::task::JoinError> {
     #[cfg(feature = "gguf")]
     {
-        // usize casts avoid capturing !Send raw pointers. SAFETY: the caller awaits
-        // the JoinHandle, so the engine and security pipeline outlive the task.
-        let engine_addr = engine as *const InferenceEngine as usize;
-        let sec_addr = security.map(|s| s as *const SecurityPipeline as usize);
+        let engine = Arc::clone(engine);
+        let security = security.cloned();
         let mid = model_id.to_string();
         tokio::task::spawn_blocking(move || {
-            let engine = unsafe { &*(engine_addr as *const InferenceEngine) };
-            let security = sec_addr.map(|a| unsafe { &*(a as *const SecurityPipeline) });
             traced(&control, |stop| {
-                engine.run_stream_sync(&mid, &prompt, &config, sender, security, Some(stop))
+                let sec = security.as_deref();
+                engine.run_stream_sync(&mid, &prompt, &config, sender, sec, Some(stop))
             })
         })
         .await
@@ -205,3 +210,7 @@ async fn run_stream(
 #[cfg(test)]
 #[path = "worker_streaming_trace_tests.rs"]
 mod trace_tests;
+
+#[cfg(all(test, feature = "gguf"))]
+#[path = "worker_streaming_lifetime_tests.rs"]
+mod lifetime_tests;

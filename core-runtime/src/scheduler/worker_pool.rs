@@ -104,7 +104,10 @@ async fn run(ctx: &WorkerCtx, work: Work) {
     let limits = ctx.limits.as_ref();
     let security = ctx.security.as_deref();
     match work {
-        Work::Stream(s) => super::worker_streaming::execute(&ctx.engine, limits, security, s).await,
+        Work::Stream(s) => {
+            let sec = ctx.security.as_ref();
+            super::worker_streaming::execute(&ctx.engine, limits, sec, s).await
+        }
         Work::Typed(t) => super::worker_typed::execute(&ctx.engine, limits, security, t).await,
         Work::Main(r) => {
             let (lifecycle, registry) = (ctx.lifecycle.as_deref(), ctx.registry.as_deref());
