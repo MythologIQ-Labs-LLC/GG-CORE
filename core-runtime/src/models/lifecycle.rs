@@ -150,10 +150,14 @@ impl ModelLifecycle {
             drop(entry);
             return Err(e);
         }
-        let handle = self.registry.register(metadata, memory_usage).await;
-        self.engine
-            .register_model(model_id.clone(), handle, entry.clone_model())
-            .await;
+        // Acquire every fallible-by-cancellation lock before the first
+        // mutation. Once both permits exist, registry, engine, and the
+        // lifecycle index commit synchronously with no intervening await.
+        // Dropping this future while waiting cannot publish a partial model.
+        let mut registry_writer = self.registry.registration_writer().await;
+        let mut engine_writer = self.engine.registration_writer().await;
+        let handle = registry_writer.insert(metadata, memory_usage);
+        engine_writer.insert(model_id.clone(), entry.clone_model());
         index.residents.insert(model_id.clone(), entry);
         index.insert(model_id, handle);
 
