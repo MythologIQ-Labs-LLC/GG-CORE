@@ -44,6 +44,11 @@ impl InferenceRegistration<'_> {
     pub(crate) fn insert(&mut self, model_id: String, model: Arc<dyn Model>) {
         self.models.insert(model_id, model);
     }
+
+    /// Remove a model without awaiting once the cross-component locks exist.
+    pub(crate) fn remove(&mut self, model_id: &str) {
+        self.models.remove(model_id);
+    }
 }
 
 impl InferenceEngine {
