@@ -83,8 +83,9 @@ try {
 } catch {
     Fail "invalid daemon model-list JSON"
 }
-if ($null -eq $modelResponse -or $null -eq $modelResponse.models) {
-    Fail "daemon model-list response omitted models array"
+if ($null -eq $modelResponse -or $null -eq $modelResponse.models -or
+    $modelResponse.models -isnot [System.Array]) {
+    Fail "daemon model-list response lacks a models array"
 }
 # The wire contract uses ModelInfo.name and ModelInfo.state. A substring
 # match can falsely accept another model whose name merely contains the ID.
