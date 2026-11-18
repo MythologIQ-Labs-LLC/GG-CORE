@@ -33,7 +33,6 @@ pub(in crate::scheduler) async fn acquire_guard(
     })
 }
 
-
 /// Execute admitted work on the blocking pool. The reservation is owned by the
 /// native task, NOT by its awaiter: aborting a worker future drops its
 /// JoinHandle but cannot stop running spawn_blocking work. The reservation
