@@ -13,6 +13,31 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Temporary, branch-scoped reviewer formatting receipt. Read-only.
+  selection-rustfmt-candidate:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/model-selection-policy-20261117'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Produce deterministic formatted selection sources
+        working-directory: core-runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          for source in src/models/model_selection_policy.rs src/models/model_selection_types.rs src/models/model_selection_assess.rs src/models/model_selection_decide.rs src/models/model_selection_test_support.rs src/models/model_selection_test_quality.rs src/models/model_selection_test_authority.rs src/models/model_selection_test_evidence.rs; do
+            echo "BEGIN_SELECTION_FMT_${source}"
+            base64 -w0 "$source"
+            echo
+            echo "END_SELECTION_FMT_${source}"
+          done
+
   # Review C3: machine-enforced supply-chain gate. Advisories (RUSTSEC), the
   # C.O.R.E. forbidden-dependency bans, license allowlist, and registry pinning
   # all live in core-runtime/deny.toml.
