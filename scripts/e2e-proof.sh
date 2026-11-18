@@ -39,44 +39,15 @@ fi
 note "CLI source/feature report (unverified as matching the running daemon):"
 "$BINARY" version --json || die "CLI version query failed"
 
+need python3
+INSPECT="$ROOT/scripts/qualification/daemon_json_contract.py"
+[[ -f "$INSPECT" ]] || die "missing canonical daemon JSON contract checker"
 status="$("$BINARY" status --json)" || die "authenticated local daemon is not responding; start it with the pinned model"
-[[ -n "$status" ]] || die "empty daemon status"
-# A successful CLI exit means only that the status request succeeded;
-# run_status exits zero even when the daemon reports unhealthy.
-need python3
-printf '%s' "$status" | python3 -c '
-import json
-import sys
-try:
-    status = json.load(sys.stdin)
-    healthy = isinstance(status, dict) and status.get("health") == "healthy"
-except (ValueError, TypeError):
-    healthy = False
-sys.exit(0 if healthy else 1)
-' || die "daemon status is not explicitly healthy (or status JSON invalid)"
+printf '%s' "$status" | python3 "$INSPECT" health ||
+  die "daemon status is not explicitly healthy (or status JSON invalid)"
 models="$("$BINARY" models list --json)" || die "cannot list models through authenticated IPC"
-# Parse the documented ModelsListResponse.models[].name/state, NOT a
-# substring anywhere in JSON (which can match a different model or metadata).
-need python3
-printf '%s' "$models" | python3 -c '
-import json
-import sys
-
-try:
-    response = json.load(sys.stdin)
-    entries = response.get("models") if isinstance(response, dict) else None
-    if not isinstance(entries, list):
-        sys.exit(2)
-    ready = any(
-        isinstance(entry, dict)
-        and entry.get("name") == sys.argv[1]
-        and entry.get("state") == "ready"
-        for entry in entries
-    )
-except (ValueError, TypeError):
-    sys.exit(2)
-sys.exit(0 if ready else 1)
-' "$MODEL_ID" || die "model '$MODEL_ID' is not exactly listed as ready (or model JSON invalid)"
+printf '%s' "$models" | python3 "$INSPECT" ready-model "$MODEL_ID" ||
+  die "model '$MODEL_ID' is not exactly listed as ready (or model JSON invalid)"
 note "Daemon responds and lists the exact ready model name; artifact custody remains unverified."
 
 output="$("$BINARY" infer --model "$MODEL_ID" --prompt "What is 2 + 2? Answer with the digit." --max-tokens 32)" ||
