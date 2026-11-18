@@ -63,7 +63,7 @@ fn invalid_policy_or_catalog(
         || policy.quality_floor_bps > 10_000
         || policy.min_improvement_bps > 10_000
         || policy.max_model_memory_bytes == 0
-        || policy.max_p95_total_ms == 0
+        || policy.max_estimated_total_ms == 0
         || policy
             .pinned_model_id
             .is_some_and(|id| !policy.allowed_model_ids.contains(&id))
@@ -95,7 +95,7 @@ fn evaluate<'a>(
         assessments.push(CandidateAssessment {
             model_id: offer.model_id,
             refusal: verdict.err(),
-            expected_p95_ms: verdict.ok(),
+            estimated_total_ms: verdict.ok(),
         });
     }
     (assessments, eligible)
@@ -151,7 +151,7 @@ fn stabilize(
 
 fn action_for<'a>(
     selected: &ModelOffer<'a>,
-    expected_p95_ms: u64,
+    estimated_total_ms: u64,
     incumbent: Option<Eligible>,
     policy: &SelectionPolicy<'_>,
 ) -> ModelAction<'a> {
@@ -160,7 +160,7 @@ fn action_for<'a>(
             return ModelAction::UseResident {
                 model_id: selected.model_id,
                 handle_id,
-                expected_p95_ms,
+                estimated_total_ms,
             };
         }
     }
@@ -171,12 +171,12 @@ fn action_for<'a>(
         Some(handle_id) if policy.allow_resident_reroute => ModelAction::ProposeResidentReroute {
             model_id: selected.model_id,
             handle_id,
-            expected_p95_ms,
+            estimated_total_ms,
         },
         Some(_) => ModelAction::Refuse(PlanRefusal::ResidentRerouteNotAuthorized),
         None if policy.allow_cold_switch => ModelAction::ProposeColdSwitch {
             model_id: selected.model_id,
-            expected_p95_ms,
+            estimated_total_ms,
         },
         None => ModelAction::Refuse(PlanRefusal::ColdSwitchNotAuthorized),
     }
