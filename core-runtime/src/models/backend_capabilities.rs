@@ -152,33 +152,45 @@ mod tests {
         }
         let gguf = backends.iter().find(|c| c.backend == BackendKind::Gguf);
         if let Some(gguf) = gguf {
-            let has = |target| gguf.compiled_paths.contains(&ServingPath::new(
-                InferenceTask::TextGeneration,
-                target,
-            ));
+            let has = |target| {
+                gguf.compiled_paths
+                    .contains(&ServingPath::new(InferenceTask::TextGeneration, target))
+            };
             assert!(has(ExecutionTarget::Cpu));
             assert_eq!(has(ExecutionTarget::Cuda), cfg!(feature = "gguf-cuda"));
             assert_eq!(
                 has(ExecutionTarget::Metal),
                 cfg!(all(feature = "gguf-metal", target_os = "macos"))
             );
-            assert!(gguf.compiled_paths.iter().all(|p| p.task == InferenceTask::TextGeneration));
+            assert!(gguf
+                .compiled_paths
+                .iter()
+                .all(|p| p.task == InferenceTask::TextGeneration));
         }
     }
 
     #[test]
     fn gpu_device_management_alone_cannot_advertise_native_offload() {
         let backends = compiled_backend_capabilities();
-        let native_cuda = backends.iter().any(|c| c.backend == BackendKind::Gguf
-            && c.compiled_paths.contains(&ServingPath::new(
-                InferenceTask::TextGeneration, ExecutionTarget::Cuda
-            )));
-        let native_metal = backends.iter().any(|c| c.backend == BackendKind::Gguf
-            && c.compiled_paths.contains(&ServingPath::new(
-                InferenceTask::TextGeneration, ExecutionTarget::Metal
-            )));
+        let native_cuda = backends.iter().any(|c| {
+            c.backend == BackendKind::Gguf
+                && c.compiled_paths.contains(&ServingPath::new(
+                    InferenceTask::TextGeneration,
+                    ExecutionTarget::Cuda,
+                ))
+        });
+        let native_metal = backends.iter().any(|c| {
+            c.backend == BackendKind::Gguf
+                && c.compiled_paths.contains(&ServingPath::new(
+                    InferenceTask::TextGeneration,
+                    ExecutionTarget::Metal,
+                ))
+        });
         assert_eq!(native_cuda, cfg!(feature = "gguf-cuda"));
-        assert_eq!(native_metal, cfg!(all(feature = "gguf-metal", target_os = "macos")));
+        assert_eq!(
+            native_metal,
+            cfg!(all(feature = "gguf-metal", target_os = "macos"))
+        );
         assert!(backends.iter().all(|c| c.qualified_paths.is_empty()));
     }
 
