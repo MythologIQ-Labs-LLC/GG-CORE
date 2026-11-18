@@ -213,5 +213,5 @@ fn cli_status_truncation_handles_multibyte_model_names_and_events() {
     assert_eq!(truncate(label, 7), "模...");
     assert_eq!(truncate(label, 9), "模型...");
     assert_eq!(truncate(label, 13), label);
-    assert_eq!(truncate(&label.repeat(10), 27).len() <= 27, true);
+    assert!(truncate(&label.repeat(10), 27).len() <= 27);
 }
