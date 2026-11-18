@@ -86,21 +86,42 @@ pub struct RuntimeBackendCapabilities {
 /// VRAM, operator settings, or release support. ONNX generation is absent.
 /// `qualified_paths` remains empty pending pinned native acceptance.
 pub fn compiled_backend_capabilities() -> Vec<RuntimeBackendCapabilities> {
+    // Single source of truth: these booleans describe COMPILED code only.
+    // They are never accepted from client IPC or external evidence files.
+    compiled_for_features(CompiledFeatures {
+        gguf: cfg!(feature = "gguf"),
+        onnx: cfg!(feature = "onnx"),
+        gguf_cuda: cfg!(feature = "gguf-cuda"),
+        gguf_metal_on_macos: cfg!(all(feature = "gguf-metal", target_os = "macos")),
+    })
+}
+
+/// A private, model-free test seam for the complete compiled feature matrix.
+/// Never use this to claim observed hardware, model quality, or availability.
+#[derive(Clone, Copy)]
+struct CompiledFeatures {
+    gguf: bool,
+    onnx: bool,
+    gguf_cuda: bool,
+    gguf_metal_on_macos: bool,
+}
+
+fn compiled_for_features(features: CompiledFeatures) -> Vec<RuntimeBackendCapabilities> {
     let mut backends = Vec::new();
-    if cfg!(feature = "gguf") {
+    if features.gguf {
         let mut compiled_paths = vec![ServingPath::new(
             InferenceTask::TextGeneration,
             ExecutionTarget::Cpu,
         )];
         // Report reachable native inference backends, NOT installed or
         // qualified acceleration. Device-only `cuda` / `metal` do not count.
-        if cfg!(feature = "gguf-cuda") {
+        if features.gguf_cuda {
             compiled_paths.push(ServingPath::new(
                 InferenceTask::TextGeneration,
                 ExecutionTarget::Cuda,
             ));
         }
-        if cfg!(all(feature = "gguf-metal", target_os = "macos")) {
+        if features.gguf_metal_on_macos {
             compiled_paths.push(ServingPath::new(
                 InferenceTask::TextGeneration,
                 ExecutionTarget::Metal,
@@ -116,7 +137,7 @@ pub fn compiled_backend_capabilities() -> Vec<RuntimeBackendCapabilities> {
             qualified_paths: Vec::new(),
         });
     }
-    if cfg!(feature = "onnx") {
+    if features.onnx {
         backends.push(RuntimeBackendCapabilities {
             schema_version: CAPABILITY_SCHEMA_VERSION,
             backend: BackendKind::Onnx,
