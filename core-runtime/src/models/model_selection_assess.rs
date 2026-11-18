@@ -75,14 +75,14 @@ fn check_resource_and_latency(
         return Err(OverMemoryBudget);
     }
     let cold_ms = cold_start_time(model)?;
-    let p95_total = model
+    // Adding component p95 values yields a planning estimate, NOT a measured\n    // end-to-end p95. Actual end-to-end p95 requires independent profiling.\n    let estimated_total = model
         .p95_inference_ms
         .and_then(|inference| inference.checked_add(cold_ms))
         .ok_or(MissingOrInvalidEvidence)?;
-    if p95_total > policy.max_p95_total_ms {
+    if estimated_total > policy.max_estimated_total_ms {
         return Err(OverLatencyBudget);
     }
-    Ok(p95_total)
+    Ok(estimated_total)
 }
 
 fn cold_start_time(model: &ModelOffer<'_>) -> Result<u64, CandidateRefusal> {
