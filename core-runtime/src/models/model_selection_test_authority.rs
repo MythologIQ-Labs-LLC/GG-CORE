@@ -101,3 +101,15 @@ fn explicit_host_limits_cannot_be_invalid_or_silently_clamped() {
         ModelAction::Refuse(PlanRefusal::InvalidPolicy)
     );
 }
+
+#[test]
+fn selection_trace_serializes_without_becoming_an_input_authority() {
+    let plan = choose(&[light(), quality()], &policy());
+    let json = serde_json::to_value(&plan).expect("output-only selection trace");
+    assert_eq!(
+        json["action"]["propose_cold_switch"]["model_id"],
+        "quality"
+    );
+    assert_eq!(json["assessments"][0]["model_id"], "light");
+    assert_eq!(json["assessments"][1]["expected_p95_ms"], 340);
+}
