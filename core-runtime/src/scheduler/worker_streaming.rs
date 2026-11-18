@@ -1,10 +1,11 @@
 //! Streaming execution helpers for the worker loop.
+#![forbid(unsafe_code)]
 
 use std::sync::Arc;
 
 use super::streaming_queue::StreamingQueuedRequest;
 use crate::engine::InferenceEngine;
-use crate::memory::ResourceLimits;
+use crate::memory::{ResourceGuard, ResourceLimits};
 use crate::security::SecurityPipeline;
 use crate::telemetry;
 
@@ -60,7 +61,7 @@ pub(crate) async fn execute(
         return;
     }
 
-    let _guard = match super::worker::acquire_guard(engine, resource_limits, &model_id).await {
+    let guard = match super::worker::acquire_guard(engine, resource_limits, &model_id).await {
         Ok(g) => g,
         Err(msg) => {
             telemetry::record_admission_rejection(&model_id, &msg);
@@ -82,6 +83,7 @@ pub(crate) async fn execute(
         request.token_sender,
         security,
         control,
+        guard,
     )
     .await;
     let latency_ms = start.elapsed().as_millis() as u64;
@@ -171,13 +173,14 @@ async fn run_stream(
     sender: crate::engine::TokenStreamSender,
     security: Option<&Arc<SecurityPipeline>>,
     control: StreamControl,
+    guard: Option<ResourceGuard>,
 ) -> Result<Result<(), crate::engine::inference::InferenceError>, tokio::task::JoinError> {
     #[cfg(feature = "gguf")]
     {
         let engine = Arc::clone(engine);
         let security = security.cloned();
         let mid = model_id.to_string();
-        tokio::task::spawn_blocking(move || {
+        super::worker::run_blocking_admitted(guard, move || {
             traced(&control, |stop| {
                 let sec = security.as_deref();
                 engine.run_stream_sync(&mid, &prompt, &config, sender, sec, Some(stop))
@@ -194,6 +197,7 @@ async fn run_stream(
             config,
             security,
             control.should_stop(),
+            guard,
         );
         let err = crate::engine::inference::InferenceError::ExecutionFailed(
             "streaming requires gguf feature".into(),
