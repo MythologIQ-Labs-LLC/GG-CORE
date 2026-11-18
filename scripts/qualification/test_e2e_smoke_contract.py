@@ -23,11 +23,14 @@ case "$1" in
     echo '{"health":"synthetic"}'
     ;;
   models)
-    if [[ "${FAKE_MODE:-ok}" == "no-model" ]]; then
-      echo '{"models":[]}'
-    else
-      echo '{"models":[{"id":"qwen"}]}'
-    fi
+    case "${FAKE_MODE:-ok}" in
+      no-model) echo '{"models":[]}' ;;
+      substring-name) echo '{"models":[{"name":"other-qwen","state":"ready"}]}' ;;
+      loading-model) echo '{"models":[{"name":"qwen","state":"loading"}]}' ;;
+      other-field) echo '{"models":[{"name":"phi","state":"ready","note":"qwen"}]}' ;;
+      bad-json) echo '{"models":[' ;;
+      *) echo '{"models":[{"name":"qwen","state":"ready"}]}' ;;
+    esac
     ;;
   infer)
     [[ "${FAKE_MODE:-ok}" != "infer-fail" ]] || exit 9
@@ -88,6 +91,7 @@ class SmokeContract(unittest.TestCase):
         run = self.invoke()
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertIn("SMOKE PASS", run.stdout)
+        self.assertIn("exact ready model", run.stdout)
         self.assertIn("RELEASE HOLD", run.stdout)
         self.assertIn("NOT RUN: active cancellation", run.stdout)
         self.assertIn("NOT VERIFIED: metric deltas", run.stdout)
@@ -99,7 +103,10 @@ class SmokeContract(unittest.TestCase):
                 self.assertNotEqual(self.invoke(**params).returncode, 0)
 
     def test_unusable_daemon_or_unverified_model_fails(self):
-        for mode in ("no-daemon", "no-model"):
+        for mode in (
+            "no-daemon", "no-model", "substring-name",
+            "loading-model", "other-field", "bad-json",
+        ):
             with self.subTest(mode=mode):
                 self.assertNotEqual(self.invoke(mode=mode).returncode, 0)
 
