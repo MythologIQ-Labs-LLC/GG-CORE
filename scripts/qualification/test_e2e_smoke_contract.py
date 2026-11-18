@@ -20,7 +20,13 @@ case "$1" in
   version) echo '{"version":"synthetic-test-only"}' ;;
   status)
     [[ "${FAKE_MODE:-ok}" != "no-daemon" ]] || exit 7
-    echo '{"health":"synthetic"}'
+    case "${FAKE_MODE:-ok}" in
+      unhealthy-daemon) echo '{"health":"unhealthy"}' ;;
+      degraded-daemon) echo '{"health":"degraded"}' ;;
+      missing-health) echo '{"status":"healthy"}' ;;
+      invalid-status) echo '{"health":' ;;
+      *) echo '{"health":"healthy"}' ;;
+    esac
     ;;
   models)
     case "${FAKE_MODE:-ok}" in
@@ -104,7 +110,8 @@ class SmokeContract(unittest.TestCase):
 
     def test_unusable_daemon_or_unverified_model_fails(self):
         for mode in (
-            "no-daemon", "no-model", "substring-name",
+            "no-daemon", "unhealthy-daemon", "degraded-daemon",
+            "missing-health", "invalid-status", "no-model", "substring-name",
             "loading-model", "other-field", "bad-json",
         ):
             with self.subTest(mode=mode):
