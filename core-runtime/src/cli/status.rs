@@ -214,15 +214,30 @@ fn build_status(
 
     let models = build_models_list(&models_response);
 
-    // Health can be reported OK even if either of the subsequent IPC
-    // queries failed. Never advertise a complete, healthy status when the
-    // model registry or telemetry could not actually be read (#222).
-    let health = if !health_ok {
-        HealthState::Unhealthy
-    } else if metrics.is_none() || models_response.is_none() {
-        HealthState::Degraded
-    } else {
-        HealthState::Healthy
+    // Full health distinguishes degraded readiness (for example a full
+    // queue) from actual unhealthy shutdown. The boolean `ok` is readiness,
+    // not the full state: mapping !ok directly to Unhealthy lies about the
+    // daemon. An absent full report or unavailable metrics/model listing also
+    // cannot certify healthy, complete status (#222).
+    let health = match report.as_ref() {
+        Some(r)
+            if matches!(r.state, crate::health::HealthState::Unhealthy)
+                || !r.accepting_requests =>
+        {
+            HealthState::Unhealthy
+        }
+        Some(r)
+            if !health_ok
+                || !r.ready
+                || matches!(r.state, crate::health::HealthState::Degraded)
+                || metrics.is_none()
+                || models_response.is_none() =>
+        {
+            HealthState::Degraded
+        }
+        Some(_) => HealthState::Healthy,
+        None if health_ok => HealthState::Degraded,
+        None => HealthState::Unhealthy,
     };
 
     SystemStatus {
@@ -280,8 +295,14 @@ fn build_status(
         },
         gpus: None,
         recent_events: [
+            report.is_none().then(|| Event {
+                timestamp: "N/A".into(),
+                event_type: "status_ipc".into(),
+                message: "Full health IPC report unavailable; status is incomplete".into(),
+                severity: EventSeverity::Warning,
+            }),
             metrics.is_none().then(|| Event {
-                timestamp: String::new(),
+                timestamp: "N/A".into(),
                 event_type: "status_ipc".into(),
                 message: "Metrics IPC response unavailable; statistics are incomplete".into(),
                 severity: EventSeverity::Warning,
