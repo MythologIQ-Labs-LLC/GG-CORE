@@ -61,6 +61,12 @@ class NativeAcceptanceContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "differs"):
                     native.validate_checkout(pathlib.Path(root), "a" * 40, "b" * 64)
 
+    def test_untracked_source_fails_exact_head_even_when_commit_matches(self):
+        with tempfile.TemporaryDirectory() as root:
+            with mock.patch.object(native, "checked_stdout", side_effect=["a" * 40, "?? core-runtime/src/sidecar.rs"]):
+                with self.assertRaisesRegex(RuntimeError, "Uncommitted or untracked source"):
+                    native.validate_checkout(pathlib.Path(root), "a" * 40, "b" * 64)
+
     def test_linux_cannot_be_certified_as_native_windows(self):
         with mock.patch.object(native.platform, "system", return_value="Linux"):
             with self.assertRaisesRegex(RuntimeError, "requires Windows"):
