@@ -5,7 +5,7 @@ use super::*;
 
 const ALLOWED: &[&str] = &["light", "quality", "onnx"];
 
-fn choose<'a>(offers: &'a [ModelOffer<'a>], policy: &SelectionPolicy<'_>) -> ModelSelectionPlan<'a> {
+fn choose<'a>(offers: &[ModelOffer<'a>], policy: &SelectionPolicy<'_>) -> ModelSelectionPlan<'a> {
     let compiled = [
         RuntimeBackendCapabilities {
             schema_version: CAPABILITY_SCHEMA_VERSION,
