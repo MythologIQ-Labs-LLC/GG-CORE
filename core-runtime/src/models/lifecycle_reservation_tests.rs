@@ -167,6 +167,56 @@ async fn registration_growth_beyond_total_is_refused_and_rolled_back() {
     assert_eq!(limits.current_memory(), 0);
 }
 
+/// Registry and engine mutation must be atomic across a cancelled load.
+/// Holding only the engine write lock forces the old implementation to
+/// publish a registry handle and then suspend before installing inference.
+/// The corrected implementation acquires both permits before any mutation.
+#[tokio::test]
+async fn cancelled_registration_waiting_on_engine_lock_publishes_no_partial_model() {
+    let (lc, limits) = setup(1_000);
+    let engine_lock = lc.engine.registration_writer().await;
+    let model: Arc<dyn Model> = Arc::new(Weights(600));
+    let native_owner = Arc::clone(&model);
+    let reservation = limits.reserve_resident(600).expect("preflight");
+
+    {
+        let mut pending = Box::pin(lc.load_reserved(
+            "pending-engine".into(),
+            meta("pending-engine", 600),
+            model,
+            Some(reservation),
+        ));
+        let waker = futures::task::noop_waker();
+        let mut cx = std::task::Context::from_waker(&waker);
+        assert!(
+            std::future::Future::poll(pending.as_mut(), &mut cx).is_pending(),
+            "registration must wait on held engine writer"
+        );
+        // Drop precisely where the previous code had already registered a
+        // handle but not the engine model. The index + registry must roll
+        // back together and the resident budget must remain with the Arc.
+    }
+    drop(engine_lock);
+
+    assert_eq!(lc.registry.count().await, 0, "orphan registry handle");
+    assert!(
+        !lc.engine.has_model("pending-engine").await,
+        "engine published cancelled model"
+    );
+    assert!(!lc.is_loaded("pending-engine").await, "orphan lifecycle index");
+    assert_eq!(limits.current_memory(), 600, "native holder still owns bytes");
+    assert!(limits.reserve_resident(500).is_err());
+
+    drop(native_owner);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while limits.current_memory() != 0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("aborted registration reservation never returned");
+}
+
 /// Cancellation while waiting for the lifecycle's index write lock must
 /// not drop the preflight guard apart from the backend. Poll explicitly to
 /// Pending under a held lock, then drop the future: no timing or sleep is
