@@ -8,13 +8,22 @@ fn synthetic_compiled_or_untrusted_model_is_not_qualified() {
     let mut compiled = quality();
     compiled.evidence_qualified = false;
     let result = choose(&[compiled], &policy());
-    assert_eq!(result.action, ModelAction::Refuse(PlanRefusal::NoEligibleModel));
-    assert_eq!(result.assessments[0].refusal, Some(CandidateRefusal::Unqualified));
+    assert_eq!(
+        result.action,
+        ModelAction::Refuse(PlanRefusal::NoEligibleModel)
+    );
+    assert_eq!(
+        result.assessments[0].refusal,
+        Some(CandidateRefusal::Unqualified)
+    );
 
     let mut untrusted = quality();
     untrusted.custody_verified = false;
     let result = choose(&[untrusted], &policy());
-    assert_eq!(result.assessments[0].refusal, Some(CandidateRefusal::UnverifiedCustody));
+    assert_eq!(
+        result.assessments[0].refusal,
+        Some(CandidateRefusal::UnverifiedCustody)
+    );
 }
 
 #[test]
@@ -25,12 +34,18 @@ fn no_implicit_task_backend_or_accelerator_substitution() {
     onnx.task = InferenceTask::Embedding;
     onnx.streaming_supported = false;
     let result = choose(&[onnx.clone()], &policy());
-    assert_eq!(result.assessments[0].refusal, Some(CandidateRefusal::TaskMismatch));
+    assert_eq!(
+        result.assessments[0].refusal,
+        Some(CandidateRefusal::TaskMismatch)
+    );
 
     onnx.task = InferenceTask::TextGeneration;
     onnx.target = ExecutionTarget::Cuda;
     let result = choose(&[onnx.clone()], &policy());
-    assert_eq!(result.assessments[0].refusal, Some(CandidateRefusal::TargetMismatch));
+    assert_eq!(
+        result.assessments[0].refusal,
+        Some(CandidateRefusal::TargetMismatch)
+    );
 
     onnx.target = ExecutionTarget::Cpu;
     let result = choose(&[onnx], &policy());
@@ -111,7 +126,10 @@ fn loaded_registration_without_readiness_is_not_eligible() {
     let mut m = light();
     m.serving_ready = false;
     let result = choose(&[m], &policy());
-    assert_eq!(result.assessments[0].refusal, Some(CandidateRefusal::NotReady));
+    assert_eq!(
+        result.assessments[0].refusal,
+        Some(CandidateRefusal::NotReady)
+    );
     let mut m = quality();
     m.serving_ready = true;
     let result = choose(&[m], &policy());
@@ -143,4 +161,3 @@ fn model_backend_must_have_an_actual_compiled_serving_path() {
         Some(CandidateRefusal::PathNotCompiled)
     );
 }
-
