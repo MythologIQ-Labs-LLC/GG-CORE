@@ -1,6 +1,7 @@
 """Model-free, cross-platform regressions for the Windows evidence collector."""
 
 import importlib.util
+import json
 import pathlib
 import sys
 import tempfile
