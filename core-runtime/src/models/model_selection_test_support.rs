@@ -1,15 +1,18 @@
 //! Adversarial model selection cases. Every "qualified" offer below is
 //! synthetic policy input, NOT a real-world model or platform qualification.
 
-use super::*;
 use super::super::backend_capabilities::{
-    BackendKind, ExecutionTarget, InferenceTask, RuntimeBackendCapabilities,
-    ServingPath, CAPABILITY_SCHEMA_VERSION,
+    BackendKind, ExecutionTarget, InferenceTask, RuntimeBackendCapabilities, ServingPath,
+    CAPABILITY_SCHEMA_VERSION,
 };
+use super::*;
 
 const ALLOWED: &[&str] = &["light", "quality", "onnx"];
 
-pub(super) fn choose<'a>(offers: &[ModelOffer<'a>], policy: &SelectionPolicy<'_>) -> ModelSelectionPlan<'a> {
+pub(super) fn choose<'a>(
+    offers: &[ModelOffer<'a>],
+    policy: &SelectionPolicy<'_>,
+) -> ModelSelectionPlan<'a> {
     let compiled = [
         RuntimeBackendCapabilities {
             schema_version: CAPABILITY_SCHEMA_VERSION,
@@ -94,4 +97,3 @@ pub(super) fn quality() -> ModelOffer<'static> {
         serving_ready: false,
     }
 }
-
