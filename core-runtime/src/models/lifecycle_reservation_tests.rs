@@ -105,7 +105,11 @@ async fn abandoned_prepared_load_with_external_native_holder_keeps_budget() {
     let prepared = PreparedModel::for_test("pending", model, Some(guard));
 
     drop(prepared);
-    assert_eq!(l.current_memory(), 700, "abandoned backend still has a holder");
+    assert_eq!(
+        l.current_memory(),
+        700,
+        "abandoned backend still has a holder"
+    );
     assert!(
         l.reserve_resident(400).is_err(),
         "abandoned prepared model recredited memory while backend is live"
