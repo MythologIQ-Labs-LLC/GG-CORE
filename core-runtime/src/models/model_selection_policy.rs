@@ -139,7 +139,7 @@ pub struct ModelSelectionPlan<'a> {
 /// This function has no state, IO or side effects. A real controller must
 /// independently revalidate selected identity, policy and resources before IO.
 pub fn plan_model_selection<'a>(
-    offers: &'a [ModelOffer<'a>],
+    offers: &[ModelOffer<'a>],
     policy: &SelectionPolicy<'_>,
 ) -> ModelSelectionPlan<'a> {
     let compiled = compiled_backend_capabilities();
@@ -149,7 +149,7 @@ pub fn plan_model_selection<'a>(
 /// Private seam for deterministic source tests. The runtime API always uses
 /// its own compiled capabilities; the host/client cannot forge this catalog.
 fn plan_with_compiled_catalog<'a>(
-    offers: &'a [ModelOffer<'a>],
+    offers: &[ModelOffer<'a>],
     policy: &SelectionPolicy<'_>,
     compiled: &[RuntimeBackendCapabilities],
 ) -> ModelSelectionPlan<'a> {
