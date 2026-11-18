@@ -37,7 +37,7 @@ fn authorized_resident_reroute_is_a_proposal_not_execution() {
         ModelAction::ProposeResidentReroute {
             model_id: "light",
             handle_id: 17,
-            expected_p95_ms: 400
+            estimated_total_ms: 400
         }
     );
 }
@@ -108,7 +108,7 @@ fn selection_trace_serializes_without_becoming_an_input_authority() {
     let json = serde_json::to_value(&plan).expect("output-only selection trace");
     assert_eq!(json["action"]["propose_cold_switch"]["model_id"], "quality");
     assert_eq!(json["assessments"][0]["model_id"], "light");
-    assert_eq!(json["assessments"][1]["expected_p95_ms"], 340);
+    assert_eq!(json["assessments"][1]["estimated_total_ms"], 340);
 }
 
 #[test]
