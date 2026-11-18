@@ -214,12 +214,19 @@ fn build_status(
 
     let models = build_models_list(&models_response);
 
+    // Health can be reported OK even if either of the subsequent IPC
+    // queries failed. Never advertise a complete, healthy status when the
+    // model registry or telemetry could not actually be read (#222).
+    let health = if !health_ok {
+        HealthState::Unhealthy
+    } else if metrics.is_none() || models_response.is_none() {
+        HealthState::Degraded
+    } else {
+        HealthState::Healthy
+    };
+
     SystemStatus {
-        health: if health_ok {
-            HealthState::Healthy
-        } else {
-            HealthState::Unhealthy
-        },
+        health,
         uptime_secs,
         version: VersionInfo {
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -272,7 +279,23 @@ fn build_status(
             avg_batch_size: 0.0,
         },
         gpus: None,
-        recent_events: vec![],
+        recent_events: [
+            metrics.is_none().then(|| Event {
+                timestamp: String::new(),
+                event_type: "status_ipc".into(),
+                message: "Metrics IPC response unavailable; statistics are incomplete".into(),
+                severity: EventSeverity::Warning,
+            }),
+            models_response.is_none().then(|| Event {
+                timestamp: String::new(),
+                event_type: "status_ipc".into(),
+                message: "Models IPC response unavailable; model list is incomplete".into(),
+                severity: EventSeverity::Warning,
+            }),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
         #[cfg(feature = "advanced")]
         speculative_stats: build_speculative_stats(&metrics),
     }
