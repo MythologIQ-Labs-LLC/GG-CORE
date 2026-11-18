@@ -120,7 +120,12 @@ def collect_artifacts(core, report):
     if not release.is_file():
         raise RuntimeError("No release-profile gg-core-cli.exe was produced")
     report["cli_release_sha256"] = digest(release)
-    report["cli_version_json"] = json.loads(checked_stdout([str(release), "version", "--json"], core))
+    version = json.loads(checked_stdout([str(release), "version", "--json"], core))
+    report["cli_version_json"] = version
+    if version.get("commit") != report["source_sha"]:
+        raise RuntimeError("Release CLI build commit does not match exact checkout")
+    if set(version.get("features", [])) != {"onnx", "gguf", "ffi"}:
+        raise RuntimeError("Release CLI feature provenance differs from tested build")
 
 
 def main(argv=None):
