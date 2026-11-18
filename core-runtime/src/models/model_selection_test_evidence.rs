@@ -2,6 +2,7 @@
 
 use super::test_support::{choose, light, policy, quality};
 use super::*;
+use crate::models::backend_capabilities::{BackendKind, ExecutionTarget, InferenceTask};
 
 #[test]
 fn synthetic_compiled_or_untrusted_model_is_not_qualified() {
