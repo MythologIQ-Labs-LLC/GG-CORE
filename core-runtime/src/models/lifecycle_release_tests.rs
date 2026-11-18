@@ -286,12 +286,20 @@ fn direct_model_destructor_panic_never_credits_resident_budget() {
     }));
     assert!(result.is_err(), "destructor panic should remain observable");
     assert!(started.load(Ordering::SeqCst));
-    assert_eq!(limits.current_memory(), 600, "destructor panic credited capacity");
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "destructor panic credited capacity"
+    );
     assert!(
         limits.reserve_resident(500).is_err(),
         "failed destruction admitted overlapping memory"
     );
-    assert_eq!(lc.releasing_models().len(), 1, "failed release must be visible");
+    assert_eq!(
+        lc.releasing_models().len(),
+        1,
+        "failed release must be visible"
+    );
 }
 
 /// A panic in the background release monitor must not kill all future
@@ -312,13 +320,24 @@ fn supervised_destructor_panic_preserves_budget_and_other_model_release() {
     while !started.load(Ordering::SeqCst) && begin.elapsed() < Duration::from_secs(5) {
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(started.load(Ordering::SeqCst), "model destructor never started");
+    assert!(
+        started.load(Ordering::SeqCst),
+        "model destructor never started"
+    );
     // The panic callback runs immediately before unwind into the supervisor.
     // It must never allow charge reuse even while unwind is completing.
     std::thread::sleep(Duration::from_millis(30));
-    assert_eq!(limits.current_memory(), 600, "failed cleanup credited memory");
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "failed cleanup credited memory"
+    );
     assert!(limits.reserve_resident(500).is_err());
-    assert_eq!(lc.releasing_models().len(), 1, "panic release was falsely signaled");
+    assert_eq!(
+        lc.releasing_models().len(),
+        1,
+        "panic release was falsely signaled"
+    );
 
     let healthy = futures::executor::block_on(load_held(&lc, "healthy", 200));
     futures::executor::block_on(lc.unload("healthy")).expect("healthy unload");
@@ -332,7 +351,11 @@ fn supervised_destructor_panic_preserves_budget_and_other_model_release() {
     let remaining = lc.releasing_models();
     assert_eq!(remaining.len(), 1, "supervisor stalled on unrelated panic");
     assert_eq!(remaining[0].name, "panic");
-    assert_eq!(limits.current_memory(), 600, "healthy release not reclaimed");
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "healthy release not reclaimed"
+    );
 }
 
 /// R1: an unload racing listings never makes a held instance disappear or
