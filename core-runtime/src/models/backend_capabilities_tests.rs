@@ -128,17 +128,34 @@ fn simulated_native_compile_matrix_exercises_both_gpu_branches_on_cpu_ci() {
         if let Some(gguf) = gguf {
             let path = |target| ServingPath::new(InferenceTask::TextGeneration, target);
             assert!(gguf.compiled_paths.contains(&path(ExecutionTarget::Cpu)));
-            assert_eq!(gguf.compiled_paths.contains(&path(ExecutionTarget::Cuda)), cuda);
+            assert_eq!(
+                gguf.compiled_paths.contains(&path(ExecutionTarget::Cuda)),
+                cuda
+            );
             assert_eq!(
                 gguf.compiled_paths.contains(&path(ExecutionTarget::Metal)),
                 metal_on_macos
             );
-            assert_eq!(gguf.compiled_paths.len(), 1 + usize::from(cuda) + usize::from(metal_on_macos));
+            assert_eq!(
+                gguf.compiled_paths.len(),
+                1 + usize::from(cuda) + usize::from(metal_on_macos)
+            );
         }
-        let onnx = result.iter().find(|b| b.backend == BackendKind::Onnx).unwrap();
-        assert!(onnx.compiled_paths.iter().all(|path| path.target == ExecutionTarget::Cpu));
-        assert!(onnx.compiled_paths.iter().all(|path| path.task != InferenceTask::TextGeneration));
-        assert!(result.iter().all(|backend| backend.qualified_paths.is_empty()));
+        let onnx = result
+            .iter()
+            .find(|b| b.backend == BackendKind::Onnx)
+            .unwrap();
+        assert!(onnx
+            .compiled_paths
+            .iter()
+            .all(|path| path.target == ExecutionTarget::Cpu));
+        assert!(onnx
+            .compiled_paths
+            .iter()
+            .all(|path| path.task != InferenceTask::TextGeneration));
+        assert!(result
+            .iter()
+            .all(|backend| backend.qualified_paths.is_empty()));
     }
 }
 
