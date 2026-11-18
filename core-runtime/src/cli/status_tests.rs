@@ -215,3 +215,56 @@ fn cli_status_truncation_handles_multibyte_model_names_and_events() {
     assert_eq!(truncate(label, 13), label);
     assert!(truncate(&label.repeat(10), 27).len() <= 27);
 }
+
+#[test]
+fn status_from_partial_ipc_is_degraded_not_healthy() {
+    use crate::ipc::protocol::ModelsListResponse;
+    use crate::telemetry::MetricsSnapshot;
+    use std::collections::HashMap;
+
+    let snapshot = MetricsSnapshot {
+        counters: HashMap::new(),
+        gauges: HashMap::new(),
+        histograms: HashMap::new(),
+        bucketed_histograms: HashMap::new(),
+    };
+    let empty_models = ModelsListResponse {
+        models: Vec::new(),
+        total_memory_bytes: 0,
+    };
+
+    // A healthy daemon with successful empty responses is healthy.
+    let complete = build_status(
+        true,
+        None,
+        Some(snapshot.clone()),
+        Some(empty_models.clone()),
+    );
+    assert_eq!(complete.health, HealthState::Healthy);
+    assert!(complete.recent_events.is_empty());
+
+    // Failed IPC reads previously became plausible empty/zero values while
+    // health stayed Healthy. Do not misrepresent missing evidence as zero use.
+    let missing_metrics = build_status(true, None, None, Some(empty_models.clone()));
+    assert_eq!(missing_metrics.health, HealthState::Degraded);
+    assert_eq!(missing_metrics.recent_events.len(), 1);
+    assert!(missing_metrics.recent_events[0].message.contains("Metrics IPC"));
+
+    let missing_models = build_status(true, None, Some(snapshot.clone()), None);
+    assert_eq!(missing_models.health, HealthState::Degraded);
+    assert_eq!(missing_models.recent_events.len(), 1);
+    assert!(missing_models.recent_events[0].message.contains("Models IPC"));
+
+    let both_missing = build_status(true, None, None, None);
+    assert_eq!(both_missing.health, HealthState::Degraded);
+    assert_eq!(both_missing.recent_events.len(), 2);
+    let serialized = serde_json::to_value(&both_missing).unwrap();
+    assert_eq!(serialized["health"], "degraded");
+    assert_eq!(serialized["recent_events"][0]["severity"], "warning");
+
+    // A negative health report is not overridden by successfully fetched
+    // metrics/models, nor does degraded partial telemetry hide it.
+    let unhealthy = build_status(false, None, Some(snapshot), Some(empty_models));
+    assert_eq!(unhealthy.health, HealthState::Unhealthy);
+    assert!(unhealthy.recent_events.is_empty());
+}
