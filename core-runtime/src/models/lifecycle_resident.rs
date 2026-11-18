@@ -36,6 +36,21 @@ impl Drop for Resident {
     fn drop(&mut self) {
         let model = self.model.take();
         let guard = self.guard.take();
+
+        // The lifecycle can be dropped without explicitly unloading a model.
+        // Its final ownership can disappear while a native worker still holds
+        // an Arc. Transfer that resident reservation to the same independent
+        // supervisor rather than credit capacity early (#219).
+        if guard.is_some()
+            && model
+                .as_ref()
+                .is_some_and(|model| Arc::strong_count(model) > 1)
+        {
+            let (done, _unused_watch) = release_channel();
+            enqueue_release(Self { model, guard }, done);
+            return;
+        }
+
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(model))) {
             Ok(()) => drop(guard),
             Err(panic) => {
@@ -99,6 +114,27 @@ impl Drop for PendingRelease {
         } else {
             drop(resident);
         }
+    }
+}
+
+fn enqueue_release(resident: Resident, done: watch::Sender<bool>) {
+    // Failed spawn/send must not free still-live model memory; PendingRelease
+    // drops through the explicit fail-closed budget-retention path.
+    let pending = PendingRelease {
+        resident: Some(resident),
+        done,
+    };
+    match release_supervisor() {
+        Some(sender) => {
+            if let Err(error) = sender.send(pending) {
+                tracing::error!(
+                    target: "gg_core::lifecycle",
+                    "model release supervisor disconnected; retain budget"
+                );
+                drop(error.0);
+            }
+        }
+        None => drop(pending),
     }
 }
 
@@ -230,23 +266,7 @@ impl Resident {
             return;
         }
         // The supervisor holds this entire Resident independently of an
-        // aborted waiter or dropped Tokio runtime. A failed spawn/send drops
-        // PendingRelease through its fail-closed Drop guard.
-        let pending = PendingRelease {
-            resident: Some(self),
-            done,
-        };
-        match release_supervisor() {
-            Some(sender) => {
-                if let Err(error) = sender.send(pending) {
-                    tracing::error!(
-                        target: "gg_core::lifecycle",
-                        "model release supervisor disconnected; retain budget"
-                    );
-                    drop(error.0);
-                }
-            }
-            None => drop(pending),
-        }
+        // aborted waiter or dropped Tokio runtime.
+        enqueue_release(self, done);
     }
 }
