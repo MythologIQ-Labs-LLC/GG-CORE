@@ -61,6 +61,7 @@ if /I "%~1"=="status" (
 )
 if /I "%~1"=="models" (
   if /I "%FAKE_MODE%"=="no-model" (echo {"models":[]}& exit /b 0)
+  if /I "%FAKE_MODE%"=="models-as-object" (echo {"models":{"name":"qwen","state":"ready"}}& exit /b 0)
   if /I "%FAKE_MODE%"=="substring-name" (echo {"models":[{"name":"other-qwen","state":"ready"}]}& exit /b 0)
   if /I "%FAKE_MODE%"=="loading-model" (echo {"models":[{"name":"qwen","state":"loading"}]}& exit /b 0)
   if /I "%FAKE_MODE%"=="other-field" (echo {"models":[{"name":"phi","state":"ready","note":"qwen"}]}& exit /b 0)
@@ -92,6 +93,7 @@ exit /b 10
     Assert-Case 'missing-health' 'missing-health' $true $true $false
     Assert-Case 'invalid-status' 'invalid-status' $true $true $false
     Assert-Case 'no-model-id' 'no-model' $true $true $false
+    Assert-Case 'wrong-models-shape' 'models-as-object' $true $true $false
     Assert-Case 'substring-name' 'substring-name' $true $true $false
     Assert-Case 'not-ready' 'loading-model' $true $true $false
     Assert-Case 'decoy-metadata' 'other-field' $true $true $false
