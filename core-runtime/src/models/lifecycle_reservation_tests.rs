@@ -167,6 +167,50 @@ async fn registration_growth_beyond_total_is_refused_and_rolled_back() {
     assert_eq!(limits.current_memory(), 0);
 }
 
+/// Unload must not detach resident bookkeeping before its awaited engine
+/// writer is available. A cancelled old unload left a loaded model with no
+/// lifecycle resident entry, even while its registry/engine handles survived.
+#[tokio::test]
+async fn cancelled_unload_waiting_on_engine_writer_keeps_registered_residency() {
+    let (lc, limits) = setup(1_000);
+    let handle = lc
+        .load("cancel-unload".into(), meta("cancel-unload", 600), Arc::new(Weights(600)))
+        .await
+        .expect("loaded model");
+    assert_eq!(limits.current_memory(), 600);
+
+    let engine_writer = lc.engine.registration_writer().await;
+    {
+        let mut unloading = Box::pin(lc.unload("cancel-unload"));
+        let waker = futures::task::noop_waker();
+        let mut cx = std::task::Context::from_waker(&waker);
+        assert!(
+            std::future::Future::poll(unloading.as_mut(), &mut cx).is_pending(),
+            "unload must wait for the engine writer"
+        );
+        // The aborted operation must not have removed its resident, registry
+        // entry, engine model or index mapping while waiting for the writer.
+    }
+    drop(engine_writer);
+
+    assert!(lc.registry.contains(handle).await);
+    assert!(lc.engine.has_model("cancel-unload").await);
+    assert!(lc.is_loaded("cancel-unload").await);
+    assert!(
+        lc.index.read().await.residents.contains_key("cancel-unload"),
+        "cancelled unload detached resident budget bookkeeping"
+    );
+    assert_eq!(limits.current_memory(), 600);
+
+    lc.unload("cancel-unload")
+        .await
+        .expect("retry unload after cancellation");
+    assert_eq!(limits.current_memory(), 0);
+    assert!(!lc.registry.contains(handle).await);
+    assert!(!lc.engine.has_model("cancel-unload").await);
+    assert!(!lc.is_loaded("cancel-unload").await);
+}
+
 /// Registry and engine mutation must be atomic across a cancelled load.
 /// Holding only the engine write lock forces the old implementation to
 /// publish a registry handle and then suspend before installing inference.
