@@ -58,7 +58,7 @@ class NativeAcceptanceContractTests(unittest.TestCase):
             path.write_text("version https://git-lfs.github.com/spec/v1\n")
             with mock.patch.object(native, "checked_stdout", side_effect=["a" * 40, ""]):
                 with self.assertRaisesRegex(RuntimeError, "not GGUF"):
-                    native.validate_checkout(repo, "a" * 40, "b" * 64)
+                    native.validate_checkout(repo, "a" * 40, native.APPROVED_MODEL_SHA256)
 
     def test_git_head_and_checksum_are_mandatory(self):
         with tempfile.TemporaryDirectory() as root:
@@ -66,13 +66,38 @@ class NativeAcceptanceContractTests(unittest.TestCase):
                 native.validate_checkout(pathlib.Path(root), "bad", "b" * 64)
             with mock.patch.object(native, "checked_stdout", return_value="b" * 40):
                 with self.assertRaisesRegex(RuntimeError, "differs"):
-                    native.validate_checkout(pathlib.Path(root), "a" * 40, "b" * 64)
+                    native.validate_checkout(pathlib.Path(root), "a" * 40, native.APPROVED_MODEL_SHA256)
 
     def test_untracked_source_fails_exact_head_even_when_commit_matches(self):
         with tempfile.TemporaryDirectory() as root:
             with mock.patch.object(native, "checked_stdout", side_effect=["a" * 40, "?? core-runtime/src/sidecar.rs"]):
                 with self.assertRaisesRegex(RuntimeError, "Uncommitted or untracked source"):
-                    native.validate_checkout(pathlib.Path(root), "a" * 40, "b" * 64)
+                    native.validate_checkout(pathlib.Path(root), "a" * 40, native.APPROVED_MODEL_SHA256)
+
+    def test_model_identity_is_pinned_to_the_release_workflow(self):
+        import re
+        release_workflow = (PATH.parents[2] / ".github/workflows/release.yml").read_text(
+            encoding="utf-8"
+        )
+        advertised = re.findall(
+            r"^\\s+MODEL_SHA256:\\s*([0-9a-f]{64})\\s*$",
+            release_workflow,
+            re.MULTILINE,
+        )
+        self.assertEqual(advertised, [native.APPROVED_MODEL_SHA256])
+        self.assertEqual(len(native.APPROVED_MODEL_SHA256), 64)
+
+    def test_matching_but_unapproved_gguf_checksum_is_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            repo = pathlib.Path(root)
+            model = repo / native.MODEL_RELATIVE
+            model.parent.mkdir(parents=True)
+            model.write_bytes(b"GGUF" + b"unapproved model payload")
+            alternative_sha = native.digest(model)
+            self.assertNotEqual(alternative_sha, native.APPROVED_MODEL_SHA256)
+            with mock.patch.object(native, "checked_stdout", side_effect=["a" * 40, ""]):
+                with self.assertRaisesRegex(RuntimeError, "not the approved release"):
+                    native.validate_checkout(repo, "a" * 40, alternative_sha)
 
     def test_linux_cannot_be_certified_as_native_windows(self):
         with mock.patch.object(native.platform, "system", return_value="Linux"):
