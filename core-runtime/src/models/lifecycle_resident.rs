@@ -24,10 +24,31 @@ use crate::memory::{ResidentGuard, ResourceLimits};
 const RELEASE_POLL: Duration = Duration::from_millis(25);
 
 /// A registered model's budget: the lifecycle's model handle and its guard.
-/// Field order: `model` drops before `guard` (memory freed, then budget).
+/// Drop must explicitly release model memory before returning resident
+/// budget. Field declaration order alone is unsafe if a model destructor
+/// panics: Rust still drops remaining fields during unwinding (#219).
 pub(super) struct Resident {
-    model: Arc<dyn Model>,
+    model: Option<Arc<dyn Model>>,
     guard: Option<ResidentGuard>,
+}
+
+impl Drop for Resident {
+    fn drop(&mut self) {
+        let model = self.model.take();
+        let guard = self.guard.take();
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(model))) {
+            Ok(()) => drop(guard),
+            Err(panic) => {
+                // Backend destruction did not complete. Never credit its
+                // resident memory, even if the unwind drops this Resident.
+                std::mem::forget(guard);
+                if !std::thread::panicking() {
+                    std::panic::resume_unwind(panic);
+                }
+                // Already unwinding: do not trigger a double-panic abort.
+            }
+        }
+    }
 }
 
 /// A pending model release must outlive Tokio tasks and the runtime itself:
@@ -46,14 +67,22 @@ impl PendingRelease {
     fn ready(&self) -> bool {
         self.resident
             .as_ref()
-            .is_some_and(|resident| Arc::strong_count(&resident.model) == 1)
+            .is_some_and(|resident| resident.only_owner())
     }
 
     fn finish(mut self) {
-        // Model destructor completes before the resident budget returns.
         if let Some(resident) = self.resident.take() {
-            drop(resident);
-            let _ = self.done.send(true);
+            // A native model destructor can panic. Keep the supervisor alive
+            // so other models still drain, never signal a false release.
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(resident))) {
+                Ok(()) => {
+                    let _ = self.done.send(true);
+                }
+                Err(_) => tracing::error!(
+                    target: "gg_core::lifecycle",
+                    "model destructor panicked; resident capacity held fail-closed"
+                ),
+            }
         }
     }
 }
@@ -63,13 +92,10 @@ impl Drop for PendingRelease {
         let Some(resident) = self.resident.take() else {
             return;
         };
-        if Arc::strong_count(&resident.model) > 1 {
+        if !resident.only_owner() {
             // Catastrophic supervisor shutdown/panic: never credit memory
-            // while a detached native worker still holds the model. Normal
-            // release has no leak; this is an explicit fail-closed fallback.
-            let Resident { model, guard } = resident;
-            std::mem::forget(guard);
-            drop(model);
+            // while a detached native worker still holds the model.
+            resident.retain_budget();
         } else {
             drop(resident);
         }
@@ -176,14 +202,27 @@ pub(super) fn admit(
 
 impl Resident {
     pub(super) fn new(model: Arc<dyn Model>, guard: Option<ResidentGuard>) -> Self {
-        Self { model, guard }
+        Self {
+            model: Some(model),
+            guard,
+        }
+    }
+
+    fn only_owner(&self) -> bool {
+        Arc::strong_count(self.model.as_ref().expect("resident model present")) == 1
+    }
+
+    fn retain_budget(mut self) {
+        // This failure path may drop its model reference while others still
+        // exist, but never credits a budget whose backend is still alive.
+        std::mem::forget(self.guard.take());
     }
 
     /// Return the budget once no request holds the model any more, then
     /// signal `done`. Must be called after the engine dropped its own
     /// reference.
     pub(super) fn release(self, done: watch::Sender<bool>) {
-        if Arc::strong_count(&self.model) == 1 {
+        if self.only_owner() {
             drop(self); // model memory freed, then budget released
             let _ = done.send(true);
             return;
