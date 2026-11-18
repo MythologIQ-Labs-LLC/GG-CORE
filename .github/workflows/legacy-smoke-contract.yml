@@ -32,8 +32,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - name: Validate bash syntax, failure behavior and evidence labels
-        run: python3 -m unittest discover -s scripts/qualification -p 'test_*_contract.py' -v
+      - name: Validate Bash script syntax and offline JSON/smoke contracts
+        run: |
+          bash -n scripts/e2e-proof.sh
+          bash -n scripts/rc-acceptance.sh
+          python3 -m unittest discover -s scripts/qualification -p 'test_*_contract.py' -v
 
   windows-model-free-contract:
     name: Windows smoke truthfulness (model-free)
