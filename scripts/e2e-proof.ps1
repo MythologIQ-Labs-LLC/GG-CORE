@@ -24,6 +24,7 @@ Write-Output "INFO: GG-CORE developer smoke only. NOT a package, cancel or relea
 if ([string]::IsNullOrWhiteSpace($env:CORE_AUTH_TOKEN)) {
     Fail "CORE_AUTH_TOKEN is required for authenticated local IPC"
 }
+if ([string]::IsNullOrWhiteSpace($ModelId)) { Fail "ModelId cannot be empty" }
 $modelFile = Join-Path $ModelsDir "qwen2.5-0.5b-instruct-q4_k_m.gguf"
 if (-not (Test-Path -LiteralPath $modelFile -PathType Leaf)) {
     Fail "local GGUF fixture missing: $modelFile (no implicit download)"
@@ -65,11 +66,25 @@ $status = & $Binary status --json
 if ($LASTEXITCODE -ne 0 -or -not $status) {
     Fail "authenticated daemon is not responding; start the local daemon with the pinned model"
 }
-$models = & $Binary models list --json
-if ($LASTEXITCODE -ne 0 -or ($models -join [Environment]::NewLine) -notmatch [regex]::Escape($ModelId)) {
-    Fail "model ID '$ModelId' not listed by daemon"
+$modelsJson = & $Binary models list --json
+if ($LASTEXITCODE -ne 0) { Fail "models list failed over authenticated IPC" }
+try {
+    $modelResponse = ($modelsJson -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+} catch {
+    Fail "invalid daemon model-list JSON"
 }
-Write-Output "INFO: Daemon responds and lists model ID; this does not prove its artifact hash."
+if ($null -eq $modelResponse -or $null -eq $modelResponse.models) {
+    Fail "daemon model-list response omitted models array"
+}
+# The wire contract uses ModelInfo.name and ModelInfo.state. A substring
+# match can falsely accept another model whose name merely contains the ID.
+$readyModels = @($modelResponse.models | Where-Object {
+    $_.name -ceq $ModelId -and $_.state -ceq "ready"
+})
+if ($readyModels.Count -eq 0) {
+    Fail "model '$ModelId' not listed with exact name and ready state"
+}
+Write-Output "INFO: Daemon responds and lists exact ready model; artifact custody remains unverified."
 
 $answer = & $Binary infer --model $ModelId --prompt "What is 2 + 2? Answer with the digit." --max-tokens 32
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($answer -join [Environment]::NewLine))) {
