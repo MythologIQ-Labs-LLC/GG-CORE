@@ -91,9 +91,11 @@ pub struct RequestStats {
     pub failed_requests: u64,
     pub requests_per_second: f64,
     pub avg_latency_ms: f64,
-    pub p50_latency_ms: f64,
-    pub p95_latency_ms: f64,
-    pub p99_latency_ms: f64,
+    /// Actual observed quantile, when supported by measured distribution data.
+    /// None means unavailable; never derive it from a min/max summary.
+    pub p50_latency_ms: Option<f64>,
+    pub p95_latency_ms: Option<f64>,
+    pub p99_latency_ms: Option<f64>,
     pub tokens_generated: u64,
     pub tokens_per_second: f64,
 }
@@ -238,9 +240,12 @@ fn build_status(
             failed_requests,
             requests_per_second: rps,
             avg_latency_ms,
-            p50_latency_ms: latency_hist.map(|h| h.min).unwrap_or(0.0),
-            p95_latency_ms: latency_hist.map(|h| h.max * 0.95).unwrap_or(0.0),
-            p99_latency_ms: latency_hist.map(|h| h.max * 0.99).unwrap_or(0.0),
+            // MetricsSnapshot currently exports count/sum/min/max, not raw
+            // samples or sufficient quantile distribution data. Any number
+            // computed as p95 = max * 0.95 would be fabricated evidence.
+            p50_latency_ms: None,
+            p95_latency_ms: None,
+            p99_latency_ms: None,
             tokens_generated,
             tokens_per_second: tps,
         },
