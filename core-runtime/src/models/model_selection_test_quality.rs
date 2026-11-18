@@ -11,7 +11,7 @@ fn quality_floor_first_then_lowest_total_cost_proposes_cold_switch() {
         result.action,
         ModelAction::ProposeColdSwitch {
             model_id: "quality",
-            expected_p95_ms: 340
+            estimated_total_ms: 340
         }
     );
     assert_eq!(result.assessments.len(), 2);
@@ -28,7 +28,7 @@ fn a_loaded_light_model_is_preferred_when_switch_cost_outweighs_gain() {
         ModelAction::UseResident {
             model_id: "light",
             handle_id: 17,
-            expected_p95_ms: 400
+            estimated_total_ms: 400
         }
     );
 }
