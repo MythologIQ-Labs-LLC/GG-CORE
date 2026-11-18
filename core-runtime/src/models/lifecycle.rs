@@ -141,8 +141,12 @@ impl ModelLifecycle {
             resident::admit(self.limits.as_ref(), &mut reservation, model.memory_usage())
         };
         if let Err(e) = admitted {
-            drop(model); // free backend memory before the budget returns
-            drop(reservation);
+            // A refused registration still owns real backend memory. Keep its
+            // pre-load reservation with the model until the last Arc holder
+            // exits; separate drops could release the budget while another
+            // native task holds the rejected model. Resident also retains
+            // the budget if the native model destructor panics (#219).
+            drop(resident::Resident::new(model, reservation));
             return Err(e);
         }
         let handle = self.registry.register(metadata, model.memory_usage()).await;
