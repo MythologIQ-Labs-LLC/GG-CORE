@@ -5,6 +5,7 @@ on:
       - scripts/e2e-proof.sh
       - scripts/e2e-proof.ps1
       - scripts/qualification/test_e2e_smoke_contract.py
+      - scripts/qualification/test_e2e_smoke_windows.ps1
       - .github/workflows/legacy-smoke-contract.yml
   push:
     branches: [main]
@@ -12,6 +13,7 @@ on:
       - scripts/e2e-proof.sh
       - scripts/e2e-proof.ps1
       - scripts/qualification/test_e2e_smoke_contract.py
+      - scripts/qualification/test_e2e_smoke_windows.ps1
       - .github/workflows/legacy-smoke-contract.yml
 
 permissions:
@@ -26,3 +28,13 @@ jobs:
       - uses: actions/checkout@v7
       - name: Validate bash syntax, failure behavior and evidence labels
         run: python3 -m unittest discover -s scripts/qualification -p test_e2e_smoke_contract.py -v
+
+  windows-model-free-contract:
+    name: Windows smoke truthfulness (model-free)
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate native PowerShell diagnostic failure behavior
+        shell: pwsh
+        run: ./scripts/qualification/test_e2e_smoke_windows.ps1
