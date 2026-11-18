@@ -154,8 +154,10 @@ fn supervise_releases(receiver: mpsc::Receiver<PendingRelease>) {
 }
 
 /// Observes whether an unloaded instance has been released. A watch whose
-/// sender was dropped without signalling (runtime shutdown, or no runtime)
-/// reads as *not* released, forever: fail closed.
+/// sender was dropped without signalling (for example a native destructor
+/// panic or unrecoverable supervisor failure) reads as *not* released.
+/// Normal Tokio shutdown and absence of a Tokio runtime are supported by the
+/// independent release supervisor; they do not terminate a pending release.
 #[derive(Clone)]
 pub(super) struct ReleaseWatch(watch::Receiver<bool>);
 
