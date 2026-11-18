@@ -32,6 +32,21 @@ jobs:
         with:
           manifest-path: core-runtime/Cargo.toml
 
+  msrv:
+    name: declared Rust 1.97 MSRV (locked)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: core-runtime
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97.0"
+      - name: Verify declared Rust minimum and committed dependency graph
+        run: cargo check --locked --all-targets
+
   lint:
     name: fmt + clippy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
