@@ -62,9 +62,19 @@ Write-Output "INFO: CLI version (not proof of loaded daemon identity):"
 & $Binary version --json
 if ($LASTEXITCODE -ne 0) { Fail "CLI version query failed" }
 
-$status = & $Binary status --json
-if ($LASTEXITCODE -ne 0 -or -not $status) {
+$statusJson = & $Binary status --json
+if ($LASTEXITCODE -ne 0 -or -not $statusJson) {
     Fail "authenticated daemon is not responding; start the local daemon with the pinned model"
+}
+try {
+    $status = ($statusJson -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+} catch {
+    Fail "invalid daemon status JSON"
+}
+# The CLI status command can return success even when health is unhealthy.
+# Require the explicit authenticated health value, never just exit code zero.
+if ($null -eq $status -or $status.health -cne "healthy") {
+    Fail "daemon health is not explicitly healthy"
 }
 $modelsJson = & $Binary models list --json
 if ($LASTEXITCODE -ne 0) { Fail "models list failed over authenticated IPC" }
