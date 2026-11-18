@@ -9,6 +9,13 @@ use crate::memory::{ResourceGuard, ResourceLimits};
 use crate::security::SecurityPipeline;
 use crate::telemetry;
 
+/// Native execution owners travel together; neither security nor admission
+/// may be borrowed from an async frame that can be dropped during inference.
+struct StreamOwners {
+    security: Option<Arc<SecurityPipeline>>,
+    guard: Option<ResourceGuard>,
+}
+
 /// One control bundle keeps cancellation and deadline tied to the same request
 /// without growing the worker's already-wide execution signature.
 struct StreamControl {
@@ -81,9 +88,11 @@ pub(crate) async fn execute(
         request.prompt,
         request.config,
         request.token_sender,
-        security,
+        StreamOwners {
+            security: security.cloned(),
+            guard,
+        },
         control,
-        guard,
     )
     .await;
     let latency_ms = start.elapsed().as_millis() as u64;
@@ -171,14 +180,13 @@ async fn run_stream(
     prompt: String,
     config: crate::engine::InferenceConfig,
     sender: crate::engine::TokenStreamSender,
-    security: Option<&Arc<SecurityPipeline>>,
+    owners: StreamOwners,
     control: StreamControl,
-    guard: Option<ResourceGuard>,
 ) -> Result<Result<(), crate::engine::inference::InferenceError>, tokio::task::JoinError> {
     #[cfg(feature = "gguf")]
     {
         let engine = Arc::clone(engine);
-        let security = security.cloned();
+        let StreamOwners { security, guard } = owners;
         let mid = model_id.to_string();
         super::worker::run_blocking_admitted(guard, move || {
             traced(&control, |stop| {
@@ -195,9 +203,8 @@ async fn run_stream(
             model_id,
             prompt,
             config,
-            security,
+            owners,
             control.should_stop(),
-            guard,
         );
         let err = crate::engine::inference::InferenceError::ExecutionFailed(
             "streaming requires gguf feature".into(),
