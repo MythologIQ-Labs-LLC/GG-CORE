@@ -198,12 +198,16 @@ async fn run_stream(
     }
     #[cfg(not(feature = "gguf"))]
     {
+        // No native work is launched without GGUF, so release admitted bytes
+        // here; reading the bundle also keeps both feature sets lint-clean.
+        let StreamOwners { security, guard } = owners;
         let _ = (
             engine,
             model_id,
             prompt,
             config,
-            owners,
+            security,
+            guard,
             control.should_stop(),
         );
         let err = crate::engine::inference::InferenceError::ExecutionFailed(
