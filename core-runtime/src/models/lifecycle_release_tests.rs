@@ -297,6 +297,48 @@ fn dropping_loaded_lifecycle_with_live_model_does_not_credit_memory_early() {
     );
 }
 
+/// A *refused registration* must use the same panic-safe model and
+/// reservation drop boundary as a successful model unload. If a losing model's
+/// native destructor panics, returning its charged bytes would be unsafe.
+#[test]
+fn refused_registration_destructor_panic_retains_preflight_budget() {
+    let (lc, limits) = setup(1_000);
+    futures::executor::block_on(lc.load(
+        "duplicate".into(),
+        meta("duplicate", 300),
+        Arc::new(Weights(300)),
+    ))
+    .expect("winner registered");
+
+    let started = Arc::new(AtomicBool::new(false));
+    let model: Arc<dyn Model> = Arc::new(PanickingWeights {
+        bytes: 400,
+        destructor_started: Arc::clone(&started),
+    });
+    let guard = limits.reserve_resident(400).expect("losing preflight reservation");
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        futures::executor::block_on(lc.load_reserved(
+            "duplicate".into(),
+            meta("duplicate", 400),
+            model,
+            Some(guard),
+        ))
+    }));
+
+    assert!(result.is_err(), "backend panic must remain observable");
+    assert!(started.load(Ordering::SeqCst));
+    assert_eq!(limits.current_memory(), 700, "refusal credited failed cleanup");
+    assert!(
+        limits.reserve_resident(400).is_err(),
+        "model with incomplete destruction must not permit new admission"
+    );
+    // Successful registered model can still unload; the failed native
+    // destructor's 400-byte charge intentionally remains fail-closed.
+    futures::executor::block_on(lc.unload("duplicate")).unwrap();
+    assert_eq!(limits.current_memory(), 400);
+}
+
 /// A backend destructor panic is not evidence that its memory was
 /// reclaimed. The reservation must remain charged even on the idle path.
 #[test]
