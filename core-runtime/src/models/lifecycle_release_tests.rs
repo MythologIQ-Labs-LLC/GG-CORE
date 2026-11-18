@@ -207,7 +207,11 @@ fn lifecycle_and_runtime_teardown_keep_live_model_memory_charged() {
     while limits.current_memory() != 0 && start.elapsed() < Duration::from_secs(5) {
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert_eq!(limits.current_memory(), 0, "last model holder was not reclaimed");
+    assert_eq!(
+        limits.current_memory(),
+        0,
+        "last model holder was not reclaimed"
+    );
 }
 
 /// R1: an unload racing listings never makes a held instance disappear or
