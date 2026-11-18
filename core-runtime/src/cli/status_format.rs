@@ -76,9 +76,8 @@ fn print_request_stats(status: &SystemStatus) {
     );
 }
 
-/// Quantile values must be measured. Missing or non-finite values cannot
-/// become fake millisecond claims in human-readable status.
-fn display_quantile(value: Option<f64>) -> String {
+/// Only measured quantiles are displayable; unknowns are N/A.
+pub(super) fn display_quantile(value: Option<f64>) -> String {
     match value {
         Some(ms) if ms.is_finite() && ms >= 0.0 => format!("{ms:.1}ms"),
         _ => "N/A".to_string(),
