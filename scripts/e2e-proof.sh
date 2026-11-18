@@ -41,6 +41,19 @@ note "CLI source/feature report (unverified as matching the running daemon):"
 
 status="$("$BINARY" status --json)" || die "authenticated local daemon is not responding; start it with the pinned model"
 [[ -n "$status" ]] || die "empty daemon status"
+# A successful CLI exit means only that the status request succeeded;
+# run_status exits zero even when the daemon reports unhealthy.
+need python3
+printf '%s' "$status" | python3 -c '
+import json
+import sys
+try:
+    status = json.load(sys.stdin)
+    healthy = isinstance(status, dict) and status.get("health") == "healthy"
+except (ValueError, TypeError):
+    healthy = False
+sys.exit(0 if healthy else 1)
+' || die "daemon status is not explicitly healthy (or status JSON invalid)"
 models="$("$BINARY" models list --json)" || die "cannot list models through authenticated IPC"
 # Parse the documented ModelsListResponse.models[].name/state, NOT a
 # substring anywhere in JSON (which can match a different model or metadata).
