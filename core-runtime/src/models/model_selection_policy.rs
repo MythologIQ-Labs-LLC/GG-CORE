@@ -12,7 +12,10 @@
 
 use std::collections::HashSet;
 
-use super::backend_capabilities::{BackendKind, ExecutionTarget, InferenceTask};
+use super::backend_capabilities::{
+    compiled_backend_capabilities, BackendKind, ExecutionTarget, InferenceTask,
+    RuntimeBackendCapabilities, ServingPath, CAPABILITY_SCHEMA_VERSION,
+};
 
 /// One observed model, measured on this task/hardware and verified locally.
 /// Missing measurements exclude the model; nothing is guessed or inherited
@@ -71,6 +74,7 @@ pub enum CandidateRefusal {
     NotAllowed,
     NotPinned,
     Unqualified,
+    PathNotCompiled,
     UnverifiedCustody,
     TaskMismatch,
     TargetMismatch,
@@ -138,6 +142,17 @@ pub fn plan_model_selection<'a>(
     offers: &'a [ModelOffer<'a>],
     policy: &SelectionPolicy<'_>,
 ) -> ModelSelectionPlan<'a> {
+    let compiled = compiled_backend_capabilities();
+    plan_with_compiled_catalog(offers, policy, &compiled)
+}
+
+/// Private seam for deterministic source tests. The runtime API always uses
+/// its own compiled capabilities; the host/client cannot forge this catalog.
+fn plan_with_compiled_catalog<'a>(
+    offers: &'a [ModelOffer<'a>],
+    policy: &SelectionPolicy<'_>,
+    compiled: &[RuntimeBackendCapabilities],
+) -> ModelSelectionPlan<'a> {
     let refused = |reason| ModelSelectionPlan {
         action: ModelAction::Refuse(reason),
         assessments: Vec::new(),
@@ -165,7 +180,7 @@ pub fn plan_model_selection<'a>(
     let mut assessments = Vec::with_capacity(offers.len());
     let mut viable = Vec::new();
     for (index, offer) in offers.iter().enumerate() {
-        match assess(offer, policy) {
+        match assess(offer, policy, compiled) {
             Ok(p95) => {
                 viable.push((index, p95));
                 assessments.push(CandidateAssessment {
@@ -220,6 +235,22 @@ pub fn plan_model_selection<'a>(
         }
         _ => best,
     };
+    // A switch/reroute disallowed by policy cannot displace a qualified,
+    // ready incumbent. Its performance score is irrelevant without authority.
+    let chosen = if let Some(current) = incumbent {
+        let offer = &offers[chosen.0];
+        if (offer.resident_handle.is_none() && !policy.allow_cold_switch)
+            || (offer.model_id != offers[current.0].model_id
+                && offer.resident_handle.is_some()
+                && !policy.allow_resident_reroute)
+        {
+            current
+        } else {
+            chosen
+        }
+    } else {
+        chosen
+    };
     let (selected_index, expected_p95_ms) = chosen;
     let selected = &offers[selected_index];
     let action = if let Some(handle_id) = selected.resident_handle {
@@ -256,6 +287,7 @@ pub fn plan_model_selection<'a>(
 fn assess(
     model: &ModelOffer<'_>,
     policy: &SelectionPolicy<'_>,
+    compiled: &[RuntimeBackendCapabilities],
 ) -> Result<u64, CandidateRefusal> {
     use CandidateRefusal::*;
     if !policy.allowed_model_ids.contains(&model.model_id) {
@@ -266,6 +298,14 @@ fn assess(
     }
     if !model.evidence_qualified {
         return Err(Unqualified);
+    }
+    let path = ServingPath::new(model.task, model.target);
+    if !compiled.iter().any(|backend| {
+        backend.schema_version == CAPABILITY_SCHEMA_VERSION
+            && backend.backend == model.backend
+            && backend.compiled_paths.contains(&path)
+    }) {
+        return Err(PathNotCompiled);
     }
     if !model.custody_verified {
         return Err(UnverifiedCustody);
