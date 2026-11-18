@@ -52,7 +52,11 @@ try {
 if /I "%~1"=="version" (echo {"version":"synthetic"}& exit /b 0)
 if /I "%~1"=="status" (
   if /I "%FAKE_MODE%"=="no-daemon" exit /b 7
-  echo {"health":"synthetic"}
+  if /I "%FAKE_MODE%"=="unhealthy-daemon" (echo {"health":"unhealthy"}& exit /b 0)
+  if /I "%FAKE_MODE%"=="degraded-daemon" (echo {"health":"degraded"}& exit /b 0)
+  if /I "%FAKE_MODE%"=="missing-health" (echo {"status":"healthy"}& exit /b 0)
+  if /I "%FAKE_MODE%"=="invalid-status" (echo {"health":& exit /b 0)
+  echo {"health":"healthy"}
   exit /b 0
 )
 if /I "%~1"=="models" (
@@ -83,6 +87,10 @@ exit /b 10
     Assert-Case 'no-auth' 'ok' $false $true $false
     Assert-Case 'no-gguf' 'ok' $true $false $false
     Assert-Case 'no-daemon' 'no-daemon' $true $true $false
+    Assert-Case 'unhealthy-daemon' 'unhealthy-daemon' $true $true $false
+    Assert-Case 'degraded-daemon' 'degraded-daemon' $true $true $false
+    Assert-Case 'missing-health' 'missing-health' $true $true $false
+    Assert-Case 'invalid-status' 'invalid-status' $true $true $false
     Assert-Case 'no-model-id' 'no-model' $true $true $false
     Assert-Case 'substring-name' 'substring-name' $true $true $false
     Assert-Case 'not-ready' 'loading-model' $true $true $false
