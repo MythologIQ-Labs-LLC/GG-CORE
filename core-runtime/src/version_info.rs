@@ -100,18 +100,29 @@ mod tests {
     fn native_gguf_accelerator_features_are_reported_distinctly() {
         let compiled = compiled_features();
         assert_eq!(compiled.contains(&"gguf-cuda"), cfg!(feature = "gguf-cuda"));
-        assert_eq!(compiled.contains(&"gguf-metal"), cfg!(feature = "gguf-metal"));
+        assert_eq!(
+            compiled.contains(&"gguf-metal"),
+            cfg!(feature = "gguf-metal")
+        );
         // The device-management feature is not a native llama.cpp inference
         // feature, and neither should be silently inferred from the other.
         assert_eq!(compiled.contains(&"cuda"), cfg!(feature = "cuda"));
         assert_eq!(compiled.contains(&"metal"), cfg!(feature = "metal"));
         let json: serde_json::Value = serde_json::from_str(&version_json()).unwrap();
         assert_eq!(
-            json["features"].as_array().unwrap().iter().any(|f| f.as_str() == Some("gguf-cuda")),
+            json["features"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|f| f.as_str() == Some("gguf-cuda")),
             cfg!(feature = "gguf-cuda")
         );
         assert_eq!(
-            json["features"].as_array().unwrap().iter().any(|f| f.as_str() == Some("gguf-metal")),
+            json["features"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|f| f.as_str() == Some("gguf-metal")),
             cfg!(feature = "gguf-metal")
         );
     }
