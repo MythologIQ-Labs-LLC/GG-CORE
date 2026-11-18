@@ -106,6 +106,12 @@ impl RegistryRegistration<'_> {
         );
         handle
     }
+
+    /// Remove a registry entry without suspension after all lifecycle
+    /// writer permits have been acquired.
+    pub(crate) fn remove(&mut self, handle: ModelHandle) -> Option<usize> {
+        self.models.remove(&handle).map(|model| model.memory_bytes)
+    }
 }
 
 impl ModelRegistry {
