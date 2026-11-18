@@ -49,3 +49,11 @@ Before calling this from the daemon, the authenticated controller must obtain an
 - **Deferred to model selection:** checking a candidate model against the memory budget, host-authority rules (pinning a model rather than a backend, operator constraints) and model selection itself. These belong to the model-selection policy under #50 / #153 and are not implemented.
 - **In the meantime:** the existing admission and resident-budget checks (#193) apply unchanged to every load.
 
+
+## 2026-11-17 model-level policy candidate, PR #218
+
+The previous **backend-only** selector is not the full Greatest Good model-selection policy. [PR #218](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/218) adds `core-runtime/src/models/model_selection_policy.rs` and bounded companion modules as a **pure, non-executing** model-level decision engine, pending full review and CI acceptance.
+
+Inputs are explicit host model allowlist/pin, task, target, streaming and quality floor, budgets, current model, switch/reroute permission, cooldown and measured candidate-specific quality, latency, cold-start time, resident/working memory, custody and readiness evidence. Outputs are a traceable reuse, resident reroute proposal, cold-switch proposal or refusal. A candidate's backend must have the exact compiled task+target path; missing or contradictory evidence fails closed. Deterministic tie refusal and hysteresis prevent arbitrary preference and model thrashing. **No performance thresholds are hardcoded or invented.**
+
+This change **does not** create a trusted evidence registry; public Rust candidate values are not proof. No production controller consumes this policy yet, and the qualified runtime snapshot still has no trusted installed-model path registry. A future authenticated controller must bind evidence to exact model and binary identities, locally observed memory/hardware and serving readiness; enforce the operator authorization and final admission constraints; and request actual transition only through #137/#153 canonical lifecycle. This source work is not a switch, hardware support claim, qualified benchmark, standalone release, or replacement for native GPU/real-model acceptance. The older documentation above remains the historical prior state where it describes model selection as deferred.
