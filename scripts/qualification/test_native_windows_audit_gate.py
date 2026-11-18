@@ -92,6 +92,20 @@ class NativeAcceptanceContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "feature provenance differs"):
                     native.collect_artifacts(core, {"source_sha": "a" * 40})
 
+    def test_main_writes_hold_receipt_on_non_windows(self):
+        with tempfile.TemporaryDirectory() as root:
+            destination = pathlib.Path(root) / "evidence"
+            with mock.patch.object(native.platform, "system", return_value="Linux"):
+                result = native.main([
+                    "--expected-head", "a" * 40, "--model-sha256", "b" * 64,
+                    "--evidence-dir", str(destination),
+                ])
+            self.assertEqual(result, 1)
+            receipt = json.loads((destination / "receipt.json").read_text())
+            self.assertEqual(receipt["status"], "HOLD")
+            self.assertIn("requires Windows", receipt["error"])
+            self.assertEqual(receipt["steps"], [])
+
     def test_no_windows_test_binaries_never_passes(self):
         with tempfile.TemporaryDirectory() as root:
             with self.assertRaisesRegex(RuntimeError, "No compiled Windows test binaries"):
