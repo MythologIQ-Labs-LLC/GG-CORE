@@ -53,7 +53,8 @@ pub struct SelectionPolicy<'a> {
     pub min_improvement_bps: u16,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CandidateRefusal {
     NotAllowed,
@@ -71,7 +72,8 @@ pub enum CandidateRefusal {
     NotReady,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PlanRefusal {
     InvalidPolicy,
@@ -83,7 +85,8 @@ pub enum PlanRefusal {
     ColdSwitchNotAuthorized,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum ModelAction<'a> {
     /// Safe to propose using existing route; MUST revalidate handle at use.
@@ -106,14 +109,14 @@ pub enum ModelAction<'a> {
     Refuse(PlanRefusal),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct CandidateAssessment<'a> {
     pub model_id: &'a str,
     pub refusal: Option<CandidateRefusal>,
     pub expected_p95_ms: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ModelSelectionPlan<'a> {
     pub action: ModelAction<'a>,
     pub assessments: Vec<CandidateAssessment<'a>>,
