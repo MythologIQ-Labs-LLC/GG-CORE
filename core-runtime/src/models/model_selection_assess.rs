@@ -75,7 +75,9 @@ fn check_resource_and_latency(
         return Err(OverMemoryBudget);
     }
     let cold_ms = cold_start_time(model)?;
-    // Adding component p95 values yields a planning estimate, NOT a measured\n    // end-to-end p95. Actual end-to-end p95 requires independent profiling.\n    let estimated_total = model
+    // Adding component p95 values yields a planning estimate, NOT a measured
+    // end-to-end p95. Actual end-to-end p95 requires independent profiling.
+    let estimated_total = model
         .p95_inference_ms
         .and_then(|inference| inference.checked_add(cold_ms))
         .ok_or(MissingOrInvalidEvidence)?;
