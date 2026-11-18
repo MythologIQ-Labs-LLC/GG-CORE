@@ -129,6 +129,21 @@ fn context_params_follow_the_shape() {
     assert_eq!(off.params(4).flash_attention_policy(), 0);
 }
 
+/// `n_gpu_layers = 0` must keep the KV cache and ops on the CPU too: a CUDA
+/// build otherwise offloads both by default (#216 native finding).
+#[cfg(feature = "gguf")]
+#[test]
+fn cpu_shape_keeps_kv_cache_and_ops_off_the_gpu() {
+    let cpu = ContextShape::new(1024).params(4);
+    assert!(!cpu.offload_kqv() && !cpu.op_offload());
+    let gpu = ContextShape {
+        gpu_offload: true,
+        ..ContextShape::new(1024)
+    }
+    .params(4);
+    assert!(gpu.offload_kqv() && gpu.op_offload());
+}
+
 #[cfg(all(feature = "gguf", windows))]
 #[path = "working_memory_real_tests.rs"]
 mod real;

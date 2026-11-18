@@ -65,7 +65,8 @@ impl LlamaBackendInner {
         let model_params = LlamaModelParams::default().with_n_gpu_layers(config.n_gpu_layers);
         let model = LlamaModel::load_from_file(backend, path, &model_params)
             .map_err(|e| InferenceError::ModelError(format!("load: {e}")))?;
-        let (shape, working_bytes) = super::working_memory::shape_for(&model, config.n_ctx);
+        let (mut shape, working_bytes) = super::working_memory::shape_for(&model, config.n_ctx);
+        shape.gpu_offload = config.n_gpu_layers > 0;
         let n_threads = resolve_threads(config.n_threads);
         Ok(Self {
             backend,
