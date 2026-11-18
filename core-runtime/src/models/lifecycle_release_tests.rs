@@ -8,6 +8,60 @@ use super::*;
 use crate::engine::Model;
 use crate::models::registry::LoadedModelState;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use crate::engine::{
+    FinishReason, GenerationResult, InferenceCapability, InferenceConfig, InferenceError,
+    InferenceInput, InferenceOutput,
+};
+
+struct PanickingWeights {
+    bytes: usize,
+    destructor_started: Arc<AtomicBool>,
+}
+
+impl Drop for PanickingWeights {
+    fn drop(&mut self) {
+        self.destructor_started.store(true, Ordering::SeqCst);
+        panic!("intentional model destructor panic");
+    }
+}
+
+#[async_trait::async_trait]
+impl Model for PanickingWeights {
+    fn model_id(&self) -> &str {
+        "panic"
+    }
+
+    fn capabilities(&self) -> &[InferenceCapability] {
+        &[InferenceCapability::TextGeneration]
+    }
+
+    fn memory_usage(&self) -> usize {
+        self.bytes
+    }
+
+    async fn infer(
+        &self,
+        _: &InferenceInput,
+        _: &InferenceConfig,
+    ) -> Result<InferenceOutput, InferenceError> {
+        Ok(InferenceOutput::Generation(GenerationResult {
+            text: String::new(),
+            tokens_generated: 0,
+            finish_reason: FinishReason::Stop,
+        }))
+    }
+
+    async fn unload(&mut self) -> Result<(), InferenceError> {
+        Ok(())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
 /// Load `id` and keep a clone of the model, standing in for an in-flight
 /// request that still holds it.
 async fn load_held(lc: &ModelLifecycle, id: &str, bytes: usize) -> Arc<dyn Model> {
@@ -212,6 +266,73 @@ fn lifecycle_and_runtime_teardown_keep_live_model_memory_charged() {
         0,
         "last model holder was not reclaimed"
     );
+}
+
+/// A backend destructor panic is not evidence that its memory was
+/// reclaimed. The reservation must remain charged even on the idle path.
+#[test]
+fn direct_model_destructor_panic_never_credits_resident_budget() {
+    let (lc, limits) = setup(1_000);
+    let started = Arc::new(AtomicBool::new(false));
+    let model: Arc<dyn Model> = Arc::new(PanickingWeights {
+        bytes: 600,
+        destructor_started: Arc::clone(&started),
+    });
+    futures::executor::block_on(lc.load("panic".into(), meta("panic", 600), Arc::clone(&model)))
+        .expect("model load");
+    drop(model);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        futures::executor::block_on(lc.unload("panic"))
+    }));
+    assert!(result.is_err(), "destructor panic should remain observable");
+    assert!(started.load(Ordering::SeqCst));
+    assert_eq!(limits.current_memory(), 600, "destructor panic credited capacity");
+    assert!(
+        limits.reserve_resident(500).is_err(),
+        "failed destruction admitted overlapping memory"
+    );
+    assert_eq!(lc.releasing_models().len(), 1, "failed release must be visible");
+}
+
+/// A panic in the background release monitor must not kill all future
+/// releases. It retains the failed model's charge and drains a later model.
+#[test]
+fn supervised_destructor_panic_preserves_budget_and_other_model_release() {
+    let (lc, limits) = setup(1_000);
+    let started = Arc::new(AtomicBool::new(false));
+    let model: Arc<dyn Model> = Arc::new(PanickingWeights {
+        bytes: 600,
+        destructor_started: Arc::clone(&started),
+    });
+    futures::executor::block_on(lc.load("panic".into(), meta("panic", 600), Arc::clone(&model)))
+        .expect("model load");
+    futures::executor::block_on(lc.unload("panic")).expect("pending model unload");
+    drop(model);
+    let begin = Instant::now();
+    while !started.load(Ordering::SeqCst) && begin.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(started.load(Ordering::SeqCst), "model destructor never started");
+    // The panic callback runs immediately before unwind into the supervisor.
+    // It must never allow charge reuse even while unwind is completing.
+    std::thread::sleep(Duration::from_millis(30));
+    assert_eq!(limits.current_memory(), 600, "failed cleanup credited memory");
+    assert!(limits.reserve_resident(500).is_err());
+    assert_eq!(lc.releasing_models().len(), 1, "panic release was falsely signaled");
+
+    let healthy = futures::executor::block_on(load_held(&lc, "healthy", 200));
+    futures::executor::block_on(lc.unload("healthy")).expect("healthy unload");
+    drop(healthy);
+    let begin = Instant::now();
+    while lc.releasing_models().iter().any(|m| m.name == "healthy")
+        && begin.elapsed() < Duration::from_secs(5)
+    {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let remaining = lc.releasing_models();
+    assert_eq!(remaining.len(), 1, "supervisor stalled on unrelated panic");
+    assert_eq!(remaining[0].name, "panic");
+    assert_eq!(limits.current_memory(), 600, "healthy release not reclaimed");
 }
 
 /// R1: an unload racing listings never makes a held instance disappear or
