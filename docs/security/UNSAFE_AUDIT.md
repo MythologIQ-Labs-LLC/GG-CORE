@@ -1,4 +1,28 @@
-# Unsafe Code Audit Report
+# Unsafe Code Audit Report (Historical Snapshot)
+
+> **CURRENT SECURITY STATUS (2026-11-17): HISTORICAL AUDIT SUPERSEDED FOR MEMORY SAFETY.**
+> This document records a February 2026 point-in-time audit. Its "High: 0" count and
+> "No High-Risk Issues Found" conclusion are **not valid as claims about current main**.
+> The active standalone GG-CORE source at `main@79a16fbeddebd3b4df3983ccbb3027d8fe0c94d3`
+> contains a confirmed unsafe ownership pattern in
+> `core-runtime/src/scheduler/worker_streaming.rs::run_stream`: references to
+> `InferenceEngine` and `SecurityPipeline` are cast to integer addresses, then
+> reconstructed with `unsafe` inside `tokio::task::spawn_blocking`. Dropping
+> the waiting async future does not guarantee the native blocking closure has
+> terminated. The independent source review supports use-after-free risk, and
+> the owner reports a symbolized Windows WER `0xc0000005` crash through
+> `SecurityPipeline::sanitize_output`. See **[P0 #219](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/219)**.
+>
+> The awaiting async frame also holds the `ResourceGuard`; dropping it early
+> can decrement admission counters while native compute persists. This second
+> risk is source-derived and requires an explicit ownership/reclamation test.
+> Claude is implementing a runtime correction; **do not treat an unmerged
+> fix, source CI, or this notice as a completed remediation**. Native Windows
+> stream/drop/cancel, memory/lifecycle and exact candidate tests remain required.
+> GG-CORE is upstream of CoreForge, not a CoreForge subcomponent. The historical
+> original classification, inventory and observations below are retained solely
+> as an auditable record and must not be represented as fresh current evidence.
+
 
 **Project:** COREFORGE CORE Runtime
 **Version:** 1.0.0
@@ -735,9 +759,9 @@ pub fn contents_mut(&mut self) -> &mut [u8] {
 
 ## 7. Security-Critical Observations
 
-### 7.1 No High-Risk Issues Found
+### 7.1 Historical conclusion, invalidated by #219
 
-The audit identified no high-risk unsafe code patterns. All unsafe blocks:
+The **February 2026** audit identified no high-risk unsafe code patterns *in its then-reviewed sample*. This conclusion is **superseded for current main** by the P0 stream-worker use-after-free tracked in #219. Historical assertions retained below must be reassessed rather than taken as current assurances. The original audit asserted all unsafe blocks:
 - Have documented safety invariants
 - Include null pointer checks where applicable
 - Use standard patterns (FFI, SIMD, memory-mapping)
