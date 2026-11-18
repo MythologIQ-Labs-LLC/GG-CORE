@@ -51,7 +51,7 @@ pub(super) fn policy() -> SelectionPolicy<'static> {
         require_streaming: true,
         quality_floor_bps: 7_000,
         max_model_memory_bytes: 3_000,
-        max_p95_total_ms: 1_000,
+        max_estimated_total_ms: 1_000,
         current_model_id: Some("light"),
         allow_resident_reroute: true,
         allow_cold_switch: true,
