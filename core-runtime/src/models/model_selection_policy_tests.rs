@@ -82,7 +82,7 @@ fn quality() -> ModelOffer<'static> {
         custody_verified: true,
         streaming_supported: true,
         quality_bps: Some(9_100),
-        p95_inference_ms: Some(250),
+        p95_inference_ms: Some(220),
         p95_cold_load_ms: Some(120),
         resident_memory_bytes: Some(1_500),
         working_memory_bytes: Some(300),
