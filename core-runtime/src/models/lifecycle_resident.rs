@@ -249,7 +249,10 @@ impl Resident {
     /// Access the resident's backend while retaining the reservation under
     /// the same RAII owner across every async suspension during registration.
     pub(super) fn memory_usage(&self) -> usize {
-        self.model.as_ref().expect("resident model present").memory_usage()
+        self.model
+            .as_ref()
+            .expect("resident model present")
+            .memory_usage()
     }
 
     pub(super) fn clone_model(&self) -> Arc<dyn Model> {
