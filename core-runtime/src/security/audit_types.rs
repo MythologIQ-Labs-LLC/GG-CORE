@@ -2,10 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use time::{OffsetDateTime, UtcOffset};
-
-#[path = "audit_utc_serde.rs"]
-mod audit_utc_serde;
+use time::OffsetDateTime;
 
 /// Audit event severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -59,7 +56,7 @@ impl std::fmt::Display for AuditCategory {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent {
     pub id: String,
-    #[serde(with = "audit_utc_serde")]
+    #[serde(with = "super::audit_timestamp")]
     pub timestamp: OffsetDateTime,
     pub severity: AuditSeverity,
     pub category: AuditCategory,
@@ -83,13 +80,7 @@ impl AuditEvent {
     }
 
     pub fn to_log_string(&self) -> String {
-        let timestamp = self
-            .timestamp
-            .to_offset(UtcOffset::UTC)
-            .format(&time::macros::format_description!(
-                "[year]-[month]-[day] [hour]:[minute]:[second] UTC"
-            ))
-            .unwrap_or_else(|_| "invalid timestamp".to_string());
+        let timestamp = super::audit_timestamp::format_utc_human(self.timestamp);
         format!(
             "[{}] {} [{}] {} - {} (actor={:?}, resource={:?}, success={})",
             timestamp,
