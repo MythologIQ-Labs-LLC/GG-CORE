@@ -47,6 +47,8 @@ pub struct SelectionPolicy<'a> {
     pub current_model_id: Option<&'a str>,
     pub allow_resident_reroute: bool,
     pub allow_cold_switch: bool,
+    /// Explicit consent for choosing a more capable model than the incumbent.
+    pub allow_quality_escalation: bool,
     /// Must be obtained from trusted monotonic switch policy state.
     pub cooldown_active: bool,
     /// Minimum relative p95 gain to leave a suitable incumbent, 0..=10000.
@@ -83,6 +85,7 @@ pub enum PlanRefusal {
     CooldownWithoutEligibleIncumbent,
     ResidentRerouteNotAuthorized,
     ColdSwitchNotAuthorized,
+    QualityEscalationNotAuthorized,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
