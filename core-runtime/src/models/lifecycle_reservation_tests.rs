@@ -92,6 +92,35 @@ fn backend_failure_after_reservation_rolls_back() {
     assert_eq!(l.current_memory(), 0, "reservation released on failure");
 }
 
+/// A caller may abandon a successfully loaded backend before lifecycle
+/// registration while a native thread still holds a clone of that backend.
+/// The preflight resident budget must follow the final Arc, not the dropped
+/// PreparedModel's field order.
+#[tokio::test]
+async fn abandoned_prepared_load_with_external_native_holder_keeps_budget() {
+    let l = limits(1_000);
+    let guard = l.reserve_resident(700).unwrap();
+    let model: Arc<dyn Model> = Arc::new(Weights(700));
+    let native_holder = Arc::clone(&model);
+    let prepared = PreparedModel::for_test("pending", model, Some(guard));
+
+    drop(prepared);
+    assert_eq!(l.current_memory(), 700, "abandoned backend still has a holder");
+    assert!(
+        l.reserve_resident(400).is_err(),
+        "abandoned prepared model recredited memory while backend is live"
+    );
+    drop(native_holder);
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while l.current_memory() != 0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("prepared model reservation was not released on final Arc drop");
+}
+
 #[tokio::test]
 async fn abandoned_prepared_load_releases_its_reservation() {
     // A caller that disconnects after backend load (cancelled IPC request)
