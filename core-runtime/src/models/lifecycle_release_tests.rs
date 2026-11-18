@@ -182,6 +182,34 @@ fn runtime_shutdown_preserves_resident_budget_until_model_is_released() {
     assert_eq!(limits.current_memory(), 0);
 }
 
+/// Even dropping the lifecycle owner must not free a resident budget while
+/// detached native work retains the last external model reference.
+#[test]
+fn lifecycle_and_runtime_teardown_keep_live_model_memory_charged() {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let (lc, limits) = setup(1_000);
+    let holder = rt.block_on(load_held(&lc, "a", 600));
+    rt.block_on(lc.unload("a")).unwrap();
+    drop(lc);
+    drop(rt);
+
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "lifecycle teardown falsely credited resident memory"
+    );
+    drop(holder);
+    let start = Instant::now();
+    while limits.current_memory() != 0 && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(limits.current_memory(), 0, "last model holder was not reclaimed");
+}
+
 /// R1: an unload racing listings never makes a held instance disappear or
 /// appear twice (registry read first, tracker second, dedupe by handle).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
