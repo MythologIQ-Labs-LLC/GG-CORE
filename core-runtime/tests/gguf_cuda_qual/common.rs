@@ -55,7 +55,7 @@ pub fn vram_mib() -> Option<u64> {
 
 /// One streamed generation: (text, tokens, first-token latency, total time).
 pub struct StreamRun {
-    pub text: String,
+    pub ids: Vec<u32>,
     pub tokens: usize,
     pub ttft: Duration,
     pub total: Duration,
@@ -100,7 +100,6 @@ async fn stream_in_runtime(
     let seen = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let counter = std::sync::Arc::clone(&seen);
     let start = Instant::now();
-    let decoder = std::sync::Arc::clone(&model);
     let task = tokio::task::spawn_blocking(move || {
         let stop = move || stop_after.is_some_and(|n| counter.load(ORD) >= n);
         model.generate_stream(&prompt, &config, &tx, Some(&stop), None)
@@ -119,10 +118,10 @@ async fn stream_in_runtime(
     }
     let result = task.await.expect("joined").map_err(|e| e.to_string());
     let total = start.elapsed();
-    let (text, tokens) = (decoder.detokenize(&ids).unwrap_or_default(), ids.len());
+    let tokens = ids.len();
     let ttft = ttft.unwrap_or(total);
     StreamRun {
-        text,
+        ids,
         tokens,
         ttft,
         total,
