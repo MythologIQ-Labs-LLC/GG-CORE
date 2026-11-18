@@ -154,3 +154,55 @@ fn unknown_incumbent_quality_cannot_be_treated_as_escalation_consent() {
         ModelAction::Refuse(PlanRefusal::QualityEscalationNotAuthorized)
     );
 }
+
+#[test]
+fn unauthorized_faster_cold_load_cannot_hide_a_permitted_resident() {
+    let mut host = policy();
+    host.current_model_id = None;
+    host.allow_cold_switch = false;
+    let result = choose(&[light(), quality()], &host);
+    assert!(matches!(
+        result.action,
+        ModelAction::ProposeResidentReroute {
+            model_id: "light",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn unauthorized_cold_tie_must_not_create_a_false_ambiguity() {
+    let mut host = policy();
+    host.current_model_id = None;
+    host.allow_cold_switch = false;
+    let mut cold = quality();
+    cold.p95_inference_ms = Some(280);
+    let result = choose(&[light(), cold], &host);
+    assert!(matches!(
+        result.action,
+        ModelAction::ProposeResidentReroute {
+            model_id: "light",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn unconsented_quality_escalation_cannot_hide_safe_alternative() {
+    let mut host = policy();
+    host.allow_quality_escalation = false;
+    let mut previous = light();
+    previous.serving_ready = false;
+    let mut alternative = light();
+    alternative.model_id = "onnx";
+    alternative.resident_handle = Some(18);
+    alternative.p95_inference_ms = Some(420);
+    let result = choose(&[previous, quality(), alternative], &host);
+    assert!(matches!(
+        result.action,
+        ModelAction::ProposeResidentReroute {
+            model_id: "onnx",
+            ..
+        }
+    ));
+}
