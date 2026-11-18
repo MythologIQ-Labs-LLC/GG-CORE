@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, RwLockWriteGuard};
 
 use crate::engine::DegradedModePolicy;
 #[cfg(feature = "gguf")]
@@ -33,6 +33,19 @@ pub struct InferenceEngine {
     draft_pairs: Arc<RwLock<HashMap<String, String>>>,
 }
 
+/// A model-store write permit, acquired before lifecycle registration
+/// publishes anything. Its insert is synchronous so cancellation cannot
+/// leave the registry and engine in different states (#219).
+pub(crate) struct InferenceRegistration<'a> {
+    models: RwLockWriteGuard<'a, HashMap<String, Arc<dyn Model>>>,
+}
+
+impl InferenceRegistration<'_> {
+    pub(crate) fn insert(&mut self, model_id: String, model: Arc<dyn Model>) {
+        self.models.insert(model_id, model);
+    }
+}
+
 impl InferenceEngine {
     pub fn new(max_context_length: usize) -> Self {
         Self::with_degraded_policy(max_context_length, DegradedModePolicy::default())
@@ -53,6 +66,13 @@ impl InferenceEngine {
         }
     }
 
+    /// Obtain a model-store writer without publishing side effects.
+    pub(crate) async fn registration_writer(&self) -> InferenceRegistration<'_> {
+        InferenceRegistration {
+            models: self.models.write().await,
+        }
+    }
+
     /// Register a model for inference.
     pub async fn register_model(
         &self,
@@ -60,7 +80,7 @@ impl InferenceEngine {
         _handle: ModelHandle,
         model: Arc<dyn Model>,
     ) {
-        self.models.write().await.insert(model_id, model);
+        self.registration_writer().await.insert(model_id, model);
     }
 
     /// Unregister a model.
