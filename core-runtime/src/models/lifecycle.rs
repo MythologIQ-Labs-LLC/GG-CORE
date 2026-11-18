@@ -133,27 +133,27 @@ impl ModelLifecycle {
         model: Arc<dyn Model>,
         reservation: Option<crate::memory::ResidentGuard>,
     ) -> Result<ModelHandle, LifecycleError> {
+        // Own backend and reservation *before* the first suspension.
+        // An aborted registration waiting on the index lock must not drop
+        // the guard separately while a detached native task holds the model.
+        let mut entry = resident::Resident::new(model, reservation);
+        let memory_usage = entry.memory_usage();
         let mut index = self.index.write().await;
-        let mut reservation = reservation;
         let admitted = if index.contains_id(&model_id) {
             Err(LifecycleError::AlreadyLoaded(model_id.clone()))
         } else {
-            resident::admit(self.limits.as_ref(), &mut reservation, model.memory_usage())
+            resident::admit(self.limits.as_ref(), entry.reservation_mut(), memory_usage)
         };
         if let Err(e) = admitted {
-            // A refused registration still owns real backend memory. Keep its
-            // pre-load reservation with the model until the last Arc holder
-            // exits; separate drops could release the budget while another
-            // native task holds the rejected model. Resident also retains
-            // the budget if the native model destructor panics (#219).
-            drop(resident::Resident::new(model, reservation));
+            // Resident releases only after the backend's last Arc is gone,
+            // and retains budget if native destruction panics (#219).
+            drop(entry);
             return Err(e);
         }
-        let handle = self.registry.register(metadata, model.memory_usage()).await;
+        let handle = self.registry.register(metadata, memory_usage).await;
         self.engine
-            .register_model(model_id.clone(), handle, Arc::clone(&model))
+            .register_model(model_id.clone(), handle, entry.clone_model())
             .await;
-        let entry = resident::Resident::new(model, reservation);
         index.residents.insert(model_id.clone(), entry);
         index.insert(model_id, handle);
 
