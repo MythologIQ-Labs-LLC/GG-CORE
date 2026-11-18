@@ -146,12 +146,8 @@ async fn cancelled_registration_waiting_on_index_lock_retains_model_budget() {
     let guard = limits.reserve_resident(600).expect("preflight reservation");
     let locked_index = lc.index.write().await;
     {
-        let mut load = Box::pin(lc.load_reserved(
-            "pending".into(),
-            meta("pending", 600),
-            model,
-            Some(guard),
-        ));
+        let mut load =
+            Box::pin(lc.load_reserved("pending".into(), meta("pending", 600), model, Some(guard)));
         let waker = futures::task::noop_waker();
         let mut cx = std::task::Context::from_waker(&waker);
         assert!(
@@ -163,7 +159,10 @@ async fn cancelled_registration_waiting_on_index_lock_retains_model_budget() {
     }
     drop(locked_index);
 
-    assert!(!lc.is_loaded("pending").await, "cancelled load was registered");
+    assert!(
+        !lc.is_loaded("pending").await,
+        "cancelled load was registered"
+    );
     assert_eq!(limits.current_memory(), 600);
     assert!(
         limits.reserve_resident(500).is_err(),
