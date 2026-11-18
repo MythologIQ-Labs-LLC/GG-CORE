@@ -55,6 +55,7 @@ pub(super) fn policy() -> SelectionPolicy<'static> {
         current_model_id: Some("light"),
         allow_resident_reroute: true,
         allow_cold_switch: true,
+        allow_quality_escalation: true,
         cooldown_active: false,
         min_improvement_bps: 1_000,
     }
