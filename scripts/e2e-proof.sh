@@ -16,6 +16,7 @@ need() { command -v "$1" >/dev/null 2>&1 || die "missing required tool: $1"; }
 
 note "Developer smoke only. NOT a signed/package, safety, cancellation or release PASS."
 [[ -n "${CORE_AUTH_TOKEN:-}" ]] || die "CORE_AUTH_TOKEN is required for authenticated local IPC"
+[[ -n "$MODEL_ID" ]] || die "MODEL_ID cannot be empty"
 [[ -f "$MODEL_FILE" ]] || die "local GGUF fixture missing: $MODEL_FILE (no implicit download)"
 [[ "$(head -c 4 "$MODEL_FILE")" == "GGUF" ]] || die "fixture is not GGUF (possibly a Git LFS pointer)"
 if command -v sha256sum >/dev/null 2>&1; then
@@ -41,8 +42,29 @@ note "CLI source/feature report (unverified as matching the running daemon):"
 status="$("$BINARY" status --json)" || die "authenticated local daemon is not responding; start it with the pinned model"
 [[ -n "$status" ]] || die "empty daemon status"
 models="$("$BINARY" models list --json)" || die "cannot list models through authenticated IPC"
-[[ "$models" == *"$MODEL_ID"* ]] || die "required model ID '$MODEL_ID' not listed by daemon"
-note "Daemon responds and lists configured model ID; this does not prove its artifact hash."
+# Parse the documented ModelsListResponse.models[].name/state, NOT a
+# substring anywhere in JSON (which can match a different model or metadata).
+need python3
+printf '%s' "$models" | python3 -c '
+import json
+import sys
+
+try:
+    response = json.load(sys.stdin)
+    entries = response.get("models") if isinstance(response, dict) else None
+    if not isinstance(entries, list):
+        sys.exit(2)
+    ready = any(
+        isinstance(entry, dict)
+        and entry.get("name") == sys.argv[1]
+        and entry.get("state") == "ready"
+        for entry in entries
+    )
+except (ValueError, TypeError):
+    sys.exit(2)
+sys.exit(0 if ready else 1)
+' "$MODEL_ID" || die "model '$MODEL_ID' is not exactly listed as ready (or model JSON invalid)"
+note "Daemon responds and lists the exact ready model name; artifact custody remains unverified."
 
 output="$("$BINARY" infer --model "$MODEL_ID" --prompt "What is 2 + 2? Answer with the digit." --max-tokens 32)" ||
   die "real-model non-streaming inference command failed"
