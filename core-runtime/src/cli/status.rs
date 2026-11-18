@@ -332,24 +332,22 @@ fn build_models_list(resp: &Option<crate::ipc::ModelsListResponse>) -> Vec<Model
             r.models
                 .iter()
                 .map(|m| {
-                    let avg = if m.request_count > 0 {
-                        m.avg_latency_ms / m.request_count as f64
-                    } else {
-                        0.0
-                    };
+                    // ModelInfo.avg_latency_ms is already total / count in
+                    // ipc::handler. Do not divide it by count a second time.
                     ModelStatus {
                         name: m.name.clone(),
                         format: m.format.clone(),
                         size_bytes: m.size_bytes,
                         loaded_at: m.loaded_at.clone(),
                         request_count: m.request_count,
-                        avg_latency_ms: avg,
+                        avg_latency_ms: m.avg_latency_ms,
                         state: match m.state.as_str() {
                             "loading" => ModelState::Loading,
                             "ready" => ModelState::Ready,
                             "unloading" => ModelState::Unloading,
                             "error" => ModelState::Error,
-                            _ => ModelState::Ready,
+                            // Never treat unknown producer state as serving-ready.
+                            _ => ModelState::Error,
                         },
                     }
                 })
