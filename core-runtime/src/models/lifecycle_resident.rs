@@ -246,6 +246,20 @@ impl Resident {
         }
     }
 
+    /// Access the resident's backend while retaining the reservation under
+    /// the same RAII owner across every async suspension during registration.
+    pub(super) fn memory_usage(&self) -> usize {
+        self.model.as_ref().expect("resident model present").memory_usage()
+    }
+
+    pub(super) fn clone_model(&self) -> Arc<dyn Model> {
+        Arc::clone(self.model.as_ref().expect("resident model present"))
+    }
+
+    pub(super) fn reservation_mut(&mut self) -> &mut Option<ResidentGuard> {
+        &mut self.guard
+    }
+
     fn only_owner(&self) -> bool {
         Arc::strong_count(self.model.as_ref().expect("resident model present")) == 1
     }
