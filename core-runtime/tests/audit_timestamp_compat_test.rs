@@ -88,7 +88,11 @@ fn historical_chrono_fraction_widths_are_stable_for_external_consumers() {
         payload["timestamp"] = json!(historical);
         let restored: AuditEvent = serde_json::from_value(payload).expect("historical audit JSON");
         let emitted = serde_json::to_value(restored).unwrap();
-        assert_eq!(emitted["timestamp"], json!(historical), "wire drift for {historical}");
+        assert_eq!(
+            emitted["timestamp"],
+            json!(historical),
+            "wire drift for {historical}"
+        );
     }
 }
 
