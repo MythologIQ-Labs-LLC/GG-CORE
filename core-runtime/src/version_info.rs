@@ -107,11 +107,11 @@ mod tests {
         assert_eq!(compiled.contains(&"metal"), cfg!(feature = "metal"));
         let json: serde_json::Value = serde_json::from_str(&version_json()).unwrap();
         assert_eq!(
-            json["features"].as_array().unwrap().iter().any(|f| f == "gguf-cuda"),
+            json["features"].as_array().unwrap().iter().any(|f| f.as_str() == Some("gguf-cuda")),
             cfg!(feature = "gguf-cuda")
         );
         assert_eq!(
-            json["features"].as_array().unwrap().iter().any(|f| f == "gguf-metal"),
+            json["features"].as_array().unwrap().iter().any(|f| f.as_str() == Some("gguf-metal")),
             cfg!(feature = "gguf-metal")
         );
     }
