@@ -72,6 +72,26 @@ class NativeAcceptanceContractTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "requires Windows"):
                 native.require_offline_windows()
 
+    def test_cli_provenance_must_match_source_and_features(self):
+        with tempfile.TemporaryDirectory() as root:
+            core = pathlib.Path(root)
+            dep = core / "target/debug/deps"
+            dep.mkdir(parents=True)
+            (dep / "gg_core-deadbeef.exe").write_bytes(b"test")
+            release = core / "target/release/gg-core-cli.exe"
+            release.parent.mkdir(parents=True)
+            release.write_bytes(b"cli")
+            with mock.patch.object(native, "checked_stdout", return_value=json.dumps(
+                {"commit": "b" * 40, "features": ["onnx", "gguf", "ffi"]}
+            )):
+                with self.assertRaisesRegex(RuntimeError, "commit does not match"):
+                    native.collect_artifacts(core, {"source_sha": "a" * 40})
+            with mock.patch.object(native, "checked_stdout", return_value=json.dumps(
+                {"commit": "a" * 40, "features": ["gguf"]}
+            )):
+                with self.assertRaisesRegex(RuntimeError, "feature provenance differs"):
+                    native.collect_artifacts(core, {"source_sha": "a" * 40})
+
     def test_no_windows_test_binaries_never_passes(self):
         with tempfile.TemporaryDirectory() as root:
             with self.assertRaisesRegex(RuntimeError, "No compiled Windows test binaries"):
