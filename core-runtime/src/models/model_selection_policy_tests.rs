@@ -240,6 +240,13 @@ fn no_implicit_task_backend_or_accelerator_substitution() {
     let result = choose(&[onnx], &policy());
     assert_eq!(
         result.assessments[0].refusal,
+        Some(CandidateRefusal::PathNotCompiled)
+    );
+    let mut gguf = quality();
+    gguf.streaming_supported = false;
+    let result = choose(&[gguf], &policy());
+    assert_eq!(
+        result.assessments[0].refusal,
         Some(CandidateRefusal::StreamingUnavailable)
     );
 }
