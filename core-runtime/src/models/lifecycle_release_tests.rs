@@ -315,7 +315,9 @@ fn refused_registration_destructor_panic_retains_preflight_budget() {
         bytes: 400,
         destructor_started: Arc::clone(&started),
     });
-    let guard = limits.reserve_resident(400).expect("losing preflight reservation");
+    let guard = limits
+        .reserve_resident(400)
+        .expect("losing preflight reservation");
 
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         futures::executor::block_on(lc.load_reserved(
@@ -328,7 +330,11 @@ fn refused_registration_destructor_panic_retains_preflight_budget() {
 
     assert!(result.is_err(), "backend panic must remain observable");
     assert!(started.load(Ordering::SeqCst));
-    assert_eq!(limits.current_memory(), 700, "refusal credited failed cleanup");
+    assert_eq!(
+        limits.current_memory(),
+        700,
+        "refusal credited failed cleanup"
+    );
     assert!(
         limits.reserve_resident(400).is_err(),
         "model with incomplete destruction must not permit new admission"
