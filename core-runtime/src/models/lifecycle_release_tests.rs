@@ -268,6 +268,31 @@ fn lifecycle_and_runtime_teardown_keep_live_model_memory_charged() {
     );
 }
 
+/// Runtime teardown may drop the lifecycle without an explicit unload.
+/// A native worker can still own a model Arc. Resident capacity must remain
+/// reserved until that final model holder exits, with no Tokio dependency.
+#[test]
+fn dropping_loaded_lifecycle_with_live_model_does_not_credit_memory_early() {
+    let (lc, limits) = setup(1_000);
+    let holder = futures::executor::block_on(load_held(&lc, "a", 600));
+    drop(lc);
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "lifecycle drop returned a live model's resident budget"
+    );
+    assert!(
+        limits.reserve_resident(500).is_err(),
+        "released budget while another model holder was alive"
+    );
+    drop(holder);
+    let start = Instant::now();
+    while limits.current_memory() != 0 && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(limits.current_memory(), 0, "lifecycle drop leaked release forever");
+}
+
 /// A backend destructor panic is not evidence that its memory was
 /// reclaimed. The reservation must remain charged even on the idle path.
 #[test]
