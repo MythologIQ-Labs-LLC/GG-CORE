@@ -126,7 +126,9 @@ impl ModelRegistry {
 
     /// Register a new model and return its handle.
     pub async fn register(&self, metadata: ModelMetadata, memory_bytes: usize) -> ModelHandle {
-        self.registration_writer().await.insert(metadata, memory_bytes)
+        self.registration_writer()
+            .await
+            .insert(metadata, memory_bytes)
     }
 
     /// Register a new model with format info and return its handle.
