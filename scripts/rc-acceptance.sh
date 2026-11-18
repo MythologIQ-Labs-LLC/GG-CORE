@@ -168,9 +168,17 @@ echo "== lifecycle + invalid loads =="
 "$BIN" models load "$MODEL_REL" --id qwen >/dev/null 2>&1 && ok "authenticated reload" || bad "reload"
 "$BIN" models load "models/does-not-exist.gguf" --id ghost >/dev/null 2>&1 && bad "missing model accepted" || ok "missing model refused"
 "$BIN" models load "../../etc/passwd" --id esc >/dev/null 2>&1 && bad "traversal accepted" || ok "traversal refused"
-printf 'not a gguf' > models/rc-fake.gguf
-"$BIN" models load "models/rc-fake.gguf" --id fake >/dev/null 2>&1 && bad "corrupt model accepted" || ok "corrupt model refused"
-rm -f models/rc-fake.gguf
+# Do not truncate an operator's pre-existing fixture or follow a symlink
+# when testing the invalid-GGUF refusal on the installed release candidate.
+if [ -e models/rc-fake.gguf ] || [ -L models/rc-fake.gguf ]; then
+  bad "refusing to overwrite existing models/rc-fake.gguf fixture"
+elif printf 'not a gguf' > models/rc-fake.gguf && [ -s models/rc-fake.gguf ]; then
+  "$BIN" models load "models/rc-fake.gguf" --id fake >/dev/null 2>&1 &&
+    bad "corrupt model accepted" || ok "corrupt model refused"
+  rm -f models/rc-fake.gguf || bad "could not remove test-only corrupt fixture"
+else
+  bad "could not stage corrupt GGUF fixture; invalid-load test NOT RUN"
+fi
 "$BIN" models list --json 2>/dev/null | grep -q fake && bad "partial registry state" || ok "no partial state"
 OUT2="$(with_timeout 180 "$BIN" infer --model qwen --prompt "2+2=" --max-tokens 6 2>&1)" && ok "inference after reload" || bad "inference after reload: $OUT2"
 
