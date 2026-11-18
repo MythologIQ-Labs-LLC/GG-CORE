@@ -18,6 +18,10 @@ import sys
 import time
 
 MODEL_RELATIVE = Path("models/qwen2.5-0.5b-instruct-q4_k_m.gguf")
+# Must match the release workflow's pinned GGUF artifact. Accepting any
+# caller-provided matching digest would let a different model masquerade as
+# the approved native qualification fixture.
+APPROVED_MODEL_SHA256 = "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 SHA64 = re.compile(r"[0-9a-f]{64}\Z")
 TEST_SUMMARY = re.compile(r"^test result: .*", re.MULTILINE)
@@ -79,6 +83,8 @@ def run_step(label, argv, cwd, env, evidence_dir, report):
 def validate_checkout(repo, expected_head, expected_model):
     if not SHA40.fullmatch(expected_head) or not SHA64.fullmatch(expected_model):
         raise ValueError("Source must be 40 hex and model SHA-256 must be 64 hex")
+    if expected_model != APPROVED_MODEL_SHA256:
+        raise RuntimeError("Provided model digest is not the approved release GGUF fixture")
     head = checked_stdout(["git", "rev-parse", "HEAD"], repo)
     if head != expected_head:
         raise RuntimeError(f"Checkout {head} differs from expected {expected_head}")
