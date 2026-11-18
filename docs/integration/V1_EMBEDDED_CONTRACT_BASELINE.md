@@ -47,6 +47,12 @@ Before this change, the `gg-core-cli status` implementation reported `p50_latenc
 
 To implement real percentiles later, a trusted recorder must retain samples or a properly validated quantile distribution, attribute metrics to correct model/task and window, and independently verify end-to-end inference timing. Fake P95/P99 must never be used to qualify model selection, performance baselines or release support. The regression test constructs an adversarial `min=1, max=500, count=10, sum=1000` summary and verifies JSON `null` and `N/A`, not manufactured P50/P95/P99. This is source behavior, **not** a hardware benchmark or installed release receipt.
 
+### Incomplete status IPC is degraded, never silently healthy
+
+`gg-core-cli status` obtains health, metrics and model-list responses over separate IPC requests. A successful health request does **not** mean the later metrics and registry requests succeeded. The CLI now maps `health_ok=true` with either missing response to **`degraded`**, and includes a `status_ipc` warning identifying the unavailable section. With both requests successful, an intentionally empty model list or zero-valued metrics remains healthy; an actual failed health response remains **`unhealthy`** even if other sections are available. This does not assert a daemon or model failure merely because a read failed; it prevents a partial diagnostic from being misinterpreted as complete positive evidence.
+
+CLI `status` remains an informational command, so callers requiring operational readiness must inspect the explicit JSON `health` value or use the dedicated `ready`/health path. Existing numeric status fields can still be zero when telemetry is unavailable, but their status is explicitly **degraded**, not a verified zero measurement. This is a pre-v1 CLI diagnostic correction; it does not change the authenticated inference IPC protocol or grant any new authority.
+
 ## Remaining dependencies and exit criteria
 
 - [#160](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/160): owner-approved supported API, language, platform and model/task matrix.
