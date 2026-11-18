@@ -40,7 +40,10 @@ impl Model for BlockedModel {
     }
 
     fn capabilities(&self) -> &[InferenceCapability] {
-        &[InferenceCapability::TextGeneration, InferenceCapability::Embedding]
+        &[
+            InferenceCapability::TextGeneration,
+            InferenceCapability::Embedding,
+        ]
     }
 
     fn memory_usage(&self) -> usize {
@@ -127,13 +130,7 @@ async fn run_aborted_entrypoint(mode: Mode) {
                     cancelled: Arc::new(AtomicBool::new(false)),
                     response_tx: None,
                 };
-                crate::scheduler::worker_typed::execute(
-                    &e,
-                    Some(&admitted),
-                    None,
-                    request,
-                )
-                .await;
+                crate::scheduler::worker_typed::execute(&e, Some(&admitted), None, request).await;
             }
         }
     });
@@ -144,7 +141,10 @@ async fn run_aborted_entrypoint(mode: Mode) {
     caller.abort();
     assert!(caller.await.expect_err("caller aborted").is_cancelled());
 
-    assert_eq!((limits.current_memory(), limits.current_concurrent()), (64, 1));
+    assert_eq!(
+        (limits.current_memory(), limits.current_concurrent()),
+        (64, 1)
+    );
     assert!(
         limits.try_acquire_working(1).is_err(),
         "a freed waiter admitted another request while native work was active"
@@ -158,8 +158,14 @@ async fn run_aborted_entrypoint(mode: Mode) {
     })
     .await
     .expect("native completion failed to return the slot");
-    assert_eq!((limits.current_memory(), limits.current_concurrent()), (0, 0));
-    assert!(limits.try_acquire_working(64).is_ok(), "slot was not reusable");
+    assert_eq!(
+        (limits.current_memory(), limits.current_concurrent()),
+        (0, 0)
+    );
+    assert!(
+        limits.try_acquire_working(64).is_ok(),
+        "slot was not reusable"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
