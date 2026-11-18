@@ -299,14 +299,6 @@ fn assess(
     if !model.evidence_qualified {
         return Err(Unqualified);
     }
-    let path = ServingPath::new(model.task, model.target);
-    if !compiled.iter().any(|backend| {
-        backend.schema_version == CAPABILITY_SCHEMA_VERSION
-            && backend.backend == model.backend
-            && backend.compiled_paths.contains(&path)
-    }) {
-        return Err(PathNotCompiled);
-    }
     if !model.custody_verified {
         return Err(UnverifiedCustody);
     }
@@ -315,6 +307,14 @@ fn assess(
     }
     if model.target != policy.target {
         return Err(TargetMismatch);
+    }
+    let path = ServingPath::new(model.task, model.target);
+    if !compiled.iter().any(|backend| {
+        backend.schema_version == CAPABILITY_SCHEMA_VERSION
+            && backend.backend == model.backend
+            && backend.compiled_paths.contains(&path)
+    }) {
+        return Err(PathNotCompiled);
     }
     if policy.require_streaming && !model.streaming_supported {
         return Err(StreamingUnavailable);
