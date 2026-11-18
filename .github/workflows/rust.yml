@@ -26,6 +26,20 @@ jobs:
         with:
           manifest-path: core-runtime/Cargo.toml
 
+  native-gpu-feature-graph:
+    name: native GPU Cargo feature graph (metadata only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: core-runtime
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve locked native llama.cpp CUDA and Metal feature graph
+        run: cargo metadata --locked --format-version 1 --features gguf-cuda,gguf-metal > /dev/null
+      # Metadata is not a native build, installed CUDA/Metal proof, or GPU qualification.
+
   lint:
     name: fmt + clippy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
