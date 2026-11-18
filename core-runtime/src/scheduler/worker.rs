@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 use super::queue::{QueuedRequest, RequestQueue};
 use crate::engine::inference::{InferenceError, InferenceResult};
 use crate::engine::InferenceEngine;
-use crate::memory::ResourceLimits;
+use crate::memory::{ResourceGuard, ResourceLimits};
 use crate::models::lifecycle::ModelLifecycle;
 use crate::models::registry::ModelRegistry;
 use crate::security::SecurityPipeline;
@@ -70,7 +70,7 @@ pub(super) async fn execute_request(
         return;
     }
 
-    let _guard = match acquire_guard(engine, resource_limits, &model_id).await {
+    let guard = match acquire_guard(engine, resource_limits, &model_id).await {
         Ok(g) => g,
         Err(msg) => {
             telemetry::record_admission_rejection(&model_id, &msg);
@@ -80,7 +80,7 @@ pub(super) async fn execute_request(
     };
     let start = std::time::Instant::now();
     let max_memory = resource_limits.map(ResourceLimits::max_memory_per_call);
-    let result = run_blocking(engine, &request, control.clone(), max_memory).await;
+    let result = run_blocking(engine, &request, control.clone(), max_memory, guard).await;
     let latency_ms = start.elapsed().as_millis() as u64;
     trace_stop_release(&result, &control, request.id, latency_ms);
 
@@ -170,6 +170,7 @@ async fn run_blocking(
     request: &QueuedRequest,
     control: crate::engine::StopControl,
     max_memory: Option<usize>,
+    guard: Option<ResourceGuard>,
 ) -> InferResult {
     let engine = Arc::clone(engine);
     let model_id = request.model_id.clone();
@@ -177,7 +178,7 @@ async fn run_blocking(
     let params = request.params.clone();
     let handle = tokio::runtime::Handle::current();
     let span = stop_scope(request.id, false);
-    tokio::task::spawn_blocking(move || {
+    run_blocking_admitted(guard, move || {
         let _entered = span.enter();
         let run = engine.run_controlled(&model_id, &prompt, &params, &control, max_memory);
         handle.block_on(tracing::Instrument::instrument(run, span.clone()))
@@ -218,7 +219,7 @@ fn send_response(request: QueuedRequest, result: Result<InferenceResult, String>
 
 #[path = "worker_admission.rs"]
 mod admission;
-pub(super) use admission::acquire_guard;
+pub(super) use admission::{acquire_guard, run_blocking_admitted};
 
 #[cfg(test)]
 #[path = "worker_tests.rs"]
