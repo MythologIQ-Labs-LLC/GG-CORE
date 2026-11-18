@@ -11,7 +11,7 @@
 //! destructors ran) and then the guard returned the budget. It is *not* a
 //! claim that the OS reclaimed every page (see llama-cpp-rs#1194).
 
-use std::sync::Arc;
+use std::sync::{mpsc, Arc, OnceLock};
 use std::time::Duration;
 
 use tokio::sync::watch;
@@ -28,6 +28,103 @@ const RELEASE_POLL: Duration = Duration::from_millis(25);
 pub(super) struct Resident {
     model: Arc<dyn Model>,
     guard: Option<ResidentGuard>,
+}
+
+/// A pending model release must outlive Tokio tasks and the runtime itself:
+/// detached native inference can still hold its Arc after the async worker is
+/// aborted. One process-wide standard thread polls all pending residents,
+/// rather than spawning an unbounded thread or cancellation-unsafe async task
+/// for each unload (#219).
+static RELEASE_SUPERVISOR: OnceLock<Option<mpsc::Sender<PendingRelease>>> = OnceLock::new();
+
+struct PendingRelease {
+    resident: Option<Resident>,
+    done: watch::Sender<bool>,
+}
+
+impl PendingRelease {
+    fn ready(&self) -> bool {
+        self.resident
+            .as_ref()
+            .is_some_and(|resident| Arc::strong_count(&resident.model) == 1)
+    }
+
+    fn finish(mut self) {
+        // Model destructor completes before the resident budget returns.
+        if let Some(resident) = self.resident.take() {
+            drop(resident);
+            let _ = self.done.send(true);
+        }
+    }
+}
+
+impl Drop for PendingRelease {
+    fn drop(&mut self) {
+        let Some(resident) = self.resident.take() else {
+            return;
+        };
+        if Arc::strong_count(&resident.model) > 1 {
+            // Catastrophic supervisor shutdown/panic: never credit memory
+            // while a detached native worker still holds the model. Normal
+            // release has no leak; this is an explicit fail-closed fallback.
+            let Resident { model, guard } = resident;
+            std::mem::forget(guard);
+            drop(model);
+        } else {
+            drop(resident);
+        }
+    }
+}
+
+fn release_supervisor() -> Option<&'static mpsc::Sender<PendingRelease>> {
+    RELEASE_SUPERVISOR
+        .get_or_init(|| {
+            let (sender, receiver) = mpsc::channel();
+            match std::thread::Builder::new()
+                .name("gg-core-release".into())
+                .spawn(move || supervise_releases(receiver))
+            {
+                Ok(thread) => {
+                    drop(thread); // detach from Tokio and caller cancellation
+                    Some(sender)
+                }
+                Err(error) => {
+                    tracing::error!(
+                        target: "gg_core::lifecycle",
+                        %error,
+                        "model release supervisor unavailable; retain budget"
+                    );
+                    None
+                }
+            }
+        })
+        .as_ref()
+}
+
+fn supervise_releases(receiver: mpsc::Receiver<PendingRelease>) {
+    let mut pending: Vec<PendingRelease> = Vec::new();
+    loop {
+        if pending.is_empty() {
+            match receiver.recv() {
+                Ok(release) => pending.push(release),
+                Err(_) => break,
+            }
+        } else {
+            match receiver.recv_timeout(RELEASE_POLL) {
+                Ok(release) => pending.push(release),
+                Err(mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected) => {}
+            }
+        }
+
+        let mut index = 0;
+        while index < pending.len() {
+            if pending[index].ready() {
+                pending.swap_remove(index).finish();
+            } else {
+                index += 1;
+            }
+        }
+    }
 }
 
 /// Observes whether an unloaded instance has been released. A watch whose
@@ -91,22 +188,24 @@ impl Resident {
             let _ = done.send(true);
             return;
         }
-        match tokio::runtime::Handle::try_current() {
-            Ok(rt) => {
-                rt.spawn(self.release_when_idle(done));
+        // The supervisor holds this entire Resident independently of an
+        // aborted waiter or dropped Tokio runtime. A failed spawn/send drops
+        // PendingRelease through its fail-closed Drop guard.
+        let pending = PendingRelease {
+            resident: Some(self),
+            done,
+        };
+        match release_supervisor() {
+            Some(sender) => {
+                if let Err(error) = sender.send(pending) {
+                    tracing::error!(
+                        target: "gg_core::lifecycle",
+                        "model release supervisor disconnected; retain budget"
+                    );
+                    drop(error.0);
+                }
             }
-            // No runtime: keep the budget charged for the rest of the process
-            // rather than release bytes that are still allocated (fail closed).
-            // `done` drops unsignalled, so the instance never reads released.
-            Err(_) => std::mem::forget(self.guard),
+            None => drop(pending),
         }
-    }
-
-    async fn release_when_idle(self, done: watch::Sender<bool>) {
-        while Arc::strong_count(&self.model) > 1 {
-            tokio::time::sleep(RELEASE_POLL).await;
-        }
-        drop(self);
-        let _ = done.send(true);
     }
 }
