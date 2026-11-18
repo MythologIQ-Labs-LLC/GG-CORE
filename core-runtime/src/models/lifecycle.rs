@@ -229,6 +229,17 @@ impl ModelLifecycle {
     }
 }
 
+/// Retire an abandoned prepared backend through the same panic-safe native
+/// model/reservation boundary used for unload and failed registration (#219).
+/// The model may still be held by a detached native task.
+pub(super) fn release_prepared_reservation(
+    model: Arc<dyn Model>,
+    guard: crate::memory::ResidentGuard,
+) {
+    let (done, _unused_watch) = resident::release_channel();
+    resident::Resident::new(model, Some(guard)).release(done);
+}
+
 #[path = "lifecycle_resident.rs"]
 mod resident;
 
