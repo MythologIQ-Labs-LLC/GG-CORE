@@ -2,7 +2,10 @@
 
 use super::test_support::{choose, light, policy, quality};
 use super::*;
-use crate::models::backend_capabilities::{BackendKind, ExecutionTarget, InferenceTask};
+use crate::models::backend_capabilities::{
+    BackendKind, ExecutionTarget, InferenceTask, RuntimeBackendCapabilities, ServingPath,
+    CAPABILITY_SCHEMA_VERSION,
+};
 
 #[test]
 fn synthetic_compiled_or_untrusted_model_is_not_qualified() {
@@ -184,4 +187,28 @@ fn public_selector_uses_real_build_capabilities_not_test_catalog() {
             Some(CandidateRefusal::PathNotCompiled)
         );
     }
+}
+
+#[test]
+fn compiled_backend_streaming_must_match_claimed_model_streaming() {
+    let mut policy = policy();
+    policy.current_model_id = Some("light");
+    let offer = light();
+    let compiled = RuntimeBackendCapabilities {
+        schema_version: CAPABILITY_SCHEMA_VERSION,
+        backend: BackendKind::Gguf,
+        model_formats: vec!["gguf".into()],
+        compiled_paths: vec![ServingPath::new(
+            InferenceTask::TextGeneration,
+            ExecutionTarget::Cpu,
+        )],
+        supports_streaming: false,
+        supports_kv_cache: false,
+        qualified_paths: Vec::new(),
+    };
+    let trace = plan_with_compiled_catalog(&[offer], &policy, &[compiled]);
+    assert_eq!(
+        trace.assessments[0].refusal,
+        Some(CandidateRefusal::StreamingUnavailable)
+    );
 }
