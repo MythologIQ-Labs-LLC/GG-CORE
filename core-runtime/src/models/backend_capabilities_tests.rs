@@ -107,3 +107,50 @@ use super::*;
         assert!(!json.contains("cuda"));
         assert!(!json.contains("metal"));
     }
+
+#[test]
+fn simulated_native_compile_matrix_exercises_both_gpu_branches_on_cpu_ci() {
+    // These are synthetic compile-feature tests, NOT installed GPU proofs.
+    let combinations = [
+        (false, false, false),
+        (true, false, false),
+        (true, true, false),
+        (true, false, true),
+        (true, true, true),
+    ];
+    for (has_gguf, cuda, metal_on_macos) in combinations {
+        let result = compiled_for_features(CompiledFeatures {
+            gguf: has_gguf,
+            onnx: true,
+            gguf_cuda: cuda,
+            gguf_metal_on_macos: metal_on_macos,
+        });
+        let gguf = result.iter().find(|b| b.backend == BackendKind::Gguf);
+        assert_eq!(gguf.is_some(), has_gguf);
+        if let Some(gguf) = gguf {
+            let path = |target| ServingPath::new(InferenceTask::TextGeneration, target);
+            assert!(gguf.compiled_paths.contains(&path(ExecutionTarget::Cpu)));
+            assert_eq!(gguf.compiled_paths.contains(&path(ExecutionTarget::Cuda)), cuda);
+            assert_eq!(
+                gguf.compiled_paths.contains(&path(ExecutionTarget::Metal)),
+                metal_on_macos
+            );
+            assert_eq!(gguf.compiled_paths.len(), 1 + usize::from(cuda) + usize::from(metal_on_macos));
+        }
+        let onnx = result.iter().find(|b| b.backend == BackendKind::Onnx).unwrap();
+        assert!(onnx.compiled_paths.iter().all(|path| path.target == ExecutionTarget::Cpu));
+        assert!(onnx.compiled_paths.iter().all(|path| path.task != InferenceTask::TextGeneration));
+        assert!(result.iter().all(|backend| backend.qualified_paths.is_empty()));
+    }
+}
+
+#[test]
+fn synthetic_cuda_metal_flags_without_gguf_never_invent_inference() {
+    let result = compiled_for_features(CompiledFeatures {
+        gguf: false,
+        onnx: false,
+        gguf_cuda: true,
+        gguf_metal_on_macos: true,
+    });
+    assert!(result.is_empty());
+}
