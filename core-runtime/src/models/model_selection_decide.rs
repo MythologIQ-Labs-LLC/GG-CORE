@@ -190,12 +190,7 @@ fn consented_action<'a>(
 ) -> ModelAction<'a> {
     if requires_quality_escalation_approval(offers, winner, policy) {
         return match incumbent {
-            Some(current) => action_for(
-                &offers[current.index],
-                current.cost_ms,
-                incumbent,
-                policy,
-            ),
+            Some(current) => action_for(&offers[current.index], current.cost_ms, incumbent, policy),
             None => ModelAction::Refuse(PlanRefusal::QualityEscalationNotAuthorized),
         };
     }
@@ -224,8 +219,8 @@ fn requires_quality_escalation_approval(
         .find(|model| model.model_id == current_id)
         .and_then(|model| model.quality_bps)
         .filter(|score| *score <= 10_000);
-    match (previous_score, next.quality_bps) {
-        (Some(before), Some(after)) if after <= before => false,
-        _ => true,
-    }
+    !matches!(
+        (previous_score, next.quality_bps),
+        (Some(before), Some(after)) if after <= before
+    )
 }
