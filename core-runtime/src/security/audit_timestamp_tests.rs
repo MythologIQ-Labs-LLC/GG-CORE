@@ -78,12 +78,10 @@ fn caller_supplied_offset_is_logged_and_serialized_in_utc() {
 
 #[test]
 fn non_rfc3339_and_unrepresentable_timestamps_are_rejected() {
-    for text in [
-        "2026-11-17 12:34:56Z",
-        "2026-11-17T12:34:56",
-        "not a time",
-        "",
-    ] {
+    // RFC 3339 section 5.6 permits a space separator; chrono accepted it too.
+    let spaced = reparse("2026-11-17 12:34:56Z").expect("space separator is RFC 3339");
+    assert_eq!(wire(&spaced), "2026-11-17T12:34:56Z");
+    for text in ["2026-11-17T12:34:56", "2026-11-17", "not a time", ""] {
         assert!(reparse(text).is_err(), "accepted {text:?}");
     }
     // Converting to UTC would leave the four-digit-year range: error, no panic.

@@ -20,9 +20,9 @@ fn to_utc(value: OffsetDateTime) -> Option<OffsetDateTime> {
 fn auto_si_fraction(nano: u32) -> String {
     if nano == 0 {
         String::new()
-    } else if nano % 1_000_000 == 0 {
+    } else if nano.is_multiple_of(1_000_000) {
         format!(".{:03}", nano / 1_000_000)
-    } else if nano % 1_000 == 0 {
+    } else if nano.is_multiple_of(1_000) {
         format!(".{:06}", nano / 1_000)
     } else {
         format!(".{nano:09}")
