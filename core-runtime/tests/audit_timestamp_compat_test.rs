@@ -73,3 +73,28 @@ fn external_rust_type_is_explicitly_offset_date_time_not_legacy_chrono() {
     external.timestamp = timestamp.to_offset(UtcOffset::UTC);
     assert_eq!(external.timestamp.offset(), UtcOffset::UTC);
 }
+
+#[test]
+fn historical_chrono_fraction_widths_are_stable_for_external_consumers() {
+    // These string forms are part of persisted audit JSON compatibility.
+    for historical in [
+        "2026-11-17T12:34:56Z",
+        "2026-11-17T12:34:56.120Z",
+        "2026-11-17T12:34:56.000100Z",
+        "2026-11-17T12:34:56.123456700Z",
+        "1970-01-01T00:00:00.000000001Z",
+    ] {
+        let mut payload = serde_json::to_value(event()).unwrap();
+        payload["timestamp"] = json!(historical);
+        let restored: AuditEvent = serde_json::from_value(payload).expect("historical audit JSON");
+        let emitted = serde_json::to_value(restored).unwrap();
+        assert_eq!(emitted["timestamp"], json!(historical), "wire drift for {historical}");
+    }
+}
+
+#[test]
+fn utc_date_overflow_is_an_external_deserialization_error_not_a_panic() {
+    let mut payload = serde_json::to_value(event()).unwrap();
+    payload["timestamp"] = json!("9999-12-31T23:30:00-01:00");
+    assert!(serde_json::from_value::<AuditEvent>(payload).is_err());
+}
