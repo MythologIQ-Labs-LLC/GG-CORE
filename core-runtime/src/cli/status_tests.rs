@@ -63,9 +63,9 @@ fn test_system_status_serialization() {
             failed_requests: 10,
             requests_per_second: 10.5,
             avg_latency_ms: 50.0,
-            p50_latency_ms: 45.0,
-            p95_latency_ms: 100.0,
-            p99_latency_ms: 150.0,
+            p50_latency_ms: Some(45.0),
+            p95_latency_ms: Some(100.0),
+            p99_latency_ms: Some(150.0),
             tokens_generated: 50000,
             tokens_per_second: 25.0,
         },
@@ -131,4 +131,46 @@ fn build_status_populates_speculative_stats_from_metrics() {
     // No speculative activity, or no metrics at all -> None.
     assert!(build_speculative_stats(&Some(snap(0, 0, 0))).is_none());
     assert!(build_speculative_stats(&None).is_none());
+}
+
+#[test]
+fn status_never_invents_quantiles_from_min_max_snapshot() {
+    use crate::telemetry::{HistogramSummary, MetricsSnapshot};
+    use std::collections::HashMap;
+
+    let mut histograms = HashMap::new();
+    histograms.insert(
+        "core_inference_latency_ms".to_string(),
+        HistogramSummary {
+            count: 10,
+            sum: 1_000.0,
+            min: 1.0,
+            max: 500.0,
+        },
+    );
+    let metrics = MetricsSnapshot {
+        counters: HashMap::new(),
+        gauges: HashMap::new(),
+        histograms,
+        bucketed_histograms: HashMap::new(),
+    };
+    let status = build_status(true, None, Some(metrics), None);
+    assert_eq!(status.requests.avg_latency_ms, 100.0);
+    assert_eq!(status.requests.p50_latency_ms, None);
+    assert_eq!(status.requests.p95_latency_ms, None);
+    assert_eq!(status.requests.p99_latency_ms, None);
+
+    let serialized = serde_json::to_value(&status).unwrap();
+    assert!(serialized["requests"]["p50_latency_ms"].is_null());
+    assert!(serialized["requests"]["p95_latency_ms"].is_null());
+    assert!(serialized["requests"]["p99_latency_ms"].is_null());
+}
+
+#[test]
+fn missing_quantiles_are_displayed_as_unavailable() {
+    assert_eq!(display_quantile(None), "N/A");
+    assert_eq!(display_quantile(Some(f64::NAN)), "N/A");
+    assert_eq!(display_quantile(Some(f64::INFINITY)), "N/A");
+    assert_eq!(display_quantile(Some(-1.0)), "N/A");
+    assert_eq!(display_quantile(Some(42.5)), "42.5ms");
 }
