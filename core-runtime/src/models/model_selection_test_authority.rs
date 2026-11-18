@@ -110,3 +110,47 @@ fn selection_trace_serializes_without_becoming_an_input_authority() {
     assert_eq!(json["assessments"][0]["model_id"], "light");
     assert_eq!(json["assessments"][1]["expected_p95_ms"], 340);
 }
+
+#[test]
+fn quality_escalation_requires_host_consent_even_if_switch_is_allowed() {
+    let mut guard = policy();
+    guard.allow_quality_escalation = false;
+    let current = choose(&[light(), quality()], &guard);
+    assert!(matches!(
+        current.action,
+        ModelAction::UseResident {
+            model_id: "light",
+            ..
+        }
+    ));
+    guard.quality_floor_bps = 8_000;
+    let denied = choose(&[light(), quality()], &guard);
+    assert_eq!(
+        denied.action,
+        ModelAction::Refuse(PlanRefusal::QualityEscalationNotAuthorized)
+    );
+    // An explicit model pin is itself positive model-choice authorization.
+    guard.pinned_model_id = Some("quality");
+    let pinned = choose(&[light(), quality()], &guard);
+    assert!(matches!(
+        pinned.action,
+        ModelAction::ProposeColdSwitch {
+            model_id: "quality",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn unknown_incumbent_quality_cannot_be_treated_as_escalation_consent() {
+    let mut guard = policy();
+    guard.allow_quality_escalation = false;
+    guard.quality_floor_bps = 8_000;
+    let mut old = light();
+    old.quality_bps = None;
+    let plan = choose(&[old, quality()], &guard);
+    assert_eq!(
+        plan.action,
+        ModelAction::Refuse(PlanRefusal::QualityEscalationNotAuthorized)
+    );
+}
