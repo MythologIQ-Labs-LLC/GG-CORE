@@ -39,15 +39,17 @@ fn check_authority_and_path(
         return Err(TargetMismatch);
     }
     let path = ServingPath::new(model.task, model.target);
-    let reachable = compiled.iter().any(|backend| {
+    let compiled_path = compiled.iter().find(|backend| {
         backend.schema_version == CAPABILITY_SCHEMA_VERSION
             && backend.backend == model.backend
             && backend.compiled_paths.contains(&path)
     });
-    if !reachable {
+    let Some(compiled_path) = compiled_path else {
         return Err(PathNotCompiled);
-    }
-    if policy.require_streaming && !model.streaming_supported {
+    };
+    if policy.require_streaming
+        && (!model.streaming_supported || !compiled_path.supports_streaming)
+    {
         return Err(StreamingUnavailable);
     }
     Ok(())
