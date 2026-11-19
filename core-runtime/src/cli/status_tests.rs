@@ -313,6 +313,11 @@ fn status_from_partial_ipc_is_degraded_not_healthy() {
     assert_eq!(both_missing.recent_events.len(), 2);
     let serialized = serde_json::to_value(&both_missing).unwrap();
     assert_eq!(serialized["health"], "degraded");
+    // Packaged acceptance must reject a partial diagnostics result even
+    // when its underlying daemon is live. Unknown metrics are not quantiles.
+    assert!(serialized["requests"]["p50_latency_ms"].is_null());
+    assert!(serialized["requests"]["p95_latency_ms"].is_null());
+    assert!(serialized["requests"]["p99_latency_ms"].is_null());
     assert_eq!(serialized["recent_events"][0]["severity"], "warning");
 
     // A negative health report is not overridden by successfully fetched
