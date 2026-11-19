@@ -184,9 +184,8 @@ mod tests {
         let paths = git_watch_paths_in(&root);
         let head_path = git_output_in(&root, &["rev-parse", "--git-path", "HEAD"])
             .expect("resolve worktree HEAD");
-        let branch_path =
-            git_output_in(&root, &["rev-parse", "--git-path", "refs/heads/main"])
-                .expect("resolve actual main branch ref");
+        let branch_path = git_output_in(&root, &["rev-parse", "--git-path", "refs/heads/main"])
+            .expect("resolve actual main branch ref");
         assert!(paths.contains(&head_path), "must watch HEAD");
         assert!(paths.contains(&branch_path), "must watch branch ref");
 
@@ -195,11 +194,9 @@ mod tests {
         let head_before = std::fs::read(&head).expect("read symbolic HEAD");
         std::fs::create_dir_all(branch.parent().expect("branch ref directory"))
             .expect("create branch directory");
-        std::fs::write(&branch, format!("{}\n", "a".repeat(40)))
-            .expect("set first synthetic ref");
+        std::fs::write(&branch, format!("{}\n", "a".repeat(40))).expect("set first synthetic ref");
         let first = std::fs::read(&branch).expect("read initial branch tip");
-        std::fs::write(&branch, format!("{}\n", "b".repeat(40)))
-            .expect("advance same-branch tip");
+        std::fs::write(&branch, format!("{}\n", "b".repeat(40))).expect("advance same-branch tip");
         assert_ne!(
             std::fs::read(&branch).expect("read advanced branch tip"),
             first
