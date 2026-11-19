@@ -8,6 +8,10 @@
 #   (Qwen2.5-0.5B-Instruct, Q4_K_M, Apache-2.0; see MODEL_SHA256 in release.yml).
 # Exit status is non-zero if any check fails. Prints PASS/FAIL/SKIP lines.
 set -u
+if [ "$#" -ne 2 ]; then
+  echo "usage: $0 <gg-core-archive.tar.gz> <model-base-dir>" >&2
+  exit 2
+fi
 # Helper programs belong to this repository, not to the separately supplied
 # model fixture directory. Resolve their absolute locations before cd "$BASE"
 # so the documented relative invocation also works from another directory.
@@ -26,9 +30,27 @@ case "$(uname -s)" in
   Darwin*) OS=macos ;;
   *)       OS=windows ;;
 esac
-WORK="$(mktemp -d)"
-tar -C "$WORK" -xzf "$ARCHIVE"
-STAGE="$(find "$WORK" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+# Never proceed to daemon acceptance if the package cannot be extracted.
+# The release builder emits exactly one top-level stage directory. Treat
+# missing or additional roots as malformed packaging, not a partial PASS.
+if ! WORK="$(mktemp -d)"; then
+  echo "FAIL: unable to create private package staging directory" >&2
+  exit 1
+fi
+if ! tar -C "$WORK" -xzf "$ARCHIVE"; then
+  echo "FAIL: package archive extraction failed" >&2
+  rm -rf -- "$WORK"
+  exit 1
+fi
+shopt -s nullglob dotglob
+STAGE_ROOTS=("$WORK"/*)
+shopt -u nullglob dotglob
+if [ "${#STAGE_ROOTS[@]}" -ne 1 ] || [ ! -d "${STAGE_ROOTS[0]}" ] || [ -L "${STAGE_ROOTS[0]}" ]; then
+  echo "FAIL: expected exactly one real package root directory" >&2
+  rm -rf -- "$WORK"
+  exit 1
+fi
+STAGE="${STAGE_ROOTS[0]}"
 if [ "$OS" = windows ]; then BIN="$STAGE/gg-core-cli.exe"; LIB="$STAGE/gg_core.dll"; else BIN="$STAGE/gg-core-cli"; LIB="$STAGE/libgg_core.$([ "$OS" = macos ] && echo dylib || echo so)"; fi
 
 echo "== package contents =="
