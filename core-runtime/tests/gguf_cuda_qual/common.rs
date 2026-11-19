@@ -60,6 +60,8 @@ pub struct StreamRun {
     pub ttft: Duration,
     pub total: Duration,
     pub result: Result<(), String>,
+    /// True only if the native backend actually observed the stop predicate.
+    pub stop_observed: bool,
 }
 
 impl StreamRun {
@@ -99,9 +101,17 @@ async fn stream_in_runtime(
     let (tx, mut rx) = TokenStream::new(64, Default::default());
     let seen = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let counter = std::sync::Arc::clone(&seen);
+    let stop_observed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let observed_by_backend = std::sync::Arc::clone(&stop_observed);
     let start = Instant::now();
     let task = tokio::task::spawn_blocking(move || {
-        let stop = move || stop_after.is_some_and(|n| counter.load(ORD) >= n);
+        let stop = move || {
+            let requested = stop_after.is_some_and(|n| counter.load(ORD) >= n);
+            if requested {
+                observed_by_backend.store(true, ORD);
+            }
+            requested
+        };
         model.generate_stream(&prompt, &config, &tx, Some(&stop), None)
     });
     let (mut ids, mut ttft) = (Vec::new(), None);
@@ -126,6 +136,7 @@ async fn stream_in_runtime(
         ttft,
         total,
         result,
+        stop_observed: stop_observed.load(ORD),
     }
 }
 
