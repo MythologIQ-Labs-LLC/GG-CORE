@@ -38,18 +38,26 @@ pub fn greedy(max_tokens: u32) -> InferenceConfig {
     }
 }
 
-/// Used VRAM in MiB on GPU 0, or `None` when `nvidia-smi` is unavailable.
+/// Aggregate VRAM on the explicitly selected GPU UUID, not assumed GPU 0.
+/// This is diagnostic host telemetry, NOT per-process allocation proof.
 pub fn vram_mib() -> Option<u64> {
     let smi = std::env::var("GG_NVSMI").ok()?;
+    let gpu_uuid = std::env::var("GG_GPU_DEVICE_UUID").ok()?;
+    if !gpu_uuid.starts_with("GPU-") {
+        return None;
+    }
     let out = std::process::Command::new(smi)
         .args([
             "--query-gpu=memory.used",
             "--format=csv,noheader,nounits",
             "-i",
-            "0",
+            gpu_uuid.as_str(),
         ])
         .output()
         .ok()?;
+    if !out.status.success() {
+        return None;
+    }
     String::from_utf8_lossy(&out.stdout).trim().parse().ok()
 }
 
