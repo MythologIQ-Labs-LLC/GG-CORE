@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn sanitization_strips_zero_width_characters_and_reports_modification() {
         let filter = PromptInjectionFilter::new(true);
-        let (redacted, modified) = filter.sanitize("hel\\u{200B}lo");
+        let (redacted, modified) = filter.sanitize("hel\u{200B}lo");
         assert_eq!(redacted, "hello");
         assert!(modified);
         let (untouched, changed) = filter.sanitize("plain text");
