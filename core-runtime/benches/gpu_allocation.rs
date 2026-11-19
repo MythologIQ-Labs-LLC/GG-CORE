@@ -5,7 +5,8 @@
 
 use std::sync::Arc;
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
 use gg_core::engine::gpu::{GpuDevice, GpuMemory};
 use gg_core::engine::gpu_allocator::{GpuAllocator, MockGpuAllocator};

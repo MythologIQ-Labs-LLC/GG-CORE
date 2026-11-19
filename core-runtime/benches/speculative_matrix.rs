@@ -31,7 +31,8 @@ criterion_group!(benches, bench_noop);
 
 #[cfg(feature = "advanced")]
 mod advanced_benches {
-    use criterion::{black_box, BenchmarkId, Criterion};
+    use criterion::{BenchmarkId, Criterion};
+    use std::hint::black_box;
 
     use gg_core::engine::adaptive_speculative::{DraftBlock, SurvivalProfile, VerificationPlan};
     use gg_core::models::SmartModelTier as ModelTier;
