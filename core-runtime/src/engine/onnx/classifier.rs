@@ -116,6 +116,20 @@ fn logits_to_classification(
     logits: &candle_core::Tensor,
     labels: &[String],
 ) -> Result<ClassificationResult, InferenceError> {
+    // A scalar classification result represents exactly one input. Flattening
+    // an arbitrary tensor first lets multi-row or extra-rank outputs masquerade
+    // as a single label distribution whenever their element count happens to
+    // equal labels.len(). Refuse that ambiguity before reading probabilities.
+    let valid_shape = match logits.dims() {
+        [classes] | [1, classes] => *classes == labels.len() && *classes > 0,
+        _ => false,
+    };
+    if !valid_shape {
+        return Err(InferenceError::ModelError(
+            "classifier logits must have shape [num_labels] or [1, num_labels] with matching labels"
+                .into(),
+        ));
+    }
     let flat = logits
         .flatten_all()
         .map_err(|e| InferenceError::ModelError(format!("flatten: {e}")))?;
