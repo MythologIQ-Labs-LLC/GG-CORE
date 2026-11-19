@@ -174,6 +174,8 @@ class NativeAcceptanceContractTests(unittest.TestCase):
                                   return_value=native.APPROVED_MODEL_SHA256),
                 mock.patch.object(native, "checked_stdout", return_value="tool version"),
                 mock.patch.object(native, "collect_artifacts"),
+                mock.patch.object(native.inputs, "require_controlled_build", return_value={}),
+                mock.patch.object(native.inputs, "toolchain_identity", return_value={}),
                 mock.patch.object(native, "run_step",
                                   side_effect=lambda label, argv, cwd, env, evidence, report:
                                       observed.append((env["CARGO_TARGET_DIR"], label))),
@@ -192,6 +194,51 @@ class NativeAcceptanceContractTests(unittest.TestCase):
             self.assertEqual(receipt["cargo_target_dir"], expected)
             self.assertEqual(receipt["status"],
                              "SOURCE_AND_NATIVE_TEST_MATRIX_PASS__RELEASE_STILL_HOLD")
+
+    def test_ignored_compile_input_refuses_even_with_matching_head(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as root:
+            repo = pathlib.Path(root)
+            git = lambda *a: subprocess.check_output(
+                ["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=repo, text=True).strip()
+            git("init", "-q")
+            (repo / ".gitignore").write_text("src/private_module.rs\n")
+            git("add", ".gitignore"), git("commit", "-q", "-m", "base"), (repo / "src").mkdir()
+            (repo / "src/private_module.rs").write_text("pub fn injected() {}\n")
+            with self.assertRaisesRegex(RuntimeError, "Ignored build inputs.*private_module"):
+                native.validate_checkout(repo, git("rev-parse", "HEAD"), native.APPROVED_MODEL_SHA256)
+
+    def test_injected_build_overrides_refuse_and_gate_settings_are_allowed(self):
+        for name in ("RUSTFLAGS", "RUSTC_WRAPPER", "rustc_workspace_wrapper", "_CL_",
+                     "CARGO_PROFILE_DEV_OPT_LEVEL", "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER",
+                     "GGML_CUDA", "CMAKE_CUDA_ARCHITECTURES"):
+            self.assertEqual(native.inputs.forbidden_overrides({name: "x"}), [name])
+            with self.assertRaisesRegex(RuntimeError, "environment overrides"):
+                native.inputs.require_controlled_build(pathlib.Path("."), {name: "x"})
+        allowed = {"CARGO_TARGET_DIR": "t", "CMAKE_GENERATOR": "Ninja", "CARGO_HOME": "h",
+                   "CARGO_NET_OFFLINE": "true", "PATH": "p", "LIBCLANG_PATH": "l"}
+        self.assertEqual(native.inputs.forbidden_overrides(allowed), [])
+
+    def test_cargo_config_outside_checkout_refuses(self):
+        with tempfile.TemporaryDirectory() as root:
+            (home := pathlib.Path(root) / "cargo-home").mkdir()
+            (home / "config.toml").write_text("[build]\nrustflags = ['-Cdebug-assertions=off']\n")
+            with self.assertRaisesRegex(RuntimeError, "Cargo config outside the checkout"):
+                native.inputs.require_controlled_build(pathlib.Path(root) / "repo",
+                                                       {"CARGO_HOME": str(home)})
+
+    def test_injected_override_writes_hold_receipt_and_runs_nothing(self):
+        with tempfile.TemporaryDirectory() as root:
+            destination = pathlib.Path(root) / "evidence"
+            with (mock.patch.object(native, "require_offline_windows"),
+                  mock.patch.object(native, "validate_checkout", return_value="m"),
+                  mock.patch.object(native, "run_step") as run_step,
+                  mock.patch.dict(native.os.environ, {"RUSTC_WRAPPER": "sccache"})):
+                code = native.main(["--expected-head", "a" * 40, "--model-sha256",
+                                    native.APPROVED_MODEL_SHA256, "--evidence-dir", str(destination)])
+            receipt = json.loads((destination / "receipt.json").read_text())
+            self.assertEqual((code, receipt["status"], run_step.called), (1, "HOLD", False))
+            self.assertIn("RUSTC_WRAPPER", receipt["error"])
 
     def test_no_windows_test_binaries_never_passes(self):
         with tempfile.TemporaryDirectory() as root:
