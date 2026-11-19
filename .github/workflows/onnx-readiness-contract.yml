@@ -1,0 +1,19 @@
+name: ONNX packaged readiness contract (model-free)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/onnx-readiness-contract.yml'
+      - 'scripts/qualification/typed_onnx_packaged_acceptance.py'
+      - 'scripts/qualification/typed_onnx_readiness.py'
+      - 'scripts/qualification/test_typed_onnx_packaged_acceptance.py'
+permissions:
+  contents: read
+jobs:
+  readiness-negatives:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate model-list readiness and acceptance probe negatives
+        run: python3 -W error::ResourceWarning -m unittest discover -s scripts/qualification -p 'test_typed_onnx_packaged_acceptance.py' -v

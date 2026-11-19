@@ -9,9 +9,36 @@ import tempfile
 import unittest
 
 import typed_onnx_packaged_acceptance as a
+from typed_onnx_readiness import typed_models_ready
 
 
 class TestAcceptanceProbe(unittest.TestCase):
+    def test_typed_readiness_refuses_merely_responsive_daemon(self):
+        embed = {"handle_id": 1, "state": "ready", "capabilities": ["embedding"]}
+        classifier = {"handle_id": 2, "state": "ready",
+                      "capabilities": ["text_classification"]}
+        self.assertFalse(typed_models_ready(json.dumps({"models": []}).encode()))
+        self.assertFalse(typed_models_ready(json.dumps({"models": [embed]}).encode()))
+        self.assertFalse(typed_models_ready(json.dumps({"models": [
+            embed, dict(classifier, state="loading")
+        ]}).encode()))
+        self.assertTrue(typed_models_ready(json.dumps({"models": [
+            embed, classifier
+        ]}).encode()))
+
+    def test_typed_readiness_fails_closed_on_malformed_listing(self):
+        good = [{"handle_id": 1, "state": "ready", "capabilities": ["embedding"]},
+                {"handle_id": 2, "state": "ready",
+                 "capabilities": ["text_classification"]}]
+        for payload in (b"not-json", b"[]", b"{}", b'{"models":{}}',
+                        json.dumps({"models": [None]}).encode(),
+                        json.dumps({"models": [dict(good[0], handle_id=True), good[1]]}).encode(),
+                        json.dumps({"models": [good[0], dict(good[1], handle_id=1)]}).encode(),
+                        json.dumps({"models": [dict(good[0], capabilities=[True]), good[1]]}).encode()):
+            with self.subTest(payload=payload[:60]):
+                with self.assertRaises(ValueError):
+                    typed_models_ready(payload)
+
     def test_hash_and_stage_containment(self):
         with tempfile.TemporaryDirectory() as t:
             root = Path(t)

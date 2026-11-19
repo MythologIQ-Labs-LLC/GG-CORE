@@ -21,6 +21,8 @@ import sys
 import tempfile
 import time
 
+from typed_onnx_readiness import typed_models_ready
+
 SHA = re.compile(r"[0-9a-f]{64}\Z")
 COMMIT = re.compile(r"[0-9a-f]{40}\Z")
 
@@ -186,8 +188,13 @@ def run_checks(binary, spec, stage, timeout):
                 if time.monotonic() >= deadline:
                     raise AcceptanceError("daemon-startup-timeout")
                 try:
-                    if invoke(binary, env, ["models", "list", "--json"], timeout=5).returncode == 0:
-                        break
+                    probe = invoke(binary, env, ["models", "list", "--json"], timeout=5)
+                    if probe.returncode == 0:
+                        try:
+                            if typed_models_ready(probe.stdout):
+                                break
+                        except (ValueError, UnicodeError) as exc:
+                            raise AcceptanceError("models-list-invalid") from exc
                 except AcceptanceError:
                     pass
                 time.sleep(1)
