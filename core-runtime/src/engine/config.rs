@@ -133,7 +133,10 @@ mod numeric_validation_tests {
         config.top_p = 0.9;
         for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.99] {
             config.repetition_penalty = value;
-            assert!(config.validate().is_err(), "accepted repetition_penalty {value:?}");
+            assert!(
+                config.validate().is_err(),
+                "accepted repetition_penalty {value:?}"
+            );
         }
         config.repetition_penalty = 1.1;
         config.max_tokens = Some(0);
