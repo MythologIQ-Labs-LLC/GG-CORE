@@ -160,6 +160,31 @@ class IpcClient:
         return (time.perf_counter() - start) * 1000
 
 
+def checked_nonstream_reply(response):
+    if response.get("error") is not None or response.get("finished") is not True:
+        raise ProtocolFailure("nonstream inference failed or incomplete")
+    output = response.get("output")
+    if not isinstance(output, str) or not output:
+        raise ProtocolFailure("nonstream inference returned no text")
+    generated = response.get("tokens_generated")
+    if type(generated) is not int or generated < 0:
+        raise ProtocolFailure("nonstream inference has invalid token count")
+    return len(output)
+
+
+def checked_stream_reply(response):
+    if response.get("error") is not None:
+        raise ProtocolFailure("stream returned terminal error")
+    if type(response.get("is_final")) is not bool:
+        raise ProtocolFailure("stream frame has invalid terminal flag")
+    if type(response.get("token")) is not int or response["token"] != 0:
+        raise ProtocolFailure("raw token ID exposed through sanitized IPC path")
+    part = response.get("text")
+    if part is not None and not isinstance(part, str):
+        raise ProtocolFailure("stream text is not a string")
+    return response["is_final"], part or ""
+
+
 def sample(client: IpcClient, model: str, prompt: str, max_tokens: int,
            timeout_ms: int, stream: bool, request_id: int, barrier: threading.Barrier | None):
     params = {"stream": stream, "max_tokens": max_tokens, "timeout_ms": timeout_ms}
@@ -177,40 +202,23 @@ def sample(client: IpcClient, model: str, prompt: str, max_tokens: int,
         if type(response.get("request_id")) is not int or response["request_id"] != request_id:
             raise ProtocolFailure("request ID mismatch")
         if response["type"] == "inference_response" and not stream:
-            if response.get("error") is not None or response.get("finished") is not True:
-                raise ProtocolFailure("nonstream inference failed or incomplete")
-            result = response.get("output")
-            if not isinstance(result, str) or not result:
-                raise ProtocolFailure("nonstream inference returned no text")
-            generated = response.get("tokens_generated")
-            if type(generated) is not int or generated < 0:
-                raise ProtocolFailure("nonstream inference has invalid token count")
-            text_chars = len(result)
+            text_chars = checked_nonstream_reply(response)
             break
-        if response["type"] == "stream_chunk" and stream:
-            if response.get("error") is not None:
-                raise ProtocolFailure("stream returned terminal error")
-            if type(response.get("is_final")) is not bool:
-                raise ProtocolFailure("stream frame has invalid terminal flag")
-            if type(response.get("token")) is not int or response["token"] != 0:
-                raise ProtocolFailure("raw token ID exposed through sanitized IPC path")
-            part = response.get("text")
-            if part is not None:
-                if not isinstance(part, str):
-                    raise ProtocolFailure("stream text is not a string")
-                if part and first_text_ms is None:
-                    first_text_ms = (time.perf_counter() - start) * 1000
-                text_chars += len(part)
-            if response.get("is_final"):
-                break
-            frames += 1
-            continue
-        raise ProtocolFailure("unexpected IPC message type")
+        if response["type"] != "stream_chunk" or not stream:
+            raise ProtocolFailure("unexpected IPC message type")
+        is_final, part = checked_stream_reply(response)
+        if part and first_text_ms is None:
+            first_text_ms = (time.perf_counter() - start) * 1000
+        text_chars += len(part)
+        if is_final:
+            break
+        frames += 1
     elapsed = (time.perf_counter() - start) * 1000
     if stream and not text_chars:
         raise ProtocolFailure("stream returned no sanitized output")
     return {"duration_ms": elapsed, "first_sanitized_text_ms": first_text_ms,
             "visible_chars": text_chars, "stream_data_frames": frames}
+
 
 
 def quantile(values: list[float], fraction: float) -> float:
