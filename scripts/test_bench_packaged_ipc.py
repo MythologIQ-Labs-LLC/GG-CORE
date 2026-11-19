@@ -129,14 +129,11 @@ class BenchIpcTests(unittest.TestCase):
         # No executable is launched during mock-IPC tests; still verify the
         # exact producer-identity contract through a controlled version result.
         self.version_probe = patch.object(
-            bench.subprocess, "run",
-            return_value=subprocess.CompletedProcess(
-                [], 0, json.dumps({
-                    "name": "GG-CORE", "version": "0.99.0-dev",
-                    "commit": "b" * 40, "features": ["gguf"],
-                    "protocol_version": "V1",
-                }).encode(), b"",
-            ),
+            bench, "verify_packaged_binary",
+            return_value={
+                "version": "0.99.0-dev", "commit": "b" * 40,
+                "protocol_version": "V1",
+            },
         )
         self.version_probe.start()
         self.prev_auth = os.environ.get("CORE_AUTH_TOKEN")
