@@ -5,7 +5,9 @@ on:
     paths:
       - '.github/workflows/packaged-ipc-perf-contract.yml'
       - 'scripts/bench_packaged_ipc.py'
+      - 'scripts/bench_packaged_ipc_helpers.py'
       - 'scripts/test_bench_packaged_ipc.py'
+      - 'scripts/bench_packaged_ipc_test_support.py'
       - 'docs/performance/PACKAGED_IPC_LATENCY.md'
 
 permissions:
