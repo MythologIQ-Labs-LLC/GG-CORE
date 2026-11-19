@@ -1,4 +1,4 @@
-//! FIPS 140-3 Self-Test Module
+//! Startup cryptographic sanity checks (not a FIPS-validated cryptographic module)
 //!
 //! Provides power-on self-tests (POST) for cryptographic algorithm validation:
 //! - Known Answer Tests (KAT) for AES-256-GCM
@@ -6,13 +6,9 @@
 //! - Continuous RNG health testing
 //! - Integrity self-tests
 //!
-//! FIPS 140-3 compliance requires these tests run at startup and pass
-//! before any cryptographic operations are permitted.
+//! These tests support fail-closed startup, but do not establish CMVP validation,
+//! binary integrity or continuous operating-time RNG health.
 
-use aes_gcm::{
-    aead::{Aead, KeyInit},
-    Aes256Gcm, Nonce,
-};
 use pbkdf2::pbkdf2_hmac;
 use sha2::Sha256;
 
@@ -97,61 +93,9 @@ pub fn run_power_on_self_tests() -> Result<SelfTestResults, SelfTestError> {
     Ok(results)
 }
 
-/// NIST SP 800-38D test vector key (AES-256-GCM).
-/// Encoded as hex and decoded at runtime to satisfy static analysis.
-fn nist_test_key() -> [u8; 32] {
-    let bytes = hex::decode("feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308")
-        .expect("valid NIST key hex");
-    bytes.try_into().expect("32-byte NIST key")
-}
-
-/// NIST SP 800-38D test vector nonce (AES-256-GCM).
-/// Encoded as hex and decoded at runtime to satisfy static analysis.
-fn nist_test_nonce() -> [u8; 12] {
-    let bytes = hex::decode("cafebabefacedbaddecaf888").expect("valid NIST nonce hex");
-    bytes.try_into().expect("12-byte NIST nonce")
-}
-
-/// AES-256-GCM Known Answer Test
-///
-/// Uses NIST test vectors to verify AES-GCM implementation correctness.
-pub fn aes_gcm_kat() -> Result<(), SelfTestError> {
-    let key = nist_test_key();
-    let nonce = nist_test_nonce();
-    let plaintext: &[u8] = b"FIPS 140-3 KAT";
-
-    aes_gcm_encrypt_decrypt_kat(&key, &nonce, plaintext)
-}
-
-/// Internal AES-GCM encrypt/decrypt verification
-fn aes_gcm_encrypt_decrypt_kat(
-    key: &[u8; 32],
-    nonce: &[u8; 12],
-    plaintext: &[u8],
-) -> Result<(), SelfTestError> {
-    let cipher_key = aes_gcm::Key::<Aes256Gcm>::from(*key);
-    let cipher = Aes256Gcm::new(&cipher_key);
-    let nonce_obj = Nonce::from(*nonce);
-
-    // Encrypt
-    let ciphertext = cipher
-        .encrypt(&nonce_obj, plaintext)
-        .map_err(|_| SelfTestError::AesGcmEncryptFailed)?;
-
-    // Decrypt and verify round-trip
-    let decrypted = cipher
-        .decrypt(&nonce_obj, ciphertext.as_slice())
-        .map_err(|_| SelfTestError::AesGcmDecryptFailed)?;
-
-    if decrypted != plaintext {
-        return Err(SelfTestError::KatMismatch {
-            expected: plaintext.to_vec(),
-            actual: decrypted,
-        });
-    }
-
-    Ok(())
-}
+#[path = "fips_aes_kat.rs"]
+mod aes_kat;
+pub use aes_kat::aes_gcm_kat;
 
 /// PBKDF2-SHA256 Known Answer Test
 ///
@@ -232,9 +176,8 @@ fn count_differing_bits(a: &[u8], b: &[u8]) -> u32 {
         .sum()
 }
 
-/// Integrity Self-Test
-///
-/// Verifies critical constants have not been corrupted.
+/// Static cryptographic-parameter sanity checks.
+/// This is NOT a cryptographic checksum or an executable integrity test.
 pub fn integrity_self_test() -> Result<(), SelfTestError> {
     // Verify key size constant
     if super::encryption::KEY_SIZE != 32 {
@@ -255,54 +198,5 @@ pub fn integrity_self_test() -> Result<(), SelfTestError> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_power_on_self_tests() {
-        let results = run_power_on_self_tests().unwrap();
-        assert!(results.all_passed());
-    }
-
-    #[test]
-    fn test_aes_gcm_kat() {
-        assert!(aes_gcm_kat().is_ok());
-    }
-
-    #[test]
-    fn test_pbkdf2_kat() {
-        assert!(pbkdf2_kat().is_ok());
-    }
-
-    #[test]
-    fn test_rng_health() {
-        assert!(rng_health_test().is_ok());
-    }
-
-    #[test]
-    fn test_integrity() {
-        assert!(integrity_self_test().is_ok());
-    }
-
-    #[test]
-    fn test_self_test_error_display() {
-        let err = SelfTestError::AesGcmEncryptFailed;
-        assert!(err.to_string().contains("AES-GCM"));
-
-        let err = SelfTestError::Pbkdf2Failed;
-        assert!(err.to_string().contains("PBKDF2"));
-
-        let err = SelfTestError::RngHealthFailed;
-        assert!(err.to_string().contains("RNG"));
-    }
-
-    #[test]
-    fn test_count_differing_bits() {
-        let a = [0x00u8; 32];
-        let b = [0xFFu8; 32];
-        assert_eq!(count_differing_bits(&a, &b), 256);
-
-        let c = [0x00u8; 32];
-        assert_eq!(count_differing_bits(&a, &c), 0);
-    }
-}
+#[path = "fips_tests_test.rs"]
+mod tests;
