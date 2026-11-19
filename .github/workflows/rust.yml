@@ -32,6 +32,21 @@ jobs:
         with:
           manifest-path: core-runtime/Cargo.toml
 
+  msrv:
+    name: declared Rust 1.97 MSRV (locked)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: core-runtime
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97.0"
+      - name: Verify declared Rust minimum and committed dependency graph
+        run: cargo check --locked --all-targets
+
   lint:
     name: fmt + clippy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -79,6 +94,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         working-directory: .
         run: python3 -m unittest discover -s scripts/qualification -p 'test_typed_onnx_packaged_acceptance.py' -v
+      - name: Offline Windows qualification runner negative controls (#213)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: .
+        run: python3 -m unittest discover -s scripts/qualification -p 'test_native_windows_audit_gate.py' -v
 
   features:
     name: features / ${{ matrix.feature }}
