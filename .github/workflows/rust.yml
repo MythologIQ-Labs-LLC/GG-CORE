@@ -164,6 +164,8 @@ jobs:
       # The separate perf-baseline directory is preserved for the run-over-run gate.
       - name: Discard stale Criterion scratch results
         run: rm -rf target/criterion
+      - name: Perf gate negative controls (model-free)
+        run: python3 -m unittest discover -s scripts -p test_perf_gate.py -v
       - name: Perf benches (default-feature, CI-safe set)
         run: |
           cargo bench --locked \
