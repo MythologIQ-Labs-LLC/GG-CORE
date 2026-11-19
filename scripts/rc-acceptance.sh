@@ -8,6 +8,12 @@
 #   (Qwen2.5-0.5B-Instruct, Q4_K_M, Apache-2.0; see MODEL_SHA256 in release.yml).
 # Exit status is non-zero if any check fails. Prints PASS/FAIL/SKIP lines.
 set -u
+# Helper programs belong to this repository, not to the separately supplied
+# model fixture directory. Resolve their absolute locations before cd "$BASE"
+# so the documented relative invocation also works from another directory.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || exit 1
+INSPECT="$SCRIPT_DIR/qualification/daemon_json_contract.py"
+IPC_PROBE="$SCRIPT_DIR/rc-ipc-control-acceptance.py"
 ARCHIVE="$1"; BASE="$2"
 MODEL_REL="models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
 pass=0; fail=0
@@ -80,7 +86,6 @@ elif command -v python >/dev/null 2>&1 && python -c 'import sys; sys.exit(sys.ve
 else
   PYTHON=""
 fi
-INSPECT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/qualification/daemon_json_contract.py"
 STATUS_JSON="$("$BIN" status --json 2>/dev/null)"; STATUS_RC=$?
 if [ "$STATUS_RC" -eq 0 ] && [ -n "$PYTHON" ] && [ -f "$INSPECT" ] &&
   printf '%s' "$STATUS_JSON" | "$PYTHON" "$INSPECT" health; then
@@ -155,7 +160,7 @@ echo "== authenticated real-model IPC controls =="
 # probe talks to the SAME packaged daemon through its actual socket/pipe.
 if [ -z "$PYTHON" ]; then
   bad "Python 3 required for cross-platform IPC control acceptance"
-elif with_timeout 420 "$PYTHON" "$BASE/scripts/rc-ipc-control-acceptance.py"; then
+elif [ -f "$IPC_PROBE" ] && with_timeout 420 "$PYTHON" "$IPC_PROBE"; then
   ok "packaged IPC authentication, active cancel, deadlines, prefill cancel, isolation"
 else
   bad "packaged IPC control acceptance"
