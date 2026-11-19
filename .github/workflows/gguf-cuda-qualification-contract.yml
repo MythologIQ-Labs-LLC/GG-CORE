@@ -1,6 +1,13 @@
 name: CUDA qualification contract (model-free)
 
 on:
+  push:
+    branches:
+      - test/gguf-cuda-qualification-harness-216-20261118-no-ci
+    paths:
+      - scripts/qualification/gguf_cuda_hidden_device_gate.py
+      - scripts/qualification/test_gguf_cuda_hidden_device_gate.py
+      - .github/workflows/gguf-cuda-qualification-contract.yml
   pull_request:
     paths:
       - scripts/qualification/gguf_cuda_hidden_device_gate.py
