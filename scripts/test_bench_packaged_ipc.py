@@ -4,10 +4,12 @@ import json
 import os
 from pathlib import Path
 import socket
+import subprocess
 import struct
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from argparse import Namespace
 
 import bench_packaged_ipc as bench
@@ -124,10 +126,24 @@ class BenchIpcTests(unittest.TestCase):
         self.model_file.write_bytes(b"GGUF test fixture, not a model")
         self.binary = self.root / "daemon"
         self.binary.write_bytes(b"stub binary")
+        # No executable is launched during mock-IPC tests; still verify the
+        # exact producer-identity contract through a controlled version result.
+        self.version_probe = patch.object(
+            bench.subprocess, "run",
+            return_value=subprocess.CompletedProcess(
+                [], 0, json.dumps({
+                    "name": "GG-CORE", "version": "0.99.0-dev",
+                    "commit": "b" * 40, "features": ["gguf"],
+                    "protocol_version": "V1",
+                }).encode(), b"",
+            ),
+        )
+        self.version_probe.start()
         self.prev_auth = os.environ.get("CORE_AUTH_TOKEN")
         os.environ["CORE_AUTH_TOKEN"] = "not-a-real-token-123456"
 
     def tearDown(self):
+        self.version_probe.stop()
         if self.prev_auth is None:
             os.environ.pop("CORE_AUTH_TOKEN", None)
         else:
@@ -150,6 +166,8 @@ class BenchIpcTests(unittest.TestCase):
         self.assertEqual(result["requested"]["security_and_sandbox_configuration"], "not independently established by benchmark")
         self.assertIsNotNone(result["results"][0]["stats"]["first_sanitized_text_ms"])
         self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["packaged_binary_version"]["commit"], "b" * 40)
+        self.assertEqual(result["packaged_binary_version"]["protocol_version"], "V1")
         self.assertIn("handshake_ms", result)
         self.assertIn("warmup_request_ms", result)
         self.assertEqual(result["daemon_reported_warmup_ms"], 1)
@@ -245,6 +263,56 @@ class BenchIpcTests(unittest.TestCase):
 
 
 class PureTests(unittest.TestCase):
+    def test_packaged_binary_identity_fails_closed_on_wrong_commit(self):
+        expected = "b" * 40
+        meta = {"name": "GG-CORE", "version": "1.0.0-dev",
+                "commit": "c" * 40, "features": ["gguf"],
+                "protocol_version": "V1"}
+        with tempfile.TemporaryDirectory() as t:
+            binary = Path(t) / "gg-core-cli"
+            binary.write_bytes(b"not-an-executable")
+            with patch.object(bench.subprocess, "run",
+                              return_value=subprocess.CompletedProcess(
+                                  [], 0, json.dumps(meta).encode(), b"")):
+                with self.assertRaisesRegex(bench.ProtocolFailure, "source commit mismatch"):
+                    bench.verify_packaged_binary(binary, expected)
+
+    def test_binary_metadata_failures_never_become_perf_evidence(self):
+        expected = "b" * 40
+        with tempfile.TemporaryDirectory() as t:
+            binary = Path(t) / "gg-core-cli"
+            binary.write_bytes(b"not-an-executable")
+            good = {"name": "GG-CORE", "version": "1.0.0-dev",
+                    "commit": expected, "features": ["gguf"],
+                    "protocol_version": "V1"}
+            cases = [
+                (dict(good, protocol_version="V2"), "protocol mismatch"),
+                (dict(good, features=["onnx"]), "lacks GGUF"),
+                (dict(good, name="other"), "unexpected packaged"),
+                (dict(good, version=""), "version absent"),
+            ]
+            for meta, message in cases:
+                with self.subTest(message=message), patch.object(
+                    bench.subprocess, "run",
+                    return_value=subprocess.CompletedProcess(
+                        [], 0, json.dumps(meta).encode(), b""),
+                ):
+                    with self.assertRaisesRegex(bench.ProtocolFailure, message):
+                        bench.verify_packaged_binary(binary, expected)
+            for output in (b"not json", b"[]"):
+                with self.subTest(output=output), patch.object(
+                    bench.subprocess, "run",
+                    return_value=subprocess.CompletedProcess([], 0, output, b""),
+                ):
+                    with self.assertRaises(bench.ProtocolFailure):
+                        bench.verify_packaged_binary(binary, expected)
+            with patch.object(
+                bench.subprocess, "run",
+                return_value=subprocess.CompletedProcess([], 2, b"", b"sensitive"),
+            ):
+                with self.assertRaisesRegex(bench.ProtocolFailure, "version command refused"):
+                    bench.verify_packaged_binary(binary, expected)
+
     def test_linear_quantile(self):
         self.assertEqual(bench.quantile([40, 20, 10, 30], .5), 25)
         self.assertAlmostEqual(bench.quantile([40, 20, 10, 30], .95), 38.5)
