@@ -117,12 +117,12 @@ class NativeAcceptanceContractTests(unittest.TestCase):
                 {"commit": "b" * 40, "features": ["onnx", "gguf", "ffi"]}
             )):
                 with self.assertRaisesRegex(RuntimeError, "commit does not match"):
-                    native.collect_artifacts(core, {"source_sha": "a" * 40})
+                    native.collect_artifacts(core, core / "target", {"source_sha": "a" * 40})
             with mock.patch.object(native, "checked_stdout", return_value=json.dumps(
                 {"commit": "a" * 40, "features": ["gguf"]}
             )):
                 with self.assertRaisesRegex(RuntimeError, "feature provenance differs"):
-                    native.collect_artifacts(core, {"source_sha": "a" * 40})
+                    native.collect_artifacts(core, core / "target", {"source_sha": "a" * 40})
 
     def test_main_writes_hold_receipt_on_non_windows(self):
         with tempfile.TemporaryDirectory() as root:
@@ -138,10 +138,65 @@ class NativeAcceptanceContractTests(unittest.TestCase):
             self.assertIn("requires Windows", receipt["error"])
             self.assertEqual(receipt["steps"], [])
 
+    def test_stale_default_target_executables_are_not_accepted(self):
+        with tempfile.TemporaryDirectory() as root:
+            core = pathlib.Path(root)
+            stale = core / "target/debug/deps"
+            stale.mkdir(parents=True)
+            (stale / "gg_core-oldhead.exe").write_bytes(b"old run")
+            # An isolated run must not borrow existing cargo output, even
+            # when an old test executable is present under the default path.
+            with self.assertRaisesRegex(RuntimeError, "No compiled Windows test binaries"):
+                native.collect_artifacts(core, core / "fresh-attempt/cargo-target", {})
+
+    def test_existing_receipt_is_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as root:
+            destination = pathlib.Path(root) / "evidence"
+            destination.mkdir()
+            receipt = destination / "receipt.json"
+            receipt.write_text('{"status":"OLD_VERIFIED_RUN"}', encoding="utf-8")
+            result = native.main([
+                "--expected-head", "a" * 40,
+                "--model-sha256", native.APPROVED_MODEL_SHA256,
+                "--evidence-dir", str(destination),
+            ])
+            self.assertEqual(result, 1)
+            self.assertEqual(receipt.read_text(encoding="utf-8"),
+                             '{"status":"OLD_VERIFIED_RUN"}')
+
+    def test_cargo_output_is_always_isolated_from_inherited_target_dir(self):
+        with tempfile.TemporaryDirectory() as root:
+            destination = pathlib.Path(root) / "evidence"
+            observed = []
+            with (
+                mock.patch.object(native, "require_offline_windows"),
+                mock.patch.object(native, "validate_checkout",
+                                  return_value=native.APPROVED_MODEL_SHA256),
+                mock.patch.object(native, "checked_stdout", return_value="tool version"),
+                mock.patch.object(native, "collect_artifacts"),
+                mock.patch.object(native, "run_step",
+                                  side_effect=lambda label, argv, cwd, env, evidence, report:
+                                      observed.append((env["CARGO_TARGET_DIR"], label))),
+                mock.patch.dict(native.os.environ, {"CARGO_TARGET_DIR": "C:/stale-unsafe-build"}),
+            ):
+                code = native.main([
+                    "--expected-head", "a" * 40,
+                    "--model-sha256", native.APPROVED_MODEL_SHA256,
+                    "--evidence-dir", str(destination),
+                ])
+            self.assertEqual(code, 0)
+            self.assertEqual(len(observed), len(native.command_matrix()))
+            expected = str(destination.resolve() / "cargo-target")
+            self.assertEqual({path for path, _ in observed}, {expected})
+            receipt = json.loads((destination / "receipt.json").read_text())
+            self.assertEqual(receipt["cargo_target_dir"], expected)
+            self.assertEqual(receipt["status"],
+                             "SOURCE_AND_NATIVE_TEST_MATRIX_PASS__RELEASE_STILL_HOLD")
+
     def test_no_windows_test_binaries_never_passes(self):
         with tempfile.TemporaryDirectory() as root:
             with self.assertRaisesRegex(RuntimeError, "No compiled Windows test binaries"):
-                native.collect_artifacts(pathlib.Path(root), {})
+                native.collect_artifacts(pathlib.Path(root), pathlib.Path(root) / "target", {})
 
 
 if __name__ == "__main__":
