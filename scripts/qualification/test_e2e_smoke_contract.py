@@ -154,9 +154,9 @@ class SmokeContract(unittest.TestCase):
             fixture.mkdir()
             wrapper = source_dir / "check.sh"
             wrapper.write_text(
-                "#!/usr/bin/env bash\\n" + "\\n".join(bindings) +
-                '\\ncd "$1" || exit 40\\n' +
-                '[ -f "$INSPECT" ] && [ -f "$IPC_PROBE" ] || exit 41\\n',
+                "#!/usr/bin/env bash\n" + "\n".join(bindings) +
+                '\ncd "$1" || exit 40\n' +
+                '[ -f "$INSPECT" ] && [ -f "$IPC_PROBE" ] || exit 41\n',
                 encoding="utf-8",
             )
             result = subprocess.run(
