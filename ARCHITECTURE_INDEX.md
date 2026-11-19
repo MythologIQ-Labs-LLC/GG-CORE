@@ -18,8 +18,9 @@ GG-CORE is a **standalone, upstream local inference runtime**. CoreForge is one 
 | Runtime design and module ownership | [Core Runtime Architecture](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md) | Standalone upstream compute and security pipeline |
 | Structural design and interface planning | [Architecture Plan](docs/ARCHITECTURE_PLAN.md) | Intended interfaces; verify against code |
 | Public integration and supported features | [README](README.md), [Feature Index](docs/FEATURE_INDEX.md) | Per-feature and per-surface evidence, not assumed maturity |
-| Embedded API and IPC V1 compatibility | [v1 contract baseline](docs/integration/V1_EMBEDDED_CONTRACT_BASELINE.md), [IPC schema](docs/IPC_PROTOCOL_SCHEMA.md) | Pre-freeze source and wire evidence, not an installed release or ABI guarantee |
+| Embedded API, CLI status and IPC V1 compatibility | [v1 contract baseline](docs/integration/V1_EMBEDDED_CONTRACT_BASELINE.md), [IPC schema](docs/IPC_PROTOCOL_SCHEMA.md), [status source](core-runtime/src/cli/status.rs) | Pre-freeze source/wire evidence; missing measured latency quantiles are null, not invented P95/P99 or release evidence |
 | Security and platform containment | [Security Policy](SECURITY.md) | Windows Job Objects do not isolate network or filesystem; platform guarantees vary |
+| Unsafe Rust and streaming task ownership | [Historical unsafe audit](docs/security/UNSAFE_AUDIT.md), [P0 lifetime remediation #219](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/219) | The prior zero-high-risk finding is superseded; source safety and native worker-drop/resource-release acceptance remain open |
 | Internal governance registry | [Governance Index](docs/GOVERNANCE_INDEX.md) | Process artifact map, separate from architecture ownership |
 | Speculative decoding | [ADR-007 TierSynergy](docs/architecture/ADR-007-TIERSYNERGY-ADAPTIVE-SPECULATIVE-DECODING.md) | Experimental/dormant paths must not be called production-qualified |
 | RC support and rollback | [Release Support and Maintenance](docs/RELEASE_SUPPORT_AND_MAINTENANCE.md) | Pin exact source/binary identities and tested scope |
