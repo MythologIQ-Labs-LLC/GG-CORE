@@ -1,0 +1,28 @@
+name: CUDA qualification contract (model-free)
+
+on:
+  pull_request:
+    paths:
+      - scripts/qualification/gguf_cuda_hidden_device_gate.py
+      - scripts/qualification/test_gguf_cuda_hidden_device_gate.py
+      - .github/workflows/gguf-cuda-qualification-contract.yml
+
+permissions:
+  contents: read
+
+jobs:
+  gate-negative-controls:
+    name: Hidden-device gate regressions (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Execute source-evidence negative controls (no CUDA or model)
+        run: python -m unittest discover -s scripts/qualification -p test_gguf_cuda_hidden_device_gate.py -v
