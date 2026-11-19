@@ -118,14 +118,17 @@ def require_offline_windows():
         raise RuntimeError(f"Offline guest required: active network adapter count = {output!r}")
 
 
-def collect_artifacts(core, report):
-    binaries = sorted((core / "target/debug/deps").glob("*.exe"))
+def collect_artifacts(core, target_dir, report):
+    # The target is private to this single qualification attempt. Hashing
+    # core-runtime/target could silently include stale binaries from previous
+    # heads and falsely attribute them to this source revision.
+    binaries = sorted((target_dir / "debug/deps").glob("*.exe"))
     if not binaries:
         raise RuntimeError("No compiled Windows test binaries were found")
     report["test_binaries"] = [
-        {"path": str(p.relative_to(core)), "sha256": digest(p)} for p in binaries
+        {"path": str(p.relative_to(target_dir)), "sha256": digest(p)} for p in binaries
     ]
-    release = core / "target/release/gg-core-cli.exe"
+    release = target_dir / "release/gg-core-cli.exe"
     if not release.is_file():
         raise RuntimeError("No release-profile gg-core-cli.exe was produced")
     report["cli_release_sha256"] = digest(release)
@@ -151,10 +154,19 @@ def main(argv=None):
         "started_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
         "host_os": platform.platform(), "steps": [],
     }
+    receipt_allowed = False
     try:
         if evidence == repo or repo in evidence.parents:
             raise RuntimeError("Evidence directory must be outside the checkout")
+        # Every acceptance attempt owns a fresh evidence tree and build
+        # directory. Never overwrite an earlier run or reuse compiled bits.
+        if evidence.is_symlink() or (evidence.exists() and any(evidence.iterdir())):
+            raise RuntimeError("Evidence directory must be new or empty; previous receipts are immutable")
         evidence.mkdir(parents=True, exist_ok=True)
+        receipt_allowed = True
+        target_dir = evidence / "cargo-target"
+        if target_dir.exists() or target_dir.is_symlink():
+            raise RuntimeError("Qualification Cargo target directory must start absent")
         require_offline_windows()
         report["model_sha256"] = validate_checkout(repo, args.expected_head, args.model_sha256)
         report["rustc"] = checked_stdout(["rustc", "--version"], core)
@@ -163,9 +175,13 @@ def main(argv=None):
         env = dict(os.environ)
         env["CARGO_NET_OFFLINE"] = "true"
         env["GG_CORE_REQUIRE_REAL_MODEL"] = "1"
+        # Override any inherited CARGO_TARGET_DIR. This rules out false
+        # acceptance of cached test executables from a different Git head.
+        env["CARGO_TARGET_DIR"] = str(target_dir)
+        report["cargo_target_dir"] = str(target_dir)
         for label, command in command_matrix():
             run_step(label, command, core, env, evidence, report)
-        collect_artifacts(core, report)
+        collect_artifacts(core, target_dir, report)
         report["status"] = "SOURCE_AND_NATIVE_TEST_MATRIX_PASS__RELEASE_STILL_HOLD"
         return 0
     except Exception as error:
@@ -174,7 +190,7 @@ def main(argv=None):
         return 1
     finally:
         report["finished_utc"] = dt.datetime.now(dt.timezone.utc).isoformat()
-        if evidence.is_dir():
+        if receipt_allowed:
             (evidence / "receipt.json").write_text(
                 json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
