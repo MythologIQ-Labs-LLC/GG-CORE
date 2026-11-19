@@ -67,6 +67,13 @@ impl LlamaBackendInner {
             .map_err(|e| InferenceError::ModelError(format!("load: {e}")))?;
         let (mut shape, working_bytes) = super::working_memory::shape_for(&model, config.n_ctx);
         shape.gpu_offload = config.n_gpu_layers > 0;
+        // A model whose configured GPU context cannot fit must never be
+        // registered as loadable/ready. Query free device memory after weights
+        // are loaded; create_context rechecks the budget immediately before
+        // allocation to catch later demand or external GPU pressure.
+        if shape.gpu_offload {
+            super::offload::check_context_memory(working_bytes)?;
+        }
         let n_threads = resolve_threads(config.n_threads);
         Ok(Self {
             backend,
