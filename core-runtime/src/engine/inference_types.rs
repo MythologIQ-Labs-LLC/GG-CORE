@@ -140,7 +140,10 @@ mod parameter_admission_tests {
         }
         for temperature in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.01, 2.01] {
             params.temperature = temperature;
-            assert!(params.validate().is_err(), "accepted temperature {temperature:?}");
+            assert!(
+                params.validate().is_err(),
+                "accepted temperature {temperature:?}"
+            );
         }
         params.temperature = 0.7;
         for top_p in [0.000_1_f32, 1.0] {
