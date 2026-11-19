@@ -78,6 +78,41 @@ fn load_and_classify() {
     }
 }
 
+#[test]
+fn nonfinite_model_logits_are_refused_before_softmax() {
+    let labels = vec!["negative".to_string(), "positive".to_string()];
+    for invalid in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        let logits = Tensor::new(vec![invalid, 1.0], &Device::Cpu).expect("construct logits");
+        let error = logits_to_classification(&logits, &labels).expect_err("invalid logits must fail");
+        assert!(
+            matches!(error, InferenceError::ModelError(message) if message.contains("non-finite")),
+            "non-finite logits must not yield success-shaped confidences"
+        );
+    }
+}
+
+#[tokio::test]
+async fn embedded_classifier_rejects_all_batch_sizes_instead_of_dropping_items() {
+    use crate::engine::Model as _;
+
+    let classifier = OnnxClassifier::new("classifier".into(), vec!["negative".into(), "positive".into()]);
+    for batch in [
+        vec!["one".to_string()],
+        vec!["one".to_string(), "two".to_string()],
+    ] {
+        let result = classifier
+            .infer(
+                &InferenceInput::TextBatch(batch),
+                &InferenceConfig::for_classification(),
+            )
+            .await;
+        assert!(
+            matches!(result, Err(InferenceError::CapabilityNotSupported(message)) if message.contains("batch")),
+            "even a singleton batch must not return a scalar classification"
+        );
+    }
+}
+
 fn classifier_with_initializer_bytes(bytes: usize) -> OnnxClassifier {
     // This synthetic ONNX is not intended for inference; it proves the exact
     // resident bytes reported from graph initializer storage, rather than
