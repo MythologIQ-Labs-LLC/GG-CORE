@@ -15,25 +15,28 @@ use std::sync::Arc;
 use common::{greedy, load, report, stream, vram_mib, ALL_LAYERS};
 
 /// ~4M tokens of KV cache is far beyond a 16 GiB device for this model.
+/// Refusal must occur on the first inference context, not at weight load.
 const OVERSIZED_CTX: u32 = 4_000_000;
 
 #[test]
 fn oversized_gpu_context_is_refused_then_a_normal_load_works() {
     report("oom.vram_before_mib", format!("{:?}", vram_mib()));
-    match load(ALL_LAYERS, OVERSIZED_CTX) {
-        Err(e) => {
-            report("oom.outcome", format!("load refused: {e}"));
+    // Loading the model itself is not the dangerous allocation. The KV and
+    // compute buffers are committed on first inference context creation, so
+    // actually request inference and require GG-CORE's pre-allocation guard.
+    let oversized = Arc::new(load(ALL_LAYERS, OVERSIZED_CTX).expect("GPU model weights load"));
+    let attempt = stream(Arc::clone(&oversized), "Hello", greedy(4), None);
+    match attempt.result {
+        Err(ref error) if error.contains("GPU context admission refused before allocation") => {
+            report("oom.outcome", "GPU context rejected before llama.cpp allocation");
             report("oom.refusal", "PASS");
         }
-        Ok(model) => {
-            drop(model);
-            report("oom.refusal", "FAIL (oversized context accepted)");
-            panic!(
-                "4M-token CUDA context was accepted on the pinned 16 GiB acceptance device; \
-                 GG-CORE has not enforced an applicable resource admission bound"
-            );
+        other => {
+            report("oom.refusal", "FAIL (no proven pre-allocation refusal)");
+            panic!("oversized context was not refused by GPU admission: {other:?}");
         }
     }
+    drop(oversized);
     report("oom.vram_after_mib", format!("{:?}", vram_mib()));
     let normal = Arc::new(load(ALL_LAYERS, 1024).expect("normal load after oom"));
     let run = stream(normal, "Hello", greedy(8), None);
