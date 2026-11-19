@@ -30,7 +30,10 @@ fn oversized_gpu_context_is_refused_then_a_normal_load_works() {
                 error.contains("GPU context admission refused before allocation"),
                 "wrong refusal reason, not VRAM preflight: {error}"
             );
-            report("oom.outcome", "model load rejected on GPU context preflight");
+            report(
+                "oom.outcome",
+                "model load rejected on GPU context preflight",
+            );
             report("oom.refusal", "PASS");
         }
         Ok(model) => {
