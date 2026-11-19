@@ -136,7 +136,7 @@ mod tests {
         assert_eq!(canonical_commit(&lower), Some(lower.clone()));
         assert_eq!(canonical_commit(&upper), Some(lower.clone()));
         assert_eq!(
-            canonical_commit(&format!("  {lower}\\n")),
+            canonical_commit(&format!("  {lower}\n")),
             Some(lower)
         );
         for invalid in [
@@ -146,7 +146,7 @@ mod tests {
             "a".repeat(41),
             "g".repeat(40),
             "İ".repeat(20),
-            format!("{}\\nmalicious", "a".repeat(40)),
+            format!("{}\nmalicious", "a".repeat(40)),
         ] {
             assert!(canonical_commit(&invalid).is_none(), "invalid SHA accepted");
         }
