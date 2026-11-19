@@ -235,4 +235,13 @@ else
 fi
 ( unset CORE_AUTH_TOKEN; "$BIN" serve > "$WORK/notoken.log" 2>&1 ); [ $? -ne 0 ] && grep -q "CORE_AUTH_TOKEN is empty" "$WORK/notoken.log" && ok "serve without token refused" || bad "serve without token"
 echo "== RESULT: pass=$pass fail=$fail =="
-[ $fail -eq 0 ]
+if [ "$fail" -ne 0 ]; then
+  echo "Qualification failed; staging and daemon log retained at: $WORK" >&2
+  exit 1
+fi
+# A successful qualification must not leave temporary unpacked binaries.
+# Failure evidence is deliberately retained above for independent inspection.
+if ! rm -rf -- "$WORK"; then
+  echo "FAIL: could not remove successful qualification staging: $WORK" >&2
+  exit 1
+fi
