@@ -155,6 +155,35 @@ fn unknown_incumbent_quality_cannot_be_treated_as_escalation_consent() {
     );
 }
 
+
+#[test]
+fn invalid_incumbent_evidence_cannot_waive_quality_escalation_consent() {
+    use crate::models::backend_capabilities::{ExecutionTarget, InferenceTask};
+
+    let mut host = policy();
+    host.allow_quality_escalation = false;
+    for bad_case in 0..5 {
+        let mut old = light();
+        // A very high, but untrusted/incompatible incumbent score previously
+        // made switching to a qualified candidate look like a downgrade.
+        old.quality_bps = Some(9_900);
+        match bad_case {
+            0 => old.evidence_qualified = false,
+            1 => old.custody_verified = false,
+            2 => old.task = InferenceTask::Embedding,
+            3 => old.target = ExecutionTarget::Cuda,
+            4 => old.streaming_supported = false,
+            _ => unreachable!(),
+        }
+        let plan = choose(&[old, quality()], &host);
+        assert_eq!(
+            plan.action,
+            ModelAction::Refuse(PlanRefusal::QualityEscalationNotAuthorized),
+            "invalid incumbent evidence case {bad_case} cannot grant consent",
+        );
+    }
+}
+
 #[test]
 fn unauthorized_faster_cold_load_cannot_hide_a_permitted_resident() {
     let mut host = policy();
