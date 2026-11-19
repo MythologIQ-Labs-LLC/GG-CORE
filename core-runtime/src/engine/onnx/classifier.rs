@@ -131,6 +131,15 @@ fn logits_to_classification(
         )));
     }
 
+    // Direct Rust Model::infer callers do not pass through the typed IPC
+    // validator. Reject invalid model logits here as well, before softmax can
+    // turn NaN/Infinity into success-shaped, non-serializable confidences.
+    if raw.iter().any(|value| !value.is_finite()) {
+        return Err(InferenceError::ModelError(
+            "classifier logits contain non-finite values".into(),
+        ));
+    }
+
     let probs = softmax(&raw);
     let mut all_labels: Vec<(String, f32)> =
         labels.iter().cloned().zip(probs.iter().copied()).collect();
@@ -185,13 +194,13 @@ impl crate::engine::Model for OnnxClassifier {
                 let result = self.classify_text(text)?;
                 Ok(InferenceOutput::Classification(result))
             }
-            InferenceInput::TextBatch(batch) => {
-                let text = batch.first().ok_or_else(|| {
-                    InferenceError::InputValidation("batch cannot be empty".into())
-                })?;
-                let result = self.classify_text(text)?;
-                Ok(InferenceOutput::Classification(result))
-            }
+            // Classification has a single-result contract. Historically this
+            // branch classified the first item and silently discarded every
+            // remaining batch input. The IPC path already rejects batches;
+            // mirror that fail-closed behavior for embedded Rust consumers.
+            InferenceInput::TextBatch(_) => Err(InferenceError::CapabilityNotSupported(
+                "classification batch results are not yet supported".into(),
+            )),
             InferenceInput::ChatMessages(_) => Err(InferenceError::CapabilityNotSupported(
                 "chat messages not supported for classification".into(),
             )),
