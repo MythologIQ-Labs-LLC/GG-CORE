@@ -28,7 +28,10 @@ fn oversized_gpu_context_is_refused_then_a_normal_load_works() {
     let attempt = stream(Arc::clone(&oversized), "Hello", greedy(4), None);
     match attempt.result {
         Err(ref error) if error.contains("GPU context admission refused before allocation") => {
-            report("oom.outcome", "GPU context rejected before llama.cpp allocation");
+            report(
+                "oom.outcome",
+                "GPU context rejected before llama.cpp allocation",
+            );
             report("oom.refusal", "PASS");
         }
         other => {
