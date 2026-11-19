@@ -155,9 +155,15 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: core-runtime/perf-baseline
-          key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
+          key: criterion-baseline-${{ runner.os }}-criterion-0.8.2-${{ github.sha }}
           restore-keys: |
-            criterion-baseline-${{ runner.os }}-
+            criterion-baseline-${{ runner.os }}-criterion-0.8.2-
+      # rust-cache may restore 0.5.x Criterion analysis files into target/criterion;
+      # 0.8.x expects a different base/sample.json layout. Remove scratch analysis
+      # before measuring so comparison artifacts cannot masquerade as fresh data.
+      # The separate perf-baseline directory is preserved for the run-over-run gate.
+      - name: Discard stale Criterion scratch results
+        run: rm -rf target/criterion
       - name: Perf benches (default-feature, CI-safe set)
         run: |
           cargo bench --locked \
@@ -181,7 +187,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: core-runtime/perf-baseline
-          key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
+          key: criterion-baseline-${{ runner.os }}-criterion-0.8.2-${{ github.sha }}
       - name: Upload criterion baseline
         if: always()
         uses: actions/upload-artifact@v7
