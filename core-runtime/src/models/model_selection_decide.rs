@@ -224,9 +224,19 @@ fn requires_quality_escalation_approval(
     if next.model_id == current_id {
         return false;
     }
+    // An invalid, out-of-scope or unverified incumbent cannot be used as
+    // the comparison baseline for granting an unconsented model escalation.
+    // Caller-supplied scores are advisory, never authenticated evidence.
     let previous_score = offers
         .iter()
-        .find(|model| model.model_id == current_id)
+        .find(|model| {
+            model.model_id == current_id
+                && model.evidence_qualified
+                && model.custody_verified
+                && model.task == policy.task
+                && model.target == policy.target
+                && (!policy.require_streaming || model.streaming_supported)
+        })
         .and_then(|model| model.quality_bps)
         .filter(|score| *score <= 10_000);
     !matches!(
