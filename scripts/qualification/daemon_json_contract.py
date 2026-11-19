@@ -9,29 +9,54 @@ import json
 import sys
 
 
+def unique_json_pairs(pairs):
+    """Ambiguous duplicate object keys are not acceptable qualification evidence."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def reject_non_json_constant(value):
+    raise ValueError(f"non-JSON numeric constant: {value}")
+
+
+def model_entries(payload):
+    """Validate the whole model list, not just a convenient matching entry."""
+    models = payload.get("models") if isinstance(payload, dict) else None
+    if not isinstance(models, list):
+        return None
+    names = set()
+    for model in models:
+        if not isinstance(model, dict):
+            return None
+        name, state = model.get("name"), model.get("state")
+        if not isinstance(name, str) or not name or not isinstance(state, str) or not state:
+            return None
+        if name in names:
+            return None
+        names.add(name)
+    return models
+
+
 def healthy(payload):
     return isinstance(payload, dict) and payload.get("health") == "healthy"
 
 
 def ready_model(payload, model_id):
-    models = payload.get("models") if isinstance(payload, dict) else None
-    return isinstance(models, list) and any(
-        isinstance(model, dict)
-        and model.get("name") == model_id
-        and model.get("state") == "ready"
+    models = model_entries(payload)
+    return models is not None and any(
+        model["name"] == model_id and model["state"] == "ready"
         for model in models
     )
 
 
 def absent_model(payload, model_id):
     """Refuse malformed registries; confirm the exact ID is absent in ALL states."""
-    models = payload.get("models") if isinstance(payload, dict) else None
-    return isinstance(models, list) and all(
-        isinstance(model, dict)
-        and isinstance(model.get("name"), str)
-        and model["name"] != model_id
-        for model in models
-    )
+    models = model_entries(payload)
+    return models is not None and all(model["name"] != model_id for model in models)
 
 
 def main(argv=None):
@@ -44,7 +69,11 @@ def main(argv=None):
     ):
         return 2
     try:
-        payload = json.load(sys.stdin)
+        payload = json.load(
+            sys.stdin,
+            object_pairs_hook=unique_json_pairs,
+            parse_constant=reject_non_json_constant,
+        )
     except (ValueError, UnicodeError):
         return 1
     if args[0] == "health":
