@@ -99,6 +99,23 @@ fn no_unknown_quality_or_memory_or_latency_is_fabricated() {
 }
 
 #[test]
+fn zero_resident_or_working_memory_is_invalid_evidence() {
+    // No real inference-capable model consumes zero resident AND/OR working
+    // bytes; permitting zero makes unmeasured resource costs look free.
+    for (resident, working) in [(0, 300), (1_500, 0)] {
+        let mut candidate = quality();
+        candidate.resident_memory_bytes = Some(resident);
+        candidate.working_memory_bytes = Some(working);
+        let trace = choose(&[candidate], &policy());
+        assert_eq!(
+            trace.assessments[0].refusal,
+            Some(CandidateRefusal::MissingOrInvalidEvidence),
+            "zero resource estimate ({resident}, {working}) cannot qualify",
+        );
+    }
+}
+
+#[test]
 fn quality_memory_latency_and_overflow_are_hard_limits() {
     let mut m = quality();
     m.quality_bps = Some(6_999);
