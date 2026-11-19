@@ -86,10 +86,14 @@ fn q3_gpu_stream_cancellation_stops_and_model_stays_usable() {
     let model = Arc::new(load(ALL_LAYERS, 1024).expect("load"));
     let cancelled = stream(Arc::clone(&model), PROMPTS[1], greedy(256), Some(8));
     report("cancel.tokens_after_stop_at_8", cancelled.tokens);
-    assert!(
-        cancelled.tokens < 256,
-        "cancellation did not stop the stream"
-    );
+    report("cancel.stop_observed", cancelled.stop_observed);
+    report("cancel.backend_result", format!("{:?}", cancelled.result));
+    assert!(cancelled.tokens >= 8, "model ended before reaching the stop threshold");
+    assert!(cancelled.stop_observed, "backend never observed the cancellation predicate");
+    // generate_stream currently returns Ok(()) after stopping. Its Result alone
+    // cannot distinguish cancellation from EOS or max-tokens completion.
+    assert!(cancelled.result.is_ok(), "backend failed: {:?}", cancelled.result);
+    assert!(cancelled.tokens < 256, "stream did not stop before the max-token limit");
     let next = stream(model, PROMPTS[0], greedy(16), None);
     assert!(
         next.result.is_ok() && next.tokens > 0,
@@ -141,6 +145,10 @@ fn q5_concurrent_gpu_generations_match_serial() {
         report(
             &format!("concurrent.round{round}.matches_serial"),
             got == serial,
+        );
+        assert_eq!(
+            got, serial,
+            "GPU concurrency round {round} diverged from serial greedy output"
         );
     }
 }
