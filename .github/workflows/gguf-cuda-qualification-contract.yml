@@ -7,11 +7,13 @@ on:
     paths:
       - scripts/qualification/gguf_cuda_hidden_device_gate.py
       - scripts/qualification/test_gguf_cuda_hidden_device_gate.py
+      - core-runtime/tests/gguf_cuda_hidden_device_test.rs
       - .github/workflows/gguf-cuda-qualification-contract.yml
   pull_request:
     paths:
       - scripts/qualification/gguf_cuda_hidden_device_gate.py
       - scripts/qualification/test_gguf_cuda_hidden_device_gate.py
+      - core-runtime/tests/gguf_cuda_hidden_device_test.rs
       - .github/workflows/gguf-cuda-qualification-contract.yml
 
 permissions:
