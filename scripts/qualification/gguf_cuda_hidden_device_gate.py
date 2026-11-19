@@ -33,6 +33,45 @@ def checked(argv, cwd=None):
     return subprocess.check_output(argv, cwd=cwd, text=True, stderr=subprocess.STDOUT).strip()
 
 
+# Build-sensitive locations that must not contain Git-ignored additions.
+# `git status --porcelain` hides ignored files, including source files.
+BUILD_INPUT_PATHS = (
+    "core-runtime/src",
+    "core-runtime/tests",
+    "core-runtime/benches",
+    "core-runtime/build.rs",
+    "core-runtime/.cargo",
+    ".cargo",
+)
+
+# Reject build-affecting Cargo/Rust overrides rather than inheriting them into
+# a supposedly exact-source offline compilation. Credentials and cache paths
+# must not be included in the public receipt.
+BUILD_OVERRIDE_NAMES = frozenset({
+    "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "RUSTC", "RUSTC_WRAPPER",
+    "RUSTC_WORKSPACE_WRAPPER", "RUSTDOCFLAGS", "CARGO_BUILD_TARGET",
+    "CARGO_HOME", "CARGO_TARGET_DIR", "CARGO_BUILD_RUSTC",
+    "CARGO_BUILD_RUSTC_WRAPPER",
+})
+
+
+def validate_build_inputs(repo, environ):
+    ignored = checked([
+        "git", "ls-files", "--others", "--ignored", "--exclude-standard",
+        "--", *BUILD_INPUT_PATHS,
+    ], repo)
+    if ignored:
+        raise RuntimeError("Ignored build input exists under source/Cargo paths")
+    overrides = sorted(
+        name for name in environ
+        if name.upper() in BUILD_OVERRIDE_NAMES
+        or name.upper().startswith(("CARGO_PROFILE_", "CARGO_TARGET_", "CARGO_BUILD_"))
+    )
+    if overrides:
+        raise RuntimeError("Unapproved compilation environment override(s): "
+                           + ", ".join(overrides))
+
+
 def validate(repo, expected):
     if not re.fullmatch(r"[0-9a-f]{40}", expected):
         raise ValueError("Expected Git revision must be the full 40-character SHA")
@@ -44,6 +83,7 @@ def validate(repo, expected):
     )
     if dirty:
         raise RuntimeError("Dirty or untracked source; exact-head evidence refused")
+    validate_build_inputs(repo, os.environ)
     model = repo / MODEL
     if not model.is_file():
         raise RuntimeError("Approved model file is missing")
