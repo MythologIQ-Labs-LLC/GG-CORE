@@ -5,7 +5,7 @@
 
 use gg_core::engine::onnx::OnnxDevice;
 use gg_core::engine::{ClassificationResult, InferenceInput, InferenceOutput, OnnxConfig};
-use gg_core::models::ModelLoader;
+use gg_core::models::{LoadError, ModelLoader};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -117,7 +117,7 @@ async fn test_end_to_end_latency_measurement() {
 
     // Step 1: Model validation
     let validation_start = Instant::now();
-    let _validation = loader.validate_path("fixtures/models/onnx/tinybert-classifier.onnx");
+    let validation = loader.validate_path("fixtures/models/onnx/tinybert-classifier.onnx");
     let validation_time = validation_start.elapsed();
 
     // Step 2: Input creation
@@ -145,10 +145,14 @@ async fn test_end_to_end_latency_measurement() {
         "Total end-to-end time should be <100 ms"
     );
 
-    // Validate individual components are fast
+    // Path validation resolves the real filesystem (physical containment), so
+    // its wall-clock time depends on host I/O and parallel test load: a fixed
+    // 10 ms bound failed at 13.8 ms on the offline Windows qualification VM
+    // (#225). Assert its deterministic outcome instead; latency stays logged.
+    // `fixtures/` is outside the loader's allowed roots, so it must refuse.
     assert!(
-        validation_time.as_millis() < 10,
-        "Model validation should be fast"
+        matches!(validation, Err(LoadError::PathNotAllowed(_))),
+        "fixtures/ must be refused by loader containment: {validation:?}"
     );
     assert!(
         input_time.as_nanos() < 1_000_000,
