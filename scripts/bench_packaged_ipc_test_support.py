@@ -74,27 +74,38 @@ class MockDaemon:
                     elapsed = -1 if self.behavior == "invalid_warmup_elapsed" else 1
                     peer.sendall(frame({"type": "warmup_response", "model_id": model_id, "success": True, "error": None, "elapsed_ms": elapsed}))
                 elif request["type"] == "inference_request":
-                    rid = request["request_id"]
-                    if self.behavior == "wrong_id":
-                        rid += 1
-                    if request["parameters"]["stream"]:
-                        messages = [
-                            {"type": "stream_chunk", "request_id": rid, "is_final": False, "token": (123 if self.behavior == "raw_token" else True if self.behavior == "boolean_token" else 0), "text": "hello", "error": None},
-                            {"type": "stream_chunk", "request_id": rid, "is_final": True, "token": 0, "text": None, "error": None},
-                        ]
-                        # Send two messages in one write, in small chunks to stress frame parsing.
-                        wire = b"".join(frame(message) for message in messages)
-                        try:
-                            for position in range(0, len(wire), 7):
-                                peer.sendall(wire[position:position + 7])
-                        except (BrokenPipeError, ConnectionResetError):
-                            return
-                    else:
-                        output = 123 if self.behavior == "invalid_output_type" else "hello"
-                        finished = "true" if self.behavior == "invalid_finished_type" else True
-                        peer.sendall(frame({"type": "inference_response", "request_id": rid, "output": output, "tokens_generated": 2, "finished": finished, "error": None}))
+                    self.reply_inference(peer, request)
                 else:
                     peer.sendall(frame({"type": "error", "code": 400, "message": "bad request"}))
+
+    def reply_inference(self, peer, request):
+        rid = request["request_id"]
+        if self.behavior == "wrong_id":
+            rid += 1
+        if request["parameters"]["stream"]:
+            messages = [
+                {"type": "stream_chunk", "request_id": rid, "is_final": False,
+                 "token": (123 if self.behavior == "raw_token" else
+                           True if self.behavior == "boolean_token" else 0),
+                 "text": "hello", "error": None},
+                {"type": "stream_chunk", "request_id": rid, "is_final": True,
+                 "token": 0, "text": None, "error": None},
+            ]
+            wire = b"".join(frame(message) for message in messages)
+            try:
+                for position in range(0, len(wire), 7):
+                    peer.sendall(wire[position:position + 7])
+            except (BrokenPipeError, ConnectionResetError):
+                return
+        else:
+            output = 123 if self.behavior == "invalid_output_type" else "hello"
+            finished = "true" if self.behavior == "invalid_finished_type" else True
+            peer.sendall(frame({
+                "type": "inference_response", "request_id": rid,
+                "output": output, "tokens_generated": 2,
+                "finished": finished, "error": None,
+            }))
+
 
     def close(self):
         self.stopped.set()
