@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import subprocess
 import socket
 import tempfile
 import struct
@@ -35,6 +36,38 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: file.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+def verify_packaged_binary(binary: Path, expected_commit: str) -> dict:
+    """Bind the supplied executable bytes to its compile-time source identity.
+
+    This intentionally does NOT attest the already-running daemon process.
+    The operator must independently bind its PID/image and loaded model.
+    """
+    try:
+        result = subprocess.run(
+            [str(binary.resolve(strict=True)), "version", "--json"],
+            cwd=str(binary.parent), capture_output=True, timeout=10, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ProtocolFailure("packaged binary version execution failed") from exc
+    if result.returncode != 0:
+        raise ProtocolFailure("packaged binary version command refused")
+    try:
+        info = json.loads(result.stdout)
+    except (ValueError, UnicodeError) as exc:
+        raise ProtocolFailure("packaged binary version is not JSON") from exc
+    if not isinstance(info, dict) or info.get("name") != "GG-CORE":
+        raise ProtocolFailure("unexpected packaged binary identity")
+    if info.get("commit") != expected_commit:
+        raise ProtocolFailure("packaged binary source commit mismatch")
+    if info.get("protocol_version") != "V1":
+        raise ProtocolFailure("packaged binary protocol mismatch")
+    if not isinstance(info.get("features"), list) or "gguf" not in info["features"]:
+        raise ProtocolFailure("packaged binary lacks GGUF inference feature")
+    if not isinstance(info.get("version"), str) or not info["version"]:
+        raise ProtocolFailure("packaged binary version absent")
+    return {"version": info["version"], "commit": info["commit"],
+            "protocol_version": info["protocol_version"]}
 
 
 class IpcClient:
@@ -240,6 +273,7 @@ def run_benchmark(args):
             raise ValueError("model fixture is not a real GGUF file (possible Git LFS pointer)")
     model_hash = file_sha256(args.model_file)
     binary_hash = file_sha256(args.daemon_binary)
+    binary_version = verify_packaged_binary(args.daemon_binary, args.producer_sha)
     with IpcClient(args.socket, args.timeout_ms / 1000 + 5) as client:
         handshake_ms = client.authenticate(token)
         warmup_start = time.perf_counter()
@@ -264,6 +298,7 @@ def run_benchmark(args):
         "producer_sha": args.producer_sha,
         "model_sha256": model_hash,
         "daemon_sha256": binary_hash,
+        "packaged_binary_version": binary_version,
         "prompt_sha256": hashlib.sha256(prompt_bytes).hexdigest(),
         "model_id": args.model_id,
         "host": {"platform": platform.platform(), "machine": platform.machine(),
@@ -278,7 +313,7 @@ def run_benchmark(args):
         "results": records,
         "limitations": [
             "The benchmark rejects raw token IDs; it does not independently prove PII/injection decision parity.",
-            "Source SHA and model-file hash are caller-supplied associations; the running daemon's binary/model identity is not independently attested.",
+            "The supplied binary's version and source commit are executed and checked; the running daemon's PID/image and loaded model identity are NOT independently attested.",
             "First-sanitized-text latency is not equivalent to model-native TTFT.",
             "Measured latency starts at request send and excludes connection/authentication, model loading, and model download.",
             "This run does not independently verify sandbox state, security-decision parity, RSS, or token throughput.",
