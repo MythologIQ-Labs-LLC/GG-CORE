@@ -77,11 +77,11 @@ class NativeBuildInputGuards(unittest.TestCase):
             repo = Path(folder)
             subprocess.run(["git", "init", "-q", str(repo)], check=True)
             (repo / ".gitignore").write_text(
-                "core-runtime/src/models/tier_synergy.rs\\n", encoding="utf-8"
+                "core-runtime/src/models/tier_synergy.rs\n", encoding="utf-8"
             )
             ignored = repo / "core-runtime/src/models/tier_synergy.rs"
             ignored.parent.mkdir(parents=True)
-            ignored.write_text("// changed native build input\\n", encoding="utf-8")
+            ignored.write_text("// changed native build input\n", encoding="utf-8")
             # The ordinary clean-tree command does not reveal this file.
             status = gate.checked([
                 "git", "status", "--porcelain", "--untracked-files=all",
