@@ -1,0 +1,22 @@
+name: Packaged IPC performance probe contract (model-free)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/packaged-ipc-perf-contract.yml'
+      - 'scripts/bench_packaged_ipc.py'
+      - 'scripts/test_bench_packaged_ipc.py'
+      - 'docs/performance/PACKAGED_IPC_LATENCY.md'
+
+permissions:
+  contents: read
+
+jobs:
+  framed-ipc-probe-regressions:
+    name: Offline framed-IPC and provenance negatives
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute Python standard-library model-free contract tests
+        run: python3 -W error::ResourceWarning -m unittest discover -s scripts -p 'test_bench_packaged_ipc.py' -v
