@@ -40,7 +40,7 @@ fn common_prefix_chars(a: &str, b: &str) -> usize {
 }
 
 #[test]
-fn q1_gpu_greedy_output_matches_cpu_baseline() {
+fn q1_gpu_greedy_output_characterization_against_cpu() {
     let cpu = load(0, 1024).expect("cpu load");
     let gpu = load(ALL_LAYERS, 1024).expect("gpu load");
     for (i, prompt) in PROMPTS.iter().enumerate() {
@@ -48,7 +48,12 @@ fn q1_gpu_greedy_output_matches_cpu_baseline() {
             infer(&cpu, prompt, &greedy(64)),
             infer(&gpu, prompt, &greedy(64)),
         );
-        report(&format!("correctness.p{i}.exact"), c == g);
+        let exact = c == g;
+        report(&format!("correctness.p{i}.exact"), exact);
+        report(
+            &format!("correctness.p{i}.parity_claim"),
+            if exact { "EXACT" } else { "NOT_QUALIFIED_DIFFERENT" },
+        );
         report(
             &format!("correctness.p{i}.prefix_chars"),
             common_prefix_chars(&c, &g),
@@ -57,6 +62,7 @@ fn q1_gpu_greedy_output_matches_cpu_baseline() {
         report(&format!("correctness.p{i}.gpu"), format!("{g:?}"));
         assert!(!g.trim().is_empty(), "GPU produced no text for {prompt:?}");
     }
+    report("correctness.release_qualification", "NOT_QUALIFIED (tolerance not approved)");
 }
 
 fn measure(layers: u32, label: &str, runs: usize) {
@@ -102,9 +108,17 @@ fn q3_gpu_stream_cancellation_stops_and_model_stays_usable() {
 }
 
 #[test]
-fn q4_release_and_cpu_gpu_transitions_return_vram() {
+fn q4_cpu_gpu_transition_vram_characterization_only() {
     let base = vram_mib();
     report("vram.baseline_mib", format!("{base:?}"));
+    report(
+        "vram.telemetry",
+        if base.is_some() {
+            "AGGREGATE_DEVICE_ONLY"
+        } else {
+            "NOT_QUALIFIED_MISSING_PINNED_GPU_UUID_OR_NVSMI"
+        },
+    );
     for cycle in 0..3 {
         let gpu = load(ALL_LAYERS, 1024).expect("gpu load");
         report(
@@ -124,6 +138,10 @@ fn q4_release_and_cpu_gpu_transitions_return_vram() {
             format!("{:?}", vram_mib()),
         );
     }
+    report(
+        "vram.release_qualification",
+        "NOT_QUALIFIED (no process attribution or approved recovery bound)",
+    );
 }
 
 #[test]
