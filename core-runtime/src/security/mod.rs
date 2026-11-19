@@ -9,6 +9,7 @@
 //! - Enterprise audit logging
 
 pub mod audit;
+mod audit_timestamp;
 pub mod audit_types;
 pub mod encryption;
 pub mod encryption_core;
