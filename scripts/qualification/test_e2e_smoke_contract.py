@@ -7,6 +7,7 @@ qualification. Does not download files, build Rust, or contact any daemon.
 import os
 import pathlib
 import subprocess
+import tarfile
 import tempfile
 import unittest
 
@@ -165,6 +166,40 @@ class SmokeContract(unittest.TestCase):
                 text=True, timeout=10, check=False,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rc_acceptance_rejects_invalid_package_before_starting_daemon(self):
+        """Malformed archives cannot fall through to incomplete packaged checks."""
+        script = ROOT / "scripts" / "rc-acceptance.sh"
+        with tempfile.TemporaryDirectory(prefix="gg-core-rc-package-") as folder:
+            root = pathlib.Path(folder)
+            model_base = root / "model base"
+            model_base.mkdir()
+            bad_archive = root / "corrupt.tar.gz"
+            bad_archive.write_bytes(b"not a gzip/tar archive")
+            fail = subprocess.run(
+                ["bash", str(script), str(bad_archive), str(model_base)],
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=10, check=False,
+            )
+            self.assertNotEqual(fail.returncode, 0)
+            self.assertIn("package archive extraction failed", fail.stderr)
+            self.assertNotIn("== daemon", fail.stdout)
+
+            # A valid tar with two package roots must also fail before startup.
+            multi_archive = root / "multi-root.tar.gz"
+            with tarfile.open(multi_archive, "w:gz") as tar:
+                for name in ("package-one", "package-two"):
+                    directory = root / name
+                    directory.mkdir()
+                    tar.add(directory, arcname=name, recursive=False)
+            multi = subprocess.run(
+                ["bash", str(script), str(multi_archive), str(model_base)],
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=10, check=False,
+            )
+            self.assertNotEqual(multi.returncode, 0)
+            self.assertIn("expected exactly one real package root directory", multi.stderr)
+            self.assertNotIn("== daemon", multi.stdout)
 
     def test_scripts_cannot_silently_fetch_models_or_certify_release(self):
         bash = BASH.read_text(encoding="utf-8")
