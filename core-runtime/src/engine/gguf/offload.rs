@@ -8,7 +8,7 @@
 //! keeps the exact CPU-only behavior.
 
 use llama_cpp_2::{
-    llama_backend::LlamaBackend, list_llama_ggml_backend_devices, LlamaBackendDeviceType,
+    list_llama_ggml_backend_devices, llama_backend::LlamaBackend, LlamaBackendDeviceType,
 };
 
 use crate::engine::InferenceError;
@@ -35,7 +35,6 @@ pub(super) fn check(backend: &LlamaBackend, n_gpu_layers: u32) -> Result<(), Inf
     require_offload_device(n_gpu_layers, backend.supports_gpu_offload())
 }
 
-
 const GPU_MIN_HEADROOM: usize = 256 * 1024 * 1024;
 const GPU_HEADROOM_FRACTION: usize = 10;
 
@@ -50,10 +49,12 @@ const GPU_HEADROOM_FRACTION: usize = 10;
 pub(super) fn check_context_memory(required_bytes: usize) -> Result<(), InferenceError> {
     let eligible: Vec<_> = list_llama_ggml_backend_devices()
         .into_iter()
-        .filter(|dev| matches!(
-            dev.device_type,
-            LlamaBackendDeviceType::Gpu | LlamaBackendDeviceType::IntegratedGpu
-        ))
+        .filter(|dev| {
+            matches!(
+                dev.device_type,
+                LlamaBackendDeviceType::Gpu | LlamaBackendDeviceType::IntegratedGpu
+            )
+        })
         .map(|dev| (dev.memory_free, dev.memory_total))
         .collect();
     admit_gpu_working_set(required_bytes, &eligible)

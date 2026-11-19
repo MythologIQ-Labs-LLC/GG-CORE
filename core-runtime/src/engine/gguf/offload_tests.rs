@@ -79,7 +79,9 @@ fn gpu_preflight_refuses_missing_invalid_or_overflowed_device_readings() {
 #[test]
 fn gpu_preflight_requires_all_eligible_devices_to_fit_until_pinned() {
     assert!(super::admit_gpu_working_set(GIB, &[(12 * GIB, 16 * GIB), (2 * GIB, 8 * GIB)]).is_ok());
-    assert!(super::admit_gpu_working_set(3 * GIB, &[(12 * GIB, 16 * GIB), (2 * GIB, 8 * GIB)]).is_err());
+    assert!(
+        super::admit_gpu_working_set(3 * GIB, &[(12 * GIB, 16 * GIB), (2 * GIB, 8 * GIB)]).is_err()
+    );
 }
 
 #[test]
