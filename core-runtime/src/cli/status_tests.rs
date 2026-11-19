@@ -133,6 +133,35 @@ fn build_status_populates_speculative_stats_from_metrics() {
     assert!(build_speculative_stats(&None).is_none());
 }
 
+#[cfg(feature = "advanced")]
+#[test]
+fn speculative_status_does_not_fabricate_ipc_latency_or_speedup() {
+    let stats = SpeculativeSessionStats {
+        draft_tokens_generated: 40,
+        verification_steps: 10,
+        accepted_tokens: 30,
+        rejected_tokens: 10,
+        mean_accepted_length: 3.0,
+        acceptance_rate: 0.75,
+        // These internal values are placeholders in the CLI's IPC projection,
+        // not observed timings or measured performance.
+        mean_draft_latency_us: 0.0,
+        mean_verify_latency_us: 0.0,
+        net_speedup: 0.0,
+        auto_disable_count: 0,
+        auto_disable_reason: None,
+    };
+    let rendered = format_speculative_stats(&stats);
+    assert!(rendered.contains("75.0% acceptance"));
+    assert!(rendered.contains("Steps: 10"));
+    assert!(rendered.contains("Draft tokens: 40"));
+    assert!(rendered.contains("speedup N/A (IPC)"));
+    assert!(rendered.contains("Mean draft latency: N/A (IPC)"));
+    assert!(rendered.contains("Mean verify latency: N/A (IPC)"));
+    assert!(!rendered.contains("0.00x"));
+    assert!(!rendered.contains("0.0 us"));
+}
+
 #[test]
 fn status_never_invents_quantiles_from_min_max_snapshot() {
     use crate::telemetry::{HistogramSummary, MetricsSnapshot};
