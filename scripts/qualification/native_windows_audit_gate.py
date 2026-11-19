@@ -17,6 +17,11 @@ import subprocess
 import sys
 import time
 
+# No __pycache__ in the checkout: it would itself be an ignored build-tree entry.
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import native_gate_inputs as inputs  # noqa: E402
+
 MODEL_RELATIVE = Path("models/qwen2.5-0.5b-instruct-q4_k_m.gguf")
 # Must match the release workflow's pinned GGUF artifact. Accepting any
 # caller-provided matching digest would let a different model masquerade as
@@ -88,11 +93,15 @@ def validate_checkout(repo, expected_head, expected_model):
     head = checked_stdout(["git", "rev-parse", "HEAD"], repo)
     if head != expected_head:
         raise RuntimeError(f"Checkout {head} differs from expected {expected_head}")
-    # Include untracked files: a local .cargo/config or source sidecar can change
-    # the compiled artifact despite an unchanged Git HEAD. Exclude only the
-    # independently hash-checked real fixture, never a whole source directory.
-    dirty = checked_stdout(["git", "status", "--porcelain", "--untracked-files=all",
+    # Include untracked AND ignored files: a local .cargo/config, a gitignored
+    # source module or another sidecar can change the compiled artifact despite
+    # an unchanged Git HEAD. Exclude only the independently hash-checked real
+    # fixture, never a whole source directory.
+    dirty = checked_stdout(["git", "status", "--porcelain", "--ignored", "--untracked-files=all",
                             "--", ".", ":!" + MODEL_RELATIVE.as_posix()], repo)
+    ignored = [line[3:] for line in dirty.splitlines() if line.startswith("!! ")]
+    if ignored:
+        raise RuntimeError(f"Ignored build inputs present; native evidence requires a clean export: {ignored}")
     if dirty:
         raise RuntimeError("Uncommitted or untracked source exists; native evidence requires exact HEAD")
     model = repo / MODEL_RELATIVE
@@ -169,8 +178,8 @@ def main(argv=None):
             raise RuntimeError("Qualification Cargo target directory must start absent")
         require_offline_windows()
         report["model_sha256"] = validate_checkout(repo, args.expected_head, args.model_sha256)
-        report["rustc"] = checked_stdout(["rustc", "--version"], core)
-        report["cargo"] = checked_stdout(["cargo", "--version"], core)
+        report["build_inputs"] = inputs.require_controlled_build(repo, os.environ)
+        report.update(inputs.toolchain_identity(core))
         report["cargo_deny_version"] = checked_stdout(["cargo", "deny", "--version"], core)
         env = dict(os.environ)
         env["CARGO_NET_OFFLINE"] = "true"
