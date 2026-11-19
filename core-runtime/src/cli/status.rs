@@ -91,9 +91,11 @@ pub struct RequestStats {
     pub failed_requests: u64,
     pub requests_per_second: f64,
     pub avg_latency_ms: f64,
-    pub p50_latency_ms: f64,
-    pub p95_latency_ms: f64,
-    pub p99_latency_ms: f64,
+    /// Actual observed quantile, when supported by measured distribution data.
+    /// None means unavailable; never derive it from a min/max summary.
+    pub p50_latency_ms: Option<f64>,
+    pub p95_latency_ms: Option<f64>,
+    pub p99_latency_ms: Option<f64>,
     pub tokens_generated: u64,
     pub tokens_per_second: f64,
 }
@@ -212,12 +214,34 @@ fn build_status(
 
     let models = build_models_list(&models_response);
 
-    SystemStatus {
-        health: if health_ok {
-            HealthState::Healthy
-        } else {
+    // Full health distinguishes degraded readiness (for example a full
+    // queue) from actual unhealthy shutdown. The boolean `ok` is readiness,
+    // not the full state: mapping !ok directly to Unhealthy lies about the
+    // daemon. An absent full report or unavailable metrics/model listing also
+    // cannot certify healthy, complete status (#222).
+    let health = match report.as_ref() {
+        Some(r)
+            if matches!(r.state, crate::health::HealthState::Unhealthy)
+                || !r.accepting_requests =>
+        {
             HealthState::Unhealthy
-        },
+        }
+        Some(r)
+            if !health_ok
+                || !r.ready
+                || matches!(r.state, crate::health::HealthState::Degraded)
+                || metrics.is_none()
+                || models_response.is_none() =>
+        {
+            HealthState::Degraded
+        }
+        Some(_) => HealthState::Healthy,
+        None if health_ok => HealthState::Degraded,
+        None => HealthState::Unhealthy,
+    };
+
+    SystemStatus {
+        health,
         uptime_secs,
         version: VersionInfo {
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -238,9 +262,12 @@ fn build_status(
             failed_requests,
             requests_per_second: rps,
             avg_latency_ms,
-            p50_latency_ms: latency_hist.map(|h| h.min).unwrap_or(0.0),
-            p95_latency_ms: latency_hist.map(|h| h.max * 0.95).unwrap_or(0.0),
-            p99_latency_ms: latency_hist.map(|h| h.max * 0.99).unwrap_or(0.0),
+            // MetricsSnapshot currently exports count/sum/min/max, not raw
+            // samples or sufficient quantile distribution data. Any number
+            // computed as p95 = max * 0.95 would be fabricated evidence.
+            p50_latency_ms: None,
+            p95_latency_ms: None,
+            p99_latency_ms: None,
             tokens_generated,
             tokens_per_second: tps,
         },
@@ -267,7 +294,29 @@ fn build_status(
             avg_batch_size: 0.0,
         },
         gpus: None,
-        recent_events: vec![],
+        recent_events: [
+            report.is_none().then(|| Event {
+                timestamp: "N/A".into(),
+                event_type: "status_ipc".into(),
+                message: "Full health IPC report unavailable; status is incomplete".into(),
+                severity: EventSeverity::Warning,
+            }),
+            metrics.is_none().then(|| Event {
+                timestamp: "N/A".into(),
+                event_type: "status_ipc".into(),
+                message: "Metrics IPC response unavailable; statistics are incomplete".into(),
+                severity: EventSeverity::Warning,
+            }),
+            models_response.is_none().then(|| Event {
+                timestamp: String::new(),
+                event_type: "status_ipc".into(),
+                message: "Models IPC response unavailable; model list is incomplete".into(),
+                severity: EventSeverity::Warning,
+            }),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
         #[cfg(feature = "advanced")]
         speculative_stats: build_speculative_stats(&metrics),
     }
@@ -327,24 +376,22 @@ fn build_models_list(resp: &Option<crate::ipc::ModelsListResponse>) -> Vec<Model
             r.models
                 .iter()
                 .map(|m| {
-                    let avg = if m.request_count > 0 {
-                        m.avg_latency_ms / m.request_count as f64
-                    } else {
-                        0.0
-                    };
+                    // ModelInfo.avg_latency_ms is already total / count in
+                    // ipc::handler. Do not divide it by count a second time.
                     ModelStatus {
                         name: m.name.clone(),
                         format: m.format.clone(),
                         size_bytes: m.size_bytes,
                         loaded_at: m.loaded_at.clone(),
                         request_count: m.request_count,
-                        avg_latency_ms: avg,
+                        avg_latency_ms: m.avg_latency_ms,
                         state: match m.state.as_str() {
                             "loading" => ModelState::Loading,
                             "ready" => ModelState::Ready,
                             "unloading" => ModelState::Unloading,
                             "error" => ModelState::Error,
-                            _ => ModelState::Ready,
+                            // Never treat unknown producer state as serving-ready.
+                            _ => ModelState::Error,
                         },
                     }
                 })

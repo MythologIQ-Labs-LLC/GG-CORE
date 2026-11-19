@@ -63,9 +63,9 @@ fn test_system_status_serialization() {
             failed_requests: 10,
             requests_per_second: 10.5,
             avg_latency_ms: 50.0,
-            p50_latency_ms: 45.0,
-            p95_latency_ms: 100.0,
-            p99_latency_ms: 150.0,
+            p50_latency_ms: Some(45.0),
+            p95_latency_ms: Some(100.0),
+            p99_latency_ms: Some(150.0),
             tokens_generated: 50000,
             tokens_per_second: 25.0,
         },
@@ -131,4 +131,237 @@ fn build_status_populates_speculative_stats_from_metrics() {
     // No speculative activity, or no metrics at all -> None.
     assert!(build_speculative_stats(&Some(snap(0, 0, 0))).is_none());
     assert!(build_speculative_stats(&None).is_none());
+}
+
+#[cfg(feature = "advanced")]
+#[test]
+fn speculative_status_does_not_fabricate_ipc_latency_or_speedup() {
+    let stats = SpeculativeSessionStats {
+        draft_tokens_generated: 40,
+        verification_steps: 10,
+        accepted_tokens: 30,
+        rejected_tokens: 10,
+        mean_accepted_length: 3.0,
+        acceptance_rate: 0.75,
+        // These internal values are placeholders in the CLI's IPC projection,
+        // not observed timings or measured performance.
+        mean_draft_latency_us: 0.0,
+        mean_verify_latency_us: 0.0,
+        net_speedup: 0.0,
+        auto_disable_count: 0,
+        auto_disable_reason: None,
+    };
+    let rendered = format_speculative_stats(&stats);
+    assert!(rendered.contains("75.0% acceptance"));
+    assert!(rendered.contains("Steps: 10"));
+    assert!(rendered.contains("Draft tokens: 40"));
+    assert!(rendered.contains("speedup N/A (IPC)"));
+    assert!(rendered.contains("Mean draft latency: N/A (IPC)"));
+    assert!(rendered.contains("Mean verify latency: N/A (IPC)"));
+    assert!(!rendered.contains("0.00x"));
+    assert!(!rendered.contains("0.0 us"));
+}
+
+#[test]
+fn status_never_invents_quantiles_from_min_max_snapshot() {
+    use crate::telemetry::{HistogramSummary, MetricsSnapshot};
+    use std::collections::HashMap;
+
+    let mut histograms = HashMap::new();
+    histograms.insert(
+        "core_inference_latency_ms".to_string(),
+        HistogramSummary {
+            count: 10,
+            sum: 1_000.0,
+            min: 1.0,
+            max: 500.0,
+        },
+    );
+    let metrics = MetricsSnapshot {
+        counters: HashMap::new(),
+        gauges: HashMap::new(),
+        histograms,
+        bucketed_histograms: HashMap::new(),
+    };
+    let status = build_status(true, None, Some(metrics), None);
+    assert_eq!(status.requests.avg_latency_ms, 100.0);
+    assert_eq!(status.requests.p50_latency_ms, None);
+    assert_eq!(status.requests.p95_latency_ms, None);
+    assert_eq!(status.requests.p99_latency_ms, None);
+
+    let serialized = serde_json::to_value(&status).unwrap();
+    assert!(serialized["requests"]["p50_latency_ms"].is_null());
+    assert!(serialized["requests"]["p95_latency_ms"].is_null());
+    assert!(serialized["requests"]["p99_latency_ms"].is_null());
+}
+
+#[test]
+fn missing_quantiles_are_displayed_as_unavailable() {
+    assert_eq!(display_quantile(None), "N/A");
+    assert_eq!(display_quantile(Some(f64::NAN)), "N/A");
+    assert_eq!(display_quantile(Some(f64::INFINITY)), "N/A");
+    assert_eq!(display_quantile(Some(-1.0)), "N/A");
+    assert_eq!(display_quantile(Some(42.5)), "42.5ms");
+}
+
+#[test]
+fn cli_model_status_preserves_daemon_average_without_dividing_twice() {
+    use crate::ipc::protocol::{ModelInfo, ModelsListResponse};
+
+    let make_model = |name: &str, state: &str| ModelInfo {
+        handle_id: 42,
+        name: name.to_string(),
+        format: "gguf".to_string(),
+        size_bytes: 100,
+        memory_bytes: 200,
+        state: state.to_string(),
+        request_count: 10,
+        avg_latency_ms: 40.0,
+        loaded_at: "2026-11-18T00:00:00Z".to_string(),
+        capabilities: Vec::new(),
+    };
+    let response = ModelsListResponse {
+        models: vec![make_model("ready", "ready"), make_model("bad", "new-state")],
+        total_memory_bytes: 400,
+    };
+    let models = build_models_list(&Some(response));
+    assert_eq!(models.len(), 2);
+    assert_eq!(models[0].avg_latency_ms, 40.0);
+    assert_eq!(models[0].state, ModelState::Ready);
+    assert_eq!(models[1].avg_latency_ms, 40.0);
+    assert_eq!(models[1].state, ModelState::Error);
+}
+
+#[test]
+fn cli_status_truncation_handles_multibyte_model_names_and_events() {
+    let label = "模型🚀one";
+    assert_eq!(truncate(label, 0), "");
+    assert_eq!(truncate(label, 2), "..");
+    assert_eq!(truncate(label, 3), "...");
+    assert_eq!(truncate(label, 6), "模...");
+    assert_eq!(truncate(label, 7), "模...");
+    assert_eq!(truncate(label, 9), "模型...");
+    assert_eq!(truncate(label, 13), label);
+    assert!(truncate(&label.repeat(10), 27).len() <= 27);
+}
+
+#[test]
+fn status_from_partial_ipc_is_degraded_not_healthy() {
+    use crate::health::{HealthReport, HealthState as RuntimeHealthState};
+    use crate::ipc::protocol::ModelsListResponse;
+    use crate::telemetry::MetricsSnapshot;
+    use std::collections::HashMap;
+
+    let snapshot = MetricsSnapshot {
+        counters: HashMap::new(),
+        gauges: HashMap::new(),
+        histograms: HashMap::new(),
+        bucketed_histograms: HashMap::new(),
+    };
+    let empty_models = ModelsListResponse {
+        models: Vec::new(),
+        total_memory_bytes: 0,
+    };
+    let healthy_report = HealthReport {
+        state: RuntimeHealthState::Healthy,
+        ready: true,
+        accepting_requests: true,
+        models_loaded: 0,
+        memory_used_bytes: 0,
+        queue_depth: 0,
+        uptime_secs: 10,
+    };
+
+    // A healthy daemon with successful empty responses is healthy.
+    let complete = build_status(
+        true,
+        Some(healthy_report.clone()),
+        Some(snapshot.clone()),
+        Some(empty_models.clone()),
+    );
+    assert_eq!(complete.health, HealthState::Healthy);
+    assert!(complete.recent_events.is_empty());
+
+    // Failed IPC reads previously became plausible empty/zero values while
+    // health stayed Healthy. Do not misrepresent missing evidence as zero use.
+    let missing_metrics = build_status(
+        true,
+        Some(healthy_report.clone()),
+        None,
+        Some(empty_models.clone()),
+    );
+    assert_eq!(missing_metrics.health, HealthState::Degraded);
+    assert_eq!(missing_metrics.recent_events.len(), 1);
+    assert!(missing_metrics.recent_events[0]
+        .message
+        .contains("Metrics IPC"));
+
+    let missing_models = build_status(
+        true,
+        Some(healthy_report.clone()),
+        Some(snapshot.clone()),
+        None,
+    );
+    assert_eq!(missing_models.health, HealthState::Degraded);
+    assert_eq!(missing_models.recent_events.len(), 1);
+    assert!(missing_models.recent_events[0]
+        .message
+        .contains("Models IPC"));
+
+    let both_missing = build_status(true, Some(healthy_report.clone()), None, None);
+    assert_eq!(both_missing.health, HealthState::Degraded);
+    assert_eq!(both_missing.recent_events.len(), 2);
+    let serialized = serde_json::to_value(&both_missing).unwrap();
+    assert_eq!(serialized["health"], "degraded");
+    assert_eq!(serialized["recent_events"][0]["severity"], "warning");
+
+    // A negative health report is not overridden by successfully fetched
+    // metrics/models, nor does degraded partial telemetry hide it.
+    let mut unhealthy_report = healthy_report.clone();
+    unhealthy_report.state = RuntimeHealthState::Unhealthy;
+    unhealthy_report.ready = false;
+    unhealthy_report.accepting_requests = false;
+    let unhealthy = build_status(
+        false,
+        Some(unhealthy_report),
+        Some(snapshot),
+        Some(empty_models),
+    );
+    assert_eq!(unhealthy.health, HealthState::Unhealthy);
+    assert!(unhealthy.recent_events.is_empty());
+
+    // Full health responses use `ok=ready`. A queue-saturation or
+    // require-model condition is degraded, not actually unhealthy.
+    let degraded_report = HealthReport {
+        state: RuntimeHealthState::Degraded,
+        ready: false,
+        accepting_requests: true,
+        ..healthy_report.clone()
+    };
+    let degraded = build_status(
+        false,
+        Some(degraded_report),
+        Some(MetricsSnapshot {
+            counters: HashMap::new(),
+            gauges: HashMap::new(),
+            histograms: HashMap::new(),
+            bucketed_histograms: HashMap::new(),
+        }),
+        Some(ModelsListResponse {
+            models: Vec::new(),
+            total_memory_bytes: 0,
+        }),
+    );
+    assert_eq!(degraded.health, HealthState::Degraded);
+
+    // A full health check returning no full report is incomplete even if
+    // the daemon replied with ok=true and other IPC reads succeeded.
+    let no_report = build_status(true, None, None, None);
+    assert_eq!(no_report.health, HealthState::Degraded);
+    assert_eq!(no_report.recent_events.len(), 3);
+    assert!(no_report.recent_events[0].message.contains("Full health"));
+
+    // An unhealthy daemon always takes precedence over missing diagnostics.
+    let unhealthy_no_report = build_status(false, None, None, None);
+    assert_eq!(unhealthy_no_report.health, HealthState::Unhealthy);
 }

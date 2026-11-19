@@ -1,6 +1,9 @@
 //! Formatting helpers for the status command display.
 
 use super::status::{EventSeverity, GpuStatus, HealthState, SystemStatus};
+#[path = "status_truncate.rs"]
+mod status_truncate;
+pub use status_truncate::truncate;
 
 #[cfg(feature = "advanced")]
 use crate::engine::SpeculativeSessionStats;
@@ -68,12 +71,20 @@ fn print_request_stats(status: &SystemStatus) {
         status.requests.requests_per_second, status.requests.tokens_per_second
     );
     println!(
-        "  Latency:  Avg {:.1}ms  P50 {:.1}ms  P95 {:.1}ms  P99 {:.1}ms",
+        "  Latency:  Avg {:.1}ms  P50 {}  P95 {}  P99 {}",
         status.requests.avg_latency_ms,
-        status.requests.p50_latency_ms,
-        status.requests.p95_latency_ms,
-        status.requests.p99_latency_ms
+        display_quantile(status.requests.p50_latency_ms),
+        display_quantile(status.requests.p95_latency_ms),
+        display_quantile(status.requests.p99_latency_ms)
     );
+}
+
+/// Only measured quantiles are displayable; unknowns are N/A.
+pub(super) fn display_quantile(value: Option<f64>) -> String {
+    match value {
+        Some(ms) if ms.is_finite() && ms >= 0.0 => format!("{ms:.1}ms"),
+        _ => "N/A".to_string(),
+    }
 }
 
 fn print_resources(status: &SystemStatus) {
@@ -150,53 +161,47 @@ fn print_events(status: &SystemStatus) {
     }
 }
 
-/// Print speculative decoding stats section (advanced feature only).
-///
-/// Output format (one line):
-/// `Speculative: <state> | <acceptance_rate>% | <net_speedup>x`
-///
-/// where state is one of: `enabled`, `disabled`, `auto-disabled`.
+/// Print only speculative counters that the status IPC actually carries.
+/// Missing latency/speedup data is not a measured zero (#222).
 #[cfg(feature = "advanced")]
 fn print_speculative(stats: Option<&SpeculativeSessionStats>) {
     println!("\nSpeculative Decoding");
     match stats {
         None => println!("  Speculative: disabled"),
-        Some(s) => {
-            let state = if s.auto_disable_count > 0 {
-                "auto-disabled".to_string()
-            } else if s.verification_steps > 0 {
-                "enabled".to_string()
-            } else {
-                "disabled".to_string()
-            };
-            let reason_suffix = s
-                .auto_disable_reason
-                .as_deref()
-                .map(|r| format!(" ({})", r))
-                .unwrap_or_default();
-            println!(
-                "  Speculative: {}{} | {:.1}% acceptance | {:.2}x speedup",
-                state,
-                reason_suffix,
-                s.acceptance_rate * 100.0,
-                s.net_speedup,
-            );
-            println!(
-                "  Steps: {}   Draft tokens: {}   Accepted: {}   Rejected: {}",
-                s.verification_steps,
-                s.draft_tokens_generated,
-                s.accepted_tokens,
-                s.rejected_tokens,
-            );
-            println!(
-                "  Mean draft latency: {:.1} us   Mean verify latency: {:.1} us",
-                s.mean_draft_latency_us, s.mean_verify_latency_us,
-            );
-            if s.auto_disable_count > 0 {
-                println!("  Auto-disable events: {}", s.auto_disable_count);
-            }
-        }
+        Some(s) => println!("{}", format_speculative_stats(s)),
     }
+}
+
+#[cfg(feature = "advanced")]
+pub(super) fn format_speculative_stats(s: &SpeculativeSessionStats) -> String {
+    let state = if s.auto_disable_count > 0 {
+        "auto-disabled"
+    } else if s.verification_steps > 0 {
+        "enabled"
+    } else {
+        "disabled"
+    };
+    let reason_suffix = s
+        .auto_disable_reason
+        .as_deref()
+        .map(|reason| format!(" ({reason})"))
+        .unwrap_or_default();
+    let header = format!(
+        "  Speculative: {state}{reason_suffix} | {:.1}% acceptance | speedup N/A (IPC)",
+        s.acceptance_rate * 100.0,
+    );
+    let counts = format!(
+        "  Steps: {}   Draft tokens: {}   Accepted: {}   Rejected: {}",
+        s.verification_steps, s.draft_tokens_generated, s.accepted_tokens, s.rejected_tokens,
+    );
+    let events = if s.auto_disable_count > 0 {
+        format!("\n  Auto-disable events: {}", s.auto_disable_count)
+    } else {
+        String::new()
+    };
+    format!(
+        "{header}\n{counts}\n  Mean draft latency: N/A (IPC)   Mean verify latency: N/A (IPC){events}"
+    )
 }
 
 /// Format uptime in human-readable form.
@@ -228,14 +233,5 @@ pub fn format_bytes(bytes: u64) -> String {
         format!("{:.1} KB", bytes as f64 / KB as f64)
     } else {
         format!("{} B", bytes)
-    }
-}
-
-/// Truncate a string to a maximum length.
-pub fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
     }
 }

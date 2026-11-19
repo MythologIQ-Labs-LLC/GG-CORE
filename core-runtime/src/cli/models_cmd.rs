@@ -74,10 +74,15 @@ pub fn print_models(response: &ModelsListResponse) {
 
 fn truncate(s: &str, max: usize) -> &str {
     if s.len() <= max {
-        s
-    } else {
-        &s[..max]
+        return s;
     }
+    // Model identifiers may contain multi-byte characters. A byte limit
+    // inside UTF-8 must not panic while rendering authenticated IPC output.
+    let mut end = max;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }
 
 #[cfg(test)]
@@ -147,6 +152,24 @@ mod tests {
     #[test]
     fn test_truncate_long_string() {
         assert_eq!(truncate("hello world", 5), "hello");
+    }
+
+    #[test]
+    fn unicode_model_names_do_not_panic_at_byte_boundaries() {
+        let name = "模型🚀one";
+        assert_eq!(truncate(name, 1), "");
+        assert_eq!(truncate(name, 2), "");
+        assert_eq!(truncate(name, 3), "模");
+        assert_eq!(truncate(name, 4), "模");
+        assert_eq!(truncate(name, 6), "模型");
+        assert_eq!(truncate(name, 7), "模型");
+        assert_eq!(truncate(name, 10), "模型🚀");
+        assert_eq!(truncate(name, 0), "");
+        let response = ModelsListResponse {
+            models: vec![make_model(&name.repeat(10), "ready", 256, 1, 1.0)],
+            total_memory_bytes: 256 * 1024 * 1024,
+        };
+        print_models(&response);
     }
 
     #[tokio::test]
