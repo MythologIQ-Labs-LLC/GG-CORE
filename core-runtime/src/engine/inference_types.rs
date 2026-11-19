@@ -158,8 +158,10 @@ mod parameter_admission_tests {
 
     #[test]
     fn oversized_wire_integer_limits_cannot_wrap_backend_config() {
-        let mut params = InferenceParams::default();
-        params.max_tokens = 0;
+        let mut params = InferenceParams {
+            max_tokens: 0,
+            ..Default::default()
+        };
         assert!(params.validate().is_err());
         params.max_tokens = 1;
         assert!(params.validate().is_ok());
