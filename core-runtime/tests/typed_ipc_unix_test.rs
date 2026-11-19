@@ -33,8 +33,7 @@ impl Harness {
             auth_token: TOKEN.into(),
             ..Default::default()
         });
-        let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/models/onnx");
+        let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models/onnx");
         // Do not skip on missing fixtures: CI must exercise real ONNX execution.
         let embedder = OnnxEmbedder::load(&fixtures, MODEL, 8)
             .expect("committed ONNX embedding fixture must load");
@@ -115,11 +114,17 @@ async fn send(stream: &mut UnixStream, message: serde_json::Value) {
 async fn receive(stream: &mut UnixStream) -> serde_json::Value {
     tokio::time::timeout(Duration::from_secs(15), async {
         let mut header = [0u8; 4];
-        stream.read_exact(&mut header).await.expect("read frame header");
+        stream
+            .read_exact(&mut header)
+            .await
+            .expect("read frame header");
         let size = u32::from_le_bytes(header) as usize;
         assert!(size > 0 && size <= MAX_FRAME, "invalid IPC response size");
         let mut bytes = vec![0; size];
-        stream.read_exact(&mut bytes).await.expect("read IPC payload");
+        stream
+            .read_exact(&mut bytes)
+            .await
+            .expect("read IPC payload");
         serde_json::from_slice(&bytes).expect("parse IPC JSON")
     })
     .await
@@ -157,29 +162,42 @@ async fn real_onnx_embeddings_cross_the_authenticated_unix_ipc_boundary() {
     let mut client = harness.connect().await;
     authenticate(&mut client).await;
 
-    send(&mut client, embed(101, serde_json::json!({"text":"hello world"}))).await;
+    send(
+        &mut client,
+        embed(101, serde_json::json!({"text":"hello world"})),
+    )
+    .await;
     let single = receive(&mut client).await;
     assert_eq!(single["type"], "typed_inference_response", "{single}");
     assert_eq!(single["request_id"], 101);
     assert_eq!(single["result"]["kind"], "embedding", "{single}");
     assert_eq!(single["result"]["dimensions"], 8);
     assert!(single.get("error").is_none(), "{single}");
-    let vector = single["result"]["vector"].as_array().expect("8 numeric values");
+    let vector = single["result"]["vector"]
+        .as_array()
+        .expect("8 numeric values");
     assert_eq!(vector.len(), 8);
     let first = vector[0].as_f64().expect("numeric embedding component");
     // Golden from the committed synthetic ONNX fixture; actual inference ran.
     assert!((first - 0.316_566_5).abs() < 0.000_01, "{vector:?}");
-    assert!(vector.iter().all(|v| v.as_f64().is_some_and(f64::is_finite)));
+    assert!(vector
+        .iter()
+        .all(|v| v.as_f64().is_some_and(f64::is_finite)));
 
     send(
         &mut client,
-        embed(102, serde_json::json!({"texts":["hello world","greatest good"]})),
+        embed(
+            102,
+            serde_json::json!({"texts":["hello world","greatest good"]}),
+        ),
     )
     .await;
     let batch = receive(&mut client).await;
     assert_eq!(batch["request_id"], 102);
     assert_eq!(batch["result"]["kind"], "embedding_batch", "{batch}");
-    let items = batch["result"]["items"].as_array().expect("batch embeddings");
+    let items = batch["result"]["items"]
+        .as_array()
+        .expect("batch embeddings");
     assert_eq!(items.len(), 2);
     for item in items {
         assert_eq!(item["dimensions"], 8);
@@ -194,15 +212,15 @@ async fn real_onnx_embeddings_cross_the_authenticated_unix_ipc_boundary() {
 async fn unauthenticated_wrong_task_and_injection_are_refused_on_real_unix_ipc() {
     let harness = Harness::start().await;
     let mut anonymous = harness.connect().await;
-    send(&mut anonymous, embed(201, serde_json::json!({"text":"hello"}))).await;
+    send(
+        &mut anonymous,
+        embed(201, serde_json::json!({"text":"hello"})),
+    )
+    .await;
     let denied = receive(&mut anonymous).await;
     assert_eq!(denied["code"], 401, "{denied}");
     let mut probe = [0u8; 1];
-    let closed = tokio::time::timeout(
-        Duration::from_secs(2),
-        anonymous.read(&mut probe),
-    )
-    .await;
+    let closed = tokio::time::timeout(Duration::from_secs(2), anonymous.read(&mut probe)).await;
     assert!(
         matches!(closed, Ok(Ok(0)) | Ok(Err(_))),
         "unauthenticated connection must be closed"
@@ -233,9 +251,14 @@ async fn unauthenticated_wrong_task_and_injection_are_refused_on_real_unix_ipc()
     .await;
     let blocked = receive(&mut client).await;
     assert_eq!(blocked["type"], "typed_inference_response", "{blocked}");
-    assert!(blocked["error"].as_str().is_some_and(|e| e.contains("security policy")));
+    assert!(blocked["error"]
+        .as_str()
+        .is_some_and(|e| e.contains("security policy")));
     assert!(blocked.get("result").is_none(), "{blocked}");
-    assert!(!blocked.to_string().contains(malicious), "rejection must not echo prompt");
+    assert!(
+        !blocked.to_string().contains(malicious),
+        "rejection must not echo prompt"
+    );
 
     drop(client);
     drop(anonymous);
