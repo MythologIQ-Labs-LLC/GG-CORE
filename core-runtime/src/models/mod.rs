@@ -8,6 +8,7 @@ pub mod backend_eligibility;
 pub mod backend_selection;
 pub mod capability_snapshot;
 pub mod manifest;
+pub mod model_selection_policy;
 pub mod pool;
 pub mod pool_types;
 pub mod smart_loader;
