@@ -155,7 +155,6 @@ fn unknown_incumbent_quality_cannot_be_treated_as_escalation_consent() {
     );
 }
 
-
 #[test]
 fn invalid_incumbent_evidence_cannot_waive_quality_escalation_consent() {
     use crate::models::backend_capabilities::{ExecutionTarget, InferenceTask};
