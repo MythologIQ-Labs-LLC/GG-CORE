@@ -66,9 +66,12 @@ fn check_resource_and_latency(
     if quality < policy.quality_floor_bps {
         return Err(BelowQualityFloor);
     }
+    // A zero resource measurement is not evidence of free inference.
+    // Require both the model footprint and request context to be measured.
     let memory_bytes = model
         .resident_memory_bytes
         .zip(model.working_memory_bytes)
+        .filter(|(resident, working)| *resident > 0 && *working > 0)
         .and_then(|(resident, working)| resident.checked_add(working))
         .ok_or(MissingOrInvalidEvidence)?;
     if memory_bytes > policy.max_model_memory_bytes {
