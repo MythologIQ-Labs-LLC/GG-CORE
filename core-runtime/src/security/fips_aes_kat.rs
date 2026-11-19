@@ -3,7 +3,10 @@
 //! Known answer: AES-256-GCM zero key, 96-bit zero IV, 16 zero plaintext
 //! bytes and no AAD, sourced from the NIST GCM test vectors (also present
 //! in OpenSSL/BoringSSL vector suites). This is NOT CMVP validation.
-use aes_gcm::{aead::{Aead, KeyInit}, Aes256Gcm, Nonce};
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Nonce,
+};
 use super::SelfTestError;
 
 // Expected output is ciphertext followed by the 128-bit authentication tag.
@@ -15,7 +18,7 @@ const EXPECTED: [u8; 32] = [
     0x26, 0x5b, 0x98, 0xb5, 0xd4, 0x8a, 0xb9, 0x19,
 ];
 
-pub(super) fn aes_gcm_kat() -> Result<(), SelfTestError> {
+pub fn aes_gcm_kat() -> Result<(), SelfTestError> {
     run_fixed_answer(&EXPECTED)
 }
 

@@ -3,8 +3,8 @@
 //! Provides power-on self-tests (POST) for cryptographic algorithm validation:
 //! - Known Answer Tests (KAT) for AES-256-GCM
 //! - Known Answer Tests (KAT) for PBKDF2-SHA256
-//! - Continuous RNG health testing
-//! - Integrity self-tests
+//! - Startup RNG sample sanity checks
+//! - Cryptographic parameter-size checks
 //!
 //! These tests support fail-closed startup, but do not establish CMVP validation,
 //! binary integrity or continuous operating-time RNG health.
@@ -132,7 +132,8 @@ pub fn pbkdf2_kat() -> Result<(), SelfTestError> {
 /// RNG Health Test (Continuous)
 ///
 /// Verifies the random number generator produces non-repeating output.
-/// FIPS requires continuous RNG testing during operation.
+/// This is a startup sampling sanity test, NOT a continuous RNG monitor
+/// and not a NIST SP 800-90B entropy-source health validation.
 pub fn rng_health_test() -> Result<(), SelfTestError> {
     use rand::{RngCore, TryRngCore};
 
