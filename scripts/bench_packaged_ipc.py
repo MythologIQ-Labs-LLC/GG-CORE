@@ -17,8 +17,36 @@ from datetime import datetime, timezone
 
 from bench_packaged_ipc_helpers import (
     IpcClient, ProtocolFailure, file_sha256, verify_packaged_binary,
-    sample, quantile, summary,
+    sample,
 )
+
+def quantile(values: list[float], fraction: float) -> float:
+    if not values:
+        raise ValueError("cannot compute quantile of empty data")
+    a = sorted(values)
+    pos = (len(a) - 1) * fraction
+    low, high = int(pos), min(int(pos) + 1, len(a) - 1)
+    return a[low] + (a[high] - a[low]) * (pos - low)
+
+
+def summary(samples: list[dict]):
+    if not samples:
+        raise ValueError("no successful IPC samples")
+    durations = [x["duration_ms"] for x in samples]
+    first = [x["first_sanitized_text_ms"] for x in samples
+             if x["first_sanitized_text_ms"] is not None]
+    def dist(xs):
+        if not xs:
+            return None
+        # Avoid printing a precise-looking tail percentile based on 1-10
+        # samples. These are descriptive sample percentiles, NOT SLA bounds.
+        n = len(xs)
+        return {"p50": round(quantile(xs, .50), 3),
+                "p95": round(quantile(xs, .95), 3) if n >= 20 else None,
+                "p99": round(quantile(xs, .99), 3) if n >= 100 else None}
+    return {"count": len(samples), "duration_ms": dist(durations),
+            "first_sanitized_text_ms": dist(first),
+            "note": "Sample p95 requires >=20 observations; p99 >=100. These are not SLA bounds. First sanitized text is not native TTFT; character counts are not token counts."}
 
 def run_wave(endpoint: str, token: str, model: str, prompt: str,
              concurrency: int, stream: bool, max_tokens: int, timeout_ms: int):
