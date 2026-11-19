@@ -90,6 +90,13 @@ jobs:
           workspaces: core-runtime
       - name: Test suite (default features)
         run: cargo test --locked --workspace
+      # Cargo does not run #[cfg(test)] in build.rs through cargo test.
+      # Compile its pure provenance and Git ref-watch tests explicitly.
+      - name: Build-provenance identity and ref-watch tests (#114)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          rustc --edition=2021 --test build.rs -o target/build-provenance-tests
+          ./target/build-provenance-tests --test-threads=1
       - name: Offline ONNX probe pure unit tests (#171)
         if: matrix.os == 'ubuntu-latest'
         working-directory: .
