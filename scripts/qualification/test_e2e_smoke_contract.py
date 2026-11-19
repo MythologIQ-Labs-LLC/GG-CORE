@@ -131,6 +131,41 @@ class SmokeContract(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("not GGUF", result.stderr)
 
+    def test_rc_helpers_remain_resolvable_after_separate_fixture_cd(self):
+        """Run the real shell path-binding lines in a separate model directory.
+
+        This is a model-free path regression, not a daemon/package test.
+        """
+        source = (ROOT / "scripts" / "rc-acceptance.sh").read_text(encoding="utf-8")
+        bindings = [line for line in source.splitlines() if line.startswith(
+            ("SCRIPT_DIR=", "INSPECT=", "IPC_PROBE=")
+        )]
+        self.assertEqual(len(bindings), 3)
+        self.assertLess(source.index("SCRIPT_DIR="), source.index('cd "$BASE" || exit 1'))
+        self.assertIn('with_timeout 420 "$PYTHON" "$IPC_PROBE"', source)
+        self.assertNotIn('"$BASE/scripts/rc-ipc-control-acceptance.py"', source)
+        with tempfile.TemporaryDirectory(prefix="gg-core-rc-paths-") as folder:
+            root = pathlib.Path(folder)
+            source_dir = root / "script directory with spaces"
+            (source_dir / "qualification").mkdir(parents=True)
+            (source_dir / "qualification" / "daemon_json_contract.py").touch()
+            (source_dir / "rc-ipc-control-acceptance.py").touch()
+            fixture = root / "independent model fixture"
+            fixture.mkdir()
+            wrapper = source_dir / "check.sh"
+            wrapper.write_text(
+                "#!/usr/bin/env bash\\n" + "\\n".join(bindings) +
+                '\\ncd "$1" || exit 40\\n' +
+                '[ -f "$INSPECT" ] && [ -f "$IPC_PROBE" ] || exit 41\\n',
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                ["bash", str(wrapper), str(fixture)], cwd=root,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, timeout=10, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_scripts_cannot_silently_fetch_models_or_certify_release(self):
         bash = BASH.read_text(encoding="utf-8")
         ps = PS.read_text(encoding="utf-8")
