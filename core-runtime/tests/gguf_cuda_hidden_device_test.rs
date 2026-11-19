@@ -16,7 +16,10 @@ use common::{greedy, load, report, stream, ALL_LAYERS};
 #[test]
 fn cuda_build_without_a_visible_device_refuses_offload_but_serves_cpu() {
     if std::env::var("GG_EXPECT_NO_CUDA_DEVICE").as_deref() != Ok("1") {
-        report("hidden_device.qual_status", "NOT_QUALIFIED (opt-in missing)");
+        report(
+            "hidden_device.qual_status",
+            "NOT_QUALIFIED (opt-in missing)",
+        );
         return;
     }
     assert_eq!(
@@ -35,8 +38,18 @@ fn cuda_build_without_a_visible_device_refuses_offload_but_serves_cpu() {
     let cpu = Arc::new(load(0, 1024).expect("CPU load must still work"));
     let generated = stream(cpu, "Count from one to five in words.", greedy(32), None);
     report("hidden_device.cpu_generated_tokens", generated.tokens);
-    report("hidden_device.cpu_stream_result", format!("{:?}", generated.result));
-    assert!(generated.result.is_ok(), "CPU inference failed: {:?}", generated.result);
-    assert!(generated.tokens > 0, "CPU generated no tokens with CUDA hidden");
+    report(
+        "hidden_device.cpu_stream_result",
+        format!("{:?}", generated.result),
+    );
+    assert!(
+        generated.result.is_ok(),
+        "CPU inference failed: {:?}",
+        generated.result
+    );
+    assert!(
+        generated.tokens > 0,
+        "CPU generated no tokens with CUDA hidden"
+    );
     report("hidden_device.qual_status", "PASS");
 }
