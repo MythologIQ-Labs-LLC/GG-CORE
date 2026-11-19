@@ -158,6 +158,8 @@ jobs:
           key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             criterion-baseline-${{ runner.os }}-
+      - name: Perf gate negative controls (model-free)
+        run: python3 -m unittest discover -s scripts -p test_perf_gate.py -v
       - name: Perf benches (default-feature, CI-safe set)
         run: |
           cargo bench --locked \
