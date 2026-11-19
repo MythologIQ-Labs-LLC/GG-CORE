@@ -52,7 +52,11 @@ fn q1_gpu_greedy_output_characterization_against_cpu() {
         report(&format!("correctness.p{i}.exact"), exact);
         report(
             &format!("correctness.p{i}.parity_claim"),
-            if exact { "EXACT" } else { "NOT_QUALIFIED_DIFFERENT" },
+            if exact {
+                "EXACT"
+            } else {
+                "NOT_QUALIFIED_DIFFERENT"
+            },
         );
         report(
             &format!("correctness.p{i}.prefix_chars"),
@@ -62,7 +66,10 @@ fn q1_gpu_greedy_output_characterization_against_cpu() {
         report(&format!("correctness.p{i}.gpu"), format!("{g:?}"));
         assert!(!g.trim().is_empty(), "GPU produced no text for {prompt:?}");
     }
-    report("correctness.release_qualification", "NOT_QUALIFIED (tolerance not approved)");
+    report(
+        "correctness.release_qualification",
+        "NOT_QUALIFIED (tolerance not approved)",
+    );
 }
 
 fn measure(layers: u32, label: &str, runs: usize) {
@@ -94,12 +101,25 @@ fn q3_gpu_stream_cancellation_stops_and_model_stays_usable() {
     report("cancel.tokens_after_stop_at_8", cancelled.tokens);
     report("cancel.stop_observed", cancelled.stop_observed);
     report("cancel.backend_result", format!("{:?}", cancelled.result));
-    assert!(cancelled.tokens >= 8, "model ended before reaching the stop threshold");
-    assert!(cancelled.stop_observed, "backend never observed the cancellation predicate");
+    assert!(
+        cancelled.tokens >= 8,
+        "model ended before reaching the stop threshold"
+    );
+    assert!(
+        cancelled.stop_observed,
+        "backend never observed the cancellation predicate"
+    );
     // generate_stream currently returns Ok(()) after stopping. Its Result alone
     // cannot distinguish cancellation from EOS or max-tokens completion.
-    assert!(cancelled.result.is_ok(), "backend failed: {:?}", cancelled.result);
-    assert!(cancelled.tokens < 256, "stream did not stop before the max-token limit");
+    assert!(
+        cancelled.result.is_ok(),
+        "backend failed: {:?}",
+        cancelled.result
+    );
+    assert!(
+        cancelled.tokens < 256,
+        "stream did not stop before the max-token limit"
+    );
     let next = stream(model, PROMPTS[0], greedy(16), None);
     assert!(
         next.result.is_ok() && next.tokens > 0,
