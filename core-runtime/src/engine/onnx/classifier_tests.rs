@@ -26,6 +26,44 @@ fn logits_to_classification_picks_argmax() {
 }
 
 #[test]
+fn classifier_accepts_single_sample_rank_one_or_two_logits() {
+    let labels = vec!["negative".to_string(), "positive".to_string()];
+    let flat = Tensor::from_vec(vec![-1.0_f32, 3.0], 2, &Device::Cpu).unwrap();
+    let batched = Tensor::from_vec(vec![-1.0_f32, 3.0], (1, 2), &Device::Cpu).unwrap();
+    for logits in [flat, batched] {
+        let result = logits_to_classification(&logits, &labels).expect("single sample logits");
+        assert_eq!(result.label, "positive");
+        assert!(result.confidence.is_finite());
+    }
+}
+
+#[test]
+fn classifier_refuses_multi_row_and_extra_rank_logits() {
+    // Old flatten_all accepted [2,1] with two labels as if two independent
+    // samples were competing classes; [1,1,2] was accepted too.
+    let labels = vec!["negative".to_string(), "positive".to_string()];
+    let ambiguous = [
+        Tensor::from_vec(vec![-1.0_f32, 3.0], (2, 1), &Device::Cpu).unwrap(),
+        Tensor::from_vec(vec![-1.0_f32, 3.0], (1, 1, 2), &Device::Cpu).unwrap(),
+        Tensor::from_vec(vec![-1.0_f32, 3.0], (1, 2, 1), &Device::Cpu).unwrap(),
+    ];
+    for logits in ambiguous {
+        let result = logits_to_classification(&logits, &labels);
+        assert!(
+            matches!(result, Err(InferenceError::ModelError(message)) if message.contains("shape")),
+            "non-scalar classification must fail closed"
+        );
+    }
+
+    // Even if the total element count coincides with a larger label set,
+    // a true [batch, classes] matrix can never represent one classification.
+    let four_labels = vec!["a".into(), "b".into(), "c".into(), "d".into()];
+    let multi_row = Tensor::from_vec(vec![0.1_f32, 0.2, 0.3, 0.4], (2, 2), &Device::Cpu)
+        .expect("construct batch logits");
+    assert!(logits_to_classification(&multi_row, &four_labels).is_err());
+}
+
+#[test]
 fn logits_to_classification_rejects_label_mismatch() {
     let logits = Tensor::new(vec![0.1f32, 0.2, 0.3], &Device::Cpu).unwrap();
     let labels = vec!["a".to_string(), "b".to_string()]; // 2 labels vs 3 logits
