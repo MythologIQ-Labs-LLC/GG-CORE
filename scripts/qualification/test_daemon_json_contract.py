@@ -87,6 +87,34 @@ class DaemonJsonContract(unittest.TestCase):
                     0 if expected else 1,
                 )
 
+    def test_mixed_valid_and_malformed_registry_fails_closed(self):
+        cases = [
+            {"models": [{"name": "qwen", "state": "ready"}, {"name": 42, "state": "ready"}]},
+            {"models": [{"name": "qwen", "state": "ready"}, {"name": "other"}]},
+            {"models": [{"name": "qwen", "state": "ready"}, {"name": "other", "state": 1}]},
+            {"models": [{"name": "qwen", "state": "ready"}, {"name": "qwen", "state": "loading"}]},
+            {"models": [{"name": "qwen", "state": "ready"}, {"name": "other", "state": "ready"}, {"name": "other", "state": "error"}]},
+            {"models": [{"name": "", "state": "ready"}]},
+        ]
+        for registry in cases:
+            with self.subTest(registry=registry):
+                self.assertFalse(ready_model(registry, "qwen"))
+                self.assertFalse(absent_model(registry, "fake"))
+                payload = json.dumps(registry)
+                self.assertEqual(self.run_inspect(["ready-model", "qwen"], payload).returncode, 1)
+                self.assertEqual(self.run_inspect(["absent-model", "fake"], payload).returncode, 1)
+
+    def test_duplicate_keys_and_non_json_numbers_are_refused(self):
+        for args, payload in (
+            (["health"], '{"health":"unhealthy","health":"healthy"}'),
+            (["ready-model", "qwen"], '{"models":[{"name":"qwen","name":"other","state":"ready"}]}'),
+            (["ready-model", "qwen"], '{"models":[{"name":"qwen","state":"ready"}],"models":[]}'),
+            (["health"], '{"health":"healthy","unused":NaN}'),
+            (["absent-model", "fake"], '{"models":[],"ignored":Infinity}'),
+        ):
+            with self.subTest(args=args, payload=payload):
+                self.assertEqual(self.run_inspect(args, payload).returncode, 1)
+
     def test_malformed_data_and_bad_usage_fail_closed(self):
         for args, payload in [
             (["health"], ""),
