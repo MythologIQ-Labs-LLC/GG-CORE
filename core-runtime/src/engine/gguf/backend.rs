@@ -366,6 +366,20 @@ impl LlamaBackendInner {
     }
 
     pub(super) fn create_context(&self) -> Result<LlamaContext<'_>, InferenceError> {
+        // Serialize the device-memory sample with native context creation so
+        // concurrent GG-CORE workers cannot both pass the same free snapshot.
+        // External GPU users can still race this check; hardware acceptance
+        // must verify no driver-managed paging on supported devices.
+        static GPU_CONTEXT_GATE: Mutex<()> = Mutex::new(());
+        let _admission = if self.shape.gpu_offload {
+            let guard = GPU_CONTEXT_GATE.lock().map_err(|_| {
+                InferenceError::ModelError("GPU context admission mutex poisoned".into())
+            })?;
+            super::offload::check_context_memory(self.working_bytes)?;
+            Some(guard)
+        } else {
+            None
+        };
         self.model
             .new_context(self.backend, self.shape.params(self.n_threads))
             .map_err(|e| InferenceError::ModelError(format!("ctx: {e}")))
