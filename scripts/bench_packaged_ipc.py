@@ -32,7 +32,7 @@ def run_wave(endpoint: str, token: str, model: str, prompt: str,
         return list(pool.map(worker, range(concurrency)))
 
 
-def run_benchmark(args):
+def checked_inputs(args):
     token = os.environ.get(args.auth_env)
     if not token or len(token.encode("utf-8")) < 16:
         raise ValueError("a private authentication token of >=16 bytes is required")
@@ -43,19 +43,29 @@ def run_benchmark(args):
     with args.model_file.open("rb") as model_stream:
         if model_stream.read(4) != b"GGUF":
             raise ValueError("model fixture is not a real GGUF file (possible Git LFS pointer)")
-    model_hash = file_sha256(args.model_file)
-    binary_hash = file_sha256(args.daemon_binary)
-    binary_version = verify_packaged_binary(args.daemon_binary, args.producer_sha)
+    return {
+        "token": token, "prompt": prompt, "prompt_bytes": prompt_bytes,
+        "model_hash": file_sha256(args.model_file),
+        "binary_hash": file_sha256(args.daemon_binary),
+        "binary_version": verify_packaged_binary(args.daemon_binary, args.producer_sha),
+    }
+
+
+def authenticated_warmup(args, token):
     with IpcClient(args.socket, args.timeout_ms / 1000 + 5) as client:
         handshake_ms = client.authenticate(token)
-        warmup_start = time.perf_counter()
+        start = time.perf_counter()
         client.send({"type": "warmup_request", "model_id": args.model_id, "tokens": 1})
         warm = client.receive(time.monotonic() + args.timeout_ms / 1000 + 5)
-        warmup_request_ms = (time.perf_counter() - warmup_start) * 1000
-        if (warm.get("type") != "warmup_response" or warm.get("success") is not True
-                or warm.get("model_id") != args.model_id or warm.get("error") is not None
-                or type(warm.get("elapsed_ms")) is not int or warm["elapsed_ms"] < 0):
-            raise ProtocolFailure("authenticated model warmup failed or malformed response")
+        warmup_ms = (time.perf_counter() - start) * 1000
+    if (warm.get("type") != "warmup_response" or warm.get("success") is not True
+            or warm.get("model_id") != args.model_id or warm.get("error") is not None
+            or type(warm.get("elapsed_ms")) is not int or warm["elapsed_ms"] < 0):
+        raise ProtocolFailure("authenticated model warmup failed or malformed response")
+    return round(handshake_ms, 3), round(warmup_ms, 3), warm["elapsed_ms"]
+
+
+def measure_cohorts(args, token, prompt):
     records = []
     for concurrency in args.concurrent:
         samples = []
@@ -64,14 +74,21 @@ def run_benchmark(args):
                                     concurrency, args.stream, args.max_tokens, args.timeout_ms))
         records.append({"concurrency": concurrency, "stats": summary(samples),
                         "samples": samples})
+    return records
+
+
+def run_benchmark(args):
+    identity = checked_inputs(args)
+    handshake_ms, warmup_ms, daemon_warmup_ms = authenticated_warmup(args, identity["token"])
+    records = measure_cohorts(args, identity["token"], identity["prompt"])
     return {
         "schema_version": 2,
         "collected_at_utc": datetime.now(timezone.utc).isoformat(),
         "producer_sha": args.producer_sha,
-        "model_sha256": model_hash,
-        "daemon_sha256": binary_hash,
-        "packaged_binary_version": binary_version,
-        "prompt_sha256": hashlib.sha256(prompt_bytes).hexdigest(),
+        "model_sha256": identity["model_hash"],
+        "daemon_sha256": identity["binary_hash"],
+        "packaged_binary_version": identity["binary_version"],
+        "prompt_sha256": hashlib.sha256(identity["prompt_bytes"]).hexdigest(),
         "model_id": args.model_id,
         "host": {"platform": platform.platform(), "machine": platform.machine(),
                  "python": platform.python_version(), "cpu_count": os.cpu_count()},
@@ -79,9 +96,9 @@ def run_benchmark(args):
                       "timeout_ms": args.timeout_ms, "concurrency": args.concurrent,
                       "waves": args.waves, "auth": True,
                       "security_and_sandbox_configuration": "not independently established by benchmark"},
-        "handshake_ms": round(handshake_ms, 3),
-        "warmup_request_ms": round(warmup_request_ms, 3),
-        "daemon_reported_warmup_ms": warm["elapsed_ms"],
+        "handshake_ms": handshake_ms,
+        "warmup_request_ms": warmup_ms,
+        "daemon_reported_warmup_ms": daemon_warmup_ms,
         "results": records,
         "limitations": [
             "The benchmark rejects raw token IDs; it does not independently prove PII/injection decision parity.",
