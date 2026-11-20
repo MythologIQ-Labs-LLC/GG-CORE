@@ -192,6 +192,11 @@ impl CliIpcClient {
         // Preserve the per-frame stall guard, also refusing endless valid
         // chunks once the absolute stream budget has expired.
         loop {
+            // timeout_at polls a ready response first, so check the clock
+            // explicitly as well: a busy peer must not bypass the deadline.
+            if tokio::time::Instant::now() >= deadline {
+                return Err(CliError::Timeout);
+            }
             let response = tokio::time::timeout_at(deadline, self.read_response_frame(stream))
                 .await
                 .map_err(|_| CliError::Timeout)??;
