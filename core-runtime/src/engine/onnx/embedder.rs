@@ -235,9 +235,9 @@ impl crate::engine::Model for OnnxEmbedder {
     }
 }
 
-#[cfg(test)]
-#[path = "embedder_tests.rs"]
-mod tests;
 #[cfg(all(test, feature = "onnx"))]
 #[path = "embedder_cancel_tests.rs"]
 mod cancel_tests;
+#[cfg(test)]
+#[path = "embedder_tests.rs"]
+mod tests;
