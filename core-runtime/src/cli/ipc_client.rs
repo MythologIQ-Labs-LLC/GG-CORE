@@ -156,7 +156,8 @@ impl CliIpcClient {
         let request_bytes =
             encode_message(&message).map_err(|e| CliError::Protocol(e.to_string()))?;
 
-        self.receive_streaming_response(&request_bytes, request_id).await
+        self.receive_streaming_response(&request_bytes, request_id)
+            .await
     }
 
     /// Streaming inference also requires a session: connect, handshake on
@@ -168,7 +169,8 @@ impl CliIpcClient {
     ) -> Result<String, CliError> {
         let mut stream = self.connect_authenticated().await?;
         self.handshake_on(&mut stream).await?;
-        self.stream_exchange(&mut stream, request, expected_id).await
+        self.stream_exchange(&mut stream, request, expected_id)
+            .await
     }
 
     async fn stream_exchange<S>(
