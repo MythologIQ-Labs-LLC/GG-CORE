@@ -12,6 +12,9 @@ use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 
+#[path = "ipc_client_framing.rs"]
+mod framing;
+
 use crate::engine::InferenceParams;
 use crate::ipc::protocol::{
     decode_message, encode_message, HealthCheckResponse, HealthCheckType, InferenceRequest,
@@ -175,26 +178,14 @@ impl CliIpcClient {
     where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
-        // Send length-prefixed request
-        let len = request.len() as u32;
-        stream.write_all(&len.to_le_bytes()).await?;
-        stream.write_all(request).await?;
-        stream.flush().await?;
+        self.write_request_frame(stream, request).await?;
 
         let mut full_output = String::new();
 
-        // Read streaming chunks until final
+        // Each complete incoming frame must arrive within one deadline.
+        // A slow but progressing generation may send multiple frames.
         loop {
-            let mut len_buf = [0u8; 4];
-            stream.read_exact(&mut len_buf).await?;
-            let response_len = u32::from_le_bytes(len_buf) as usize;
-
-            if response_len > 16 * 1024 * 1024 {
-                return Err(CliError::Protocol("Response too large".to_string()));
-            }
-
-            let mut response = vec![0u8; response_len];
-            stream.read_exact(&mut response).await?;
+            let response = self.read_response_frame(stream).await?;
 
             let message =
                 decode_message(&response).map_err(|e| CliError::Protocol(e.to_string()))?;
@@ -305,28 +296,8 @@ impl CliIpcClient {
     where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
-        // Send length-prefixed request
-        let len = request.len() as u32;
-        stream.write_all(&len.to_le_bytes()).await?;
-        stream.write_all(request).await?;
-        stream.flush().await?;
-
-        // Read length-prefixed response
-        let mut len_buf = [0u8; 4];
-        let read_future = stream.read_exact(&mut len_buf);
-        timeout(self.timeout_duration, read_future)
-            .await
-            .map_err(|_| CliError::Timeout)??;
-
-        let response_len = u32::from_le_bytes(len_buf) as usize;
-        if response_len > 16 * 1024 * 1024 {
-            return Err(CliError::Protocol("Response too large".to_string()));
-        }
-
-        let mut response = vec![0u8; response_len];
-        stream.read_exact(&mut response).await?;
-
-        Ok(response)
+        self.write_request_frame(stream, request).await?;
+        self.read_response_frame(stream).await
     }
 }
 
