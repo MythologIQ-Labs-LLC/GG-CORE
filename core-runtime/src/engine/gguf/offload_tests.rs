@@ -32,7 +32,11 @@ fn gpu_capability_flag_alone_does_not_prove_local_device() {
     assert!(!super::has_registered_gpu(true, &[]));
     assert!(!super::has_registered_gpu(
         true,
-        &[DeviceType::Cpu, DeviceType::Accelerator, DeviceType::Unknown]
+        &[
+            DeviceType::Cpu,
+            DeviceType::Accelerator,
+            DeviceType::Unknown,
+        ]
     ));
     assert!(!super::has_registered_gpu(false, &[DeviceType::Gpu]));
     assert!(super::has_registered_gpu(
