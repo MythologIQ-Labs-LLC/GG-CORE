@@ -45,6 +45,7 @@ impl OnnxEmbedder {
     /// # Errors
     /// Fails loud when `model.onnx` is missing or not a valid ONNX model. A
     /// missing `tokenizer.json` degrades to the logged hash fallback (B-28).
+    /// A present invalid tokenizer is refused rather than silently downgraded.
     #[cfg(feature = "onnx")]
     pub fn load(
         model_dir: &Path,
@@ -54,7 +55,7 @@ impl OnnxEmbedder {
         let model_path = model_dir.join(model_id).join("model.onnx");
         let model = candle_onnx::read_file(&model_path)
             .map_err(|e| InferenceError::ModelError(format!("load {model_path:?}: {e}")))?;
-        let tokenizer = super::tokenizer::OnnxTokenizer::for_model(&model_path);
+        let tokenizer = super::tokenizer::OnnxTokenizer::for_model(&model_path)?;
         Ok(Self::with_model(
             model_id.to_string(),
             embedding_dim,
@@ -122,7 +123,7 @@ impl OnnxEmbedder {
             InferenceError::ModelError(format!("model '{}' not loaded", self.model_id))
         })?;
 
-        let encoded = self.tokenizer.encode(text);
+        let encoded = self.tokenizer.encode(text)?;
         if !encoded.attention_mask.contains(&1) {
             return Err(InferenceError::InputValidation(
                 "input tokenized to zero attended tokens".into(),

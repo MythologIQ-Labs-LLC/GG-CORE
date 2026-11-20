@@ -85,7 +85,7 @@ impl OnnxClassifier {
         })?;
 
         let device = candle_core::Device::Cpu;
-        let encoded = self.tokenizer.encode(text);
+        let encoded = self.tokenizer.encode(text)?;
         let inputs = super::tensor_ops::build_transformer_inputs(&encoded, &device)?;
 
         let outputs = candle_onnx::simple_eval(model, inputs)
