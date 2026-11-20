@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 const DIM: usize = 8;
 
 fn fixture() -> OnnxEmbedder {
-    let models = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/models/onnx");
+    let models =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models/onnx");
     OnnxEmbedder::load(&models, "tiny-embedder", DIM).expect("committed real graph must load")
 }
 
@@ -24,7 +24,10 @@ async fn pre_cancelled_single_does_not_access_unloaded_model() {
             Some(&cancelled),
         )
         .await;
-    assert!(matches!(result, Err(InferenceError::Cancelled)), "{result:?}");
+    assert!(
+        matches!(result, Err(InferenceError::Cancelled)),
+        "{result:?}"
+    );
 }
 
 #[tokio::test]
@@ -39,7 +42,10 @@ async fn cancellation_after_single_eval_refuses_success_result() {
             Some(&stop),
         )
         .await;
-    assert!(matches!(result, Err(InferenceError::Cancelled)), "{result:?}");
+    assert!(
+        matches!(result, Err(InferenceError::Cancelled)),
+        "{result:?}"
+    );
     assert_eq!(polls.load(Ordering::SeqCst), 2);
 }
 
@@ -61,7 +67,10 @@ async fn cancellation_after_first_batch_item_stops_remaining_items() {
             Some(&stop),
         )
         .await;
-    assert!(matches!(result, Err(InferenceError::Cancelled)), "{result:?}");
+    assert!(
+        matches!(result, Err(InferenceError::Cancelled)),
+        "{result:?}"
+    );
     assert_eq!(polls.load(Ordering::SeqCst), 3);
 }
 
