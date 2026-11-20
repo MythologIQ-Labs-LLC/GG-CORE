@@ -193,7 +193,7 @@ impl crate::engine::Model for OnnxEmbedder {
         input.validate()?;
         let stop = || {
             if is_cancelled.is_some_and(|check| check()) {
-                Err(InferenceError::Cancelled)
+                Err(InferenceError::ModelError("ONNX embedding cancelled".into()))
             } else {
                 Ok(())
             }
