@@ -24,6 +24,27 @@ fn nonzero_layers_with_a_device_are_allowed() {
     assert!(require_offload_device(33, true).is_ok());
 }
 
+#[test]
+fn gpu_capability_flag_alone_does_not_prove_local_device() {
+    use llama_cpp_2::LlamaBackendDeviceType as DeviceType;
+
+    // General backend support can be true without a registered GPU (e.g. RPC).
+    assert!(!super::has_registered_gpu(true, &[]));
+    assert!(!super::has_registered_gpu(
+        true,
+        &[DeviceType::Cpu, DeviceType::Accelerator, DeviceType::Unknown]
+    ));
+    assert!(!super::has_registered_gpu(false, &[DeviceType::Gpu]));
+    assert!(super::has_registered_gpu(
+        true,
+        &[DeviceType::Cpu, DeviceType::Gpu]
+    ));
+    assert!(super::has_registered_gpu(
+        true,
+        &[DeviceType::IntegratedGpu]
+    ));
+}
+
 /// A CPU-only build must refuse an in-process offload request before any
 /// model file is opened, rather than silently running on the CPU.
 #[cfg(not(any(feature = "gguf-cuda", feature = "gguf-metal")))]

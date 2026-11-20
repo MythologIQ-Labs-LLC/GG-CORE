@@ -27,12 +27,36 @@ pub(super) fn require_offload_device(
     )))
 }
 
+/// A compiled GPU/RPC-capable backend is not proof of a registered local GPU.
+/// llama.cpp can report GPU offload support through RPC alone; this local
+/// CUDA/Metal offload path must see a native GPU or integrated GPU device.
+fn has_registered_gpu(
+    backend_supports_offload: bool,
+    device_types: &[LlamaBackendDeviceType],
+) -> bool {
+    backend_supports_offload
+        && device_types.iter().any(|kind| {
+            matches!(
+                kind,
+                LlamaBackendDeviceType::Gpu | LlamaBackendDeviceType::IntegratedGpu
+            )
+        })
+}
+
 /// Check a load request against the process backend's registered devices.
+/// Reject unsupported requests before opening/loading the GGUF model file.
 pub(super) fn check(backend: &LlamaBackend, n_gpu_layers: u32) -> Result<(), InferenceError> {
     if n_gpu_layers == 0 {
         return Ok(());
     }
-    require_offload_device(n_gpu_layers, backend.supports_gpu_offload())
+    let types: Vec<_> = list_llama_ggml_backend_devices()
+        .into_iter()
+        .map(|device| device.device_type)
+        .collect();
+    require_offload_device(
+        n_gpu_layers,
+        has_registered_gpu(backend.supports_gpu_offload(), &types),
+    )
 }
 
 const GPU_MIN_HEADROOM: usize = 256 * 1024 * 1024;
