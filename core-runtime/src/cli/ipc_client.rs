@@ -182,14 +182,19 @@ impl CliIpcClient {
     where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
+        // The daemon's request deadline + client grace is a total stream
+        // budget. Per-frame timeouts alone can be evaded by endless chunks.
+        let deadline = tokio::time::Instant::now() + self.timeout_duration;
         self.write_request_frame(stream, request).await?;
 
         let mut full_output = String::new();
 
-        // Each complete incoming frame must arrive within one deadline.
-        // A slow but progressing generation may send multiple frames.
+        // Preserve the per-frame stall guard, also refusing endless valid
+        // chunks once the absolute stream budget has expired.
         loop {
-            let response = self.read_response_frame(stream).await?;
+            let response = tokio::time::timeout_at(deadline, self.read_response_frame(stream))
+                .await
+                .map_err(|_| CliError::Timeout)??;
 
             let message =
                 decode_message(&response).map_err(|e| CliError::Protocol(e.to_string()))?;
