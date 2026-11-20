@@ -10,6 +10,7 @@ import pathlib
 import sys
 
 from check_binary_identity import check, file_sha256
+from cli_contract import check_public_cli
 
 
 def main() -> int:
@@ -20,6 +21,7 @@ def main() -> int:
         if not binary.is_file():
             raise ValueError("built GG-CORE CLI is missing")
         receipt = check(binary, commit, file_sha256(binary), set())
+        receipt["public_cli"] = check_public_cli(binary, receipt["version"])
     except (ValueError, OSError) as exc:
         print(json.dumps({"result": "FAIL", "reason": str(exc)}))
         return 1
