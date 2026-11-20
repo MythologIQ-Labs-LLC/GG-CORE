@@ -147,7 +147,10 @@ fn manifest_with_sixty_four_nonhex_characters_is_refused_at_parse_boundary() {
     )
     .unwrap();
     let error = read_sibling_manifest(&model_path).unwrap_err().to_string();
-    assert!(error.contains("sha256 must be 64 hex characters"), "{error}");
+    assert!(
+        error.contains("sha256 must be 64 hex characters"),
+        "{error}"
+    );
 }
 
 #[test]
