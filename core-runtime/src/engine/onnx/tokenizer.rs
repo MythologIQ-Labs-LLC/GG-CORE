@@ -4,9 +4,13 @@
 //! `tokenizer.json` (HuggingFace `tokenizers`, `from_file` — no network path is
 //! compiled in). When no `tokenizer.json` accompanies the model it degrades to a
 //! deterministic hash tokenizer that is explicitly named and logged, so ONNX
-//! inference never *silently* runs on a missing vocabulary.
+//! inference never *silently* runs on a missing vocabulary. A present but
+//! corrupt or inaccessible tokenizer is a load error, never permission to
+//! synthesize different token IDs.
 
 use std::path::Path;
+
+use crate::engine::InferenceError;
 
 /// Token ids plus their attention mask. The mask is the tokenizer's own
 /// (real tokenizers may pad to a fixed length — e.g. the MiniLM
@@ -29,49 +33,52 @@ pub(super) enum OnnxTokenizer {
 impl OnnxTokenizer {
     /// Resolve a tokenizer for a model file by loading a sibling `tokenizer.json`
     /// (same directory). Offline: `Tokenizer::from_file` reads local disk only.
-    /// On miss or parse error, warns and falls back (never fails the load).
-    pub(super) fn for_model(model_path: &Path) -> Self {
+    /// A truly absent tokenizer retains the documented degraded hash fallback.
+    /// A present malformed tokenizer, symlink, directory, or unreadable file
+    /// is an error: otherwise model output can silently use the wrong vocabulary.
+    pub(super) fn for_model(model_path: &Path) -> Result<Self, InferenceError> {
         let tok_path = model_path.with_file_name("tokenizer.json");
-        if !tok_path.exists() {
-            tracing::warn!(
-                model = %model_path.display(),
-                "no sibling tokenizer.json; ONNX tokenization degraded to hash fallback"
-            );
-            return Self::HashFallback;
-        }
-        match tokenizers::Tokenizer::from_file(&tok_path) {
-            Ok(tok) => Self::WordPiece(Box::new(tok)),
-            Err(e) => {
+        match std::fs::symlink_metadata(&tok_path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 tracing::warn!(
-                    path = %tok_path.display(),
-                    error = %e,
-                    "tokenizer.json failed to load; degrading to hash fallback"
+                    model = %model_path.display(),
+                    "no sibling tokenizer.json; ONNX tokenization degraded to hash fallback"
                 );
-                Self::HashFallback
+                return Ok(Self::HashFallback);
             }
+            Err(e) => {
+                return Err(InferenceError::ModelError(format!(
+                    "cannot inspect ONNX tokenizer.json: {e}"
+                )));
+            }
+            Ok(meta) if !meta.is_file() || meta.file_type().is_symlink() => {
+                return Err(InferenceError::ModelError(
+                    "ONNX tokenizer.json must be a regular non-symlink file".into(),
+                ));
+            }
+            Ok(_) => {}
         }
+        tokenizers::Tokenizer::from_file(&tok_path)
+            .map(|tok| Self::WordPiece(Box::new(tok)))
+            .map_err(|e| InferenceError::ModelError(format!("ONNX tokenizer.json is invalid: {e}")))
     }
 
-    /// Encode text to model input ids + attention mask. A `WordPiece` encode
-    /// error degrades to the hash fallback for that call rather than panicking
-    /// on the inference path.
-    pub(super) fn encode(&self, text: &str) -> TokenizedInput {
+    /// A configured real tokenizer must never downgrade to synthetic hash
+    /// token IDs for an individual failed encoding.
+    pub(super) fn encode(&self, text: &str) -> Result<TokenizedInput, InferenceError> {
         match self {
-            Self::WordPiece(tok) => match tok.encode(text, true) {
-                Ok(enc) => TokenizedInput {
+            Self::WordPiece(tok) => tok
+                .encode(text, true)
+                .map(|enc| TokenizedInput {
                     ids: enc.get_ids().iter().map(|&id| i64::from(id)).collect(),
                     attention_mask: enc
                         .get_attention_mask()
                         .iter()
                         .map(|&m| i64::from(m))
                         .collect(),
-                },
-                Err(e) => {
-                    tracing::warn!(error = %e, "WordPiece encode failed; using hash fallback");
-                    hash_encode(text)
-                }
-            },
-            Self::HashFallback => hash_encode(text),
+                })
+                .map_err(|e| InferenceError::ModelError(format!("ONNX tokenization failed: {e}"))),
+            Self::HashFallback => Ok(hash_encode(text)),
         }
     }
 }
@@ -101,8 +108,8 @@ mod tests {
 
     #[test]
     fn hash_fallback_is_deterministic_and_wraps_cls_sep() {
-        let a = OnnxTokenizer::HashFallback.encode("hello world");
-        let b = OnnxTokenizer::HashFallback.encode("hello world");
+        let a = OnnxTokenizer::HashFallback.encode("hello world").unwrap();
+        let b = OnnxTokenizer::HashFallback.encode("hello world").unwrap();
         assert_eq!(a.ids, b.ids, "hash fallback must be deterministic");
         assert_eq!(a.ids.first(), Some(&101), "leading [CLS]");
         assert_eq!(a.ids.last(), Some(&102), "trailing [SEP]");
@@ -116,8 +123,48 @@ mod tests {
         let missing = dir.join("gg_core_no_such_model_b28.onnx");
         assert!(matches!(
             OnnxTokenizer::for_model(&missing),
-            OnnxTokenizer::HashFallback
+            Ok(OnnxTokenizer::HashFallback)
         ));
+    }
+
+    #[test]
+    fn present_invalid_tokenizer_never_downgrades_to_hash_ids() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let model_path = dir.path().join("model.onnx");
+        std::fs::write(dir.path().join("tokenizer.json"), b"{malformed json")
+            .expect("write malformed tokenizer");
+        let result = OnnxTokenizer::for_model(&model_path);
+        assert!(
+            matches!(result, Err(InferenceError::ModelError(message)) if message.contains("invalid")),
+            "a present malformed tokenizer must fail loading"
+        );
+    }
+
+    #[test]
+    fn directory_instead_of_tokenizer_is_refused() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir(dir.path().join("tokenizer.json")).expect("make directory");
+        let result = OnnxTokenizer::for_model(&dir.path().join("model.onnx"));
+        assert!(
+            matches!(result, Err(InferenceError::ModelError(message)) if message.contains("regular")),
+            "a directory must not count as an absent tokenizer"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn dangling_tokenizer_symlink_is_not_treated_as_missing() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        std::os::unix::fs::symlink(
+            dir.path().join("missing-tokenizer.json"),
+            dir.path().join("tokenizer.json"),
+        )
+        .expect("create dangling link");
+        let result = OnnxTokenizer::for_model(&dir.path().join("model.onnx"));
+        assert!(
+            matches!(result, Err(InferenceError::ModelError(message)) if message.contains("non-symlink")),
+            "a dangling symlink must not trigger degraded hash tokenization"
+        );
     }
 
     #[test]
@@ -148,13 +195,13 @@ mod tests {
         std::fs::write(dir.join("tokenizer.json"), json_body).unwrap();
 
         let model_path = dir.join("model.onnx");
-        let resolved = OnnxTokenizer::for_model(&model_path);
+        let resolved = OnnxTokenizer::for_model(&model_path).expect("valid tokenizer must load");
         assert!(
             matches!(resolved, OnnxTokenizer::WordPiece(_)),
             "sibling tokenizer.json must load as WordPiece"
         );
 
-        let encoded = resolved.encode("hello world");
+        let encoded = resolved.encode("hello world").expect("real tokenizer must encode");
         assert_eq!(
             encoded.ids,
             vec![3, 4],
