@@ -199,15 +199,20 @@ mod tests {
     async fn recurring_valid_chunks_cannot_extend_stream_deadline() {
         use crate::ipc::protocol::{encode_message, IpcMessage, RequestId, StreamChunk};
         let (mut client, mut peer) = duplex(256);
-        let frame = encode_message(&IpcMessage::StreamChunk(
-            StreamChunk::token(RequestId(1), 42),
-        ))
+        let frame = encode_message(&IpcMessage::StreamChunk(StreamChunk::token(
+            RequestId(1),
+            42,
+        )))
         .unwrap();
         let server = tokio::spawn(async move {
             let mut request = [0u8; 8];
             peer.read_exact(&mut request).await.unwrap();
             loop {
-                if peer.write_all(&(frame.len() as u32).to_le_bytes()).await.is_err() {
+                if peer
+                    .write_all(&(frame.len() as u32).to_le_bytes())
+                    .await
+                    .is_err()
+                {
                     break;
                 }
                 if peer.write_all(&frame).await.is_err() {
@@ -216,8 +221,8 @@ mod tests {
                 tokio::time::sleep(std::time::Duration::from_millis(5)).await;
             }
         });
-        let bounded = CliIpcClient::new("test".into())
-            .with_timeout(std::time::Duration::from_millis(80));
+        let bounded =
+            CliIpcClient::new("test".into()).with_timeout(std::time::Duration::from_millis(80));
         let result = tokio::time::timeout(
             std::time::Duration::from_millis(400),
             bounded.stream_exchange(&mut client, b"ping", RequestId(1)),
