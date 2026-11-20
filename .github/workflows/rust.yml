@@ -96,6 +96,10 @@ jobs:
           python-version: '3.12'
       - name: Exact-binary identity preflight negative controls (#114)
         run: python -m unittest discover -s scripts -p test_binary_identity.py -v
+      - name: Build default-feature CLI for real identity smoke (#114)
+        run: cargo build --locked --bin gg-core-cli
+      - name: Execute and verify built CLI provenance (#114)
+        run: python scripts/smoke_binary_identity.py
       # Cargo does not run #[cfg(test)] in build.rs through cargo test.
       # Compile its pure provenance and Git ref-watch tests explicitly.
       - name: Build-provenance identity and ref-watch tests (#114)
