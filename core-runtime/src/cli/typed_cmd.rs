@@ -20,18 +20,26 @@ impl CliIpcClient {
         &self,
         request: TypedInferenceRequest,
     ) -> Result<TypedResult, CliError> {
+        let request_id = request.request_id;
         let bytes = encode_message(&IpcMessage::TypedInferenceRequest(request))
             .map_err(|e| CliError::Protocol(e.to_string()))?;
         let reply = self.send_receive_authenticated(&bytes).await?;
-        match decode_message(&reply).map_err(|e| CliError::Protocol(e.to_string()))? {
-            IpcMessage::TypedInferenceResponse(resp) => match (resp.result, resp.error) {
-                (Some(result), None) => Ok(result),
-                (_, Some(err)) => Err(CliError::Protocol(err)),
-                (None, None) => Err(CliError::Protocol("empty typed response".into())),
-            },
-            IpcMessage::Error { message, .. } => Err(CliError::Protocol(message)),
-            _ => Err(CliError::Protocol("Unexpected response type".into())),
-        }
+        decode_typed_reply(&reply, request_id)
+    }
+}
+
+fn decode_typed_reply(bytes: &[u8], expected_id: RequestId) -> Result<TypedResult, CliError> {
+    match decode_message(bytes).map_err(|e| CliError::Protocol(e.to_string()))? {
+        IpcMessage::TypedInferenceResponse(resp) if resp.request_id != expected_id => Err(
+            CliError::Protocol("Typed inference response request ID mismatch".into()),
+        ),
+        IpcMessage::TypedInferenceResponse(resp) => match (resp.result, resp.error) {
+            (Some(result), None) => Ok(result),
+            (_, Some(err)) => Err(CliError::Protocol(err)),
+            (None, None) => Err(CliError::Protocol("empty typed response".into())),
+        },
+        IpcMessage::Error { message, .. } => Err(CliError::Protocol(message)),
+        _ => Err(CliError::Protocol("Unexpected response type".into())),
     }
 }
 
@@ -121,6 +129,54 @@ mod tests {
 
     fn args(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn typed_success_requires_matching_request_id() {
+        use crate::ipc::protocol_typed::{Embedding, TypedInferenceResponse};
+        let result = TypedResult::Embedding(Embedding {
+            dimensions: 1,
+            vector: vec![1.0],
+        });
+        let response = IpcMessage::TypedInferenceResponse(TypedInferenceResponse::success(
+            RequestId(9),
+            result.clone(),
+        ));
+        let bytes = encode_message(&response).unwrap();
+        assert_eq!(decode_typed_reply(&bytes, RequestId(9)).unwrap(), result);
+        let err = decode_typed_reply(&bytes, RequestId(8)).unwrap_err();
+        assert!(matches!(err, CliError::Protocol(msg) if msg.contains("ID mismatch")));
+    }
+
+    #[test]
+    fn typed_error_requires_matching_request_id() {
+        use crate::ipc::protocol::InferenceErrorCode;
+        use crate::ipc::protocol_typed::TypedInferenceResponse;
+        let response = IpcMessage::TypedInferenceResponse(TypedInferenceResponse::error(
+            RequestId(9),
+            "model refused".into(),
+            InferenceErrorCode::UnsupportedTask,
+        ));
+        let bytes = encode_message(&response).unwrap();
+        let err = decode_typed_reply(&bytes, RequestId(9)).unwrap_err();
+        assert!(matches!(err, CliError::Protocol(msg) if msg == "model refused"));
+        let err = decode_typed_reply(&bytes, RequestId(8)).unwrap_err();
+        assert!(matches!(err, CliError::Protocol(msg) if msg.contains("ID mismatch")));
+    }
+
+    #[test]
+    fn typed_empty_and_wrong_frame_remain_refused() {
+        use crate::ipc::protocol_typed::TypedInferenceResponse;
+        let empty = IpcMessage::TypedInferenceResponse(TypedInferenceResponse {
+            request_id: RequestId(9),
+            result: None,
+            error: None,
+            error_code: None,
+        });
+        let bytes = encode_message(&empty).unwrap();
+        assert!(decode_typed_reply(&bytes, RequestId(9)).is_err());
+        let bytes = encode_message(&IpcMessage::ModelsRequest).unwrap();
+        assert!(decode_typed_reply(&bytes, RequestId(9)).is_err());
     }
 
     #[test]
