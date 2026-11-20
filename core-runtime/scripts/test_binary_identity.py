@@ -56,13 +56,9 @@ class IdentityTests(unittest.TestCase):
             self.run_check()
 
     def test_symlink_refused(self):
-        link = self.binary.with_suffix(".link")
-        try:
-            link.symlink_to(self.binary)
-        except (OSError, NotImplementedError):
-            self.skipTest("symlink privileges unavailable on this host")
-        with self.assertRaisesRegex(ValueError, "not a symlink"):
-            check(link, COMMIT, self.digest, set())
+        with mock.patch.object(pathlib.Path, "is_symlink", return_value=True):
+            with self.assertRaisesRegex(ValueError, "not a symlink"):
+                check(self.binary, COMMIT, self.digest, set())
 
     def test_short_source_sha_refused(self):
         with self.assertRaisesRegex(ValueError, "exact 40-digit"):
