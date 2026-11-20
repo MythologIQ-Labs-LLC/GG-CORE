@@ -179,18 +179,41 @@ impl crate::engine::Model for OnnxEmbedder {
     async fn infer(
         &self,
         input: &InferenceInput,
+        config: &InferenceConfig,
+    ) -> Result<InferenceOutput, InferenceError> {
+        self.infer_cancellable(input, config, None).await
+    }
+
+    async fn infer_cancellable(
+        &self,
+        input: &InferenceInput,
         _config: &InferenceConfig,
+        is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<InferenceOutput, InferenceError> {
         input.validate()?;
+        let stop = || {
+            if is_cancelled.is_some_and(|check| check()) {
+                Err(InferenceError::ModelError(
+                    "ONNX embedding cancelled".into(),
+                ))
+            } else {
+                Ok(())
+            }
+        };
+        stop()?;
         match input {
             InferenceInput::Text(text) => {
                 let result = self.embed_text(text)?;
+                stop()?;
                 Ok(InferenceOutput::Embedding(result))
             }
             InferenceInput::TextBatch(batch) => {
                 let mut results = Vec::with_capacity(batch.len());
                 for text in batch {
-                    results.push(self.embed_text(text)?);
+                    stop()?;
+                    let result = self.embed_text(text)?;
+                    stop()?;
+                    results.push(result);
                 }
                 Ok(InferenceOutput::EmbeddingBatch(results))
             }
@@ -214,6 +237,9 @@ impl crate::engine::Model for OnnxEmbedder {
     }
 }
 
+#[cfg(all(test, feature = "onnx"))]
+#[path = "embedder_cancel_tests.rs"]
+mod cancel_tests;
 #[cfg(test)]
 #[path = "embedder_tests.rs"]
 mod tests;
