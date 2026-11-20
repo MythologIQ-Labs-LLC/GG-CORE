@@ -2,7 +2,7 @@
 //!
 //! A peer that sends only part of a frame must never pin the CLI forever.
 //! Each outbound frame and inbound frame has one complete operation deadline.
-//! Streaming renews the deadline for each new frame, not for the whole session.
+//! Streaming also has a total deadline, even when the peer keeps sending valid frames.
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
