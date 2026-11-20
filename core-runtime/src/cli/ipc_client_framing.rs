@@ -159,10 +159,14 @@ mod tests {
         let task = tokio::spawn(async move {
             let mut request = [0u8; 8];
             peer.read_exact(&mut request).await.unwrap();
-            peer.write_all(&(payload.len() as u32).to_le_bytes()).await.unwrap();
+            peer.write_all(&(payload.len() as u32).to_le_bytes())
+                .await
+                .unwrap();
             peer.write_all(&payload).await.unwrap();
         });
-        let result = short_timeout().stream_exchange(&mut client, b"ping", RequestId(20)).await;
+        let result = short_timeout()
+            .stream_exchange(&mut client, b"ping", RequestId(20))
+            .await;
         assert!(matches!(result, Err(CliError::Protocol(msg)) if msg.contains("ID mismatch")));
         task.await.unwrap();
     }
@@ -171,12 +175,16 @@ mod tests {
     async fn matching_empty_final_chunk_completes_stream() {
         use crate::ipc::protocol::{encode_message, IpcMessage, RequestId, StreamChunk};
         let (mut client, mut peer) = duplex(128);
-        let payload = encode_message(&IpcMessage::StreamChunk(StreamChunk::complete(RequestId(20))))
-            .unwrap();
+        let payload = encode_message(&IpcMessage::StreamChunk(StreamChunk::complete(RequestId(
+            20,
+        ))))
+        .unwrap();
         let task = tokio::spawn(async move {
             let mut request = [0u8; 8];
             peer.read_exact(&mut request).await.unwrap();
-            peer.write_all(&(payload.len() as u32).to_le_bytes()).await.unwrap();
+            peer.write_all(&(payload.len() as u32).to_le_bytes())
+                .await
+                .unwrap();
             peer.write_all(&payload).await.unwrap();
         });
         let output = short_timeout()
