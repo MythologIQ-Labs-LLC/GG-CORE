@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(unix)]
 use tokio::time::timeout;
 
 #[path = "ipc_client_framing.rs"]
