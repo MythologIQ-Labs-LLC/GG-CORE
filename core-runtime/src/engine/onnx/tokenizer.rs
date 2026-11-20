@@ -77,7 +77,9 @@ impl OnnxTokenizer {
                         .map(|&m| i64::from(m))
                         .collect(),
                 })
-                .map_err(|e| InferenceError::ModelError(format!("ONNX tokenization failed: {e}")))?,
+                .map_err(|e| {
+                    InferenceError::ModelError(format!("ONNX tokenization failed: {e}"))
+                })?,
             Self::HashFallback => hash_encode(text),
         };
         // Byte-size admission is insufficient: a legal 64 KiB text may expand
