@@ -58,6 +58,23 @@ async fn golden_vector_hello_world() {
 
 #[cfg(feature = "onnx")]
 #[tokio::test]
+async fn real_onnx_embedder_refuses_wrong_declared_dimensions() {
+    let embedder = OnnxEmbedder::load(&fixture_model_dir(), MODEL_ID, DIM + 1)
+        .expect("committed fixture must load even before inferred output shape is known");
+    let result = embedder
+        .infer(
+            &InferenceInput::Text("hello world".into()),
+            &InferenceConfig::for_embedding(),
+        )
+        .await;
+    assert!(
+        matches!(result, Err(InferenceError::ModelError(message)) if message.contains("dimension mismatch")),
+        "a mismatched embedding width must not produce a success-shaped response"
+    );
+}
+
+#[cfg(feature = "onnx")]
+#[tokio::test]
 async fn embedding_is_l2_normalized() {
     let embedder = load_fixture();
     let vector = embed_one(&embedder, "greatest good").await;
