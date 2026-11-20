@@ -143,9 +143,21 @@ impl OnnxEmbedder {
             .to_vec1()
             .map_err(|e| InferenceError::ModelError(format!("vec: {e}")))?;
 
-        let vector = tensor_ops::l2_normalize(raw);
-        let dimensions = vector.len();
-        Ok(EmbeddingResult { vector, dimensions })
+        // The loaded model must honor the expected embedding dimension.
+        // A successful but different-width result silently corrupts consumer
+        // vector indexes and breaks cross-model compatibility.
+        if raw.len() != self.embedding_dim || self.embedding_dim == 0 {
+            return Err(InferenceError::ModelError(format!(
+                "embedding dimension mismatch: expected {}, model produced {}",
+                self.embedding_dim,
+                raw.len()
+            )));
+        }
+        let vector = tensor_ops::l2_normalize(raw)?;
+        Ok(EmbeddingResult {
+            vector,
+            dimensions: self.embedding_dim,
+        })
     }
 }
 
