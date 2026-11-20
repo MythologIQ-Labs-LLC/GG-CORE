@@ -17,6 +17,8 @@ use crate::engine::{
 pub struct OnnxEmbedder {
     model_id: String,
     embedding_dim: usize,
+    /// Operator configuration, bounded by the shared input hard limit.
+    max_batch_size: usize,
     memory_bytes: AtomicUsize,
     #[cfg(feature = "onnx")]
     model: Option<candle_onnx::onnx::ModelProto>,
@@ -31,6 +33,7 @@ impl OnnxEmbedder {
         Self {
             model_id,
             embedding_dim,
+            max_batch_size: crate::engine::input::MAX_BATCH_SIZE,
             memory_bytes: AtomicUsize::new(0),
             #[cfg(feature = "onnx")]
             model: None,
@@ -88,10 +91,19 @@ impl OnnxEmbedder {
         Self {
             model_id,
             embedding_dim,
+            max_batch_size: crate::engine::input::MAX_BATCH_SIZE,
             memory_bytes: AtomicUsize::new(estimate),
             model: Some(model),
             tokenizer,
         }
+    }
+
+    /// Apply an already validated loader batch cap without changing the public
+    /// embedded constructor or the existing trait/API signatures.
+    #[cfg(feature = "onnx")]
+    pub(super) fn with_batch_limit(mut self, max_batch_size: usize) -> Self {
+        self.max_batch_size = max_batch_size;
+        self
     }
 
     /// Expected embedding dimensionality of the wrapped model.
@@ -191,6 +203,17 @@ impl crate::engine::Model for OnnxEmbedder {
         is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<InferenceOutput, InferenceError> {
         input.validate()?;
+        // The generic input contract allows up to 32 items, but model loading
+        // can request a stricter cap. Refuse before starting native evaluation.
+        if let InferenceInput::TextBatch(batch) = input {
+            if batch.len() > self.max_batch_size {
+                return Err(InferenceError::InputValidation(format!(
+                    "ONNX embedding batch of {} exceeds configured max_batch_size {}",
+                    batch.len(),
+                    self.max_batch_size
+                )));
+            }
+        }
         let stop = || {
             if is_cancelled.is_some_and(|check| check()) {
                 Err(InferenceError::ModelError(
