@@ -132,6 +132,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn streaming_exchange_times_out_on_partial_chunk() {
+        let (mut client, mut peer) = duplex(64);
+        let task = tokio::spawn(async move {
+            let mut request = [0u8; 8];
+            peer.read_exact(&mut request).await.unwrap();
+            peer.write_all(&8u32.to_le_bytes()).await.unwrap();
+            peer.write_all(b"x").await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        let result = short_timeout().stream_exchange(&mut client, b"ping").await;
+        assert!(matches!(result, Err(CliError::Timeout)), "{result:?}");
+        task.abort();
+    }
+
+    #[tokio::test]
     async fn full_exchange_times_out_on_stalled_response_body() {
         let (mut client, mut peer) = duplex(64);
         let task = tokio::spawn(async move {
