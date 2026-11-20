@@ -6,13 +6,53 @@
 
 #![allow(dead_code)]
 
+use std::io::Read;
 use std::path::Path;
 use std::time::{Duration, Instant};
+
+use sha2::{Digest, Sha256};
 
 use gg_core::engine::gguf::{GgufConfig, GgufGenerator};
 use gg_core::engine::{InferenceConfig, StreamItem, TokenStream};
 
 pub const MODEL: &str = "../models/qwen2.5-0.5b-instruct-q4_k_m.gguf";
+
+const APPROVED_MODEL_BYTES: u64 = 491_400_032;
+const APPROVED_MODEL_SHA256: &str =
+    "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db";
+
+/// Enforce the approved real-model fixture, not merely the filename or an LFS
+/// pointer. A wrong fixture must never produce GPU qualification evidence.
+fn verify_fixture(path: &Path, expected_bytes: u64, expected_sha256: &str) -> Result<(), String> {
+    let meta = std::fs::symlink_metadata(path)
+        .map_err(|e| format!("cannot inspect pinned GGUF fixture: {e}"))?;
+    if !meta.is_file() || meta.file_type().is_symlink() || meta.len() != expected_bytes {
+        return Err(format!(
+            "pinned GGUF fixture is not a regular file of {expected_bytes} bytes"
+        ));
+    }
+    let mut file = std::fs::File::open(path)
+        .map_err(|e| format!("cannot open pinned GGUF fixture: {e}"))?;
+    let mut digest = Sha256::new();
+    let mut buf = [0_u8; 65_536];
+    loop {
+        let count = file
+            .read(&mut buf)
+            .map_err(|e| format!("cannot hash pinned GGUF fixture: {e}"))?;
+        if count == 0 {
+            break;
+        }
+        digest.update(&buf[..count]);
+    }
+    let actual = hex::encode(digest.finalize());
+    if actual != expected_sha256 {
+        return Err(format!(
+            "GGUF fixture SHA-256 mismatch: expected {expected_sha256}, got {actual}"
+        ));
+    }
+    Ok(())
+}
+
 /// More than Qwen2.5-0.5B's 24 transformer blocks: offload everything.
 pub const ALL_LAYERS: u32 = 99;
 
@@ -21,6 +61,7 @@ pub fn report(key: &str, value: impl std::fmt::Display) {
 }
 
 pub fn load(n_gpu_layers: u32, n_ctx: u32) -> Result<GgufGenerator, String> {
+    verify_fixture(Path::new(MODEL), APPROVED_MODEL_BYTES, APPROVED_MODEL_SHA256)?;
     let config = GgufConfig {
         n_ctx,
         n_threads: 4,
@@ -149,3 +190,20 @@ async fn stream_in_runtime(
 }
 
 const ORD: std::sync::atomic::Ordering = std::sync::atomic::Ordering::SeqCst;
+
+#[cfg(test)]
+mod fixture_integrity_tests {
+    use super::*;
+
+    #[test]
+    fn pinned_fixture_check_rejects_wrong_bytes_and_wrong_hash() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("model.gguf");
+        std::fs::write(&path, b"fixture").expect("test fixture");
+        let approved = hex::encode(Sha256::digest(b"fixture"));
+        assert!(verify_fixture(&path, 7, &approved).is_ok());
+        assert!(verify_fixture(&path, 8, &approved).is_err());
+        assert!(verify_fixture(&path, 7, &"0".repeat(64)).is_err());
+    }
+}
+
