@@ -90,6 +90,12 @@ jobs:
           workspaces: core-runtime
       - name: Test suite (default features)
         run: cargo test --locked --workspace
+      - name: Set up Python for cross-platform conformance tests (#114)
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Exact-binary identity preflight negative controls (#114)
+        run: python -m unittest discover -s scripts -p test_binary_identity.py -v
       # Cargo does not run #[cfg(test)] in build.rs through cargo test.
       # Compile its pure provenance and Git ref-watch tests explicitly.
       - name: Build-provenance identity and ref-watch tests (#114)
