@@ -11,6 +11,7 @@ import sys
 
 from check_binary_identity import check, file_sha256
 from cli_contract import check_public_cli
+from config_contract import check_config_contract
 
 
 def main() -> int:
@@ -22,6 +23,7 @@ def main() -> int:
             raise ValueError("built GG-CORE CLI is missing")
         receipt = check(binary, commit, file_sha256(binary), set())
         receipt["public_cli"] = check_public_cli(binary, receipt["version"])
+        receipt["config_cli"] = check_config_contract(binary)
     except (ValueError, OSError) as exc:
         print(json.dumps({"result": "FAIL", "reason": str(exc)}))
         return 1
