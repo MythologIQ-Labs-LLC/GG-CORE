@@ -201,7 +201,9 @@ mod tests {
             "sibling tokenizer.json must load as WordPiece"
         );
 
-        let encoded = resolved.encode("hello world").expect("real tokenizer must encode");
+        let encoded = resolved
+            .encode("hello world")
+            .expect("real tokenizer must encode");
         assert_eq!(
             encoded.ids,
             vec![3, 4],
