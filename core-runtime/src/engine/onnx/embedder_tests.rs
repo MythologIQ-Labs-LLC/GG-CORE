@@ -256,3 +256,61 @@ async fn load_and_embed_real_minilm() {
     assert!((near - 0.6470).abs() < 0.02, "cat/kitten cosine = {near}");
     assert!((far - -0.0415).abs() < 0.02, "cat/quark cosine = {far}");
 }
+
+#[cfg(feature = "onnx")]
+#[tokio::test]
+async fn configured_embedding_batch_limit_rejects_before_native_evaluation() {
+    let model_path = fixture_model_dir().join(MODEL_ID).join("model.onnx");
+    let config = super::super::OnnxConfig {
+        max_batch_size: 1,
+        ..Default::default()
+    };
+    let model = super::super::load_onnx_model(&model_path, "batch-limited", &config)
+        .expect("committed ONNX graph must load");
+    let result = model
+        .infer(
+            &InferenceInput::TextBatch(vec!["hello".into(), "world".into()]),
+            &InferenceConfig::for_embedding(),
+        )
+        .await;
+    assert!(
+        matches!(result, Err(InferenceError::InputValidation(message)) if message.contains("configured max_batch_size 1")),
+        "configured cap must refuse before any ONNX evaluation or output width check"
+    );
+}
+
+#[cfg(feature = "onnx")]
+#[test]
+fn invalid_embedding_batch_limit_fails_before_model_file_access() {
+    let missing = std::path::Path::new("/no-such-onnx-batch-model.onnx");
+    for cap in [0, crate::engine::input::MAX_BATCH_SIZE + 1] {
+        let config = super::super::OnnxConfig {
+            max_batch_size: cap,
+            ..Default::default()
+        };
+        let result = super::super::load_onnx_model(missing, "invalid-limit", &config);
+        assert!(
+            matches!(result, Err(InferenceError::InputValidation(message)) if message.contains("max_batch_size")),
+            "bad batch cap {cap} must be refused before ONNX model IO"
+        );
+    }
+}
+
+#[cfg(feature = "onnx")]
+#[tokio::test]
+async fn configured_limit_preserves_valid_real_single_item_embedding() {
+    let model = load_fixture().with_batch_limit(1);
+    let result = model
+        .infer(
+            &InferenceInput::TextBatch(vec!["hello world".into()]),
+            &InferenceConfig::for_embedding(),
+        )
+        .await
+        .expect("single item under configured limit must still infer");
+    let InferenceOutput::EmbeddingBatch(items) = result else {
+        panic!("expected a real embedding batch result");
+    };
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].dimensions, DIM);
+    assert!(items[0].vector.iter().all(|value| value.is_finite()));
+}
