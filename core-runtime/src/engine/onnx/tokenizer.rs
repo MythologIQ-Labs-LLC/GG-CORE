@@ -66,7 +66,7 @@ impl OnnxTokenizer {
     /// A configured real tokenizer must never downgrade to synthetic hash
     /// token IDs for an individual failed encoding.
     pub(super) fn encode(&self, text: &str) -> Result<TokenizedInput, InferenceError> {
-        match self {
+        let encoded = match self {
             Self::WordPiece(tok) => tok
                 .encode(text, true)
                 .map(|enc| TokenizedInput {
@@ -77,9 +77,22 @@ impl OnnxTokenizer {
                         .map(|&m| i64::from(m))
                         .collect(),
                 })
-                .map_err(|e| InferenceError::ModelError(format!("ONNX tokenization failed: {e}"))),
-            Self::HashFallback => Ok(hash_encode(text)),
+                .map_err(|e| {
+                    InferenceError::ModelError(format!("ONNX tokenization failed: {e}"))
+                })?,
+            Self::HashFallback => hash_encode(text),
+        };
+        // Byte-size admission is insufficient: a legal 64 KiB text may expand
+        // into far more than the shared per-input 4096-token ceiling. Never
+        // construct an ONNX attention tensor from that unbounded sequence.
+        if encoded.ids.len() > crate::engine::input::MAX_INPUT_TOKENS {
+            return Err(InferenceError::InputValidation(format!(
+                "ONNX input token count {} exceeds maximum {}",
+                encoded.ids.len(),
+                crate::engine::input::MAX_INPUT_TOKENS
+            )));
         }
+        Ok(encoded)
     }
 }
 
@@ -115,6 +128,29 @@ mod tests {
         assert_eq!(a.ids.last(), Some(&102), "trailing [SEP]");
         assert_eq!(a.ids.len(), 4, "[CLS] + 2 words + [SEP]");
         assert_eq!(a.attention_mask, vec![1; 4], "unpadded mask is all ones");
+    }
+
+    #[test]
+    fn hash_fallback_enforces_per_input_token_ceiling_without_truncating() {
+        use crate::engine::input::MAX_INPUT_TOKENS;
+
+        // [CLS] + words + [SEP] are all included in the tensor token count.
+        let allowed = "hello ".repeat(MAX_INPUT_TOKENS - 2);
+        let tokens = OnnxTokenizer::HashFallback
+            .encode(&allowed)
+            .expect("exactly 4096 tokens should be admitted");
+        assert_eq!(tokens.ids.len(), MAX_INPUT_TOKENS);
+        assert_eq!(tokens.attention_mask.len(), MAX_INPUT_TOKENS);
+
+        let oversized = "hello ".repeat(MAX_INPUT_TOKENS - 1);
+        let err = OnnxTokenizer::HashFallback
+            .encode(&oversized)
+            .err()
+            .expect("oversized hash-fallback input must be refused");
+        assert!(
+            matches!(err, InferenceError::InputValidation(message) if message.contains("token count") && message.contains("4096")),
+            "excess input tokens must fail closed instead of truncating"
+        );
     }
 
     #[test]
@@ -213,6 +249,20 @@ mod tests {
             encoded.attention_mask,
             vec![1, 1],
             "mask covers exactly the real tokens"
+        );
+
+        let allowed = "hello ".repeat(crate::engine::input::MAX_INPUT_TOKENS);
+        let accepted = resolved
+            .encode(&allowed)
+            .expect("real vocabulary must permit exactly 4096 tokens");
+        assert_eq!(accepted.ids.len(), crate::engine::input::MAX_INPUT_TOKENS);
+        let oversized = "hello ".repeat(crate::engine::input::MAX_INPUT_TOKENS + 1);
+        assert!(
+            matches!(
+                resolved.encode(&oversized),
+                Err(InferenceError::InputValidation(message)) if message.contains("4096")
+            ),
+            "real WordPiece tokenization must reject expansion beyond the ceiling"
         );
 
         let _ = std::fs::remove_dir_all(&dir);
