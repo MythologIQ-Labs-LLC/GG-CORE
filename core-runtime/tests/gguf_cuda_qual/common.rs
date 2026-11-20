@@ -31,8 +31,8 @@ fn verify_fixture(path: &Path, expected_bytes: u64, expected_sha256: &str) -> Re
             "pinned GGUF fixture is not a regular file of {expected_bytes} bytes"
         ));
     }
-    let mut file = std::fs::File::open(path)
-        .map_err(|e| format!("cannot open pinned GGUF fixture: {e}"))?;
+    let mut file =
+        std::fs::File::open(path).map_err(|e| format!("cannot open pinned GGUF fixture: {e}"))?;
     let mut digest = Sha256::new();
     let mut buf = [0_u8; 65_536];
     loop {
@@ -61,7 +61,11 @@ pub fn report(key: &str, value: impl std::fmt::Display) {
 }
 
 pub fn load(n_gpu_layers: u32, n_ctx: u32) -> Result<GgufGenerator, String> {
-    verify_fixture(Path::new(MODEL), APPROVED_MODEL_BYTES, APPROVED_MODEL_SHA256)?;
+    verify_fixture(
+        Path::new(MODEL),
+        APPROVED_MODEL_BYTES,
+        APPROVED_MODEL_SHA256,
+    )?;
     let config = GgufConfig {
         n_ctx,
         n_threads: 4,
@@ -206,4 +210,3 @@ mod fixture_integrity_tests {
         assert!(verify_fixture(&path, 7, &"0".repeat(64)).is_err());
     }
 }
-
