@@ -199,13 +199,33 @@ impl crate::engine::Model for OnnxClassifier {
     async fn infer(
         &self,
         input: &InferenceInput,
+        config: &InferenceConfig,
+    ) -> Result<InferenceOutput, InferenceError> {
+        self.infer_cancellable(input, config, None).await
+    }
+
+    async fn infer_cancellable(
+        &self,
+        input: &InferenceInput,
         _config: &InferenceConfig,
+        is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<InferenceOutput, InferenceError> {
         input.validate()?;
+        let stop = || {
+            if is_cancelled.is_some_and(|check| check()) {
+                Err(InferenceError::ModelError(
+                    "ONNX classification cancelled".into(),
+                ))
+            } else {
+                Ok(())
+            }
+        };
+        stop()?;
 
         match input {
             InferenceInput::Text(text) => {
                 let result = self.classify_text(text)?;
+                stop()?;
                 Ok(InferenceOutput::Classification(result))
             }
             // Classification has a single-result contract. Historically this
@@ -234,6 +254,11 @@ impl crate::engine::Model for OnnxClassifier {
         self
     }
 }
+
+#[cfg(test)]
+#[cfg(feature = "onnx")]
+#[path = "classifier_cancel_tests.rs"]
+mod cancel_tests;
 
 #[cfg(test)]
 #[cfg(feature = "onnx")]
