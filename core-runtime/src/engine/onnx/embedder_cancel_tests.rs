@@ -25,7 +25,7 @@ async fn pre_cancelled_single_does_not_access_unloaded_model() {
         )
         .await;
     assert!(
-        matches!(result, Err(InferenceError::Cancelled)),
+        matches!(result, Err(InferenceError::ModelError(message) if message == "ONNX embedding cancelled")),
         "{result:?}"
     );
 }
@@ -43,7 +43,7 @@ async fn cancellation_after_single_eval_refuses_success_result() {
         )
         .await;
     assert!(
-        matches!(result, Err(InferenceError::Cancelled)),
+        matches!(result, Err(InferenceError::ModelError(message) if message == "ONNX embedding cancelled")),
         "{result:?}"
     );
     assert_eq!(polls.load(Ordering::SeqCst), 2);
@@ -68,7 +68,7 @@ async fn cancellation_after_first_batch_item_stops_remaining_items() {
         )
         .await;
     assert!(
-        matches!(result, Err(InferenceError::Cancelled)),
+        matches!(result, Err(InferenceError::ModelError(message) if message == "ONNX embedding cancelled")),
         "{result:?}"
     );
     assert_eq!(polls.load(Ordering::SeqCst), 3);
