@@ -153,8 +153,7 @@ mod normalization_tests {
 
     #[test]
     fn tiny_finite_embeddings_normalize_without_underflow() {
-        let result = l2_normalize(vec![f32::MIN_POSITIVE, 0.0])
-            .expect("tiny nonzero embedding");
+        let result = l2_normalize(vec![f32::MIN_POSITIVE, 0.0]).expect("tiny nonzero embedding");
         assert_eq!(result, vec![1.0, 0.0]);
     }
 }
