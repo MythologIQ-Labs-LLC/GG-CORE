@@ -15,6 +15,8 @@ use tokio::time::timeout;
 
 #[path = "ipc_client_framing.rs"]
 mod framing;
+#[path = "ipc_client_reply.rs"]
+mod reply;
 
 use crate::engine::InferenceParams;
 use crate::ipc::protocol::{
@@ -117,8 +119,9 @@ impl CliIpcClient {
         prompt: &str,
         params: &InferenceParams,
     ) -> Result<String, CliError> {
+        let request_id = RequestId(1);
         let request = InferenceRequest {
-            request_id: RequestId(1),
+            request_id,
             model_id: model_id.to_string(),
             prompt: prompt.to_string(),
             parameters: params.clone(),
@@ -129,19 +132,7 @@ impl CliIpcClient {
 
         // Inference requires a session: handshake on this same connection.
         let response_bytes = self.send_receive_authenticated(&request_bytes).await?;
-        let response =
-            decode_message(&response_bytes).map_err(|e| CliError::Protocol(e.to_string()))?;
-
-        match response {
-            // A structured failure (unknown model, admission, validation)
-            // travels in `error`, not as a protocol-level Error message.
-            IpcMessage::InferenceResponse(resp) => match resp.error {
-                Some(err) => Err(CliError::Protocol(err)),
-                None => Ok(resp.output),
-            },
-            IpcMessage::Error { message, .. } => Err(CliError::Protocol(message)),
-            _ => Err(CliError::Protocol("Unexpected response type".to_string())),
-        }
+        reply::decode_inference_reply(&response_bytes, request_id)
     }
 
     /// Send streaming inference request, printing tokens as they arrive.
@@ -154,8 +145,9 @@ impl CliIpcClient {
         let mut params = params.clone();
         params.stream = true;
 
+        let request_id = RequestId(1);
         let request = InferenceRequest {
-            request_id: RequestId(1),
+            request_id,
             model_id: model_id.to_string(),
             prompt: prompt.to_string(),
             parameters: params,
@@ -164,18 +156,27 @@ impl CliIpcClient {
         let request_bytes =
             encode_message(&message).map_err(|e| CliError::Protocol(e.to_string()))?;
 
-        self.receive_streaming_response(&request_bytes).await
+        self.receive_streaming_response(&request_bytes, request_id).await
     }
 
     /// Streaming inference also requires a session: connect, handshake on
     /// the same connection, then stream the request.
-    async fn receive_streaming_response(&self, request: &[u8]) -> Result<String, CliError> {
+    async fn receive_streaming_response(
+        &self,
+        request: &[u8],
+        expected_id: RequestId,
+    ) -> Result<String, CliError> {
         let mut stream = self.connect_authenticated().await?;
         self.handshake_on(&mut stream).await?;
-        self.stream_exchange(&mut stream, request).await
+        self.stream_exchange(&mut stream, request, expected_id).await
     }
 
-    async fn stream_exchange<S>(&self, stream: &mut S, request: &[u8]) -> Result<String, CliError>
+    async fn stream_exchange<S>(
+        &self,
+        stream: &mut S,
+        request: &[u8],
+        expected_id: RequestId,
+    ) -> Result<String, CliError>
     where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
@@ -193,6 +194,9 @@ impl CliIpcClient {
 
             match message {
                 IpcMessage::StreamChunk(chunk) => {
+                    if chunk.request_id != expected_id {
+                        return Err(CliError::Protocol("Stream request ID mismatch".into()));
+                    }
                     // The daemon reports stream failures (unknown model,
                     // validation, engine errors) as a chunk carrying `error`.
                     if let Some(err) = chunk.error {
