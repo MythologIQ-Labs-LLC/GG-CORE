@@ -30,9 +30,9 @@ impl CliIpcClient {
 
 fn decode_typed_reply(bytes: &[u8], expected_id: RequestId) -> Result<TypedResult, CliError> {
     match decode_message(bytes).map_err(|e| CliError::Protocol(e.to_string()))? {
-        IpcMessage::TypedInferenceResponse(resp) if resp.request_id != expected_id => {
-            Err(CliError::Protocol("Typed inference response request ID mismatch".into()))
-        }
+        IpcMessage::TypedInferenceResponse(resp) if resp.request_id != expected_id => Err(
+            CliError::Protocol("Typed inference response request ID mismatch".into()),
+        ),
         IpcMessage::TypedInferenceResponse(resp) => match (resp.result, resp.error) {
             (Some(result), None) => Ok(result),
             (_, Some(err)) => Err(CliError::Protocol(err)),
@@ -134,10 +134,14 @@ mod tests {
     #[test]
     fn typed_success_requires_matching_request_id() {
         use crate::ipc::protocol_typed::{Embedding, TypedInferenceResponse};
-        let result = TypedResult::Embedding(Embedding { dimensions: 1, vector: vec![1.0] });
-        let response = IpcMessage::TypedInferenceResponse(
-            TypedInferenceResponse::success(RequestId(9), result.clone()),
-        );
+        let result = TypedResult::Embedding(Embedding {
+            dimensions: 1,
+            vector: vec![1.0],
+        });
+        let response = IpcMessage::TypedInferenceResponse(TypedInferenceResponse::success(
+            RequestId(9),
+            result.clone(),
+        ));
         let bytes = encode_message(&response).unwrap();
         assert_eq!(decode_typed_reply(&bytes, RequestId(9)).unwrap(), result);
         let err = decode_typed_reply(&bytes, RequestId(8)).unwrap_err();
@@ -149,7 +153,9 @@ mod tests {
         use crate::ipc::protocol::InferenceErrorCode;
         use crate::ipc::protocol_typed::TypedInferenceResponse;
         let response = IpcMessage::TypedInferenceResponse(TypedInferenceResponse::error(
-            RequestId(9), "model refused".into(), InferenceErrorCode::UnsupportedTask,
+            RequestId(9),
+            "model refused".into(),
+            InferenceErrorCode::UnsupportedTask,
         ));
         let bytes = encode_message(&response).unwrap();
         let err = decode_typed_reply(&bytes, RequestId(9)).unwrap_err();
@@ -162,7 +168,10 @@ mod tests {
     fn typed_empty_and_wrong_frame_remain_refused() {
         use crate::ipc::protocol_typed::TypedInferenceResponse;
         let empty = IpcMessage::TypedInferenceResponse(TypedInferenceResponse {
-            request_id: RequestId(9), result: None, error: None, error_code: None,
+            request_id: RequestId(9),
+            result: None,
+            error: None,
+            error_code: None,
         });
         let bytes = encode_message(&empty).unwrap();
         assert!(decode_typed_reply(&bytes, RequestId(9)).is_err());
