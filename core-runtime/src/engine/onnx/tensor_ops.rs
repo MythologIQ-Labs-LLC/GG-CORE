@@ -70,15 +70,33 @@ pub(super) fn masked_mean_pool(
     summed.broadcast_div(&counts)?.squeeze(0) // [dim]
 }
 
-/// L2-normalize a vector to unit length. A zero vector is returned unchanged
-/// (there is no meaningful direction to normalize to).
-pub(super) fn l2_normalize(vector: Vec<f32>) -> Vec<f32> {
-    let norm = vector.iter().map(|v| v * v).sum::<f32>().sqrt();
-    if norm > 0.0 {
-        vector.into_iter().map(|v| v / norm).collect()
-    } else {
-        vector
+/// L2-normalize an embedding into a finite unit vector.
+/// A zero/non-finite vector is not a meaningful embedding and must not
+/// produce a success-shaped response. Accumulate in f64: squaring finite
+/// f32 inputs in f32 can overflow to infinity and normalize to all zeros.
+pub(super) fn l2_normalize(vector: Vec<f32>) -> Result<Vec<f32>, InferenceError> {
+    if vector.is_empty() || vector.iter().any(|v| !v.is_finite()) {
+        return Err(InferenceError::ModelError(
+            "embedding contains no values or non-finite values".into(),
+        ));
     }
+    let squared_norm: f64 = vector
+        .iter()
+        .map(|value| {
+            let x = f64::from(*value);
+            x * x
+        })
+        .sum();
+    if squared_norm == 0.0 || !squared_norm.is_finite() {
+        return Err(InferenceError::ModelError(
+            "embedding has zero or invalid L2 norm".into(),
+        ));
+    }
+    let norm = squared_norm.sqrt();
+    Ok(vector
+        .into_iter()
+        .map(|value| (f64::from(value) / norm) as f32)
+        .collect())
 }
 
 /// Approximate in-memory footprint of a loaded `ModelProto`: the sum of all
@@ -100,4 +118,43 @@ fn tensor_payload_bytes(t: &candle_onnx::onnx::TensorProto) -> usize {
         + t.double_data.len() * 8
         + t.uint64_data.len() * 8
         + t.string_data.iter().map(|s| s.len()).sum::<usize>()
+}
+
+#[cfg(test)]
+mod normalization_tests {
+    use super::*;
+
+    #[test]
+    fn large_finite_embeddings_normalize_without_f32_square_overflow() {
+        let vector = l2_normalize(vec![f32::MAX, f32::MAX])
+            .expect("large finite input must not become a zero embedding");
+        assert_eq!(vector.len(), 2);
+        for component in vector {
+            assert!(component.is_finite());
+            assert!((component - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn zero_empty_and_nonfinite_embeddings_fail_closed() {
+        for vector in [
+            vec![],
+            vec![0.0_f32, 0.0],
+            vec![f32::NAN, 1.0],
+            vec![f32::INFINITY, 1.0],
+            vec![f32::NEG_INFINITY, 1.0],
+        ] {
+            assert!(
+                matches!(l2_normalize(vector), Err(InferenceError::ModelError(_))),
+                "invalid embedding should never become a success-shaped vector"
+            );
+        }
+    }
+
+    #[test]
+    fn tiny_finite_embeddings_normalize_without_underflow() {
+        let result = l2_normalize(vec![f32::MIN_POSITIVE, 0.0])
+            .expect("tiny nonzero embedding");
+        assert_eq!(result, vec![1.0, 0.0]);
+    }
 }
