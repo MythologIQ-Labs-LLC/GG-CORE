@@ -141,7 +141,9 @@ mod tests {
             peer.write_all(b"x").await.unwrap();
             std::future::pending::<()>().await;
         });
-        let result = short_timeout().stream_exchange(&mut client, b"ping", crate::ipc::protocol::RequestId(1)).await;
+        let result = short_timeout()
+            .stream_exchange(&mut client, b"ping", crate::ipc::protocol::RequestId(1))
+            .await;
         assert!(matches!(result, Err(CliError::Timeout)), "{result:?}");
         task.abort();
     }
