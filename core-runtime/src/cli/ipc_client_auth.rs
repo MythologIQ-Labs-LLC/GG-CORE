@@ -42,6 +42,20 @@ impl CliIpcClient {
     where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
+        let _ = self.handshake_features_on(stream).await?;
+        Ok(())
+    }
+
+    /// Authenticate and return the daemon's advertised protocol features.
+    /// Legacy requests intentionally ignore this additive feature list;
+    /// capability-dependent requests must check it before issuing work.
+    pub(super) async fn handshake_features_on<S>(
+        &self,
+        stream: &mut S,
+    ) -> Result<Vec<String>, CliError>
+    where
+        S: AsyncReadExt + AsyncWriteExt + Unpin,
+    {
         let token = std::env::var(AUTH_TOKEN_ENV).unwrap_or_default();
         let handshake = IpcMessage::Handshake {
             token,
@@ -52,7 +66,7 @@ impl CliIpcClient {
         let ack_bytes = self.exchange_data(stream, &handshake_bytes).await?;
         let ack = decode_message(&ack_bytes).map_err(|e| CliError::Protocol(e.to_string()))?;
         match ack {
-            IpcMessage::HandshakeAck { .. } => Ok(()),
+            IpcMessage::HandshakeAck { features, .. } => Ok(features),
             IpcMessage::Error { message, .. } => Err(CliError::Protocol(format!(
                 "authentication failed: {message}"
             ))),
