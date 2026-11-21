@@ -7,12 +7,16 @@ on:
     paths:
       - scripts/qualification/gguf_cuda_hidden_device_gate.py
       - scripts/qualification/test_gguf_cuda_hidden_device_gate.py
+      - scripts/qualification/gguf_cuda_native_gate.py
+      - scripts/qualification/test_gguf_cuda_native_gate.py
       - core-runtime/tests/gguf_cuda_hidden_device_test.rs
       - .github/workflows/gguf-cuda-qualification-contract.yml
   pull_request:
     paths:
       - scripts/qualification/gguf_cuda_hidden_device_gate.py
       - scripts/qualification/test_gguf_cuda_hidden_device_gate.py
+      - scripts/qualification/gguf_cuda_native_gate.py
+      - scripts/qualification/test_gguf_cuda_native_gate.py
       - core-runtime/tests/gguf_cuda_hidden_device_test.rs
       - .github/workflows/gguf-cuda-qualification-contract.yml
 
@@ -34,4 +38,4 @@ jobs:
         with:
           python-version: '3.12'
       - name: Execute source-evidence negative controls (no CUDA or model)
-        run: python -m unittest discover -s scripts/qualification -p test_gguf_cuda_hidden_device_gate.py -v
+        run: python -m unittest discover -s scripts/qualification -p "test_gguf_cuda_*_gate.py" -v
