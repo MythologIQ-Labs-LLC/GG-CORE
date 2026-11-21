@@ -11,7 +11,7 @@
 //! destructors ran) and then the guard returned the budget. It is *not* a
 //! claim that the OS reclaimed every page (see llama-cpp-rs#1194).
 
-use std::sync::{mpsc, Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::watch;
@@ -20,8 +20,9 @@ use super::LifecycleError;
 use crate::engine::Model;
 use crate::memory::{ResidentGuard, ResourceLimits};
 
-/// Poll interval while an unloaded model is still referenced by a request.
-const RELEASE_POLL: Duration = Duration::from_millis(25);
+#[path = "lifecycle_resident_supervisor.rs"]
+mod supervisor;
+use supervisor::enqueue_release;
 
 /// A registered model's budget: the lifecycle's model handle and its guard.
 /// Drop must explicitly release model memory before returning resident
@@ -57,6 +58,10 @@ impl Drop for Resident {
                 // Backend destruction did not complete. Never credit its
                 // resident memory, even if the unwind drops this Resident.
                 std::mem::forget(guard);
+                tracing::error!(
+                    target: "gg_core::lifecycle",
+                    "backend destructor panicked; resident capacity held fail-closed"
+                );
                 if !std::thread::panicking() {
                     std::panic::resume_unwind(panic);
                 }
@@ -65,13 +70,6 @@ impl Drop for Resident {
         }
     }
 }
-
-/// A pending model release must outlive Tokio tasks and the runtime itself:
-/// detached native inference can still hold its Arc after the async worker is
-/// aborted. One process-wide standard thread polls all pending residents,
-/// rather than spawning an unbounded thread or cancellation-unsafe async task
-/// for each unload (#219).
-static RELEASE_SUPERVISOR: OnceLock<Option<mpsc::Sender<PendingRelease>>> = OnceLock::new();
 
 struct PendingRelease {
     resident: Option<Resident>,
@@ -107,84 +105,20 @@ impl Drop for PendingRelease {
         let Some(resident) = self.resident.take() else {
             return;
         };
-        if !resident.only_owner() {
-            // Catastrophic supervisor shutdown/panic: never credit memory
-            // while a detached native worker still holds the model.
-            resident.retain_budget();
-        } else {
-            drop(resident);
-        }
-    }
-}
-
-fn enqueue_release(resident: Resident, done: watch::Sender<bool>) {
-    // Failed spawn/send must not free still-live model memory; PendingRelease
-    // drops through the explicit fail-closed budget-retention path.
-    let pending = PendingRelease {
-        resident: Some(resident),
-        done,
-    };
-    match release_supervisor() {
-        Some(sender) => {
-            if let Err(error) = sender.send(pending) {
-                tracing::error!(
-                    target: "gg_core::lifecycle",
-                    "model release supervisor disconnected; retain budget"
-                );
-                drop(error.0);
-            }
-        }
-        None => drop(pending),
-    }
-}
-
-fn release_supervisor() -> Option<&'static mpsc::Sender<PendingRelease>> {
-    RELEASE_SUPERVISOR
-        .get_or_init(|| {
-            let (sender, receiver) = mpsc::channel();
-            match std::thread::Builder::new()
-                .name("gg-core-release".into())
-                .spawn(move || supervise_releases(receiver))
-            {
-                Ok(thread) => {
-                    drop(thread); // detach from Tokio and caller cancellation
-                    Some(sender)
-                }
-                Err(error) => {
-                    tracing::error!(
-                        target: "gg_core::lifecycle",
-                        %error,
-                        "model release supervisor unavailable; retain budget"
-                    );
-                    None
-                }
-            }
-        })
-        .as_ref()
-}
-
-fn supervise_releases(receiver: mpsc::Receiver<PendingRelease>) {
-    let mut pending: Vec<PendingRelease> = Vec::new();
-    loop {
-        if pending.is_empty() {
-            match receiver.recv() {
-                Ok(release) => pending.push(release),
-                Err(_) => break,
-            }
-        } else {
-            match receiver.recv_timeout(RELEASE_POLL) {
-                Ok(release) => pending.push(release),
-                Err(mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected) => {}
-            }
-        }
-
-        let mut index = 0;
-        while index < pending.len() {
-            if pending[index].ready() {
-                pending.swap_remove(index).finish();
+        // Channel failure or supervisor teardown must never allow a native
+        // destructor panic to unwind through an unrelated release path.
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if !resident.only_owner() {
+                resident.retain_budget();
             } else {
-                index += 1;
+                drop(resident);
             }
+        }));
+        if outcome.is_err() {
+            tracing::error!(
+                target: "gg_core::lifecycle",
+                "fallback release panicked; resident capacity held fail-closed"
+            );
         }
     }
 }
@@ -287,3 +221,7 @@ impl Resident {
         enqueue_release(self, done);
     }
 }
+
+#[cfg(test)]
+#[path = "lifecycle_resident_drop_tests.rs"]
+mod drop_tests;
