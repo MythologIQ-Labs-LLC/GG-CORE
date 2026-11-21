@@ -82,7 +82,10 @@ fn a_setup_stop_is_reported_as_setup() {
 fn cancelled_or_disconnected_stream_never_flushes_sanitizer_tail() {
     let stop = || true;
     let active = || false;
-    assert!(!may_flush_stream(true, None), "closed receiver cannot flush");
+    assert!(
+        !may_flush_stream(true, None),
+        "closed receiver cannot flush"
+    );
     assert!(
         !may_flush_stream(true, Some(&active)),
         "stalled producer cannot flush even if cancellation was not set"
