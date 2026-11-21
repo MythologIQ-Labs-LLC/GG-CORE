@@ -52,6 +52,25 @@ fn native_terminal_is_sent_if_capacity_exists_even_after_deadline() {
 }
 
 #[test]
+fn native_sanitized_text_uses_the_same_runtime_free_send_path() {
+    let (sender, mut receiver) = TokenStream::new(2, StreamBound::default());
+    sender
+        .text_blocking("sanitized".into())
+        .expect("native text should fit without a Tokio runtime");
+    sender
+        .end_blocking(StreamTerminal::Complete)
+        .expect("native terminal should fit");
+
+    let text = futures::executor::block_on(receiver.next());
+    assert!(matches!(text, Some(StreamItem::Text(s)) if s == "sanitized"));
+    let terminal = futures::executor::block_on(receiver.next());
+    assert!(matches!(
+        terminal,
+        Some(StreamItem::End(StreamTerminal::Complete))
+    ));
+}
+
+#[test]
 fn native_sender_never_delivers_a_late_token_past_deadline() {
     let (sender, receiver) = TokenStream::new(
         1,
@@ -83,5 +102,8 @@ fn native_sender_unblocks_on_reader_drop_without_a_reactor() {
     let producer = std::thread::spawn(move || sender.token_blocking(2));
     std::thread::sleep(Duration::from_millis(20));
     drop(reader);
-    assert_eq!(producer.join().expect("producer thread"), Err(StreamSendError::Closed));
+    assert_eq!(
+        producer.join().expect("producer thread"),
+        Err(StreamSendError::Closed)
+    );
 }
