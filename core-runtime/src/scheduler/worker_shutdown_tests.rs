@@ -36,7 +36,10 @@ impl Model for TimedModel {
     }
 
     fn capabilities(&self) -> &[InferenceCapability] {
-        &[InferenceCapability::TextGeneration, InferenceCapability::Embedding]
+        &[
+            InferenceCapability::TextGeneration,
+            InferenceCapability::Embedding,
+        ]
     }
 
     fn memory_usage(&self) -> usize {
@@ -121,7 +124,12 @@ fn parent_shutdown_does_not_strand_native(mode: Mode) {
                         InferenceParams::default(),
                     );
                     super::super::execute_request(
-                        &engine, None, None, Some(&limits), None, request,
+                        &engine,
+                        None,
+                        None,
+                        Some(&limits),
+                        None,
+                        request,
                     )
                     .await;
                 }
@@ -136,10 +144,8 @@ fn parent_shutdown_does_not_strand_native(mode: Mode) {
                         cancelled: Arc::new(AtomicBool::new(false)),
                         response_tx: None,
                     };
-                    crate::scheduler::worker_typed::execute(
-                        &engine, Some(&limits), None, request,
-                    )
-                    .await;
+                    crate::scheduler::worker_typed::execute(&engine, Some(&limits), None, request)
+                        .await;
                 }
             }
         });
@@ -147,12 +153,18 @@ fn parent_shutdown_does_not_strand_native(mode: Mode) {
     started_rx
         .recv_timeout(Duration::from_secs(5))
         .expect("native inference never began");
-    assert_eq!((limits.current_memory(), limits.current_concurrent()), (64, 1));
+    assert_eq!(
+        (limits.current_memory(), limits.current_concurrent()),
+        (64, 1)
+    );
 
     // Async caller is gone, but a native admitted task must keep executing
     // independently and hold its reservation until the model actually ends.
     runtime.shutdown_timeout(Duration::from_millis(30));
-    assert_eq!((limits.current_memory(), limits.current_concurrent()), (64, 1));
+    assert_eq!(
+        (limits.current_memory(), limits.current_concurrent()),
+        (64, 1)
+    );
     assert!(!finished.load(Ordering::Acquire));
     release.notify_one();
 
@@ -164,7 +176,10 @@ fn parent_shutdown_does_not_strand_native(mode: Mode) {
         );
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert_eq!((limits.current_memory(), limits.current_concurrent()), (0, 0));
+    assert_eq!(
+        (limits.current_memory(), limits.current_concurrent()),
+        (0, 0)
+    );
 }
 
 #[test]
