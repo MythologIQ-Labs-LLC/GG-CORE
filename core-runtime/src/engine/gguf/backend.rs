@@ -151,7 +151,6 @@ impl LlamaBackendInner {
         let mut sampler = build_sampler(config, self.model.n_vocab());
         sampler.accept_many(tokens.iter().copied());
         let start_pos = tokens.len() as i32;
-        let rt = tokio::runtime::Handle::current();
         let mut acc: Vec<LlamaToken> = Vec::new();
         for offset in 0..limit {
             let pos = start_pos + offset as i32;
@@ -162,7 +161,7 @@ impl LlamaBackendInner {
             let tok = sampler.sample(&ctx, -1);
             sampler.accept(tok);
             let eog = self.model.vocab().is_eog(tok);
-            if !self.emit_token(&rt, sender, sanitizer.as_deref_mut(), tok, &mut acc)? {
+            if !self.emit_token(sender, sanitizer.as_deref_mut(), tok, &mut acc)? {
                 break;
             }
             if eog || offset + 1 == limit {
@@ -172,7 +171,7 @@ impl LlamaBackendInner {
             add_one(&mut batch, tok, pos)?;
             decode(&mut ctx, &mut batch)?;
         }
-        self.flush_sanitizer(&rt, sender, sanitizer, &acc)
+        self.flush_sanitizer(sender, sanitizer, &acc)
     }
 
     /// Emit one generated token. With a `sanitizer` present, the token is
@@ -181,7 +180,6 @@ impl LlamaBackendInner {
     /// token id is emitted. Returns `false` if the receiver is gone.
     fn emit_token(
         &self,
-        rt: &tokio::runtime::Handle,
         sender: &crate::engine::TokenStreamSender,
         sanitizer: Option<&mut StreamSanitizer>,
         tok: LlamaToken,
@@ -192,18 +190,17 @@ impl LlamaBackendInner {
                 acc.push(tok);
                 let text = self.detokenize(acc)?;
                 match san.push(&text) {
-                    Some(chunk) => Ok(rt.block_on(sender.text(chunk)).is_ok()),
+                    Some(chunk) => Ok(sender.text_blocking(chunk).is_ok()),
                     None => Ok(true),
                 }
             }
-            None => Ok(rt.block_on(sender.token(tok.0 as u32)).is_ok()),
+            None => Ok(sender.token_blocking(tok.0 as u32).is_ok()),
         }
     }
 
     /// Terminal: sanitize and emit any withheld tail (B-24b flush).
     fn flush_sanitizer(
         &self,
-        rt: &tokio::runtime::Handle,
         sender: &crate::engine::TokenStreamSender,
         sanitizer: Option<&mut StreamSanitizer>,
         acc: &[LlamaToken],
@@ -211,7 +208,7 @@ impl LlamaBackendInner {
         if let Some(san) = sanitizer {
             let text = self.detokenize(acc)?;
             if let Some(tail) = san.flush(&text) {
-                let _ = rt.block_on(sender.text(tail));
+                let _ = sender.text_blocking(tail);
             }
         }
         Ok(())

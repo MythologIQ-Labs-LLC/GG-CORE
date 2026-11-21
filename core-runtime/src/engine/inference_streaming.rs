@@ -32,7 +32,7 @@ impl InferenceEngine {
             Ok(()) => crate::engine::StreamTerminal::Complete,
             Err(e) => crate::engine::StreamTerminal::Error(e.to_string()),
         };
-        let _ = tokio::runtime::Handle::current().block_on(sender.end(terminal));
+        let _ = sender.end_blocking(terminal);
         result
     }
 
@@ -53,9 +53,10 @@ impl InferenceEngine {
         use crate::security::stream_sanitizer::StreamSanitizer;
 
         // Clone Arc and drop read lock before calling into model.
-        let rt = tokio::runtime::Handle::current();
         let model = {
-            let models = rt.block_on(self.models.read());
+            // A native streaming worker may outlive its Tokio runtime.
+            // Never require a live reactor merely to clone its model Arc.
+            let models = self.models.blocking_read();
             models
                 .get(model_id)
                 .cloned()
@@ -93,3 +94,7 @@ fn stop_or_send_failure(
         Some(failure) => Err(InferenceError::ExecutionFailed(failure.to_string())),
     }
 }
+
+#[cfg(test)]
+#[path = "inference_streaming_no_runtime_tests.rs"]
+mod no_runtime_tests;
