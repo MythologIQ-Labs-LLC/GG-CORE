@@ -53,7 +53,11 @@
 //!         M::ModelReleaseWaitResponse { .. } => 26,
 //!         M::CapabilitiesRequest { .. } => 27,
 //!         M::CapabilitiesResponse { .. } => 28,
-//!         M::Error { .. } => 29,
+//!         M::ModelSwitchRequest(..) => 29,
+//!         M::ModelSwitchResponse(..) => 30,
+//!         M::ModelSwitchStatusRequest(..) => 31,
+//!         M::ModelSwitchStatusResponse(..) => 32,
+//!         M::Error { .. } => 33,
 //!     }
 //! }
 //! # let _ = kind;
@@ -99,7 +103,11 @@ mod tests {
             M::ModelReleaseWaitResponse { .. } => 26,
             M::CapabilitiesRequest { .. } => 27,
             M::CapabilitiesResponse { .. } => 28,
-            M::Error { .. } => 29,
+            M::ModelSwitchRequest(..) => 29,
+            M::ModelSwitchResponse(..) => 30,
+            M::ModelSwitchStatusRequest(..) => 31,
+            M::ModelSwitchStatusResponse(..) => 32,
+            M::Error { .. } => 33,
         }
     }
 

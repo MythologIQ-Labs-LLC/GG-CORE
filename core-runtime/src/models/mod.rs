@@ -31,6 +31,7 @@ mod preload;
 pub mod registry;
 mod router;
 mod swap;
+pub(crate) mod transition;
 
 // v0.5.0: Model registry enhancements
 pub mod history;
@@ -45,9 +46,9 @@ pub use lifecycle::{LifecycleError, ModelLifecycle, MAX_RELEASE_WAIT};
 pub use loader::{LoadError, MappedModel, ModelLoader, ModelMetadata, ModelPath};
 pub use manifest::{ModelArchitecture, ModelCapability, ModelManifest};
 pub use model_ops::{
-    load_model_from_path, load_model_from_path_for_workers, prepare_model, prepare_model_admitted,
-    prepare_model_admitted_for_workers, register_prepared, unload_model, LoadedModel, ModelOpError,
-    PreparedModel,
+    load_model_from_path, load_model_from_path_for_workers, load_model_operated, prepare_model,
+    prepare_model_admitted, prepare_model_admitted_for_workers, register_prepared, unload_model,
+    unload_model_operated, LoadedModel, ModelOpError, PreparedModel,
 };
 pub use persistence::{PersistedModel, PersistenceError, RegistryPersistence, RegistryState};
 pub use pool::ModelTier as PoolModelTier;

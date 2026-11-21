@@ -353,6 +353,10 @@ mod release_daemon;
 #[path = "server_release_tests.rs"]
 mod release_tests;
 
+#[cfg(test)]
+#[path = "server_switch_tests.rs"]
+mod switch_tests;
+
 #[cfg(all(test, feature = "gguf"))]
 #[path = "server_release_real_model_tests.rs"]
 mod release_real_model_tests;

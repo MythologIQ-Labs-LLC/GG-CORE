@@ -145,26 +145,11 @@ fn gguf_load_config(env: &crate::config::GgufEnvConfig, workers: usize) -> GgufC
     }
 }
 
-/// Load the backend a model file selects, resolving a model-specific or
-/// legacy sibling `manifest.json`. A parsed manifest's declared `sha256` is verified against
-/// the file BEFORE any backend reads it, and the file's identity is re-checked
-/// AFTER the backend loaded it by path, so a substitution in between fails the
-/// load (nothing is registered; the model is dropped). Single-context
-/// (embedded) GGUF threads; see [`load_model_dispatch_for_workers`].
-pub fn load_model_dispatch(
-    model_path: &Path,
-    model_id: &str,
-) -> Result<Arc<dyn Model>, InferenceError> {
-    load_model_dispatch_for_workers(model_path, model_id, 1)
-}
-
-/// [`load_model_dispatch`] for a model that `workers` concurrent contexts
-/// will share: GGUF auto threads split across them (HOL plan Addendum A).
-pub fn load_model_dispatch_for_workers(
-    model_path: &Path,
-    model_id: &str,
-    workers: usize,
-) -> Result<Arc<dyn Model>, InferenceError> {
+/// Resolve and validate the backend a model file selects, without reading
+/// model bytes: sibling manifest, backend choice, and the refusals for
+/// unsupported or undescribed formats. Shared by the loader and by the
+/// non-disruptive cold-switch preflight, so both apply identical rules.
+pub(crate) fn plan_backend(model_path: &Path) -> Result<BackendChoice, InferenceError> {
     let manifest = read_sibling_manifest(model_path)?;
     let choice = choose_backend(manifest);
 
@@ -199,6 +184,30 @@ pub fn load_model_dispatch_for_workers(
         }
         BackendChoice::GgufDefault => {}
     }
+    Ok(choice)
+}
+
+/// Load the backend a model file selects, resolving a model-specific or
+/// legacy sibling `manifest.json`. A parsed manifest's declared `sha256` is verified against
+/// the file BEFORE any backend reads it, and the file's identity is re-checked
+/// AFTER the backend loaded it by path, so a substitution in between fails the
+/// load (nothing is registered; the model is dropped). Single-context
+/// (embedded) GGUF threads; see [`load_model_dispatch_for_workers`].
+pub fn load_model_dispatch(
+    model_path: &Path,
+    model_id: &str,
+) -> Result<Arc<dyn Model>, InferenceError> {
+    load_model_dispatch_for_workers(model_path, model_id, 1)
+}
+
+/// [`load_model_dispatch`] for a model that `workers` concurrent contexts
+/// will share: GGUF auto threads split across them (HOL plan Addendum A).
+pub fn load_model_dispatch_for_workers(
+    model_path: &Path,
+    model_id: &str,
+    workers: usize,
+) -> Result<Arc<dyn Model>, InferenceError> {
+    let choice = plan_backend(model_path)?;
 
     let hashed: Option<FileIdentity> = match &choice {
         BackendChoice::Onnx(m) | BackendChoice::GgufManifest(m) => {

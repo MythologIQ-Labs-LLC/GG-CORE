@@ -65,6 +65,9 @@ pub enum ModelOpError {
     Backend(String),
     #[error("lifecycle: {0}")]
     Lifecycle(#[from] LifecycleError),
+    /// Another operator load, unload or switch held the authority too long.
+    #[error("model operation busy: another load, unload or switch is in progress")]
+    Busy,
 }
 
 /// Validate the path, read metadata, and run backend dispatch (blocking).
@@ -182,6 +185,37 @@ pub async fn load_model_from_path_for_workers(
     let prepared =
         prepare_model_admitted_for_workers(loader, limits, relative_path, model_id, workers)?;
     register_prepared(lifecycle, prepared).await
+}
+
+/// Operator load (daemon preload, IPC): take the mutation authority within
+/// `wait`, prepare off the async runtime with the source hashed before the
+/// load (identity re-checked after), register, and record the verified
+/// source so a later cold switch can restore exactly this model.
+pub async fn load_model_operated(
+    lifecycle: &Arc<ModelLifecycle>,
+    loader: &Arc<ModelLoader>,
+    relative_path: &str,
+    model_id: Option<String>,
+    workers: usize,
+    wait: std::time::Duration,
+) -> Result<LoadedModel, ModelOpError> {
+    use super::transition::{load_operated, CanonicalPreparer, Preparer};
+    let loader = Arc::clone(loader);
+    let prep: Arc<dyn Preparer> = Arc::new(CanonicalPreparer { loader, workers });
+    load_operated(lifecycle, &prep, relative_path, model_id, wait).await
+}
+
+/// Operator unload: take the mutation authority within `wait`, then unload.
+pub async fn unload_model_operated(
+    lifecycle: &Arc<ModelLifecycle>,
+    model_id: &str,
+    wait: std::time::Duration,
+) -> Result<(), ModelOpError> {
+    let _authority = lifecycle
+        .begin_operation_within(wait)
+        .await
+        .ok_or(ModelOpError::Busy)?;
+    unload_model(lifecycle, model_id).await
 }
 
 /// Unload a previously loaded model by id.

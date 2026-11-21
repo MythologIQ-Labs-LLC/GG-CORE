@@ -8,6 +8,7 @@ pub use super::protocol_capability_types::*;
 pub use super::protocol_codec::*;
 pub use super::protocol_model_types::*;
 pub use super::protocol_release_types::*;
+pub use super::protocol_switch_types::*;
 pub use super::protocol_types::*;
 
 #[cfg(test)]
