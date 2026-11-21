@@ -32,10 +32,7 @@ fn native_sender_stalls_in_bounded_time_without_a_runtime() {
 fn native_sender_observes_closed_receiver_without_a_runtime() {
     let (sender, receiver) = TokenStream::new(1, StreamBound::default());
     drop(receiver);
-    assert_eq!(
-        sender.token_blocking(1),
-        Err(StreamSendError::Closed)
-    );
+    assert_eq!(sender.token_blocking(1), Err(StreamSendError::Closed));
     assert_eq!(sender.failure(), Some(StreamSendError::Closed));
 }
 

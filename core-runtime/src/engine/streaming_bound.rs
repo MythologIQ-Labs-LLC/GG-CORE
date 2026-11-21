@@ -86,6 +86,7 @@ pub(super) async fn bounded_send(
 /// Tokio runtime. Bound a send using monotonic wall time and non-async
 /// channel operations, so shutdown cannot strand it in a stopped reactor.
 /// Same capacity, deadline, error and first-failure semantics as async sends.
+#[cfg(any(test, feature = "gguf"))]
 pub(super) fn bounded_send_blocking(
     tx: &mpsc::Sender<StreamItem>,
     bound: &StreamBound,
