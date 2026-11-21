@@ -1,7 +1,8 @@
-//! Tier 2 End-to-End Tests for ONNX Classification
+//! ONNX classification structure, path containment, and setup diagnostics.
 //!
-//! Tests complete inference pipeline with actual ONNX model inference.
-//! Measures end-to-end latency, throughput, and resource utilization.
+//! These model-free simulations validate contracts and input construction.
+//! They do NOT run ONNX inference, benchmark its latency/throughput, measure
+//! memory use, or demonstrate real-model regression performance.
 
 use gg_core::engine::onnx::OnnxDevice;
 use gg_core::engine::{ClassificationResult, InferenceInput, InferenceOutput, OnnxConfig};
@@ -108,7 +109,7 @@ async fn test_inference_output_classification_identification() {
 }
 
 #[tokio::test]
-async fn test_end_to_end_latency_measurement() {
+async fn test_classification_setup_validation_diagnostics() {
     let start = Instant::now();
 
     // Simulate end-to-end flow
@@ -127,24 +128,20 @@ async fn test_end_to_end_latency_measurement() {
 
     // Step 3: Input validation
     let validate_start = Instant::now();
-    let _validation_result = _input.validate();
+    let validation_result = _input.validate();
     let validate_time = validate_start.elapsed();
 
     let total_time = start.elapsed();
 
     // Log timing breakdown
-    println!("End-to-End Latency Breakdown:");
+    println!("Input setup/validation timing (NOT ONNX inference):");
     println!("  Model validation: {:?}", validation_time);
     println!("  Input creation: {:?}", input_time);
     println!("  Input validation: {:?}", validate_time);
     println!("  Total: {:?}", total_time);
 
-    // Validate that total time is reasonable (<100 ms target)
-    assert!(
-        total_time.as_millis() < 100,
-        "Total end-to-end time should be <100 ms"
-    );
-
+    // Wall-clock timing is diagnostic only: CI scheduling and filesystem
+    // contention are not correctness requirements.
     // Path validation resolves the real filesystem (physical containment), so
     // its wall-clock time depends on host I/O and parallel test load: a fixed
     // 10 ms bound failed at 13.8 ms on the offline Windows qualification VM
@@ -155,18 +152,14 @@ async fn test_end_to_end_latency_measurement() {
         "fixtures/ must be refused by loader containment: {validation:?}"
     );
     assert!(
-        input_time.as_nanos() < 1_000_000,
-        "Input creation should be <1 ms"
-    );
-    assert!(
-        validate_time.as_nanos() < 1_000_000,
-        "Input validation should be <1 ms"
+        validation_result.is_ok(),
+        "ordinary classification text input must validate"
     );
 }
 
 #[tokio::test]
 async fn test_classification_p95_latency_simulation() {
-    // Simulate multiple classification requests to measure P95 latency
+    // Measure input-validation setup only; no ONNX model executes.
     let mut latencies = Vec::new();
 
     for i in 0..100 {
@@ -174,12 +167,7 @@ async fn test_classification_p95_latency_simulation() {
 
         // Simulate classification operation
         let _input = InferenceInput::Text(format!("Test input {}", i));
-        let _validation = _input.validate();
-
-        // Simulate model inference time (estimated 5-15 ms for tinybert)
-        // Remove sleep to measure infrastructure overhead only
-        // let inference_delay = std::time::Duration::from_micros((10 + (i % 3) * 5) as u64);
-        // tokio::time::sleep(inference_delay).await;
+        assert!(_input.validate().is_ok(), "classification input {i} invalid");
 
         let latency = start.elapsed();
         latencies.push(latency.as_millis());
@@ -190,7 +178,7 @@ async fn test_classification_p95_latency_simulation() {
     let p95_index = (latencies.len() as f64 * 0.95) as usize;
     let p95_latency = latencies[p95_index];
 
-    println!("Classification P95 Latency: {} ms", p95_latency);
+    println!("Synthetic input-validation P95 (NOT ONNX inference): {p95_latency} ms");
     println!("  Min: {} ms", latencies.first().unwrap());
     println!("  Max: {} ms", latencies.last().unwrap());
     println!(
@@ -198,47 +186,38 @@ async fn test_classification_p95_latency_simulation() {
         latencies.iter().map(|&x| x as u64).sum::<u64>() as f64 / latencies.len() as f64
     );
 
-    // Validate P95 latency meets target (<20 ms)
-    assert!(p95_latency < 20, "P95 latency should be <20 ms");
+    assert_eq!(latencies.len(), 100, "all inputs must be validated");
 }
 
 #[tokio::test]
 async fn test_classification_throughput_simulation() {
-    // Simulate throughput measurement (requests per second)
+    // Only synthetic input-validation throughput, not model inference.
     let start = Instant::now();
     let num_requests = 100;
 
     for i in 0..num_requests {
         // Simulate classification operation
         let _input = InferenceInput::Text(format!("Test input {}", i));
-        let _validation = _input.validate();
-
-        // Simulate model inference time
-        // Remove sleep to measure infrastructure overhead only
-        // let inference_delay = std::time::Duration::from_micros((10 + (i % 3) * 5) as u64);
-        // tokio::time::sleep(inference_delay).await;
+        assert!(_input.validate().is_ok(), "classification input {i} invalid");
     }
 
     let total_time = start.elapsed();
     let throughput = num_requests as f64 / total_time.as_secs_f64();
 
     println!(
-        "Classification Throughput: {:.2} requests/second",
+        "Synthetic input-validation throughput (NOT ONNX): {:.2} inputs/second",
         throughput
     );
     println!("  Total time: {:?}", total_time);
     println!("  Requests: {}", num_requests);
 
-    // Validate throughput is reasonable (>100 requests/second)
-    assert!(
-        throughput > 100.0,
-        "Throughput should be >100 requests/second"
-    );
+    assert_eq!(num_requests, 100, "expected all validation inputs");
 }
 
 #[tokio::test]
 async fn test_memory_utilization_estimation() {
-    // Simulate memory utilization measurement
+    // Static arithmetic fixture only; this never allocates a model or reports
+    // measured resident, working-set or GPU memory.
     let base_memory = 10_000_000; // 10 MB base memory
     let model_memory = 60_000_000; // 60 MB for tinybert model
     let inference_memory = 5_000_000; // 5 MB for inference
@@ -253,8 +232,7 @@ async fn test_memory_utilization_estimation() {
     println!("  Total memory: {} MB", total_memory / 1_000_000);
     println!("  Memory ratio: {:.2}", memory_ratio);
 
-    // Validate memory ratio meets target (<1.35)
-    assert!(memory_ratio < 1.35, "Memory ratio should be <1.35");
+    assert_eq!(total_memory, 75_000_000, "static fixture arithmetic");
 }
 
 #[tokio::test]
@@ -268,14 +246,7 @@ async fn test_concurrent_classification_requests() {
     for i in 0..num_concurrent {
         let handle = tokio::spawn(async move {
             let input = InferenceInput::Text(format!("Concurrent test input {}", i));
-            let _validation = input.validate();
-
-            // Simulate inference
-            // Remove sleep to measure infrastructure overhead only
-            // let inference_delay =
-            //     std::time::Duration::from_micros((10 + (i % 3) * 5) as u64);
-            // tokio::time::sleep(inference_delay).await;
-
+            assert!(input.validate().is_ok(), "concurrent synthetic input invalid");
             i
         });
         handles.push(handle);
@@ -305,11 +276,7 @@ async fn test_concurrent_classification_requests() {
         "All requests should complete"
     );
 
-    // Validate total time is reasonable (<100 ms for 10 concurrent requests)
-    assert!(
-        total_time.as_millis() < 100,
-        "Concurrent requests should complete in <100 ms"
-    );
+    // Tokio scheduling overhead is not an ONNX latency acceptance gate.
 }
 
 #[tokio::test]
@@ -324,12 +291,7 @@ async fn test_batch_classification_requests() {
         // Simulate batch processing
         for i in 0..batch_size {
             let input = InferenceInput::Text(format!("Batch {} input {}", batch, i));
-            let _validation = input.validate();
-
-            // Simulate inference
-            // Remove sleep to measure infrastructure overhead only
-            // let inference_delay = std::time::Duration::from_micros(5);
-            // tokio::time::sleep(inference_delay).await;
+            assert!(input.validate().is_ok(), "batch input invalid");
         }
 
         let latency = start.elapsed();
@@ -347,8 +309,7 @@ async fn test_batch_classification_requests() {
     println!("  Min latency: {} ms", latencies.first().unwrap());
     println!("  Max latency: {} ms", latencies.last().unwrap());
 
-    // Validate batch processing is efficient
-    assert!(avg_latency < 30.0, "Average batch latency should be <30 ms");
+    assert_eq!(latencies.len(), 10, "all synthetic batches should run");
 }
 
 #[tokio::test]
@@ -379,43 +340,11 @@ async fn test_error_handling_invalid_input() {
 }
 
 #[tokio::test]
-async fn test_performance_regression_detection() {
-    // Test that can detect performance regressions
-    let baseline_latency_ms = 10.0; // Baseline from Tier 1
-    let mut current_latencies = Vec::new();
-
-    // Simulate current performance
+async fn test_synthetic_input_validation_sample() {
+    // Former "performance regression" check used a fabricated 10 ms ONNX
+    // baseline and did not invoke any model. Verify input contracts instead.
     for i in 0..50 {
-        let start = Instant::now();
-
-        let _input = InferenceInput::Text(format!("Regression test input {}", i));
-        let _validation = _input.validate();
-
-        // Simulate inference with slight degradation
-        // Remove sleep to measure infrastructure overhead only
-        // let degradation_factor = 1.0 + (i as f64 / 1000.0); // Up to ~5% degradation
-        // let inference_delay = std::time::Duration::from_micros(
-        //     (baseline_latency_ms * 1_000.0 * degradation_factor) as u64,
-        // );
-        // tokio::time::sleep(inference_delay).await;
-
-        let latency = start.elapsed().as_millis();
-        current_latencies.push(latency);
+        let input = InferenceInput::Text(format!("Regression test input {i}"));
+        assert!(input.validate().is_ok(), "input {i} must validate");
     }
-
-    let avg_current_latency = current_latencies.iter().map(|&x| x as u64).sum::<u64>() as f64
-        / current_latencies.len() as f64;
-    let regression_percentage =
-        ((avg_current_latency - baseline_latency_ms) / baseline_latency_ms) * 100.0;
-
-    println!("Performance Regression Detection:");
-    println!("  Baseline latency: {:.2} ms", baseline_latency_ms);
-    println!("  Current latency: {:.2} ms", avg_current_latency);
-    println!("  Regression: {:.2}%", regression_percentage);
-
-    // Validate no significant regression (>20%)
-    assert!(
-        regression_percentage < 20.0,
-        "Should not have significant performance regression"
-    );
 }
