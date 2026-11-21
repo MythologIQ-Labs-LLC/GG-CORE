@@ -176,12 +176,11 @@ async fn run_blocking(
     let model_id = request.model_id.clone();
     let prompt = request.prompt.clone();
     let params = request.params.clone();
-    let handle = tokio::runtime::Handle::current();
     let span = stop_scope(request.id, false);
     run_blocking_admitted(guard, move || {
         let _entered = span.enter();
         let run = engine.run_controlled(&model_id, &prompt, &params, &control, max_memory);
-        handle.block_on(tracing::Instrument::instrument(run, span.clone()))
+        block_on_native(tracing::Instrument::instrument(run, span.clone()))
     })
     .await
     .unwrap_or_else(|e| {
@@ -219,7 +218,7 @@ fn send_response(request: QueuedRequest, result: Result<InferenceResult, String>
 
 #[path = "worker_admission.rs"]
 mod admission;
-pub(super) use admission::{acquire_guard, run_blocking_admitted};
+pub(super) use admission::{acquire_guard, block_on_native, run_blocking_admitted};
 
 #[cfg(test)]
 #[path = "worker_tests.rs"]

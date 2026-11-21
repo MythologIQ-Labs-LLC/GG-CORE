@@ -55,6 +55,28 @@ where
     .await
 }
 
+/// Own a reactor for the whole native inference call. spawn_blocking tasks can
+/// outlive their Tokio caller on abort/shutdown_timeout (#219). Reusing the
+/// caller's Handle would leave Tokio-timer/IO-backed model futures suspended
+/// forever once that runtime shuts down, retaining their admitted bytes.
+/// Fresh, per-invocation runtime ownership avoids cross-request task leakage.
+pub(in crate::scheduler) fn block_on_native<T>(
+    future: impl std::future::Future<Output = Result<T, crate::engine::inference::InferenceError>>,
+) -> Result<T, crate::engine::inference::InferenceError> {
+    use crate::engine::inference::InferenceError;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| {
+            InferenceError::ExecutionFailed(format!("native inference runtime unavailable: {e}"))
+        })?;
+    rt.block_on(future)
+}
+
 #[cfg(test)]
 #[path = "worker_admission_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "worker_shutdown_tests.rs"]
+mod shutdown_tests;

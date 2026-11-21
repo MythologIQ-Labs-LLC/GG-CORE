@@ -78,9 +78,8 @@ async fn run_blocking(
     let capability = request.capability;
     let params = request.params.clone();
     let control = request.stop_control();
-    let handle = tokio::runtime::Handle::current();
     super::worker::run_blocking_admitted(guard, move || {
-        handle.block_on(
+        super::worker::block_on_native(
             engine
                 .run_typed_controlled(&model_id, &input, capability, &params, &control, max_memory),
         )
