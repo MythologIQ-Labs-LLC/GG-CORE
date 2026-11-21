@@ -156,7 +156,6 @@ async fn test_end_to_end_latency_measurement() {
         matches!(validation, Err(LoadError::PathNotAllowed(_))),
         "fixtures/ must be refused by loader containment: {validation:?}"
     );
-
 }
 
 #[tokio::test]
