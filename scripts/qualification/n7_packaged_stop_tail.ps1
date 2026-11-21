@@ -88,10 +88,14 @@ function Session { $c = New-Ipc; Send-Ipc $c ([ordered]@{ type = 'handshake'; to
 function Cpu { $script:d.Refresh(); $script:d.TotalProcessorTime.TotalMilliseconds }
 # Wall and CPU time from $t0 (stop sent) until two consecutive 100 ms samples add < 15 ms CPU.
 function Quiesce($t0, $cpu0) {
-    $prev = Cpu; $calm = 0; $n = 0
+    # A CPU observation starting after reply/late-frame reads cannot know
+    # the precise stop instant during that gap. Keep a conservative upper
+    # bound from the original stop stopwatch, never manufacture a zero tail.
+    $observedMs = $t0.ElapsedMilliseconds
+    $observedUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    $prev = Cpu; $calm = 0; $n = 0; $last = $observedMs
     while ($calm -lt 2 -and $n -lt 300) { Start-Sleep -Milliseconds 100; $now = Cpu; $n++; if (($now - $prev) -lt 15) { $calm++ } else { $calm = 0; $last = $t0.ElapsedMilliseconds }; $prev = $now }
-    if ($null -eq $last) { $last = 0 }
-    @{ tailWallMs = $last; tailCpuMs = [math]::Round((Cpu) - $cpu0); quiesced = ($calm -ge 2); samples = $n }
+    @{ tailWallMs = $last; tailBound = 'conservativeUpperBound'; cpuObservationStartMs = $observedMs; cpuObservationStartUnixMs = $observedUnix; tailCpuMs = [math]::Round((Cpu) - $cpu0); quiesced = ($calm -ge 2); samples = $n }
 }
 function Infer([string]$prompt, [int]$max, [int]$timeoutMs = 0) {
     $c = Session; try { $sw = [Diagnostics.Stopwatch]::StartNew(); Send-Ipc $c (Req $prompt $max $timeoutMs); $r = Recv-Ipc $c; @{ r = $r; ms = $sw.ElapsedMilliseconds } } finally { $c.Dispose() }
@@ -107,7 +111,7 @@ function Prefill-Cancel([int]$afterMs) {
         # Caller response latency must be observed before the CPU-stop sample.
         $terminalMs = $t0.ElapsedMilliseconds
         $q = Quiesce $t0 $cpu0
-        $q + @{ kind = 'prefillCancel'; stopSentUnixMs = $sentUnix; quiescenceStartUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $terminalMs; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
+        $q + @{ kind = 'prefillCancel'; stopSentUnixMs = $sentUnix; tailClockOriginUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $terminalMs; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
     } finally { $c.Dispose() }
 }
 # Cancel while generating: short prompt, long output, stop after prefill is done.
@@ -122,7 +126,7 @@ function Decode-Cancel([int]$afterMs) {
         # Caller response latency must be observed before the CPU-stop sample.
         $terminalMs = $t0.ElapsedMilliseconds
         $q = Quiesce $t0 $cpu0
-        $q + @{ kind = 'decodeCancel'; stopSentUnixMs = $sentUnix; quiescenceStartUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $terminalMs; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
+        $q + @{ kind = 'decodeCancel'; stopSentUnixMs = $sentUnix; tailClockOriginUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $terminalMs; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
     } finally { $c.Dispose() }
 }
 # Both workers busy with a mid-length prompt; a third, queued request is cancelled.
@@ -152,7 +156,7 @@ function Prefill-Deadline([int]$timeoutMs) {
         # This CPU observation starts AFTER the terminal, not at deadline.
         $t0 = [Diagnostics.Stopwatch]::StartNew(); $cpu0 = Cpu; $observedUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         $q = Quiesce $t0 $cpu0
-        $q + @{ kind = 'prefillDeadline'; stopSentUnixMs = $observedUnix; quiescenceStartUnixMs = $observedUnix; quiescenceOrigin = 'afterTerminal'; requestId = $req.request_id; timeoutMs = $timeoutMs; answeredAfterMs = $answered; errorCode = $f.error_code; tokens = $f.tokens_generated }
+        $q + @{ kind = 'prefillDeadline'; stopSentUnixMs = $observedUnix; tailClockOriginUnixMs = $observedUnix; quiescenceOrigin = 'afterTerminal'; requestId = $req.request_id; timeoutMs = $timeoutMs; answeredAfterMs = $answered; errorCode = $f.error_code; tokens = $f.tokens_generated }
     } finally { $c.Dispose() }
 }
 
@@ -186,7 +190,7 @@ function Stream-Cancel {
         Send-Ipc $c ([ordered]@{ type = 'cancel_request'; request_id = $req.request_id })
         $ack = $false; $ackCount = 0; $ackMs = $null
         $ends = 0; $terminalMs = $null; $err = ''; $terminalBeforeAck = $false
-        $afterAck = 0; $unexpected = 0; $readOutcome = 'OK'
+        $afterAck = 0; $afterFinal = 0; $unexpected = 0; $readOutcome = 'OK'
         $frames = @()
         for ($i = 0; $i -lt 100; $i++) {
             $f = Recv-Ipc $c 15000
@@ -203,7 +207,10 @@ function Stream-Cancel {
                     if ($null -eq $terminalMs) { $terminalMs = $t0.ElapsedMilliseconds }
                     $err = [string]$f.error
                     if (-not $ack) { $terminalBeforeAck = $true }
-                } elseif ($ack) { $afterAck++ }
+                } else {
+                    if ($ack) { $afterAck++ }
+                    if ($ends -gt 0) { $afterFinal++ }
+                }
             } else { $unexpected++ }
             if ($ackCount -gt 1 -or $ends -gt 1 -or ($ack -and $ends -eq 1)) { break }
         }
@@ -215,12 +222,12 @@ function Stream-Cancel {
         }
         $q = Quiesce $t0 $cpu0
         $q + @{ kind = 'streamCancel'; stopSentUnixMs = $stopUnix
-            quiescenceStartUnixMs = $stopUnix; requestId = $req.request_id
+            tailClockOriginUnixMs = $stopUnix; requestId = $req.request_id
             started = $started; firstTextMs = $firstMs; prefixFrames = $prefix
             ack = $ack; ackCount = $ackCount; ackMs = $ackMs
             terminalCount = $ends; terminalMs = $terminalMs
             terminalBeforeAck = $terminalBeforeAck; terminalError = $err
-            dataAfterAck = $afterAck; lateFrames = $late; unexpectedFrames = $unexpected
+            dataAfterAck = $afterAck; dataAfterFinal = $afterFinal; lateFrames = $late; unexpectedFrames = $unexpected
             readOutcome = $readOutcome; postTerminalRead = $post; frames = ($frames -join ',') }
     } finally { $c.Dispose() }
 }

@@ -89,10 +89,11 @@ class Gate(unittest.TestCase):
              "ack": True, "ackCount": 1, "ackMs": 8,
              "terminalCount": 1, "terminalMs": 31, "terminalBeforeAck": False,
              "terminalError": "stream cancelled", "dataAfterAck": 0,
-             "lateFrames": 0, "unexpectedFrames": 0, "readOutcome": "OK",
-             "postTerminalRead": "TIMEOUT", "quiesced": True,
-             "tailWallMs": 140, "stopSentUnixMs": 100000,
-             "quiescenceStartUnixMs": 100000}
+             "dataAfterFinal": 0, "lateFrames": 0, "unexpectedFrames": 0,
+             "readOutcome": "OK", "postTerminalRead": "TIMEOUT", "quiesced": True,
+             "tailWallMs": 440, "tailBound": "conservativeUpperBound",
+             "cpuObservationStartMs": 380, "cpuObservationStartUnixMs": 100380,
+             "stopSentUnixMs": 100000, "tailClockOriginUnixMs": 100000}
             for j, tag in enumerate((TAG_OFF, TAG_ON))
         ]
 
@@ -128,10 +129,28 @@ class Gate(unittest.TestCase):
         stream[0]["dataAfterAck"] = 1
         self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
 
-    def test_r8_terminal_before_ack_fails(self):
+    def test_r8_terminal_before_ack_is_permitted(self):
         rows, events = evidence()
         stream = self.stream_rows()
         stream[0]["terminalBeforeAck"] = True
+        stream[0]["terminalMs"] = 4
+        stream[0]["ackMs"] = 8
+        code, detail = run(rows + stream, events, ["--require-stream"])
+        self.assertEqual(code, 0, detail)
+
+    def test_r8_data_after_terminal_fails(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        stream[0]["dataAfterFinal"] = 1
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+
+    def test_r8_zero_tail_before_delayed_cpu_observation_is_refused(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        stream[0]["tailWallMs"] = 0
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+        stream[0]["tailWallMs"] = 440
+        stream[0]["tailBound"] = "exact"
         self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
 
     def test_r8_terminal_missing_or_success_fails(self):
@@ -155,7 +174,7 @@ class Gate(unittest.TestCase):
         stream[0]["quiesced"] = False
         self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
         stream[0]["quiesced"] = True
-        stream[0]["quiescenceStartUnixMs"] = 100300
+        stream[0]["tailClockOriginUnixMs"] = 100300
         self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
 
     def test_complete_evidence_passes(self):

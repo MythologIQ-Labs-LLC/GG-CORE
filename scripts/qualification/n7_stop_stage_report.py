@@ -26,7 +26,8 @@ is stricter:
   R7 exactly one uncancelled output hash per config across --hash-labels
   R8 (optional --require-stream) each label/config/rep has a real active
      streaming cancel: first text before stop, exactly one ACK and failed
-     terminal, no data after ACK, no late frame, CPU quiescence.
+     terminal in either order, no data after ACK/final, no late frame,
+     and a conservative CPU-tail upper bound (not an exact stop instant).
 Historical nonstreaming R1-R7 evidence remains valid without R8; passing
 R8 does NOT substitute for native streaming S1-S4 stop-stage trace joins.
 Exit 0 = every rule passes, 1 = a rule failed, 2 = malformed/missing input.
@@ -216,7 +217,7 @@ def join(rows, traces, trace_label):
             # Measure from the actual CPU-sampling start, not the terminal or
             # a guessed deadline timestamp. Historical receipts without this
             # field get no derived S4-to-quiet statistic (rather than fiction).
-            quiet_started = r.get("quiescenceStartUnixMs")
+            quiet_started = r.get("tailClockOriginUnixMs")
             if st.get("s4_unix_ms") and type(quiet_started) is int:
                 st["s4_to_quiet_ms"] = round(quiet_started + (r.get("tailWallMs") or 0) - st["s4_unix_ms"], 1)
         joined.append({**r, "stages": st})
@@ -348,21 +349,26 @@ def r8_stream(rows, a, configs):
             and row.get("ack") is True
             and integer("ackCount", 1)
             and integer("terminalCount", 1)
-            and row.get("terminalBeforeAck") is False
+            # Terminal may race ahead of ACK on the same connection.
             and isinstance(row.get("terminalError"), str)
             and "cancel" in row["terminalError"].lower()
             and integer("lateFrames", 0)
             and integer("dataAfterAck", 0)
+            and integer("dataAfterFinal", 0)
             and integer("unexpectedFrames", 0)
             and row.get("readOutcome") == "OK"
             and row.get("postTerminalRead") == "TIMEOUT"
             and row.get("quiesced") is True
             and ms("ackMs") and ms("terminalMs") and ms("tailWallMs")
-            and row["terminalMs"] >= row["ackMs"]
+            and row.get("tailBound") == "conservativeUpperBound"
+            and ms("cpuObservationStartMs")
+            and row["tailWallMs"] >= row["cpuObservationStartMs"]
             and type(row.get("stopSentUnixMs")) is int
             and row["stopSentUnixMs"] > 0
-            and type(row.get("quiescenceStartUnixMs")) is int
-            and row["quiescenceStartUnixMs"] == row["stopSentUnixMs"]
+            and type(row.get("tailClockOriginUnixMs")) is int
+            and row["tailClockOriginUnixMs"] == row["stopSentUnixMs"]
+            and type(row.get("cpuObservationStartUnixMs")) is int
+            and row["cpuObservationStartUnixMs"] >= row["stopSentUnixMs"]
         )
         if not ok:
             invalid.append(str(key))
