@@ -8,6 +8,16 @@
 #   (Qwen2.5-0.5B-Instruct, Q4_K_M, Apache-2.0; see MODEL_SHA256 in release.yml).
 # Exit status is non-zero if any check fails. Prints PASS/FAIL/SKIP lines.
 set -u
+if [ "$#" -ne 2 ]; then
+  echo "usage: $0 <gg-core-archive.tar.gz> <model-base-dir>" >&2
+  exit 2
+fi
+# Helper programs belong to this repository, not to the separately supplied
+# model fixture directory. Resolve their absolute locations before cd "$BASE"
+# so the documented relative invocation also works from another directory.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || exit 1
+INSPECT="$SCRIPT_DIR/qualification/daemon_json_contract.py"
+IPC_PROBE="$SCRIPT_DIR/rc-ipc-control-acceptance.py"
 ARCHIVE="$1"; BASE="$2"
 MODEL_REL="models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
 pass=0; fail=0
@@ -20,9 +30,27 @@ case "$(uname -s)" in
   Darwin*) OS=macos ;;
   *)       OS=windows ;;
 esac
-WORK="$(mktemp -d)"
-tar -C "$WORK" -xzf "$ARCHIVE"
-STAGE="$(find "$WORK" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+# Never proceed to daemon acceptance if the package cannot be extracted.
+# The release builder emits exactly one top-level stage directory. Treat
+# missing or additional roots as malformed packaging, not a partial PASS.
+if ! WORK="$(mktemp -d)"; then
+  echo "FAIL: unable to create private package staging directory" >&2
+  exit 1
+fi
+if ! tar -C "$WORK" -xzf "$ARCHIVE"; then
+  echo "FAIL: package archive extraction failed" >&2
+  rm -rf -- "$WORK"
+  exit 1
+fi
+shopt -s nullglob dotglob
+STAGE_ROOTS=("$WORK"/*)
+shopt -u nullglob dotglob
+if [ "${#STAGE_ROOTS[@]}" -ne 1 ] || [ ! -d "${STAGE_ROOTS[0]}" ] || [ -L "${STAGE_ROOTS[0]}" ]; then
+  echo "FAIL: expected exactly one real package root directory" >&2
+  rm -rf -- "$WORK"
+  exit 1
+fi
+STAGE="${STAGE_ROOTS[0]}"
 if [ "$OS" = windows ]; then BIN="$STAGE/gg-core-cli.exe"; LIB="$STAGE/gg_core.dll"; else BIN="$STAGE/gg-core-cli"; LIB="$STAGE/libgg_core.$([ "$OS" = macos ] && echo dylib || echo so)"; fi
 
 echo "== package contents =="
@@ -70,8 +98,30 @@ esac
 echo "== serving surface =="
 "$BIN" live >/dev/null 2>&1 && ok "live" || bad "live"
 "$BIN" ready >/dev/null 2>&1 && ok "ready" || bad "ready"
-"$BIN" status --json 2>/dev/null | grep -q '"health"' && ok "status --json" || bad "status"
-"$BIN" models list --json 2>/dev/null | grep -q qwen && ok "models list" || bad "models list"
+# The CLI can exit 0 for an unhealthy daemon. Substring grep could also
+# "verify" a different model (other-qwen) or an unrelated metadata field.
+# Use exact structural checks, shared with the lightweight smoke scripts.
+if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; sys.exit(sys.version_info[0] != 3)' >/dev/null 2>&1; then
+  PYTHON=python3
+elif command -v python >/dev/null 2>&1 && python -c 'import sys; sys.exit(sys.version_info[0] != 3)' >/dev/null 2>&1; then
+  PYTHON=python
+else
+  PYTHON=""
+fi
+STATUS_JSON="$("$BIN" status --json 2>/dev/null)"; STATUS_RC=$?
+if [ "$STATUS_RC" -eq 0 ] && [ -n "$PYTHON" ] && [ -f "$INSPECT" ] &&
+  printf '%s' "$STATUS_JSON" | "$PYTHON" "$INSPECT" health; then
+  ok "status --json (explicitly healthy)"
+else
+  bad "status --json (not healthy, invalid or parser unavailable)"
+fi
+MODELS_JSON="$("$BIN" models list --json 2>/dev/null)"; MODELS_RC=$?
+if [ "$MODELS_RC" -eq 0 ] && [ -n "$PYTHON" ] && [ -f "$INSPECT" ] &&
+  printf '%s' "$MODELS_JSON" | "$PYTHON" "$INSPECT" ready-model qwen; then
+  ok "models list (exact qwen, ready)"
+else
+  bad "models list (exact qwen not ready or invalid)"
+fi
 
 echo "== real inference =="
 OUT="$(with_timeout 180 "$BIN" infer --model qwen --prompt "What is the capital of France? Answer in one word." --max-tokens 24 2>&1)"; RC=$?
@@ -130,13 +180,9 @@ echo "== authenticated real-model IPC controls =="
 # The normal CLI smoke test establishes successful generation but does not
 # exercise cancellation while native generation is active. The standard-library
 # probe talks to the SAME packaged daemon through its actual socket/pipe.
-if command -v python3 >/dev/null 2>&1; then PYTHON=python3
-elif command -v python >/dev/null 2>&1; then PYTHON=python
-else PYTHON=""
-fi
 if [ -z "$PYTHON" ]; then
   bad "Python 3 required for cross-platform IPC control acceptance"
-elif with_timeout 420 "$PYTHON" "$BASE/scripts/rc-ipc-control-acceptance.py"; then
+elif [ -f "$IPC_PROBE" ] && with_timeout 420 "$PYTHON" "$IPC_PROBE"; then
   ok "packaged IPC authentication, active cancel, deadlines, prefill cancel, isolation"
 else
   bad "packaged IPC control acceptance"
@@ -149,10 +195,26 @@ echo "== lifecycle + invalid loads =="
 "$BIN" models load "$MODEL_REL" --id qwen >/dev/null 2>&1 && ok "authenticated reload" || bad "reload"
 "$BIN" models load "models/does-not-exist.gguf" --id ghost >/dev/null 2>&1 && bad "missing model accepted" || ok "missing model refused"
 "$BIN" models load "../../etc/passwd" --id esc >/dev/null 2>&1 && bad "traversal accepted" || ok "traversal refused"
-printf 'not a gguf' > models/rc-fake.gguf
-"$BIN" models load "models/rc-fake.gguf" --id fake >/dev/null 2>&1 && bad "corrupt model accepted" || ok "corrupt model refused"
-rm -f models/rc-fake.gguf
-"$BIN" models list --json 2>/dev/null | grep -q fake && bad "partial registry state" || ok "no partial state"
+# Do not truncate an operator's pre-existing fixture or follow a symlink
+# when testing the invalid-GGUF refusal on the installed release candidate.
+if [ -e models/rc-fake.gguf ] || [ -L models/rc-fake.gguf ]; then
+  bad "refusing to overwrite existing models/rc-fake.gguf fixture"
+elif printf 'not a gguf' > models/rc-fake.gguf && [ -s models/rc-fake.gguf ]; then
+  "$BIN" models load "models/rc-fake.gguf" --id fake >/dev/null 2>&1 &&
+    bad "corrupt model accepted" || ok "corrupt model refused"
+  rm -f models/rc-fake.gguf || bad "could not remove test-only corrupt fixture"
+else
+  bad "could not stage corrupt GGUF fixture; invalid-load test NOT RUN"
+fi
+# A failed or malformed model-list query must never pass the rollback/cleanup
+# check merely because grep failed to find "fake" in empty/invalid output.
+REGISTRY_JSON="$("$BIN" models list --json 2>/dev/null)"; REGISTRY_RC=$?
+if [ "$REGISTRY_RC" -eq 0 ] && [ -n "$PYTHON" ] && [ -f "$INSPECT" ] &&
+  printf '%s' "$REGISTRY_JSON" | "$PYTHON" "$INSPECT" absent-model fake; then
+  ok "no partial registry state for refused corrupt model"
+else
+  bad "partial state, invalid model-list JSON or model-list query failed"
+fi
 OUT2="$(with_timeout 180 "$BIN" infer --model qwen --prompt "2+2=" --max-tokens 6 2>&1)" && ok "inference after reload" || bad "inference after reload: $OUT2"
 
 echo "== auth boundary =="
@@ -173,4 +235,13 @@ else
 fi
 ( unset CORE_AUTH_TOKEN; "$BIN" serve > "$WORK/notoken.log" 2>&1 ); [ $? -ne 0 ] && grep -q "CORE_AUTH_TOKEN is empty" "$WORK/notoken.log" && ok "serve without token refused" || bad "serve without token"
 echo "== RESULT: pass=$pass fail=$fail =="
-[ $fail -eq 0 ]
+if [ "$fail" -ne 0 ]; then
+  echo "Qualification failed; staging and daemon log retained at: $WORK" >&2
+  exit 1
+fi
+# A successful qualification must not leave temporary unpacked binaries.
+# Failure evidence is deliberately retained above for independent inspection.
+if ! rm -rf -- "$WORK"; then
+  echo "FAIL: could not remove successful qualification staging: $WORK" >&2
+  exit 1
+fi
