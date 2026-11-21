@@ -1,0 +1,48 @@
+name: N7 native evidence preflight (model-free)
+
+on:
+  pull_request:
+    paths:
+      - scripts/qualification/n7_packaged_stop_tail.ps1
+      - .github/workflows/n7-native-preflight-contract.yml
+
+permissions:
+  contents: read
+
+jobs:
+  unsafe-input-refusal:
+    name: Native qualification preflight negative controls
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Reject wrong model and preserve existing evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scriptPath = Resolve-Path scripts/qualification/n7_packaged_stop_tail.ps1
+          $badModel = Join-Path $env:RUNNER_TEMP "unapproved-model.gguf"
+          [IO.File]::WriteAllBytes($badModel, [byte[]](71,71,85,70))
+          $out = Join-Path $env:RUNNER_TEMP "n7-negative-control-fresh"
+          $seen = $false
+          try {
+            & $scriptPath -Daemons @("test=$($PSHOME)\pwsh.exe") -ModelPath $badModel -Out $out -RuntimeDir ''
+          } catch {
+            if ($_.Exception.Message -match 'Unapproved GGUF model size') { $seen = $true } else { throw }
+          }
+          if (-not $seen) { throw 'Wrong GGUF model was not explicitly refused' }
+          if (Test-Path -LiteralPath $out) { throw 'Wrong GGUF model created an evidence directory' }
+
+          $protected = Join-Path $env:RUNNER_TEMP "n7-protected-existing"
+          New-Item -ItemType Directory -Path $protected | Out-Null
+          Set-Content -LiteralPath (Join-Path $protected 'sentinel.txt') -Value 'preserve'
+          $seen = $false
+          try {
+            & $scriptPath -Daemons @("test=$($PSHOME)\pwsh.exe") -ModelPath $badModel -Out $protected -RuntimeDir ''
+          } catch {
+            if ($_.Exception.Message -match 'Refusing existing evidence directory') { $seen = $true } else { throw }
+          }
+          if (-not $seen) { throw 'Existing evidence directory was not refused' }
+          if ((Get-Content -LiteralPath (Join-Path $protected 'sentinel.txt') -Raw).Trim() -ne 'preserve') {
+            throw 'Existing evidence was modified'
+          }
