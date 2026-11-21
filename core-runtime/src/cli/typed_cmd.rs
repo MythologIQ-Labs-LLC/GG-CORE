@@ -37,7 +37,10 @@ impl CliIpcClient {
 }
 
 fn ensure_typed_feature(features: &[String]) -> Result<(), CliError> {
-    if features.iter().any(|feature| feature == TYPED_INFERENCE_FEATURE) {
+    if features
+        .iter()
+        .any(|feature| feature == TYPED_INFERENCE_FEATURE)
+    {
         Ok(())
     } else {
         Err(CliError::Protocol(

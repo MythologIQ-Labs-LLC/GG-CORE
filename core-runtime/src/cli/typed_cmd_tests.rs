@@ -33,9 +33,15 @@ async fn legacy_daemon_does_not_receive_unnegotiated_typed_request() {
     let server = tokio::spawn(async move {
         let (mut socket, _) = listener.accept().await.expect("accept");
         let mut header = [0u8; 4];
-        socket.read_exact(&mut header).await.expect("handshake header");
+        socket
+            .read_exact(&mut header)
+            .await
+            .expect("handshake header");
         let mut payload = vec![0; u32::from_le_bytes(header) as usize];
-        socket.read_exact(&mut payload).await.expect("handshake payload");
+        socket
+            .read_exact(&mut payload)
+            .await
+            .expect("handshake payload");
         assert!(matches!(
             decode_message(&payload).expect("decode handshake"),
             IpcMessage::Handshake { .. }
@@ -56,13 +62,10 @@ async fn legacy_daemon_does_not_receive_unnegotiated_typed_request() {
 
         // Client should close without sending any typed frame at all.
         let mut next = [0u8; 4];
-        let n = tokio::time::timeout(
-            Duration::from_secs(3),
-            socket.read(&mut next),
-        )
-        .await
-        .expect("client must close promptly")
-        .expect("read after acknowledgement");
+        let n = tokio::time::timeout(Duration::from_secs(3), socket.read(&mut next))
+            .await
+            .expect("client must close promptly")
+            .expect("read after acknowledgement");
         assert_eq!(n, 0, "client sent an unnegotiated typed request");
     });
 
@@ -74,7 +77,10 @@ async fn legacy_daemon_does_not_receive_unnegotiated_typed_request() {
         timeout_ms: Some(1_000),
     };
     let client = CliIpcClient::new(path.to_string_lossy().into_owned());
-    let err = client.send_typed(request).await.expect_err("old daemon must refuse");
+    let err = client
+        .send_typed(request)
+        .await
+        .expect_err("old daemon must refuse");
     assert!(matches!(
         err, CliError::Protocol(message) if message.contains("typed_inference_v1")
     ));
@@ -211,9 +217,7 @@ fn rejects_missing_or_unknown_arguments() {
     assert!(parse_typed_args(&args(&["--text", "a"])).is_err());
     assert!(parse_typed_args(&args(&["--model", "m"])).is_err());
     assert!(parse_typed_args(&args(&["--model", "m", "--text"])).is_err());
-    assert!(
-        parse_typed_args(&args(&["--model", "m", "--text", "a", "--backend", "x"])).is_err()
-    );
+    assert!(parse_typed_args(&args(&["--model", "m", "--text", "a", "--backend", "x"])).is_err());
     assert!(parse_typed_args(&args(&["--model", "m", "--model", "n", "--text", "a"])).is_err());
     assert!(
         parse_typed_args(&args(&["--model", "m", "--text", "a", "--timeout-ms", "0"])).is_err()
