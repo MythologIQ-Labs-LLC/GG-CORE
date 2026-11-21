@@ -16,12 +16,47 @@ param(
     [string]$ModelPath = 'C:\Preview\models\qwen2.5-0.5b-instruct-q4_k_m.gguf',
     [string]$RuntimeDir = 'C:\host\vcdlls'   # VC runtime DLLs copied beside each daemon ('' = none)
 )
-$ErrorActionPreference = 'Continue'
-# powershell -File passes a comma list as one string; accept both forms.
+$ErrorActionPreference = 'Stop'
+# PowerShell -File accepts a comma-separated array as a single argument.
 $Daemons = @($Daemons | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $TraceLabels = @($TraceLabels | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
-Remove-Item -Recurse -Force $Out -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force $Out | Out-Null
+$Out = [IO.Path]::GetFullPath($Out)
+
+# Refuse wrong or missing fixture BEFORE creating any measurements or staging.
+# Logging a digest without comparing it to the approved model is not provenance.
+$expectedModelBytes = 491400032
+$expectedModelSha256 = '74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db'
+if (Test-Path -LiteralPath $Out) { throw "Refusing existing evidence directory: $Out" }
+if (-not (Test-Path -LiteralPath $ModelPath -PathType Leaf)) {
+    throw 'Approved GGUF model file missing'
+}
+$modelFile = Get-Item -LiteralPath $ModelPath
+if ($modelFile.Length -ne $expectedModelBytes) {
+    throw "Unapproved GGUF model size: expected $expectedModelBytes bytes"
+}
+$modelHash = (Get-FileHash -LiteralPath $ModelPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($modelHash -ne $expectedModelSha256) { throw 'Unapproved GGUF model SHA-256' }
+if ($Reps -lt 1 -or $Threads.Count -eq 0 -or $Contexts.Count -eq 0) {
+    throw 'Qualification matrix cannot be empty or have zero repetitions'
+}
+if ($Daemons.Count -eq 0) { throw 'No packaged daemons specified' }
+$labels = @{}
+foreach ($pair in $Daemons) {
+    if ($pair -notmatch '^([a-zA-Z0-9_-]+)=(.+)$') {
+        throw 'Invalid daemon label/path pair (expected safe-label=exe-path)'
+    }
+    if ($labels.ContainsKey($Matches[1])) { throw 'Duplicate daemon label' }
+    if (-not (Test-Path -LiteralPath $Matches[2] -PathType Leaf)) {
+        throw 'Missing packaged daemon executable'
+    }
+    $labels[$Matches[1]] = $true
+}
+foreach ($label in $TraceLabels) {
+    if (-not $labels.ContainsKey($label)) { throw 'Trace label has no matching daemon' }
+}
+# Never recursively erase an arbitrary caller-supplied output directory.
+# A new run owns a fresh tree, with binaries staged only beneath it.
+New-Item -ItemType Directory -Path $Out | Out-Null
 $log = "$Out\stop.log"; $jsonl = "$Out\results.jsonl"
 function Note($m) { "$(Get-Date -Format o) $m" | Tee-Object -FilePath $log -Append | Out-Null }
 function Rec($h) { ($h | ConvertTo-Json -Compress -Depth 5) | Add-Content $jsonl; Note ('RESULT ' + ($h | ConvertTo-Json -Compress -Depth 5)) }
@@ -121,12 +156,17 @@ function Prefill-Deadline([int]$timeoutMs) {
 $staged = @()
 foreach ($pair in $Daemons) {
     $label, $exe = $pair -split '=', 2
-    $root = "C:\g184stop-$label"; Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force "$root\models\qwen" | Out-Null
-    if (-not (Test-Path $exe)) { Rec @{ kind = 'identity'; label = $label; error = "missing $exe" }; continue }
-    Copy-Item $exe "$root\gg-core-cli.exe" -Force; if ($RuntimeDir) { Copy-Item "$RuntimeDir\*.dll" $root -Force }
-    Copy-Item $ModelPath "$root\models\qwen\model.gguf" -Force
-    $sha = (Get-FileHash "$root\models\qwen\model.gguf").Hash.ToLower()
+    $root = Join-Path $Out "stage-$label"
+    New-Item -ItemType Directory -Path "$root\models\qwen" -Force | Out-Null
+    Copy-Item -LiteralPath $exe -Destination "$root\gg-core-cli.exe"
+    if ($RuntimeDir) { Copy-Item "$RuntimeDir\*.dll" $root }
+    Copy-Item -LiteralPath $ModelPath -Destination "$root\models\qwen\model.gguf"
+    $stagedModel = "$root\models\qwen\model.gguf"
+    $stagedSize = (Get-Item -LiteralPath $stagedModel).Length
+    $sha = (Get-FileHash -LiteralPath $stagedModel -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($stagedSize -ne $expectedModelBytes -or $sha -ne $expectedModelSha256) {
+        throw 'Staged GGUF model identity changed during copy'
+    }
     @{ model_id = 'qwen'; name = 'Qwen2.5-0.5B-Instruct Q4_K_M'; version = '9217f5db'; capabilities = @('text_generation'); sha256 = $sha; size_bytes = (Get-Item "$root\models\qwen\model.gguf").Length; architecture = 'gguf'; license = 'Apache-2.0' } | ConvertTo-Json | Set-Content "$root\models\qwen\manifest.json" -Encoding ascii
     Rec @{ kind = 'identity'; label = $label; exe = $exe; exe_sha256 = (Get-FileHash "$root\gg-core-cli.exe").Hash.ToLower(); model_sha256 = $sha }
     $staged += , @($label, $root)
