@@ -33,6 +33,50 @@ pub(in crate::scheduler) async fn acquire_guard(
     })
 }
 
+/// Execute admitted work on the blocking pool. The reservation is owned by the
+/// native task, NOT by its awaiter: aborting a worker future drops its
+/// JoinHandle but cannot stop running spawn_blocking work. The reservation
+/// must therefore remain charged until that closure completes or unwinds.
+///
+/// This shared boundary is used by normal, typed and streaming workers. It
+/// also prevents the three paths from silently diverging again (#219).
+pub(in crate::scheduler) async fn run_blocking_admitted<T, F>(
+    guard: Option<ResourceGuard>,
+    run: F,
+) -> Result<T, tokio::task::JoinError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || {
+        let _guard = guard;
+        run()
+    })
+    .await
+}
+
+/// Own a reactor for the whole native inference call. spawn_blocking tasks can
+/// outlive their Tokio caller on abort/shutdown_timeout (#219). Reusing the
+/// caller's Handle would leave Tokio-timer/IO-backed model futures suspended
+/// forever once that runtime shuts down, retaining their admitted bytes.
+/// Fresh, per-invocation runtime ownership avoids cross-request task leakage.
+pub(in crate::scheduler) fn block_on_native<T>(
+    future: impl std::future::Future<Output = Result<T, crate::engine::inference::InferenceError>>,
+) -> Result<T, crate::engine::inference::InferenceError> {
+    use crate::engine::inference::InferenceError;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| {
+            InferenceError::ExecutionFailed(format!("native inference runtime unavailable: {e}"))
+        })?;
+    rt.block_on(future)
+}
+
 #[cfg(test)]
 #[path = "worker_admission_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "worker_shutdown_tests.rs"]
+mod shutdown_tests;

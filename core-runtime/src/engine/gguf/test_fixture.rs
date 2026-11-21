@@ -17,7 +17,7 @@ pub(super) fn required() -> bool {
 
 /// The real fixture, or `None` to skip. Panics when the fixture is missing
 /// and [`required`] is set.
-pub(super) fn real_model() -> Option<&'static Path> {
+pub(crate) fn real_model() -> Option<&'static Path> {
     let path = Path::new(FIXTURE);
     let mut magic = [0u8; 4];
     let is_gguf = std::fs::File::open(path)
@@ -39,7 +39,7 @@ static REAL_MODEL_SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Hold for the whole of a timing-sensitive or CPU-loading real-model test
 /// so CPU load from one never overlaps another's timing (review finding 2).
-pub(super) fn serial() -> std::sync::MutexGuard<'static, ()> {
+pub(crate) fn serial() -> std::sync::MutexGuard<'static, ()> {
     REAL_MODEL_SERIAL.lock().unwrap_or_else(|e| e.into_inner())
 }
 

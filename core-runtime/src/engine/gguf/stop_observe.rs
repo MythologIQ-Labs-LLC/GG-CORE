@@ -66,6 +66,13 @@ pub(super) fn setup_stop(should_stop: StopCheck<'_>) -> bool {
     stopped(should_stop, Phase::Setup, 0, 0)
 }
 
+/// A cancelled or disconnected native stream never flushes pending sanitized
+/// text. Pure predicate, so both cancellation and completed send paths can
+/// be checked without real GGUF fixture or Tokio runtime.
+pub(super) fn may_flush_stream(aborted_send: bool, should_stop: StopCheck<'_>) -> bool {
+    !aborted_send && !stop_requested(should_stop)
+}
+
 /// Cooperative checkpoint: on a stop, emit S3 and reset the record.
 /// `done` is the prompt position (prefill) or tokens generated (decode);
 /// `remaining` is prompt tokens still to decode (prefill only).

@@ -286,3 +286,15 @@ The run fails if either of these happens:
 - the daemon's stderr contains `failed to allocate`, `ggml_` allocation errors or a Job Object termination.
 
 The idle cycles (steps 1–3) stay at default limits, where `released` and OS reclaim are measured without cap pressure.
+
+## 12. P0 runtime-teardown correction (2026-11-18, draft PR #226)
+
+**Status: proposed source implementation; native release acceptance remains HOLD.** This section supersedes the historical assertions in §2, §3.1 and A7 that a missing Tokio runtime permanently leaks a release guard, or that the per-unload async poll task safely owns it across shutdown. Those statements described the earlier implementation, not the current proposed correction.
+
+The original `tokio::spawn(Resident::release_when_idle)` watcher is **cancellation-unsafe**: dropping Tokio during a detached native inference task can drop its `ResidentGuard` even though another `Arc<dyn Model>` retains backend memory. The watch remains unsignalled, but the resident budget could be falsely credited. This is a distinct part of P0 #219 and is not repaired by streaming engine/security `Arc` capture alone.
+
+The #226 correction retains the resident model + budget guard in one process-wide, runtime-independent `std::thread` release supervisor, using a shared channel and bounded polling. The supervisor drops model memory **before** the guard returns budget and only signals a release watch after final model ownership clears. It requires at most one release-monitor thread per process, independent of unload count; no thread is spawned for every pending model. `ModelLifecycle::wait_released` and the registry/tracker wire are unchanged. A catastrophic supervisor spawn/disconnect/panic retains the guard as an explicit fail-closed fallback rather than credit still-live memory; under normal operation the guard is returned promptly after the final holder releases.
+
+**Updated model-free evidence contract:** `lifecycle_release_tests.rs` now requires (1) unload without a Tokio runtime to remain charged while held and reclaim on last-holder drop; (2) shutdown of a Tokio runtime while a live holder exists to retain the budget and `Unloading` state until real release; and (3) dropping both runtime and lifecycle while a native-style holder survives to retain bytes until it exits. The existing actual generation/typed worker abort tests in `worker_admission_abort_tests.rs` and the streaming ownership tests remain separate mandatory gates. They do not substitute for real GGUF client-drop, unload/reload, cancellation and Windows WER/reclamation acceptance.
+
+**Merge/closure boundary:** Exact integrated-head strict Rust/CodeQL/cargo-deny, adversarial ownership review and installed/native binary-hash-pinned validation are required. #219 remains P0 OPEN. Do not portray this draft as completed release or hardware qualification.
