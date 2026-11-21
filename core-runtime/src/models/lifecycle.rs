@@ -145,6 +145,10 @@ impl ModelLifecycle {
             resident::admit(self.limits.as_ref(), entry.reservation_mut(), memory_usage)
         };
         if let Err(e) = admitted {
+            // A backend destructor may block or panic. Never execute it while
+            // holding the lifecycle's exclusive index lock: unrelated loads,
+            // unloads and lookups must still make progress (#219).
+            drop(index);
             // Resident releases only after the backend's last Arc is gone,
             // and retains budget if native destruction panics (#219).
             drop(entry);
@@ -269,6 +273,10 @@ mod tests;
 #[cfg(test)]
 #[path = "lifecycle_resident_tests.rs"]
 mod resident_tests;
+
+#[cfg(test)]
+#[path = "lifecycle_refusal_drop_tests.rs"]
+mod refusal_drop_tests;
 
 #[cfg(test)]
 #[path = "lifecycle_release_tests.rs"]
