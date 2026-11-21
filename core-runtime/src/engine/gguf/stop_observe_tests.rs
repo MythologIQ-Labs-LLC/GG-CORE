@@ -77,3 +77,20 @@ fn a_setup_stop_is_reported_as_setup() {
     assert_eq!(f["phase"], "setup");
     assert!(f["last_decode_ms"].is_null());
 }
+
+#[test]
+fn cancelled_or_disconnected_stream_never_flushes_sanitizer_tail() {
+    let stop = || true;
+    let active = || false;
+    assert!(!may_flush_stream(true, None), "closed receiver cannot flush");
+    assert!(
+        !may_flush_stream(true, Some(&active)),
+        "stalled producer cannot flush even if cancellation was not set"
+    );
+    assert!(
+        !may_flush_stream(false, Some(&stop)),
+        "cancelled producer cannot flush withheld text"
+    );
+    assert!(may_flush_stream(false, Some(&active)));
+    assert!(may_flush_stream(false, None));
+}

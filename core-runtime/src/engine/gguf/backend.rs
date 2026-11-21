@@ -18,7 +18,7 @@ use crate::engine::{FinishReason, GenerationResult, InferenceConfig, InferenceEr
 use crate::security::stream_sanitizer::StreamSanitizer;
 
 use super::prefill::{decode_prompt, decode_range, PrefillShape, StopCheck};
-use super::stop_observe::{setup_stop, stopped, Phase};
+use super::stop_observe::{may_flush_stream, setup_stop, stopped, Phase};
 
 /// Holds the loaded llama-cpp-2 model and a handle to the process backend.
 pub struct LlamaBackendInner {
@@ -152,9 +152,12 @@ impl LlamaBackendInner {
         sampler.accept_many(tokens.iter().copied());
         let start_pos = tokens.len() as i32;
         let mut acc: Vec<LlamaToken> = Vec::new();
+        let mut emitted = 0usize;
+        let mut output_open = true;
         for offset in 0..limit {
             let pos = start_pos + offset as i32;
             if stopped(is_cancelled, Phase::Decode, offset, 0) {
+                output_open = false;
                 break;
             }
             // Use -1 to sample from the last token that had logits computed
@@ -162,8 +165,10 @@ impl LlamaBackendInner {
             sampler.accept(tok);
             let eog = self.model.vocab().is_eog(tok);
             if !self.emit_token(sender, sanitizer.as_deref_mut(), tok, &mut acc)? {
+                output_open = false;
                 break;
             }
+            emitted = offset + 1;
             if eog || offset + 1 == limit {
                 break;
             }
@@ -171,7 +176,16 @@ impl LlamaBackendInner {
             add_one(&mut batch, tok, pos)?;
             decode(&mut ctx, &mut batch)?;
         }
-        self.flush_sanitizer(sender, sanitizer, &acc)
+        // A stopped producer, disconnected reader or stalled channel must
+        // never run the withheld-text flush: it may be expensive and tries
+        // to enqueue more output after the stream was already abandoned.
+        if !may_flush_stream(!output_open, is_cancelled) {
+            if output_open {
+                let _ = stopped(is_cancelled, Phase::Decode, emitted, 0);
+            }
+            return Ok(());
+        }
+        self.flush_sanitizer(sender, sanitizer, &acc, is_cancelled, emitted)
     }
 
     /// Emit one generated token. With a `sanitizer` present, the token is
@@ -204,10 +218,20 @@ impl LlamaBackendInner {
         sender: &crate::engine::TokenStreamSender,
         sanitizer: Option<&mut StreamSanitizer>,
         acc: &[LlamaToken],
+        is_cancelled: StopCheck<'_>,
+        emitted: usize,
     ) -> Result<(), InferenceError> {
         if let Some(san) = sanitizer {
+            // Recheck before detokenization and immediately before sending:
+            // cancellation can race with final sanitizer processing.
+            if stopped(is_cancelled, Phase::Decode, emitted, 0) {
+                return Ok(());
+            }
             let text = self.detokenize(acc)?;
             if let Some(tail) = san.flush(&text) {
+                if stopped(is_cancelled, Phase::Decode, emitted, 0) {
+                    return Ok(());
+                }
                 let _ = sender.text_blocking(tail);
             }
         }
