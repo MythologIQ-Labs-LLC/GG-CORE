@@ -8,7 +8,9 @@ use std::time::Duration;
 
 use super::{get_socket_path, CliError, CliIpcClient};
 use crate::ipc::protocol::{decode_message, encode_message, IpcMessage, RequestId};
-use crate::ipc::protocol_typed::{TypedInferenceRequest, TypedInput, TypedResult, TypedTask};
+use crate::ipc::protocol_typed::{
+    TypedInferenceRequest, TypedInput, TypedResult, TypedTask, TYPED_INFERENCE_FEATURE,
+};
 
 /// Client-side grace beyond the daemon-enforced deadline (as for `infer`).
 const CLIENT_GRACE_MS: u64 = 5_000;
@@ -23,8 +25,27 @@ impl CliIpcClient {
         let request_id = request.request_id;
         let bytes = encode_message(&IpcMessage::TypedInferenceRequest(request))
             .map_err(|e| CliError::Protocol(e.to_string()))?;
-        let reply = self.send_receive_authenticated(&bytes).await?;
+        // An authenticated legacy daemon may not understand typed frames.
+        // Demand the additive protocol feature on the SAME connection before
+        // sending any typed request; a missing list is an explicit refusal.
+        let mut stream = self.connect_authenticated().await?;
+        let features = self.handshake_features_on(&mut stream).await?;
+        ensure_typed_feature(&features)?;
+        let reply = self.exchange_data(&mut stream, &bytes).await?;
         decode_typed_reply(&reply, request_id)
+    }
+}
+
+fn ensure_typed_feature(features: &[String]) -> Result<(), CliError> {
+    if features
+        .iter()
+        .any(|feature| feature == TYPED_INFERENCE_FEATURE)
+    {
+        Ok(())
+    } else {
+        Err(CliError::Protocol(
+            "daemon does not advertise typed_inference_v1; typed inference unsupported".into(),
+        ))
     }
 }
 
@@ -124,80 +145,5 @@ pub async fn run_typed(task: TypedTask, args: &[String]) -> i32 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn args(v: &[&str]) -> Vec<String> {
-        v.iter().map(|s| s.to_string()).collect()
-    }
-
-    #[test]
-    fn typed_success_requires_matching_request_id() {
-        use crate::ipc::protocol_typed::{Embedding, TypedInferenceResponse};
-        let result = TypedResult::Embedding(Embedding {
-            dimensions: 1,
-            vector: vec![1.0],
-        });
-        let response = IpcMessage::TypedInferenceResponse(TypedInferenceResponse::success(
-            RequestId(9),
-            result.clone(),
-        ));
-        let bytes = encode_message(&response).unwrap();
-        assert_eq!(decode_typed_reply(&bytes, RequestId(9)).unwrap(), result);
-        let err = decode_typed_reply(&bytes, RequestId(8)).unwrap_err();
-        assert!(matches!(err, CliError::Protocol(msg) if msg.contains("ID mismatch")));
-    }
-
-    #[test]
-    fn typed_error_requires_matching_request_id() {
-        use crate::ipc::protocol::InferenceErrorCode;
-        use crate::ipc::protocol_typed::TypedInferenceResponse;
-        let response = IpcMessage::TypedInferenceResponse(TypedInferenceResponse::error(
-            RequestId(9),
-            "model refused".into(),
-            InferenceErrorCode::UnsupportedTask,
-        ));
-        let bytes = encode_message(&response).unwrap();
-        let err = decode_typed_reply(&bytes, RequestId(9)).unwrap_err();
-        assert!(matches!(err, CliError::Protocol(msg) if msg == "model refused"));
-        let err = decode_typed_reply(&bytes, RequestId(8)).unwrap_err();
-        assert!(matches!(err, CliError::Protocol(msg) if msg.contains("ID mismatch")));
-    }
-
-    #[test]
-    fn typed_empty_and_wrong_frame_remain_refused() {
-        use crate::ipc::protocol_typed::TypedInferenceResponse;
-        let empty = IpcMessage::TypedInferenceResponse(TypedInferenceResponse {
-            request_id: RequestId(9),
-            result: None,
-            error: None,
-            error_code: None,
-        });
-        let bytes = encode_message(&empty).unwrap();
-        assert!(decode_typed_reply(&bytes, RequestId(9)).is_err());
-        let bytes = encode_message(&IpcMessage::ModelsRequest).unwrap();
-        assert!(decode_typed_reply(&bytes, RequestId(9)).is_err());
-    }
-
-    #[test]
-    fn parses_single_and_batch_texts() {
-        let a = parse_typed_args(&args(&["--model", "m", "--text", "a", "--text", "b"])).unwrap();
-        assert_eq!(a.model_id, "m");
-        assert_eq!(a.texts, vec!["a", "b"]);
-        assert_eq!(a.timeout_ms, DEFAULT_TIMEOUT_MS);
-    }
-
-    #[test]
-    fn rejects_missing_or_unknown_arguments() {
-        assert!(parse_typed_args(&args(&["--text", "a"])).is_err());
-        assert!(parse_typed_args(&args(&["--model", "m"])).is_err());
-        assert!(parse_typed_args(&args(&["--model", "m", "--text"])).is_err());
-        assert!(
-            parse_typed_args(&args(&["--model", "m", "--text", "a", "--backend", "x"])).is_err()
-        );
-        assert!(parse_typed_args(&args(&["--model", "m", "--model", "n", "--text", "a"])).is_err());
-        assert!(
-            parse_typed_args(&args(&["--model", "m", "--text", "a", "--timeout-ms", "0"])).is_err()
-        );
-    }
-}
+#[path = "typed_cmd_tests.rs"]
+mod tests;
