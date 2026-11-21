@@ -8,7 +8,7 @@ use crate::engine::{FinishReason, InferenceInput, InferenceOutput, Model, StopCo
 
 impl InferenceEngine {
     /// Conservative bytes-per-token estimate for context check.
-    const BYTES_PER_TOKEN: usize = 4;
+    pub(super) const BYTES_PER_TOKEN: usize = 4;
 
     pub(super) fn check_context(&self, prompt: &str) -> Result<(), InferenceError> {
         let estimated_tokens = prompt.len() / Self::BYTES_PER_TOKEN;
