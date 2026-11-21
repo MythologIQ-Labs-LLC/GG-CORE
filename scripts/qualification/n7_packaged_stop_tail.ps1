@@ -79,8 +79,8 @@ function Recv-Ipc($c, [int]$ms = 240000) {
     [Text.Encoding]::UTF8.GetString($b) | ConvertFrom-Json
 }
 $script:rid = 1000
-function Req([string]$prompt, [int]$max, [int]$timeoutMs = 0) {
-    $script:rid++; $p = [ordered]@{ max_tokens = $max; temperature = 0.0; top_p = 1.0; top_k = 1; stream = $false }
+function Req([string]$prompt, [int]$max, [int]$timeoutMs = 0, [bool]$stream = $false) {
+    $script:rid++; $p = [ordered]@{ max_tokens = $max; temperature = 0.0; top_p = 1.0; top_k = 1; stream = $stream }
     if ($timeoutMs -gt 0) { $p['timeout_ms'] = $timeoutMs }
     [ordered]@{ type = 'inference_request'; request_id = $script:rid; model_id = 'qwen'; prompt = $prompt; parameters = $p }
 }
@@ -88,10 +88,14 @@ function Session { $c = New-Ipc; Send-Ipc $c ([ordered]@{ type = 'handshake'; to
 function Cpu { $script:d.Refresh(); $script:d.TotalProcessorTime.TotalMilliseconds }
 # Wall and CPU time from $t0 (stop sent) until two consecutive 100 ms samples add < 15 ms CPU.
 function Quiesce($t0, $cpu0) {
-    $prev = Cpu; $calm = 0; $n = 0
+    # A CPU observation starting after reply/late-frame reads cannot know
+    # the precise stop instant during that gap. Keep a conservative upper
+    # bound from the original stop stopwatch, never manufacture a zero tail.
+    $observedMs = $t0.ElapsedMilliseconds
+    $observedUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    $prev = Cpu; $calm = 0; $n = 0; $last = $observedMs
     while ($calm -lt 2 -and $n -lt 300) { Start-Sleep -Milliseconds 100; $now = Cpu; $n++; if (($now - $prev) -lt 15) { $calm++ } else { $calm = 0; $last = $t0.ElapsedMilliseconds }; $prev = $now }
-    if ($null -eq $last) { $last = 0 }
-    @{ tailWallMs = $last; tailCpuMs = [math]::Round((Cpu) - $cpu0); quiesced = ($calm -ge 2); samples = $n }
+    @{ tailWallMs = $last; tailBound = 'conservativeUpperBound'; cpuObservationStartMs = $observedMs; cpuObservationStartUnixMs = $observedUnix; tailCpuMs = [math]::Round((Cpu) - $cpu0); quiesced = ($calm -ge 2); samples = $n }
 }
 function Infer([string]$prompt, [int]$max, [int]$timeoutMs = 0) {
     $c = Session; try { $sw = [Diagnostics.Stopwatch]::StartNew(); Send-Ipc $c (Req $prompt $max $timeoutMs); $r = Recv-Ipc $c; @{ r = $r; ms = $sw.ElapsedMilliseconds } } finally { $c.Dispose() }
@@ -104,8 +108,10 @@ function Prefill-Cancel([int]$afterMs) {
         Send-Ipc $c ([ordered]@{ type = 'cancel_request'; request_id = $req.request_id })
         $frames = @(); $code = $null; $tokens = $null
         while ($frames.Count -lt 2) { $f = Recv-Ipc $c 120000; if ($f -is [string]) { $frames += $f; break }; $frames += $f.type; if ($f.type -eq 'inference_response') { $code = $f.error_code; $tokens = $f.tokens_generated } }
+        # Caller response latency must be observed before the CPU-stop sample.
+        $terminalMs = $t0.ElapsedMilliseconds
         $q = Quiesce $t0 $cpu0
-        $q + @{ kind = 'prefillCancel'; stopSentUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $t0.ElapsedMilliseconds; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
+        $q + @{ kind = 'prefillCancel'; stopSentUnixMs = $sentUnix; tailClockOriginUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $terminalMs; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
     } finally { $c.Dispose() }
 }
 # Cancel while generating: short prompt, long output, stop after prefill is done.
@@ -117,8 +123,10 @@ function Decode-Cancel([int]$afterMs) {
         Send-Ipc $c ([ordered]@{ type = 'cancel_request'; request_id = $req.request_id })
         $frames = @(); $code = $null; $tokens = $null
         while ($frames.Count -lt 2) { $f = Recv-Ipc $c 120000; if ($f -is [string]) { $frames += $f; break }; $frames += $f.type; if ($f.type -eq 'inference_response') { $code = $f.error_code; $tokens = $f.tokens_generated } }
+        # Caller response latency must be observed before the CPU-stop sample.
+        $terminalMs = $t0.ElapsedMilliseconds
         $q = Quiesce $t0 $cpu0
-        $q + @{ kind = 'decodeCancel'; stopSentUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $t0.ElapsedMilliseconds; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
+        $q + @{ kind = 'decodeCancel'; stopSentUnixMs = $sentUnix; tailClockOriginUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $terminalMs; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
     } finally { $c.Dispose() }
 }
 # Both workers busy with a mid-length prompt; a third, queued request is cancelled.
@@ -145,9 +153,82 @@ function Prefill-Deadline([int]$timeoutMs) {
     try {
         $sw = [Diagnostics.Stopwatch]::StartNew(); $req = Req $long 64 $timeoutMs; Send-Ipc $c $req
         $f = Recv-Ipc $c 120000; $answered = $sw.ElapsedMilliseconds
-        $t0 = [Diagnostics.Stopwatch]::StartNew(); $cpu0 = Cpu; $sentUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        # This CPU observation starts AFTER the terminal, not at deadline.
+        $t0 = [Diagnostics.Stopwatch]::StartNew(); $cpu0 = Cpu; $observedUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         $q = Quiesce $t0 $cpu0
-        $q + @{ kind = 'prefillDeadline'; stopSentUnixMs = $sentUnix; requestId = $req.request_id; timeoutMs = $timeoutMs; answeredAfterMs = $answered; errorCode = $f.error_code; tokens = $f.tokens_generated }
+        $q + @{ kind = 'prefillDeadline'; stopSentUnixMs = $observedUnix; tailClockOriginUnixMs = $observedUnix; quiescenceOrigin = 'afterTerminal'; requestId = $req.request_id; timeoutMs = $timeoutMs; answeredAfterMs = $answered; errorCode = $f.error_code; tokens = $f.tokens_generated }
+    } finally { $c.Dispose() }
+}
+
+# Real active-stream cancellation, no generated text logged. The first
+# sanitized text frame proves decoding began before authenticated cancel.
+function Stream-Cancel {
+    $c = Session
+    try {
+        $req = Req 'Tell a long story about a river and its towns.' 400 0 $true
+        $first = [Diagnostics.Stopwatch]::StartNew()
+        Send-Ipc $c $req
+        $started = $false; $firstMs = $null; $prefix = 0; $early = ''
+        while ($prefix -lt 1000 -and $first.ElapsedMilliseconds -lt 60000) {
+            $f = Recv-Ipc $c 15000
+            if ($f -is [string]) { $early = $f; break }
+            if ($f.type -ne 'stream_chunk' -or $f.request_id -ne $req.request_id -or $f.is_final -or $f.error) {
+                $early = 'no active sanitized text stream'; break
+            }
+            $prefix++
+            if ($f.text) { $started = $true; $firstMs = $first.ElapsedMilliseconds; break }
+        }
+        if (-not $started) {
+            return @{ kind = 'streamCancel'; requestId = $req.request_id; started = $false
+                prefixFrames = $prefix; firstTextMs = $firstMs; early = $early
+                ack = $false; ackCount = 0; terminalCount = 0; terminalError = ''
+                terminalMs = $null; ackMs = $null; lateFrames = 0
+                dataAfterAck = 0; unexpectedFrames = 0; quiesced = $false }
+        }
+        $t0 = [Diagnostics.Stopwatch]::StartNew(); $cpu0 = Cpu
+        $stopUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        Send-Ipc $c ([ordered]@{ type = 'cancel_request'; request_id = $req.request_id })
+        $ack = $false; $ackCount = 0; $ackMs = $null
+        $ends = 0; $terminalMs = $null; $err = ''; $terminalBeforeAck = $false
+        $afterAck = 0; $afterFinal = 0; $unexpected = 0; $readOutcome = 'OK'
+        $frames = @()
+        for ($i = 0; $i -lt 100; $i++) {
+            $f = Recv-Ipc $c 15000
+            if ($f -is [string]) { $readOutcome = $f; break }
+            if ($f.request_id -ne $req.request_id) { $unexpected++; break }
+            $frames += $f.type
+            if ($f.type -eq 'cancel_response') {
+                $ackCount++
+                $ack = ($ackCount -eq 1 -and $f.cancelled -eq $true)
+                if ($null -eq $ackMs) { $ackMs = $t0.ElapsedMilliseconds }
+            } elseif ($f.type -eq 'stream_chunk') {
+                if ($f.is_final) {
+                    $ends++
+                    if ($null -eq $terminalMs) { $terminalMs = $t0.ElapsedMilliseconds }
+                    $err = [string]$f.error
+                    if (-not $ack) { $terminalBeforeAck = $true }
+                } else {
+                    if ($ack) { $afterAck++ }
+                    if ($ends -gt 0) { $afterFinal++ }
+                }
+            } else { $unexpected++ }
+            if ($ackCount -gt 1 -or $ends -gt 1 -or ($ack -and $ends -eq 1)) { break }
+        }
+        $late = 0; $post = 'SKIPPED'
+        if ($ack -and $ends -eq 1) {
+            $extra = Recv-Ipc $c 350
+            if ($extra -is [string]) { $post = $extra }
+            else { $late++; $post = [string]$extra.type }
+        }
+        $q = Quiesce $t0 $cpu0
+        $q + @{ kind = 'streamCancel'; stopSentUnixMs = $stopUnix
+            tailClockOriginUnixMs = $stopUnix; requestId = $req.request_id
+            started = $started; firstTextMs = $firstMs; prefixFrames = $prefix
+            ack = $ack; ackCount = $ackCount; ackMs = $ackMs
+            terminalCount = $ends; terminalMs = $terminalMs
+            terminalBeforeAck = $terminalBeforeAck; terminalError = $err
+            dataAfterAck = $afterAck; dataAfterFinal = $afterFinal; lateFrames = $late; unexpectedFrames = $unexpected
+            readOutcome = $readOutcome; postTerminalRead = $post; frames = ($frames -join ',') }
     } finally { $c.Dispose() }
 }
 
@@ -182,13 +263,14 @@ foreach ($ctx in $Contexts) { foreach ($t in $Threads) { foreach ($sd in $staged
     $null = $script:d.Handle; $ready = $false
     for ($i = 0; $i -lt 480; $i++) { Start-Sleep -Milliseconds 250; if ((Get-Content "$Out\$tag.err" -Raw -ErrorAction SilentlyContinue) -match 'IPC server listening') { $ready = $true; break }; if ($script:d.HasExited) { break } }
     Rec @{ kind = 'daemon'; tag = $tag; ready = $ready }
-    if (-not $ready) { continue }
+    if (-not $ready) { if (-not $script:d.HasExited) { $script:d.Kill() }; throw "Native daemon not ready for $tag" }
     for ($r = 0; $r -lt $Reps; $r++) {
         $tp = Infer $long 24; $outHash = if ($tp.r.output) { ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$tp.r.output)))).Replace('-', '').Substring(0, 16) } else { $null }
         Rec @{ kind = 'throughput'; tag = $tag; rep = $r; ms = $tp.ms; tokens = $tp.r.tokens_generated; ok = (-not $tp.r.error); outputSha = $outHash }
         Rec ((Prefill-Cancel (1500 + 500 * $r)) + @{ tag = $tag; rep = $r })
         Rec ((Prefill-Deadline (2000 + 500 * $r)) + @{ tag = $tag; rep = $r })
         Rec ((Decode-Cancel (2500 + 500 * $r)) + @{ tag = $tag; rep = $r })
+        Rec ((Stream-Cancel) + @{ tag = $tag; rep = $r })
         Rec ((Queued-Cancel) + @{ tag = $tag; rep = $r })
         $rc = Infer 'Reply with one word: ok' 4; Rec @{ kind = 'recover'; tag = $tag; rep = $r; ok = (-not $rc.r.error); ms = $rc.ms; alive = (-not $script:d.HasExited) }
     }
