@@ -49,4 +49,3 @@ impl LookupIndex {
         self.id_to_handle.contains_key(model_id)
     }
 }
-

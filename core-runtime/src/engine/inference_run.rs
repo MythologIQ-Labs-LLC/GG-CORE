@@ -62,6 +62,4 @@ impl InferenceEngine {
                 "Model returned non-generation output".into(),
             )),
         }
-    }
-
-}
+    }}
