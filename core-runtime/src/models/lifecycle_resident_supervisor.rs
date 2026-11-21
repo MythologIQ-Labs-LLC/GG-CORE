@@ -89,4 +89,3 @@ fn supervise_releases(receiver: mpsc::Receiver<PendingRelease>) {
         }
     }
 }
-

@@ -78,7 +78,10 @@ fn orphaned_release_destructor_panic_is_isolated_and_budget_stays_charged() {
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         drop(release);
     }));
-    assert!(outcome.is_ok(), "failed cleanup unwound out of release supervisor");
+    assert!(
+        outcome.is_ok(),
+        "failed cleanup unwound out of release supervisor"
+    );
     assert!(!watch.released(), "failed destructor cannot signal release");
     assert_eq!(
         limits.current_memory(),
