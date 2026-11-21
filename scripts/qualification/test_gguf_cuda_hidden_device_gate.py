@@ -14,13 +14,30 @@ SPEC.loader.exec_module(gate)
 ONE_PASS = (
     "running 1 test\n"
     "test cuda_build_without_a_visible_device_refuses_offload_but_serves_cpu ... ok\n"
-    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;\n"
+    "test common::fixture_integrity_tests::pinned_fixture_check_rejects_wrong_bytes_and_wrong_hash ... ok\n"
+    "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;\n"
 )
 
 
 class EvidencePassTests(unittest.TestCase):
     def test_real_marker_and_one_executed_test(self):
         self.assertTrue(gate.evidence_pass(gate.PASS_MARKER + "\n" + ONE_PASS, 0))
+
+    def test_one_pass_without_fixture_regression_is_refused(self):
+        old = (
+            gate.PASS_MARKER + "\n"
+            "test cuda_build_without_a_visible_device_refuses_offload_but_serves_cpu ... ok\n"
+            "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;\n"
+        )
+        self.assertFalse(gate.evidence_pass(old, 0))
+
+    def test_two_pass_summary_without_both_test_names_is_refused(self):
+        fake = (
+            gate.PASS_MARKER + "\n"
+            "test cuda_build_without_a_visible_device_refuses_offload_but_serves_cpu ... ok\n"
+            "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;\n"
+        )
+        self.assertFalse(gate.evidence_pass(fake, 0))
 
     def test_successful_exit_without_marker_is_not_qualified(self):
         self.assertFalse(gate.evidence_pass(ONE_PASS, 0))

@@ -17,7 +17,11 @@ import time
 
 MODEL = Path("models/qwen2.5-0.5b-instruct-q4_k_m.gguf")
 APPROVED_SHA256 = "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"
-TEST_PASS = re.compile(r"test result: ok\.\s+1 passed;\s+0 failed;\s+0 ignored;")
+TEST_PASS = re.compile(r"test result: ok\.\s+2 passed;\s+0 failed;\s+0 ignored;\s+0 measured;\s+0 filtered out;")
+EXPECTED_TESTS = (
+    "test cuda_build_without_a_visible_device_refuses_offload_but_serves_cpu ... ok",
+    "test common::fixture_integrity_tests::pinned_fixture_check_rejects_wrong_bytes_and_wrong_hash ... ok",
+)
 PASS_MARKER = "GPUQUAL hidden_device.qual_status=PASS"
 
 
@@ -106,7 +110,9 @@ def require_offline_windows():
 
 
 def evidence_pass(log, exit_code):
-    return exit_code == 0 and PASS_MARKER in log and TEST_PASS.search(log) is not None
+    return (exit_code == 0 and PASS_MARKER in log
+            and TEST_PASS.search(log) is not None
+            and all(name in log.splitlines() for name in EXPECTED_TESTS))
 
 
 def run(repo, evidence, report):
