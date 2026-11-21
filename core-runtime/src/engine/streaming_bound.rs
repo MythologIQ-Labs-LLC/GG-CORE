@@ -97,7 +97,15 @@ pub(super) fn bounded_send_blocking(
     } else {
         StreamSendError::Deadline
     };
+    // The first non-blocking attempt may deliver an already-expired
+    // terminal when capacity exists. Subsequent attempts must refuse once
+    // time has passed; never let a newly freed slot send a late token.
+    let mut first_attempt = true;
     loop {
+        if !first_attempt && Instant::now() >= by {
+            return Err(expired);
+        }
+        first_attempt = false;
         match tx.try_send(item) {
             Ok(()) => return Ok(()),
             Err(TrySendError::Closed(_)) => return Err(StreamSendError::Closed),

@@ -55,6 +55,25 @@ fn native_terminal_is_sent_if_capacity_exists_even_after_deadline() {
 }
 
 #[test]
+fn native_sender_never_delivers_a_late_token_past_deadline() {
+    let (sender, receiver) = TokenStream::new(
+        1,
+        StreamBound {
+            stall: Duration::from_secs(2),
+            deadline: Some(Instant::now() + Duration::from_millis(40)),
+        },
+    );
+    sender.token_blocking(1).unwrap();
+    assert_eq!(
+        sender.token_blocking(2),
+        Err(StreamSendError::Deadline),
+        "full channel must stop at the absolute request deadline"
+    );
+    assert_eq!(sender.failure(), Some(StreamSendError::Deadline));
+    drop(receiver);
+}
+
+#[test]
 fn native_sender_unblocks_on_reader_drop_without_a_reactor() {
     let (sender, reader) = TokenStream::new(
         1,
