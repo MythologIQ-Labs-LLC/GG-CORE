@@ -78,114 +78,81 @@ pub struct RuntimeBackendCapabilities {
 
 /// Only backends with compiled implementation paths are declared.
 ///
-/// In the current GGUF/ONNX code, CPU is the only actual backend target.
-/// CUDA/Metal modules do not imply serving offload, and ONNX generation is
-/// not implemented. Even compiled tasks need a separately audited installed
-/// real-model support matrix before they can be advertised as qualified.
+/// GGUF CPU is always reachable with its native backend compiled. Native
+/// llama.cpp CUDA and macOS Metal serving paths are reachable only with
+/// their dedicated inference features. These are distinct from the `cuda`
+/// and `metal` device-management features. A compiled offload path says
+/// nothing about an installed model, driver, active GPU kernels, available
+/// VRAM, operator settings, or release support. ONNX generation is absent.
+/// `qualified_paths` remains empty pending pinned native acceptance.
 pub fn compiled_backend_capabilities() -> Vec<RuntimeBackendCapabilities> {
+    // Single source of truth: these booleans describe COMPILED code only.
+    // They are never accepted from client IPC or external evidence files.
+    compiled_for_features(CompiledFeatures {
+        gguf: cfg!(feature = "gguf"),
+        onnx: cfg!(feature = "onnx"),
+        gguf_cuda: cfg!(feature = "gguf-cuda"),
+        gguf_metal_on_macos: cfg!(all(feature = "gguf-metal", target_os = "macos")),
+    })
+}
+
+/// A private, model-free test seam for the complete compiled feature matrix.
+/// Never use this to claim observed hardware, model quality, or availability.
+#[derive(Clone, Copy)]
+struct CompiledFeatures {
+    gguf: bool,
+    onnx: bool,
+    gguf_cuda: bool,
+    gguf_metal_on_macos: bool,
+}
+
+fn compiled_for_features(features: CompiledFeatures) -> Vec<RuntimeBackendCapabilities> {
     let mut backends = Vec::new();
-    if cfg!(feature = "gguf") {
-        backends.push(RuntimeBackendCapabilities {
-            schema_version: CAPABILITY_SCHEMA_VERSION,
-            backend: BackendKind::Gguf,
-            model_formats: vec!["gguf".to_string()],
-            compiled_paths: vec![ServingPath {
-                task: InferenceTask::TextGeneration,
-                target: ExecutionTarget::Cpu,
-            }],
-            supports_streaming: true,
-            supports_kv_cache: true,
-            qualified_paths: Vec::new(),
-        });
+    if features.gguf {
+        backends.push(gguf_capabilities(features));
     }
-    if cfg!(feature = "onnx") {
-        backends.push(RuntimeBackendCapabilities {
-            schema_version: CAPABILITY_SCHEMA_VERSION,
-            backend: BackendKind::Onnx,
-            model_formats: vec!["onnx".to_string()],
-            compiled_paths: vec![
-                ServingPath {
-                    task: InferenceTask::Embedding,
-                    target: ExecutionTarget::Cpu,
-                },
-                ServingPath {
-                    task: InferenceTask::Classification,
-                    target: ExecutionTarget::Cpu,
-                },
-            ],
-            supports_streaming: false,
-            supports_kv_cache: false,
-            qualified_paths: Vec::new(),
-        });
+    if features.onnx {
+        backends.push(onnx_capabilities());
     }
     backends
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn no_false_acceleration_or_release_claims() {
-        for capabilities in compiled_backend_capabilities() {
-            assert_eq!(capabilities.schema_version, CAPABILITY_SCHEMA_VERSION);
-            assert!(capabilities
-                .compiled_paths
-                .iter()
-                .all(|path| path.target == ExecutionTarget::Cpu));
-            assert!(capabilities.qualified_paths.is_empty());
-        }
+fn gguf_capabilities(features: CompiledFeatures) -> RuntimeBackendCapabilities {
+    let task = InferenceTask::TextGeneration;
+    let mut compiled_paths = vec![ServingPath::new(task, ExecutionTarget::Cpu)];
+    // Native backend code may be compiled without any actual GPU being used.
+    if features.gguf_cuda {
+        compiled_paths.push(ServingPath::new(task, ExecutionTarget::Cuda));
     }
-
-    #[test]
-    fn onnx_generation_and_unsupported_bitnet_are_not_advertised() {
-        let catalog = compiled_backend_capabilities();
-        assert!(catalog.iter().all(|c| c.backend != BackendKind::Onnx
-            || !c
-                .compiled_paths
-                .iter()
-                .any(|path| { path.task == InferenceTask::TextGeneration })));
-        assert!(catalog
-            .iter()
-            .all(|c| c.backend == BackendKind::Gguf || c.backend == BackendKind::Onnx));
+    if features.gguf_metal_on_macos {
+        compiled_paths.push(ServingPath::new(task, ExecutionTarget::Metal));
     }
-
-    #[test]
-    fn compile_time_feature_matrix_is_exact() {
-        let catalog = compiled_backend_capabilities();
-        assert_eq!(
-            catalog.iter().any(|c| c.backend == BackendKind::Gguf),
-            cfg!(feature = "gguf")
-        );
-        assert_eq!(
-            catalog.iter().any(|c| c.backend == BackendKind::Onnx),
-            cfg!(feature = "onnx")
-        );
-        assert_eq!(
-            catalog.len(),
-            usize::from(cfg!(feature = "gguf")) + usize::from(cfg!(feature = "onnx"))
-        );
-    }
-
-    #[test]
-    fn schema_serializes_without_inventing_hardware() {
-        let input = RuntimeBackendCapabilities {
-            schema_version: CAPABILITY_SCHEMA_VERSION,
-            backend: BackendKind::Gguf,
-            model_formats: vec!["gguf".into()],
-            compiled_paths: vec![ServingPath::new(
-                InferenceTask::TextGeneration,
-                ExecutionTarget::Cpu,
-            )],
-            supports_streaming: true,
-            supports_kv_cache: true,
-            qualified_paths: Vec::new(),
-        };
-        let json = serde_json::to_string(&input).expect("serialize");
-        assert!(json.contains("\"schema_version\":1"));
-        assert!(json.contains("\"task\":\"text_generation\",\"target\":\"cpu\""));
-        assert!(json.contains("\"qualified_paths\":[]"));
-        assert!(!json.contains("cuda"));
-        assert!(!json.contains("metal"));
+    RuntimeBackendCapabilities {
+        schema_version: CAPABILITY_SCHEMA_VERSION,
+        backend: BackendKind::Gguf,
+        model_formats: vec!["gguf".to_string()],
+        compiled_paths,
+        supports_streaming: true,
+        supports_kv_cache: true,
+        qualified_paths: Vec::new(),
     }
 }
+
+fn onnx_capabilities() -> RuntimeBackendCapabilities {
+    RuntimeBackendCapabilities {
+        schema_version: CAPABILITY_SCHEMA_VERSION,
+        backend: BackendKind::Onnx,
+        model_formats: vec!["onnx".to_string()],
+        compiled_paths: vec![
+            ServingPath::new(InferenceTask::Embedding, ExecutionTarget::Cpu),
+            ServingPath::new(InferenceTask::Classification, ExecutionTarget::Cpu),
+        ],
+        supports_streaming: false,
+        supports_kv_cache: false,
+        qualified_paths: Vec::new(),
+    }
+}
+
+#[cfg(test)]
+#[path = "backend_capabilities_tests.rs"]
+mod tests;

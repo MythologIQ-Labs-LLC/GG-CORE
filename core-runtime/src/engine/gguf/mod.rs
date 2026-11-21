@@ -8,6 +8,8 @@ pub mod adaptive_speculative;
 pub mod backend;
 mod generator;
 #[cfg(feature = "gguf")]
+mod offload;
+#[cfg(feature = "gguf")]
 mod prefill;
 #[cfg(feature = "gguf")]
 mod prefill_schedule;

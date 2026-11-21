@@ -18,6 +18,7 @@ GG-CORE is a **standalone, upstream local inference runtime**. CoreForge is one 
 | Runtime design and module ownership | [Core Runtime Architecture](docs/architecture/CORE_RUNTIME_ARCHITECTURE.md) | Standalone upstream compute and security pipeline |
 | Structural design and interface planning | [Architecture Plan](docs/ARCHITECTURE_PLAN.md) | Intended interfaces; verify against code |
 | Public integration and supported features | [README](README.md), [Feature Index](docs/FEATURE_INDEX.md) | Per-feature and per-surface evidence, not assumed maturity |
+| Native GGUF accelerator build candidates | [Backend Capability Contract](docs/integration/V1_BACKEND_CAPABILITY_CONTRACT.md), [README build matrix](README.md#build-matrix) | CUDA/Metal compile paths are not installed, measured, qualified, or released support |
 | Model/backend selection authority | [Backend Capability Contract](docs/integration/V1_BACKEND_CAPABILITY_CONTRACT.md), [selection source](core-runtime/src/models/model_selection_policy.rs) | Per-model advisory decisions only; no unauthorized runtime switching or qualified-performance claims |
 | Embedded API and IPC V1 compatibility | [v1 contract baseline](docs/integration/V1_EMBEDDED_CONTRACT_BASELINE.md), [IPC schema](docs/IPC_PROTOCOL_SCHEMA.md) | Pre-freeze source and wire evidence, not an installed release or ABI guarantee |
 | Security and platform containment | [Security Policy](SECURITY.md) | Windows Job Objects do not isolate network or filesystem; platform guarantees vary |

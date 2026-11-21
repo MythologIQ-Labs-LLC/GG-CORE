@@ -136,6 +136,10 @@ windows-sys = { version = "0.61", features = [
 default = []
 onnx = ["candle-core", "candle-onnx", "tokenizers"]
 gguf = ["llama-cpp-2"]
+# Native llama.cpp inference backends. Distinct from GG-CORE's cudarc/metal
+# device-management modules; enabling those alone does NOT offload GGUF.
+gguf-cuda = ["gguf", "llama-cpp-2/cuda"]
+gguf-metal = ["gguf", "llama-cpp-2/metal"]
 llama-cpp-backend = ["gguf"]  # Alias for GGUF backend via llama-cpp-2
 cuda = ["cudarc"]  # GPU support via CUDA (requires CUDA toolkit)
 metal = ["dep:metal"]  # GPU support via Metal (macOS only)
