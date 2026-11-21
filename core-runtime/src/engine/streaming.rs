@@ -181,6 +181,9 @@ impl std::error::Error for StreamSendError {}
 /// Client-visible reason for a stream ended by a non-reading consumer.
 pub const STREAM_STALLED: &str = "stream consumer stalled";
 
+#[path = "streaming_sync.rs"]
+mod blocking;
+
 #[cfg(test)]
 mod tests {
     use super::*;

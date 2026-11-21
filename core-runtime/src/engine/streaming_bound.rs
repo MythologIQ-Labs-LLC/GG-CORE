@@ -82,6 +82,37 @@ pub(super) async fn bounded_send(
     }
 }
 
+/// Native GGUF producers execute on blocking threads that can outlive their
+/// Tokio runtime. Bound a send using monotonic wall time and non-async
+/// channel operations, so shutdown cannot strand it in a stopped reactor.
+/// Same capacity, deadline, error and first-failure semantics as async sends.
+pub(super) fn bounded_send_blocking(
+    tx: &mpsc::Sender<StreamItem>,
+    bound: &StreamBound,
+    mut item: StreamItem,
+) -> Result<(), StreamSendError> {
+    let (by, stall_limited) = bound.send_by();
+    let expired = if stall_limited {
+        StreamSendError::Stalled
+    } else {
+        StreamSendError::Deadline
+    };
+    loop {
+        match tx.try_send(item) {
+            Ok(()) => return Ok(()),
+            Err(TrySendError::Closed(_)) => return Err(StreamSendError::Closed),
+            Err(TrySendError::Full(returned)) => {
+                let now = Instant::now();
+                if now >= by {
+                    return Err(expired);
+                }
+                item = returned;
+                std::thread::sleep(Duration::from_millis(1).min(by.saturating_duration_since(now)));
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "streaming_bound_tests.rs"]
 mod tests;
