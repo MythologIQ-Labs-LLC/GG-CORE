@@ -167,7 +167,10 @@ async fn test_classification_p95_latency_simulation() {
 
         // Simulate classification operation
         let _input = InferenceInput::Text(format!("Test input {}", i));
-        assert!(_input.validate().is_ok(), "classification input {i} invalid");
+        assert!(
+            _input.validate().is_ok(),
+            "classification input {i} invalid"
+        );
 
         let latency = start.elapsed();
         latencies.push(latency.as_millis());
@@ -198,7 +201,10 @@ async fn test_classification_throughput_simulation() {
     for i in 0..num_requests {
         // Simulate classification operation
         let _input = InferenceInput::Text(format!("Test input {}", i));
-        assert!(_input.validate().is_ok(), "classification input {i} invalid");
+        assert!(
+            _input.validate().is_ok(),
+            "classification input {i} invalid"
+        );
     }
 
     let total_time = start.elapsed();
@@ -246,7 +252,10 @@ async fn test_concurrent_classification_requests() {
     for i in 0..num_concurrent {
         let handle = tokio::spawn(async move {
             let input = InferenceInput::Text(format!("Concurrent test input {}", i));
-            assert!(input.validate().is_ok(), "concurrent synthetic input invalid");
+            assert!(
+                input.validate().is_ok(),
+                "concurrent synthetic input invalid"
+            );
             i
         });
         handles.push(handle);
