@@ -63,9 +63,9 @@ fn test_system_status_serialization() {
             failed_requests: 10,
             requests_per_second: 10.5,
             avg_latency_ms: 50.0,
-            p50_latency_ms: 45.0,
-            p95_latency_ms: 100.0,
-            p99_latency_ms: 150.0,
+            p50_latency_ms: Some(45.0),
+            p95_latency_ms: Some(100.0),
+            p99_latency_ms: Some(150.0),
             tokens_generated: 50000,
             tokens_per_second: 25.0,
         },
@@ -131,4 +131,14 @@ fn build_status_populates_speculative_stats_from_metrics() {
     // No speculative activity, or no metrics at all -> None.
     assert!(build_speculative_stats(&Some(snap(0, 0, 0))).is_none());
     assert!(build_speculative_stats(&None).is_none());
+}
+
+// Quantiles must not be synthesized from a min/max-only IPC histogram.
+#[test]
+fn test_missing_quantiles_display_as_unavailable() {
+    assert_eq!(display_quantile(None), "N/A");
+    assert_eq!(display_quantile(Some(0.0)), "0.0ms");
+    assert_eq!(display_quantile(Some(f64::NAN)), "N/A");
+    assert_eq!(display_quantile(Some(f64::INFINITY)), "N/A");
+    assert_eq!(display_quantile(Some(-1.0)), "N/A");
 }
