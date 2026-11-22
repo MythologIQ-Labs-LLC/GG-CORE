@@ -115,3 +115,17 @@ fn cpu_model_does_not_invoke_gpu_memory_gate() {
     let cpu = super::super::working_memory::ContextShape::new(4096);
     assert!(!cpu.gpu_offload);
 }
+
+#[test]
+fn gpu_weight_loading_and_context_creation_share_one_admission_gate() {
+    // This is the same global guard both native call sites acquire. A second
+    // caller cannot make a concurrent allocation decision while it is held.
+    let loading = super::lock_gpu_allocation().expect("native GPU allocation lock");
+    assert!(matches!(
+        super::GPU_ALLOCATION_GATE.try_lock(),
+        Err(std::sync::TryLockError::WouldBlock)
+    ));
+    drop(loading);
+    // Releasing the load guard permits a context to acquire the same gate.
+    let _context = super::lock_gpu_allocation().expect("context allocation lock");
+}
