@@ -393,7 +393,16 @@ async fn unload_defers_release_while_a_request_holds_the_model() {
         .unwrap_err();
     assert!(matches!(err, LifecycleError::ResourceExhausted(_)), "{err}");
     drop(in_flight);
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    // The runtime-independent supervisor may observe the final Arc after
+    // an arbitrary scheduling delay. A fixed 100ms pause is not evidence
+    // that native residency was actually reclaimed on a busy CI worker.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while limits.current_memory() != 0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("resident memory was not reclaimed after the final native holder");
     assert_eq!(limits.current_memory(), 0, "released once the request ends");
     lc.load("b".into(), meta("b", 700), Arc::new(Weights(700)))
         .await
