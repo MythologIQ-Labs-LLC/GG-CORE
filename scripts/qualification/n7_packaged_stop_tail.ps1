@@ -214,13 +214,18 @@ function Stream-Cancel {
             } else { $unexpected++ }
             if ($ackCount -gt 1 -or $ends -gt 1 -or ($ack -and $ends -eq 1)) { break }
         }
-        $late = 0; $post = 'SKIPPED'
+        $late = 0; $post = 'SKIPPED'; $probePhase = 'SKIPPED'
+        # Do not claim 'no late frames' from a 350ms read while native work
+        # may still be running. First observe CPU quiescence (conservative
+        # bound), then probe the same IPC stream for any buffered/delayed
+        # frame. The receiver is not read during the quiescence observation.
+        $q = Quiesce $t0 $cpu0
         if ($ack -and $ends -eq 1) {
+            $probePhase = 'afterQuiescence'
             $extra = Recv-Ipc $c 350
             if ($extra -is [string]) { $post = $extra }
             else { $late++; $post = [string]$extra.type }
         }
-        $q = Quiesce $t0 $cpu0
         $q + @{ kind = 'streamCancel'; stopSentUnixMs = $stopUnix
             tailClockOriginUnixMs = $stopUnix; requestId = $req.request_id
             started = $started; firstTextMs = $firstMs; prefixFrames = $prefix
@@ -228,7 +233,7 @@ function Stream-Cancel {
             terminalCount = $ends; terminalMs = $terminalMs
             terminalBeforeAck = $terminalBeforeAck; terminalError = $err
             dataAfterAck = $afterAck; dataAfterFinal = $afterFinal; lateFrames = $late; unexpectedFrames = $unexpected
-            readOutcome = $readOutcome; postTerminalRead = $post; frames = ($frames -join ',') }
+            readOutcome = $readOutcome; postTerminalRead = $post; postTerminalProbePhase = $probePhase; frames = ($frames -join ',') }
     } finally { $c.Dispose() }
 }
 
