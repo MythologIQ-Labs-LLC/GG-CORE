@@ -90,7 +90,8 @@ class Gate(unittest.TestCase):
              "terminalCount": 1, "terminalMs": 31, "terminalBeforeAck": False,
              "terminalError": "stream cancelled", "dataAfterAck": 0,
              "dataAfterFinal": 0, "lateFrames": 0, "unexpectedFrames": 0,
-             "readOutcome": "OK", "postTerminalRead": "TIMEOUT", "quiesced": True,
+             "readOutcome": "OK", "postTerminalRead": "TIMEOUT",
+             "postTerminalProbePhase": "afterQuiescence", "quiesced": True,
              "tailWallMs": 440, "tailBound": "conservativeUpperBound",
              "cpuObservationStartMs": 380, "cpuObservationStartUnixMs": 100380,
              "stopSentUnixMs": 100000, "tailClockOriginUnixMs": 100000}
@@ -104,6 +105,33 @@ class Gate(unittest.TestCase):
         self.assertIn("PASS R8", detail)
         code, detail = run(rows, events)
         self.assertEqual(code, 0, detail)  # historical R1-R7 are unaffected
+
+    def test_r8_old_before_quiescence_probe_cannot_claim_no_late_frames(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        # Even a TIMEOUT is not proof if the worker was still in native work.
+        stream[0]["postTerminalProbePhase"] = "beforeQuiescence"
+        code, detail = run(rows + stream, events, ["--require-stream"])
+        self.assertEqual(code, 1, detail)
+        self.assertIn("FAIL R8", detail)
+
+        # Historical evidence with no probe phase is also unqualified.
+        stream[0].pop("postTerminalProbePhase")
+        code, detail = run(rows + stream, events, ["--require-stream"])
+        self.assertEqual(code, 1, detail)
+        self.assertIn("FAIL R8", detail)
+
+    def test_stream_harness_probes_after_cpu_quiescence(self):
+        # Structural source check, not a substitute for running the VM.
+        script = (HERE / "n7_packaged_stop_tail.ps1").read_text(encoding="utf-8")
+        start = script.index("function Stream-Cancel {")
+        end = script.index("# Stage every daemon first", start)
+        stream = script[start:end]
+        self.assertLess(
+            stream.index("$q = Quiesce $t0 $cpu0"),
+            stream.index("$extra = Recv-Ipc $c 350"),
+        )
+        self.assertIn("postTerminalProbePhase = $probePhase", stream)
 
     def test_r8_missing_active_stream_fails(self):
         rows, events = evidence()
