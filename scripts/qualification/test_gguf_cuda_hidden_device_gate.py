@@ -139,9 +139,9 @@ class ExactHiddenDeviceExecution(unittest.TestCase):
                         "target": {"name": binary, "kind": ["test"]},
                         "executable": str(exe),
                     })
-                    return subprocess.CompletedProcess(cmd, 0, stdout=event + "\\n")
+                    return subprocess.CompletedProcess(cmd, 0, stdout=event + "\n")
                 self.assertEqual(Path(cmd[0]), exe.resolve())
-                kwargs["stdout"].write(gate.PASS_MARKER + "\\n" + ONE_PASS)
+                kwargs["stdout"].write(gate.PASS_MARKER + "\n" + ONE_PASS)
                 if mutate:
                     exe.write_bytes(b"tampered-after-hash")
                 return subprocess.CompletedProcess(cmd, 0)
