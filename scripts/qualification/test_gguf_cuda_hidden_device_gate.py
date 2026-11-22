@@ -1,5 +1,6 @@
 """Model-free negative controls for the CUDA hidden-device evidence parser."""
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -112,6 +113,64 @@ class NativeBuildInputGuards(unittest.TestCase):
         with mock.patch.object(gate, "checked", return_value="core-runtime/.cargo/config.toml"):
             with self.assertRaisesRegex(RuntimeError, "Ignored build input"):
                 gate.validate_build_inputs(Path("unread"), {})
+
+
+class ExactHiddenDeviceExecution(unittest.TestCase):
+    def check_execution(self, mutate=False):
+        binary = "gguf_cuda_hidden_device_test"
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            repo = base / "repo"
+            (repo / "core-runtime").mkdir(parents=True)
+            evidence = base / "evidence"
+            evidence.mkdir()
+            deps = evidence / "cargo-target" / "debug" / "deps"
+            exe = deps / (binary + "-correct.exe")
+            commands = []
+
+            def simulate(cmd, **kwargs):
+                commands.append(cmd)
+                if cmd[0] == "cargo":
+                    deps.mkdir(parents=True, exist_ok=True)
+                    exe.write_bytes(b"fresh-current-attempt")
+                    (deps / (binary + "-stale.exe")).write_bytes(b"old-artifact")
+                    event = json.dumps({
+                        "reason": "compiler-artifact",
+                        "target": {"name": binary, "kind": ["test"]},
+                        "executable": str(exe),
+                    })
+                    return subprocess.CompletedProcess(cmd, 0, stdout=event + "\\n")
+                self.assertEqual(Path(cmd[0]), exe.resolve())
+                kwargs["stdout"].write(gate.PASS_MARKER + "\\n" + ONE_PASS)
+                if mutate:
+                    exe.write_bytes(b"tampered-after-hash")
+                return subprocess.CompletedProcess(cmd, 0)
+
+            report = {"source_sha": "a" * 40}
+            with (mock.patch.object(gate, "validate"),
+                  mock.patch.object(gate, "require_offline_windows"),
+                  mock.patch.object(gate.subprocess, "run", side_effect=simulate)):
+                if mutate:
+                    with self.assertRaisesRegex(RuntimeError, "changed after execution"):
+                        gate.run(repo, evidence, report)
+                else:
+                    gate.run(repo, evidence, report)
+
+            self.assertEqual(len(commands), 2, "one build and one direct execution")
+            self.assertIn("--no-run", commands[0])
+            self.assertIn("--message-format=json", commands[0])
+            self.assertEqual(commands[1][0], str(exe.resolve()))
+            if not mutate:
+                self.assertEqual(report["test_binaries"], [
+                    {"name": exe.name, "sha256": gate.digest(exe)}
+                ])
+                self.assertNotIn("stale", report["test_binaries"][0]["name"])
+
+    def test_hidden_device_executes_only_cargo_emitted_binary(self):
+        self.check_execution()
+
+    def test_hidden_device_refuses_binary_tampered_during_execution(self):
+        self.check_execution(mutate=True)
 
 
 if __name__ == "__main__":
