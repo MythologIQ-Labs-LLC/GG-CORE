@@ -22,13 +22,10 @@ pub(super) async fn recover(
     let cause = match failure {
         LoadFailure::Unregistered(cause) => cause,
         LoadFailure::Registered { handle, cause } => {
-            if let Err(pending) = retire_target(lifecycle, req, handle).await {
+            if let Err(rollback_error) = retire_target(lifecycle, req, handle).await {
                 return SwitchOutcome::RollbackFailed {
                     cause,
-                    rollback_error: format!(
-                        "target release pending: {pending} instance(s) still held; \
-                         source not restored"
-                    ),
+                    rollback_error,
                 };
             }
             cause
@@ -42,11 +39,19 @@ async fn retire_target(
     lifecycle: &ModelLifecycle,
     req: &ColdSwitchRequest,
     handle: crate::models::ModelHandle,
-) -> Result<(), usize> {
-    let _ = lifecycle.unload_expected(&req.to_id, handle).await;
+) -> Result<(), String> {
+    // A zero pending-release count does not prove B was unpublished. In
+    // particular, a bypass caller may have replaced B's observed handle.
+    // Refuse recovery unless the exact failed instance was actually retired.
+    lifecycle
+        .unload_expected(&req.to_id, handle)
+        .await
+        .map_err(|err| format!("target unload failed: {err}; source not restored"))?;
     match lifecycle.wait_released(&req.to_id, req.release_wait).await {
         (true, _) => Ok(()),
-        (false, pending) => Err(pending),
+        (false, pending) => Err(format!(
+            "target release pending: {pending} instance(s) still held; source not restored"
+        )),
     }
 }
 
@@ -85,5 +90,50 @@ async fn restore_source(
             cause,
         ),
         Err(e) => failed(format!("source registration failed: {e}"), cause),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::registry::ModelHandle;
+    use crate::models::transition::support::{lifecycle, operator_load, request, target, Fake};
+
+    #[tokio::test]
+    async fn stale_failed_target_cannot_be_treated_as_released_for_rollback() {
+        let (lc, limits) = lifecycle(1_000);
+        let fake = Fake::with(&[
+            ("a.gguf", target(400, "sha-a")),
+            ("b.gguf", target(300, "sha-b")),
+        ]);
+        let a = operator_load(&lc, &fake, "a.gguf", "a").await;
+        let source = lc.source(a).expect("source recorded");
+        lc.unload_expected("a", a).await.expect("A retired");
+
+        // An embedded bypass replaced the failed B with a different handle.
+        // There is no pending release for "b"; a pending-only check reports
+        // success even though a different live B is still registered.
+        let replacement = operator_load(&lc, &fake, "b.gguf", "b").await;
+        let prep: Arc<dyn Preparer> = fake.clone();
+        let req = request("a", a, "b.gguf", "b");
+        let out = recover(
+            &lc,
+            &prep,
+            &req,
+            &source,
+            LoadFailure::Registered {
+                handle: ModelHandle::new(replacement.id() + 99),
+                cause: "failed registration check".into(),
+            },
+        )
+        .await;
+
+        let SwitchOutcome::RollbackFailed { rollback_error, .. } = out else {
+            panic!("stale B must refuse recovery, got {out:?}");
+        };
+        assert!(rollback_error.contains("target unload failed"), "{rollback_error}");
+        assert_eq!(lc.get_handle("b").await, Some(replacement));
+        assert!(lc.get_handle("a").await.is_none());
+        assert_eq!(limits.current_memory(), 300, "only replacement B is charged");
     }
 }
