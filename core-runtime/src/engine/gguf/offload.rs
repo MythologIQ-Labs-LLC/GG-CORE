@@ -7,6 +7,8 @@
 //! `GgufConfig::n_gpu_layers` directly. A zero request is never queried and
 //! keeps the exact CPU-only behavior.
 
+use std::sync::{Mutex, MutexGuard};
+
 use llama_cpp_2::{
     list_llama_ggml_backend_devices, llama_backend::LlamaBackend, LlamaBackendDeviceType,
 };
@@ -57,6 +59,23 @@ pub(super) fn check(backend: &LlamaBackend, n_gpu_layers: u32) -> Result<(), Inf
         n_gpu_layers,
         has_registered_gpu(backend.supports_gpu_offload(), &types),
     )
+}
+
+/// One process-wide critical section for GG-CORE-owned native GPU allocations.
+/// A model load can commit weights just as a concurrent request allocates a
+/// context. Checking available VRAM under separate locks permits both callers
+/// to act on a stale snapshot. Hold this gate across native model loading AND
+/// the post-load context check, or across context preflight AND allocation.
+///
+/// This does not coordinate external GPU processes or prove that weight bytes
+/// fit before llama.cpp begins loading them. That requires separate device
+/// mapping and native qualification evidence.
+static GPU_ALLOCATION_GATE: Mutex<()> = Mutex::new(());
+
+pub(super) fn lock_gpu_allocation() -> Result<MutexGuard<'static, ()>, InferenceError> {
+    GPU_ALLOCATION_GATE.lock().map_err(|_| {
+        InferenceError::ModelError("GPU allocation admission mutex poisoned".into())
+    })
 }
 
 const GPU_MIN_HEADROOM: usize = 256 * 1024 * 1024;
