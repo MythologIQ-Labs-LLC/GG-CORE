@@ -1,5 +1,24 @@
-# Unsafe Code Audit Report
+# Unsafe Code Audit Report (Historical Snapshot)
 
+> **CURRENT SECURITY STATUS (2026-11-22): THE HISTORICAL AUDIT IS SUPERSEDED.**
+>
+> This February 2026 inventory was originally titled COREFORGE CORE Runtime.
+> GG-CORE is the standalone upstream runtime; CoreForge is a downstream consumer.
+> Its historical `High: 0` count and claim of no high-risk findings do not
+> describe the current source or establish present-day memory safety.
+>
+> [P0 #219](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/219)
+> records an unsafe lifetime pattern in `worker_streaming.rs`: engine and security
+> references were converted to integer addresses and reconstructed inside
+> `spawn_blocking`. Dropping the awaiting async task does not stop native work.
+> The owner reports a symbolized Windows `0xc0000005` crash in output sanitization;
+> that dump has not been independently revalidated in this documentation review.
+> Admission-guard release before native completion is also under investigation.
+>
+> Draft [PR #226](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/226)
+> is not integrated or native-Windows qualified. The historical statistics below
+> remain an audit trail only. Do not cite them as clearance for release,
+> memory ownership, cancellation, or current security posture.
 **Project:** COREFORGE CORE Runtime
 **Version:** 1.0.0
 **Last Updated:** 2026-02-18
@@ -735,9 +754,9 @@ pub fn contents_mut(&mut self) -> &mut [u8] {
 
 ## 7. Security-Critical Observations
 
-### 7.1 No High-Risk Issues Found
+### 7.1 Historical finding superseded by #219
 
-The audit identified no high-risk unsafe code patterns. All unsafe blocks:
+The February 2026 review reported no high-risk patterns in its then-reviewed sample. That conclusion does not apply to current GG-CORE because #219 identifies a release-blocking stream-worker lifetime defect. The original assertions below are retained only for provenance and require fresh verification. The historical audit asserted its unsafe blocks:
 - Have documented safety invariants
 - Include null pointer checks where applicable
 - Use standard patterns (FFI, SIMD, memory-mapping)
