@@ -150,3 +150,54 @@ async fn missing_target_preflight_does_not_disrupt_current_model() {
     assert!(!lifecycle.is_loaded("b").await);
     assert_eq!(limits.current_memory(), 700, "preflight did not evict A");
 }
+
+// #137 + #219: cancelling a switch's expected-handle unload while it is
+// blocked acquiring a component writer must never partially unpublish A or
+// return its resident budget. The old unload removed resident state before
+// awaiting its component writers, which made this failure destructive.
+#[tokio::test]
+async fn cancelled_expected_unload_waiting_for_registry_writer_keeps_a_resident() {
+    let (lifecycle, limits) = setup(1_000);
+    let lifecycle = Arc::new(lifecycle);
+    let handle = lifecycle
+        .load("a".into(), meta("a", 700), Arc::new(Weights(700)))
+        .await
+        .expect("initial A");
+    assert_eq!(limits.current_memory(), 700);
+
+    let registry_writer = lifecycle.registry.registration_writer().await;
+    let owned = Arc::clone(&lifecycle);
+    let waiter = tokio::spawn(async move { owned.unload_expected("a", handle).await });
+
+    // Wait for the unload to own the index writer, not merely for the task to
+    // have been scheduled. This ensures it is blocked on the held registry
+    // writer in the exact cancellation window under test.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        if lifecycle.index.try_read().is_err() {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "unload never reached the component-writer wait"
+        );
+        tokio::task::yield_now().await;
+    }
+
+    waiter.abort();
+    assert!(waiter.await.expect_err("unload task aborted").is_cancelled());
+    drop(registry_writer);
+
+    assert!(lifecycle.validate_handle(&handle).await);
+    assert!(lifecycle.is_loaded("a").await);
+    assert_eq!(limits.current_memory(), 700, "cancel must not credit A's bytes");
+    lifecycle
+        .unload_expected("a", handle)
+        .await
+        .expect("a later legitimate unload still commits");
+    assert_eq!(
+        lifecycle.wait_released("a", Duration::from_secs(5)).await,
+        (true, 0)
+    );
+    assert_eq!(limits.current_memory(), 0);
+}
