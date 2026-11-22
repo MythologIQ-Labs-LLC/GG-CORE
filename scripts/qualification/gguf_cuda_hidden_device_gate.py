@@ -33,6 +33,37 @@ def digest(path):
     return h.hexdigest()
 
 
+def exact_test_binary(build_log, target, binary):
+    """Select the single executed artifact from Cargo's machine-readable build."""
+    deps = (target / "debug" / "deps").resolve()
+    selected = []
+    for line in build_log.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict) or event.get("reason") != "compiler-artifact":
+            continue
+        spec = event.get("target") or {}
+        if spec.get("name") != binary or "test" not in spec.get("kind", []):
+            continue
+        raw = event.get("executable")
+        if not isinstance(raw, str):
+            continue
+        candidate = Path(raw)
+        if (not candidate.is_absolute() or candidate.is_symlink()
+                or candidate.suffix.lower() != ".exe"
+                or candidate.resolve().parent != deps or not candidate.is_file()):
+            raise RuntimeError(f"{binary}: Cargo reported an unsafe test executable path")
+        selected.append(candidate.resolve())
+    if len(selected) != 1:
+        raise RuntimeError(
+            f"{binary}: expected exactly one Cargo-built test executable, got {len(selected)}"
+        )
+    return selected[0]
+
+
+
 def checked(argv, cwd=None):
     return subprocess.check_output(argv, cwd=cwd, text=True, stderr=subprocess.STDOUT).strip()
 
@@ -128,18 +159,33 @@ def run(repo, evidence, report):
         "CARGO_NET_OFFLINE": "true",
         "CARGO_TARGET_DIR": str(target.resolve()),
     })
-    cmd = [
-        "cargo", "test", "--locked", "--offline", "--features", "gguf-cuda",
-        "--test", "gguf_cuda_hidden_device_test", "--",
-        "--nocapture", "--test-threads=1",
-    ]
-    report["command"] = cmd
+    binary = "gguf_cuda_hidden_device_test"
+    build_cmd = ["cargo", "test", "--locked", "--offline", "--features",
+                 "gguf-cuda", "--test", binary, "--no-run", "--message-format=json"]
+    build_log = evidence / "native-build.log"
+    report["build_command"] = build_cmd
     report["environment_controls"] = {
         "CUDA_VISIBLE_DEVICES": "-1",
         "GG_EXPECT_NO_CUDA_DEVICE": "1",
         "CARGO_NET_OFFLINE": "true",
     }
     started = time.monotonic()
+    try:
+        built = subprocess.run(
+            build_cmd, cwd=repo / "core-runtime", env=env, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, text=True, errors="replace",
+            timeout=3600, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError(f"Native test compilation failed: {error}") from error
+    build_log.write_text(built.stdout, encoding="utf-8")
+    if built.returncode:
+        raise RuntimeError("Native test compilation failed; inspect native-build.log")
+    executable = exact_test_binary(built.stdout, target, binary)
+    executable_hash = digest(executable)
+    cmd = [str(executable), "--nocapture", "--test-threads=1"]
+    report["command"] = cmd
+    report["build_log"] = build_log.name
     with (evidence / "native-test.log").open("w", encoding="utf-8") as logfile:
         try:
             completed = subprocess.run(
@@ -149,19 +195,16 @@ def run(repo, evidence, report):
             )
             code = completed.returncode
         except (OSError, subprocess.TimeoutExpired) as error:
-            logfile.write(f"Command failed to complete: {error}\n")
+            logfile.write(f"Command failed to complete: {error}\\n")
             code = 127
     report["elapsed_seconds"] = round(time.monotonic() - started, 3)
     report["exit_code"] = code
+    if digest(executable) != executable_hash:
+        raise RuntimeError("Native test executable changed after execution")
     log = (evidence / "native-test.log").read_text(encoding="utf-8", errors="replace")
     if not evidence_pass(log, code):
         raise RuntimeError("Native test did not prove one executed PASS; see native-test.log")
-    binaries = sorted((target / "debug" / "deps").glob("gguf_cuda_hidden_device_test-*.exe"))
-    if not binaries:
-        raise RuntimeError("No exact-attempt Windows test executable found")
-    report["test_binaries"] = [
-        {"name": p.name, "sha256": digest(p)} for p in binaries
-    ]
+    report["test_binaries"] = [{"name": executable.name, "sha256": executable_hash}]
 
 
 def main():
