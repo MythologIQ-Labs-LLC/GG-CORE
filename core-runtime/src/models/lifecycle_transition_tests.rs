@@ -185,12 +185,19 @@ async fn cancelled_expected_unload_waiting_for_registry_writer_keeps_a_resident(
     }
 
     waiter.abort();
-    assert!(waiter.await.expect_err("unload task aborted").is_cancelled());
+    assert!(waiter
+        .await
+        .expect_err("unload task aborted")
+        .is_cancelled());
     drop(registry_writer);
 
     assert!(lifecycle.validate_handle(&handle).await);
     assert!(lifecycle.is_loaded("a").await);
-    assert_eq!(limits.current_memory(), 700, "cancel must not credit A's bytes");
+    assert_eq!(
+        limits.current_memory(),
+        700,
+        "cancel must not credit A's bytes"
+    );
     lifecycle
         .unload_expected("a", handle)
         .await

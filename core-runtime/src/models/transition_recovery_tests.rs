@@ -61,12 +61,45 @@ async fn register_resize_refusal_rolls_back() {
     let (lc, limits) = lifecycle(1_000);
     let mut grows = target(300, "sha-b");
     grows.memory = 1_200; // fits the reservation, not the resized footprint
+    grows.held = false; // this case is the no-outstanding-native-holder rollback
     let fake = Fake::with(&[("a.gguf", target(700, "sha-a")), ("b.gguf", grows)]);
     let a = operator_load(&lc, &fake, "a.gguf", "a").await;
     let out = switch(&lc, &fake, request("a", a, "b.gguf", "b")).await;
     assert!(matches!(out, SwitchOutcome::RolledBack { .. }), "{out:?}");
     assert!(lc.is_loaded("a").await && !lc.is_loaded("b").await);
     assert_eq!(limits.current_memory(), 700);
+}
+
+// #219: a failed target that is still held by a native request must retain
+// its preflight reservation across rollback. Crediting it early can admit a
+// later model while the backend's memory is still allocated.
+#[tokio::test]
+async fn failed_unregistered_target_held_after_rollback_keeps_budget_until_release() {
+    let (lc, limits) = lifecycle(1_000);
+    let mut grows = target(300, "sha-b");
+    grows.memory = 1_200;
+    // Default held=true models a detached native worker still owning B.
+    let fake = Fake::with(&[("a.gguf", target(700, "sha-a")), ("b.gguf", grows)]);
+    let a = operator_load(&lc, &fake, "a.gguf", "a").await;
+    let out = switch(&lc, &fake, request("a", a, "b.gguf", "b")).await;
+    assert!(matches!(out, SwitchOutcome::RolledBack { .. }), "{out:?}");
+    assert!(lc.is_loaded("a").await && !lc.is_loaded("b").await);
+    assert_eq!(
+        limits.current_memory(),
+        1_000,
+        "A's 700 plus B's held 300 must remain charged, not overcredited"
+    );
+
+    fake.release("b.gguf");
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while limits.current_memory() != 700 {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the abandoned B reservation was not released after its last holder"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(lc.is_loaded("a").await, "rollback A survives B's delayed release");
 }
 
 #[tokio::test]
