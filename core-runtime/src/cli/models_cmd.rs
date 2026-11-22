@@ -158,6 +158,7 @@ mod tests {
         let code = run_list("/nonexistent/gg-core-test.sock", false).await;
         assert_eq!(code, 3, "should return exit code 3 on connection failure");
     }
+
     #[test]
     fn unicode_model_names_do_not_panic_at_byte_boundaries() {
         let name = "模型🚀one";
@@ -170,5 +171,4 @@ mod tests {
         };
         print_models(&response);
     }
-
 }
