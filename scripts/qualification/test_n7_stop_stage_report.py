@@ -129,9 +129,22 @@ class Gate(unittest.TestCase):
         stream = script[start:end]
         self.assertLess(
             stream.index("$q = Quiesce $t0 $cpu0"),
-            stream.index("$extra = Recv-Ipc $c 350"),
+            stream.index("$post = Probe-Late-Bytes $c 350"),
         )
         self.assertIn("postTerminalProbePhase = $probePhase", stream)
+        self.assertNotIn("Recv-Ipc $c 350", stream)
+        self.assertIn("$read = $c.ReadAsync($buf, 0, 1)", script)
+        self.assertIn("if ($post -ne 'TIMEOUT') { $late++ }", stream)
+
+    def test_r8_post_terminal_single_byte_is_a_failure(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        # Even if an outer client did not count a complete late frame,
+        # a post-terminal byte (including partial IPC length prefix) is invalid.
+        stream[0]["postTerminalRead"] = "LATE_BYTES"
+        code, detail = run(rows + stream, events, ["--require-stream"])
+        self.assertEqual(code, 1, detail)
+        self.assertIn("FAIL R8", detail)
 
     def test_r8_missing_active_stream_fails(self):
         rows, events = evidence()
