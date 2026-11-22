@@ -132,3 +132,15 @@ fn build_status_populates_speculative_stats_from_metrics() {
     assert!(build_speculative_stats(&Some(snap(0, 0, 0))).is_none());
     assert!(build_speculative_stats(&None).is_none());
 }
+
+// UTF-8 display should never panic at a byte bound inside a codepoint.
+#[test]
+fn status_truncate_is_utf8_boundary_safe() {
+    assert_eq!(truncate("模型🚀one", 0), "");
+    assert_eq!(truncate("模型🚀one", 1), ".");
+    assert_eq!(truncate("模型🚀one", 2), "..");
+    assert_eq!(truncate("模型🚀one", 3), "...");
+    assert_eq!(truncate("模型🚀one", 6), "模...");
+    assert_eq!(truncate("模型🚀one", 9), "模型...");
+    assert_eq!(truncate("模型🚀one", 13), "模型🚀one");
+}

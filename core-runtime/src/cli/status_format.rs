@@ -231,11 +231,18 @@ pub fn format_bytes(bytes: u64) -> String {
     }
 }
 
-/// Truncate a string to a maximum length.
+/// Truncate human-readable status without splitting a UTF-8 codepoint.
+/// The byte limit applies only to display; original IPC model IDs are intact.
 pub fn truncate(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
+        return s.to_string();
     }
+    if max_len <= 3 {
+        return ".".repeat(max_len);
+    }
+    let mut end = max_len - 3;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}...", &s[..end])
 }
