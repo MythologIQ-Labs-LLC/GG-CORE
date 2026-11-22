@@ -131,9 +131,16 @@ mod tests {
         let SwitchOutcome::RollbackFailed { rollback_error, .. } = out else {
             panic!("stale B must refuse recovery, got {out:?}");
         };
-        assert!(rollback_error.contains("target unload failed"), "{rollback_error}");
+        assert!(
+            rollback_error.contains("target unload failed"),
+            "{rollback_error}"
+        );
         assert_eq!(lc.get_handle("b").await, Some(replacement));
         assert!(lc.get_handle("a").await.is_none());
-        assert_eq!(limits.current_memory(), 300, "only replacement B is charged");
+        assert_eq!(
+            limits.current_memory(),
+            300,
+            "only replacement B is charged"
+        );
     }
 }
