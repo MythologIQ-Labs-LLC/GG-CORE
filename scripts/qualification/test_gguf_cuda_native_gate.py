@@ -1,5 +1,7 @@
 """Model-free negative controls for the native Windows CUDA execution receipt."""
+import json
 import sys
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -61,6 +63,71 @@ class NativeReceiptNegativeControls(unittest.TestCase):
         self.assertFalse(gate.executed_tests_pass(
             "\n".join(gate.GPU_MARKERS), 0, gate.GPU_TESTS, gate.GPU_MARKERS
         ))
+
+
+
+class ExactNativeBinaryProvenance(unittest.TestCase):
+    @staticmethod
+    def artifact(path, name="gguf_cuda_qualification_test", kind=None):
+        return json.dumps({
+            "reason": "compiler-artifact",
+            "target": {"name": name, "kind": ["test"] if kind is None else kind},
+            "executable": str(path),
+        })
+
+    def test_single_compiled_executable_is_selected_not_globbed(self):
+        with tempfile.TemporaryDirectory() as root:
+            target = Path(root)
+            deps = target / "debug" / "deps"
+            deps.mkdir(parents=True)
+            executed = deps / "gguf_cuda_qualification_test-123.exe"
+            executed.write_bytes(b"fixture-executable")
+            # A different preexisting binary may exist, but it was not the
+            # current Cargo compiler artifact and cannot enter the receipt.
+            (deps / "gguf_cuda_qualification_test-stale.exe").write_bytes(b"stale")
+            messages = "\n".join((
+                "Compiling test (offline)",
+                self.artifact(deps / "unrelated.exe", name="other"),
+                self.artifact(executed),
+                json.dumps({"reason": "build-finished", "success": True}),
+            ))
+            self.assertEqual(
+                gate.exact_test_binary(messages, target, "gguf_cuda_qualification_test"),
+                executed.resolve(),
+            )
+
+    def test_missing_duplicate_or_wrong_kind_is_never_qualified(self):
+        with tempfile.TemporaryDirectory() as root:
+            target = Path(root)
+            deps = target / "debug" / "deps"
+            deps.mkdir(parents=True)
+            executable = deps / "gguf_cuda_qualification_test-123.exe"
+            executable.write_bytes(b"fixture")
+            event = self.artifact(executable)
+            for output in (
+                "",
+                event + "\n" + event,
+                self.artifact(executable, kind=["bin"]),
+                self.artifact(executable, name="different"),
+            ):
+                with self.subTest(output=output), self.assertRaises(RuntimeError):
+                    gate.exact_test_binary(output, target, "gguf_cuda_qualification_test")
+
+    def test_unsafe_outside_missing_or_nonexe_artifact_is_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            target = Path(root)
+            deps = target / "debug" / "deps"
+            deps.mkdir(parents=True)
+            outside = target / "outside.exe"
+            outside.write_bytes(b"outside")
+            nonexe = deps / "test.dll"
+            nonexe.write_bytes(b"not executable")
+            for path in (outside, deps / "missing.exe", nonexe):
+                with self.subTest(path=str(path)), self.assertRaises(RuntimeError):
+                    gate.exact_test_binary(
+                        self.artifact(path), target, "gguf_cuda_qualification_test"
+                    )
+
 
 
 if __name__ == "__main__":
