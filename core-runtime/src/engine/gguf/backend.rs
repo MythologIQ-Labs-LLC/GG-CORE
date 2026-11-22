@@ -61,6 +61,13 @@ impl LlamaBackendInner {
     /// Load a GGUF model from disk.
     pub fn load(path: &Path, config: &super::GgufConfig) -> Result<Self, InferenceError> {
         let backend = process_backend()?;
+        // Hold the same device-allocation gate used for native context
+        // creation. Otherwise two local workers can both pass independent
+        // VRAM snapshots while loading weights / creating KV buffers.
+        // CPU-only requests never acquire this GPU lock.
+        let _allocation = (config.n_gpu_layers > 0)
+            .then(super::offload::lock_gpu_allocation)
+            .transpose()?;
         super::offload::check(backend, config.n_gpu_layers)?;
         let model_params = LlamaModelParams::default().with_n_gpu_layers(config.n_gpu_layers);
         let model = LlamaModel::load_from_file(backend, path, &model_params)
@@ -377,11 +384,8 @@ impl LlamaBackendInner {
         // concurrent GG-CORE workers cannot both pass the same free snapshot.
         // External GPU users can still race this check; hardware acceptance
         // must verify no driver-managed paging on supported devices.
-        static GPU_CONTEXT_GATE: Mutex<()> = Mutex::new(());
         let _admission = if self.shape.gpu_offload {
-            let guard = GPU_CONTEXT_GATE.lock().map_err(|_| {
-                InferenceError::ModelError("GPU context admission mutex poisoned".into())
-            })?;
+            let guard = super::offload::lock_gpu_allocation()?;
             super::offload::check_context_memory(self.working_bytes)?;
             Some(guard)
         } else {
