@@ -112,6 +112,7 @@ class ConformanceReceiptTests(unittest.TestCase):
         r = mod.report(MANIFEST, [good], SOURCE)
         self.assertEqual(r["counts"]["UNSUPPORTED"], 1)
         self.assertEqual(r["counts"]["RECORDED_PASS"], 0)
+        self.assertEqual(r["cases"][0]["owner_decision_ref"], good["owner_decision_ref"])
         self.assertEqual(r["status"], "HOLD")
 
     def test_wrong_platform_and_invalid_manifest_fail_closed(self):
@@ -123,6 +124,11 @@ class ConformanceReceiptTests(unittest.TestCase):
                                    "cases": [MANIFEST["cases"][0]] * 2})
         with self.assertRaises(ValueError):
             mod.report(MANIFEST, [], "short")
+        with self.assertRaisesRegex(ValueError, "manifest must be"):
+            mod.validate_manifest([])
+        with self.assertRaisesRegex(ValueError, "actual platform"):
+            mod.report(MANIFEST,
+                       [assertion(case, platform=[], status="NOT_RUN")], SOURCE)
 
     def test_cli_strict_fails_unrun_without_fabricating_green(self):
         base = [sys.executable, "-I", str(PATH), "--source-sha", SOURCE]

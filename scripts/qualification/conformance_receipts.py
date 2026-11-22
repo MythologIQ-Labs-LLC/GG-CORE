@@ -22,6 +22,7 @@ def require(condition, message):
 
 
 def validate_manifest(manifest):
+    require(isinstance(manifest, dict), "manifest must be an object")
     require(manifest.get("schema_version") == 1, "manifest schema_version must be 1")
     cases = manifest.get("cases")
     require(isinstance(cases, list) and cases, "nonempty cases required")
@@ -75,7 +76,8 @@ def report(manifest, submitted, source_sha):
         require(isinstance(state, str) and state in STATUSES,
                 "invalid status: " + ident)
         platform = item.get("platform")
-        require(platform in PLATFORMS - {"any"}, "actual platform required: " + ident)
+        require(isinstance(platform, str) and platform in PLATFORMS - {"any"},
+                "actual platform required: " + ident)
         require(declaration["platform"] in ("any", platform), "wrong platform: " + ident)
         require(item.get("features") == declaration["features"], "feature mismatch: " + ident)
         if state == "PASS":
@@ -112,6 +114,7 @@ def report(manifest, submitted, source_sha):
             "model_sha256": None if item is None or status != "RECORDED_PASS"
                             else item.get("model_sha256"),
             "model_license_ref": None if item is None else item.get("model_license_ref"),
+            "owner_decision_ref": None if item is None else item.get("owner_decision_ref"),
             "evidence_ref": None if item is None else item.get("evidence_ref"),
         })
     return {
