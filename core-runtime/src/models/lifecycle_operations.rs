@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
-use super::{LifecycleError, ModelHandle, ModelLifecycle};
+use super::{resident, LifecycleError, ModelHandle, ModelLifecycle};
 
 /// Where an operator-loaded model came from, bound to the bytes it loaded.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,5 +136,4 @@ impl ModelLifecycle {
 
         Ok(handle)
     }
-
 }
