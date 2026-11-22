@@ -356,3 +356,15 @@ fn status_from_partial_ipc_is_degraded_not_healthy() {
     let unhealthy_no_report = build_status(false, None, None, None);
     assert_eq!(unhealthy_no_report.health, HealthState::Unhealthy);
 }
+
+// UTF-8 display should never panic at a byte bound inside a codepoint.
+#[test]
+fn status_truncate_is_utf8_boundary_safe() {
+    assert_eq!(truncate("模型🚀one", 0), "");
+    assert_eq!(truncate("模型🚀one", 1), ".");
+    assert_eq!(truncate("模型🚀one", 2), "..");
+    assert_eq!(truncate("模型🚀one", 3), "...");
+    assert_eq!(truncate("模型🚀one", 6), "模...");
+    assert_eq!(truncate("模型🚀one", 9), "模型...");
+    assert_eq!(truncate("模型🚀one", 13), "模型🚀one");
+}
