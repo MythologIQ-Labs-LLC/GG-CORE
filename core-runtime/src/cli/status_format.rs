@@ -158,53 +158,47 @@ fn print_events(status: &SystemStatus) {
     }
 }
 
-/// Print speculative decoding stats section (advanced feature only).
-///
-/// Output format (one line):
-/// `Speculative: <state> | <acceptance_rate>% | <net_speedup>x`
-///
-/// where state is one of: `enabled`, `disabled`, `auto-disabled`.
+/// Print only speculative counters that the status IPC actually carries.
+/// Missing latency/speedup data is not a measured zero (#222).
 #[cfg(feature = "advanced")]
 fn print_speculative(stats: Option<&SpeculativeSessionStats>) {
     println!("\nSpeculative Decoding");
     match stats {
         None => println!("  Speculative: disabled"),
-        Some(s) => {
-            let state = if s.auto_disable_count > 0 {
-                "auto-disabled".to_string()
-            } else if s.verification_steps > 0 {
-                "enabled".to_string()
-            } else {
-                "disabled".to_string()
-            };
-            let reason_suffix = s
-                .auto_disable_reason
-                .as_deref()
-                .map(|r| format!(" ({})", r))
-                .unwrap_or_default();
-            println!(
-                "  Speculative: {}{} | {:.1}% acceptance | {:.2}x speedup",
-                state,
-                reason_suffix,
-                s.acceptance_rate * 100.0,
-                s.net_speedup,
-            );
-            println!(
-                "  Steps: {}   Draft tokens: {}   Accepted: {}   Rejected: {}",
-                s.verification_steps,
-                s.draft_tokens_generated,
-                s.accepted_tokens,
-                s.rejected_tokens,
-            );
-            println!(
-                "  Mean draft latency: {:.1} us   Mean verify latency: {:.1} us",
-                s.mean_draft_latency_us, s.mean_verify_latency_us,
-            );
-            if s.auto_disable_count > 0 {
-                println!("  Auto-disable events: {}", s.auto_disable_count);
-            }
-        }
+        Some(s) => println!("{}", format_speculative_stats(s)),
     }
+}
+
+#[cfg(feature = "advanced")]
+pub(super) fn format_speculative_stats(s: &SpeculativeSessionStats) -> String {
+    let state = if s.auto_disable_count > 0 {
+        "auto-disabled"
+    } else if s.verification_steps > 0 {
+        "enabled"
+    } else {
+        "disabled"
+    };
+    let reason_suffix = s
+        .auto_disable_reason
+        .as_deref()
+        .map(|reason| format!(" ({reason})"))
+        .unwrap_or_default();
+    let header = format!(
+        "  Speculative: {state}{reason_suffix} | {:.1}% acceptance | speedup N/A (IPC)",
+        s.acceptance_rate * 100.0,
+    );
+    let counts = format!(
+        "  Steps: {}   Draft tokens: {}   Accepted: {}   Rejected: {}",
+        s.verification_steps, s.draft_tokens_generated, s.accepted_tokens, s.rejected_tokens,
+    );
+    let events = if s.auto_disable_count > 0 {
+        format!("\n  Auto-disable events: {}", s.auto_disable_count)
+    } else {
+        String::new()
+    };
+    format!(
+        "{header}\n{counts}\n  Mean draft latency: N/A (IPC)   Mean verify latency: N/A (IPC){events}"
+    )
 }
 
 /// Format uptime in human-readable form.
