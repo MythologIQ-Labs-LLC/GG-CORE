@@ -214,7 +214,10 @@ fn typed_classification_success_and_unsupported_task_refusal_remain_distinct() {
         IpcMessage::TypedInferenceResponse(decoded) => {
             assert_eq!(decoded.request_id, RequestId(24));
             assert!(decoded.result.is_none());
-            assert_eq!(decoded.error_code, Some(InferenceErrorCode::UnsupportedTask));
+            assert_eq!(
+                decoded.error_code,
+                Some(InferenceErrorCode::UnsupportedTask)
+            );
         }
         other => panic!("unexpected typed refusal: {other:?}"),
     }
