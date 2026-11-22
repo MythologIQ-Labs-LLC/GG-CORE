@@ -146,8 +146,23 @@ async fn a_reloaded_id_and_its_old_instance_are_tracked_apart() {
     lc.unload("a").await.unwrap();
     assert_eq!(lc.wait_released("a", Duration::ZERO).await, (false, 2));
     drop(old);
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    assert_eq!(lc.wait_released("a", Duration::ZERO).await, (false, 1));
+    // The release supervisor polls independently of Tokio. A fixed 100-ms
+    // sleep is not a synchronization guarantee on a contended CI runner.
+    // Observe the actual transition, retaining the same strict contract:
+    // the old instance releases while the new one remains held.
+    let start = Instant::now();
+    loop {
+        let observed = lc.wait_released("a", Duration::ZERO).await;
+        if observed == (false, 1) {
+            break;
+        }
+        assert_eq!(observed, (false, 2), "new instance released early");
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "old instance was not released by the independent supervisor"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
     drop(new);
     assert_eq!(
         lc.wait_released("a", Duration::from_secs(5)).await,
