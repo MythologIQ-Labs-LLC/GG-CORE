@@ -70,11 +70,62 @@ def executed_tests_pass(log, returncode, names, markers):
             and all(any(marker in line for line in lines) for marker in markers))
 
 
+
+def exact_test_binary(build_log, target, binary):
+    """Select the single executed artifact from Cargo's machine-readable build."""
+    deps = (target / "debug" / "deps").resolve()
+    selected = []
+    for line in build_log.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict) or event.get("reason") != "compiler-artifact":
+            continue
+        spec = event.get("target") or {}
+        if spec.get("name") != binary or "test" not in spec.get("kind", []):
+            continue
+        raw = event.get("executable")
+        if not isinstance(raw, str):
+            continue
+        candidate = Path(raw)
+        if (not candidate.is_absolute() or candidate.is_symlink()
+                or candidate.suffix.lower() != ".exe"
+                or candidate.resolve().parent != deps or not candidate.is_file()):
+            raise RuntimeError(f"{binary}: Cargo reported an unsafe test executable path")
+        selected.append(candidate.resolve())
+    if len(selected) != 1:
+        raise RuntimeError(
+            f"{binary}: expected exactly one Cargo-built test executable, got {len(selected)}"
+        )
+    return selected[0]
+
+
+
 def run_suite(repo, evidence, target, env, binary, names, markers):
-    cmd = ["cargo", "test", "--locked", "--offline", "--features",
-           "gguf-cuda", "--test", binary, "--", "--nocapture", "--test-threads=1"]
+    # A fresh target directory alone does not prove which of several matching
+    # binaries cargo test executed. Build once, select the exact Cargo artifact,
+    # hash it, then execute that verified file directly (also making timeout
+    # terminate the native test process rather than just the Cargo parent).
+    build_cmd = ["cargo", "test", "--locked", "--offline", "--features",
+                 "gguf-cuda", "--test", binary, "--no-run", "--message-format=json"]
     log_path = evidence / (binary + ".log")
+    build_path = evidence / (binary + ".build.log")
     began = time.monotonic()
+    try:
+        built = subprocess.run(
+            build_cmd, cwd=repo / "core-runtime", env=env, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, text=True, errors="replace",
+            timeout=3600, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError(f"{binary}: native test compilation failed: {error}") from error
+    build_path.write_text(built.stdout, encoding="utf-8")
+    if built.returncode:
+        raise RuntimeError(f"{binary}: native test compilation failed; see {build_path.name}")
+    executable = exact_test_binary(built.stdout, target, binary)
+    executable_hash = common.digest(executable)
+    cmd = [str(executable), "--nocapture", "--test-threads=1"]
     with log_path.open("w", encoding="utf-8") as output:
         try:
             result = subprocess.run(cmd, cwd=repo / "core-runtime", env=env,
@@ -84,19 +135,17 @@ def run_suite(repo, evidence, target, env, binary, names, markers):
         except (OSError, subprocess.TimeoutExpired) as error:
             output.write(f"Native test invocation failed: {error}\n")
             code = 127
+    if common.digest(executable) != executable_hash:
+        raise RuntimeError(f"{binary}: test executable changed after execution")
     log = log_path.read_text(encoding="utf-8", errors="replace")
     if not executed_tests_pass(log, code, names, markers):
         raise RuntimeError(f"{binary}: required real tests/markers failed; inspect {log_path.name}")
-    binaries = sorted((target / "debug" / "deps").glob(binary + "-*.exe"))
-    if not binaries:
-        raise RuntimeError(f"{binary}: current-attempt Windows binary was not found")
     return {
-        "command": cmd, "exit_code": code, "executed_tests": len(names),
+        "build_command": build_cmd, "command": cmd,
+        "exit_code": code, "executed_tests": len(names),
         "elapsed_seconds": round(time.monotonic() - began, 3),
-        "log": log_path.name,
-        "binary_hashes": [
-            {"file": path.name, "sha256": common.digest(path)} for path in binaries
-        ],
+        "build_log": build_path.name, "log": log_path.name,
+        "binary_hashes": [{"file": executable.name, "sha256": executable_hash}],
     }
 
 
