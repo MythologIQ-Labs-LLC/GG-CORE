@@ -99,7 +99,10 @@ async fn failed_unregistered_target_held_after_rollback_keeps_budget_until_relea
         );
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    assert!(lc.is_loaded("a").await, "rollback A survives B's delayed release");
+    assert!(
+        lc.is_loaded("a").await,
+        "rollback A survives B's delayed release"
+    );
 }
 
 #[tokio::test]
