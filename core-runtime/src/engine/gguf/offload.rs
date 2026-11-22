@@ -73,9 +73,9 @@ pub(super) fn check(backend: &LlamaBackend, n_gpu_layers: u32) -> Result<(), Inf
 static GPU_ALLOCATION_GATE: Mutex<()> = Mutex::new(());
 
 pub(super) fn lock_gpu_allocation() -> Result<MutexGuard<'static, ()>, InferenceError> {
-    GPU_ALLOCATION_GATE.lock().map_err(|_| {
-        InferenceError::ModelError("GPU allocation admission mutex poisoned".into())
-    })
+    GPU_ALLOCATION_GATE
+        .lock()
+        .map_err(|_| InferenceError::ModelError("GPU allocation admission mutex poisoned".into()))
 }
 
 const GPU_MIN_HEADROOM: usize = 256 * 1024 * 1024;
