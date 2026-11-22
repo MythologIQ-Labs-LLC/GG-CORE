@@ -195,7 +195,7 @@ def run(repo, evidence, report):
             )
             code = completed.returncode
         except (OSError, subprocess.TimeoutExpired) as error:
-            logfile.write(f"Command failed to complete: {error}\\n")
+            logfile.write(f"Command failed to complete: {error}\n")
             code = 127
     report["elapsed_seconds"] = round(time.monotonic() - started, 3)
     report["exit_code"] = code
