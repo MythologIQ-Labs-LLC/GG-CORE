@@ -67,7 +67,22 @@ async fn register_resize_refusal_rolls_back() {
     let out = switch(&lc, &fake, request("a", a, "b.gguf", "b")).await;
     assert!(matches!(out, SwitchOutcome::RolledBack { .. }), "{out:?}");
     assert!(lc.is_loaded("a").await && !lc.is_loaded("b").await);
-    assert_eq!(limits.current_memory(), 700);
+    // B had no external holder, but the independent #219 release supervisor
+    // can still be draining its prepared reservation after rollback returns.
+    // Reclamation must finish within a bound; it need not be synchronous.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while limits.current_memory() != 700 {
+        assert_eq!(
+            limits.current_memory(),
+            1_000,
+            "only A and the retiring B reservation may be charged"
+        );
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "B's unheld reservation never returned to the budget"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
 }
 
 // #219: a failed target that is still held by a native request must retain
