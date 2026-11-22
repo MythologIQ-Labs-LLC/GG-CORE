@@ -4,6 +4,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use gg_core::cli::status::RequestStats;
+
 use gg_core::engine::{InferenceError, Model};
 use gg_core::ipc::protocol::{
     decode_message, encode_message, CapabilitiesResponse, IpcMessage, ProtocolVersion, RequestId,
@@ -123,4 +125,67 @@ fn compiled_capabilities_do_not_claim_installed_qualification() {
         assert_eq!(object["qualified_paths"], json!([]));
         assert!(object["compiled_paths"].is_array());
     }
+}
+
+#[test]
+fn pre_v1_status_quantiles_have_an_explicit_external_consumer_break() {
+    // Bind the actual public Rust source type as a downstream crate does.
+    // The CLI status producer currently has no measured percentile samples.
+    let report = RequestStats {
+        total_requests: 10,
+        successful_requests: 10,
+        failed_requests: 0,
+        requests_per_second: 1.0,
+        avg_latency_ms: 42.0,
+        p50_latency_ms: None,
+        p95_latency_ms: None,
+        p99_latency_ms: None,
+        tokens_generated: 200,
+        tokens_per_second: 20.0,
+    };
+    let _: Option<f64> = report.p50_latency_ms;
+    let _: Option<f64> = report.p95_latency_ms;
+    let _: Option<f64> = report.p99_latency_ms;
+
+    let json = serde_json::to_value(&report).expect("public status serialize");
+    for key in ["p50_latency_ms", "p95_latency_ms", "p99_latency_ms"] {
+        assert!(
+            json[key].is_null(),
+            "unknown {key} must be null, not a fabricated numeric zero"
+        );
+        // Older JSON consumers requiring a non-null numeric f64 cannot
+        // deserialize this field. This is an intentional pre-v1 break.
+        assert!(
+            serde_json::from_value::<f64>(json[key].clone()).is_err(),
+            "strict legacy numeric consumer unexpectedly accepted {key}"
+        );
+    }
+
+    // The updated public consumer can decode null safely and does not
+    // reinterpret absence as an observed zero or an invented percentile.
+    let adapted: RequestStats = serde_json::from_value(json).expect("nullable consumer");
+    assert!(adapted.p50_latency_ms.is_none());
+    assert!(adapted.p95_latency_ms.is_none());
+    assert!(adapted.p99_latency_ms.is_none());
+    assert_eq!(adapted.avg_latency_ms, 42.0);
+
+    // Older well-formed numeric JSON remains readable by the new optional
+    // decoder. Read compatibility does not imply old consumers accept null.
+    let legacy_numeric = serde_json::json!({
+        "total_requests": 10,
+        "successful_requests": 10,
+        "failed_requests": 0,
+        "requests_per_second": 1.0,
+        "avg_latency_ms": 42.0,
+        "p50_latency_ms": 20.0,
+        "p95_latency_ms": 70.0,
+        "p99_latency_ms": 90.0,
+        "tokens_generated": 200,
+        "tokens_per_second": 20.0
+    });
+    let decoded: RequestStats =
+        serde_json::from_value(legacy_numeric).expect("legacy numeric shape");
+    assert_eq!(decoded.p50_latency_ms, Some(20.0));
+    assert_eq!(decoded.p95_latency_ms, Some(70.0));
+    assert_eq!(decoded.p99_latency_ms, Some(90.0));
 }
