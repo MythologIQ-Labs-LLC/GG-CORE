@@ -119,7 +119,11 @@ fn benign_flattened_history_and_isolated_safe_user_turn_are_admitted() {
     let current = "[user]What causes river meanders?[/user]";
     assert!(pipeline.scan_prompt(current).allowed);
     assert!(pipeline.scan_prompt(history).allowed);
-    assert!(pipeline.scan_prompt(&format!("{history}\n{current}")).allowed);
+    assert!(
+        pipeline
+            .scan_prompt(&format!("{history}\n{current}"))
+            .allowed
+    );
 }
 
 #[test]
