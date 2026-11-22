@@ -233,7 +233,6 @@ fn cli_model_status_preserves_daemon_average_without_dividing_twice() {
     assert_eq!(models[1].state, ModelState::Error);
 }
 
-
 #[test]
 fn status_from_partial_ipc_is_degraded_not_healthy() {
     use crate::health::{HealthReport, HealthState as RuntimeHealthState};
