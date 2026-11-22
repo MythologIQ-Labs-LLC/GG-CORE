@@ -115,7 +115,7 @@ async fn run_serve(args: &[String]) -> ExitCode {
         eprintln!("Cryptographic operations disabled. Aborting startup.");
         return ExitCode::FAILURE;
     }
-    eprintln!("FIPS 140-3 self-tests: PASSED");
+    eprintln!("Cryptographic startup self-checks: PASSED (not FIPS-validated)");
 
     let Some((config, per_call_ceiling)) = daemon_config() else {
         return ExitCode::FAILURE;

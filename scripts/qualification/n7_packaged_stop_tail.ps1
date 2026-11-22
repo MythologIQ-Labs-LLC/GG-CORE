@@ -16,12 +16,47 @@ param(
     [string]$ModelPath = 'C:\Preview\models\qwen2.5-0.5b-instruct-q4_k_m.gguf',
     [string]$RuntimeDir = 'C:\host\vcdlls'   # VC runtime DLLs copied beside each daemon ('' = none)
 )
-$ErrorActionPreference = 'Continue'
-# powershell -File passes a comma list as one string; accept both forms.
+$ErrorActionPreference = 'Stop'
+# PowerShell -File accepts a comma-separated array as a single argument.
 $Daemons = @($Daemons | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $TraceLabels = @($TraceLabels | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
-Remove-Item -Recurse -Force $Out -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force $Out | Out-Null
+$Out = [IO.Path]::GetFullPath($Out)
+
+# Refuse wrong or missing fixture BEFORE creating any measurements or staging.
+# Logging a digest without comparing it to the approved model is not provenance.
+$expectedModelBytes = 491400032
+$expectedModelSha256 = '74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db'
+if (Test-Path -LiteralPath $Out) { throw "Refusing existing evidence directory: $Out" }
+if (-not (Test-Path -LiteralPath $ModelPath -PathType Leaf)) {
+    throw 'Approved GGUF model file missing'
+}
+$modelFile = Get-Item -LiteralPath $ModelPath
+if ($modelFile.Length -ne $expectedModelBytes) {
+    throw "Unapproved GGUF model size: expected $expectedModelBytes bytes"
+}
+$modelHash = (Get-FileHash -LiteralPath $ModelPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($modelHash -ne $expectedModelSha256) { throw 'Unapproved GGUF model SHA-256' }
+if ($Reps -lt 1 -or $Threads.Count -eq 0 -or $Contexts.Count -eq 0) {
+    throw 'Qualification matrix cannot be empty or have zero repetitions'
+}
+if ($Daemons.Count -eq 0) { throw 'No packaged daemons specified' }
+$labels = @{}
+foreach ($pair in $Daemons) {
+    if ($pair -notmatch '^([a-zA-Z0-9_-]+)=(.+)$') {
+        throw 'Invalid daemon label/path pair (expected safe-label=exe-path)'
+    }
+    if ($labels.ContainsKey($Matches[1])) { throw 'Duplicate daemon label' }
+    if (-not (Test-Path -LiteralPath $Matches[2] -PathType Leaf)) {
+        throw 'Missing packaged daemon executable'
+    }
+    $labels[$Matches[1]] = $true
+}
+foreach ($label in $TraceLabels) {
+    if (-not $labels.ContainsKey($label)) { throw 'Trace label has no matching daemon' }
+}
+# Never recursively erase an arbitrary caller-supplied output directory.
+# A new run owns a fresh tree, with binaries staged only beneath it.
+New-Item -ItemType Directory -Path $Out | Out-Null
 $log = "$Out\stop.log"; $jsonl = "$Out\results.jsonl"
 function Note($m) { "$(Get-Date -Format o) $m" | Tee-Object -FilePath $log -Append | Out-Null }
 function Rec($h) { ($h | ConvertTo-Json -Compress -Depth 5) | Add-Content $jsonl; Note ('RESULT ' + ($h | ConvertTo-Json -Compress -Depth 5)) }
@@ -43,9 +78,19 @@ function Recv-Ipc($c, [int]$ms = 240000) {
     $b = Read-Exact $c ([int][BitConverter]::ToUInt32($h, 0)) $ms; if ($null -eq $b) { return 'TIMEOUT' }; if ($b -is [string]) { return $b }
     [Text.Encoding]::UTF8.GetString($b) | ConvertFrom-Json
 }
+# After a terminal frame, ANY additional byte is a protocol violation, even
+# if it is only part of the next frame's 4-byte length prefix. Recv-Ipc would
+# mistake a partial header/payload timeout for silence; do not use it here.
+function Probe-Late-Bytes($c, [int]$ms) {
+    $buf = New-Object byte[] 1
+    $read = $c.ReadAsync($buf, 0, 1)
+    if (-not $read.Wait($ms)) { return 'TIMEOUT' }
+    if ($read.Result -le 0) { return 'EOF' }
+    'LATE_BYTES'
+}
 $script:rid = 1000
-function Req([string]$prompt, [int]$max, [int]$timeoutMs = 0) {
-    $script:rid++; $p = [ordered]@{ max_tokens = $max; temperature = 0.0; top_p = 1.0; top_k = 1; stream = $false }
+function Req([string]$prompt, [int]$max, [int]$timeoutMs = 0, [bool]$stream = $false) {
+    $script:rid++; $p = [ordered]@{ max_tokens = $max; temperature = 0.0; top_p = 1.0; top_k = 1; stream = $stream }
     if ($timeoutMs -gt 0) { $p['timeout_ms'] = $timeoutMs }
     [ordered]@{ type = 'inference_request'; request_id = $script:rid; model_id = 'qwen'; prompt = $prompt; parameters = $p }
 }
@@ -53,10 +98,14 @@ function Session { $c = New-Ipc; Send-Ipc $c ([ordered]@{ type = 'handshake'; to
 function Cpu { $script:d.Refresh(); $script:d.TotalProcessorTime.TotalMilliseconds }
 # Wall and CPU time from $t0 (stop sent) until two consecutive 100 ms samples add < 15 ms CPU.
 function Quiesce($t0, $cpu0) {
-    $prev = Cpu; $calm = 0; $n = 0
+    # A CPU observation starting after reply/late-frame reads cannot know
+    # the precise stop instant during that gap. Keep a conservative upper
+    # bound from the original stop stopwatch, never manufacture a zero tail.
+    $observedMs = $t0.ElapsedMilliseconds
+    $observedUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    $prev = Cpu; $calm = 0; $n = 0; $last = $observedMs
     while ($calm -lt 2 -and $n -lt 300) { Start-Sleep -Milliseconds 100; $now = Cpu; $n++; if (($now - $prev) -lt 15) { $calm++ } else { $calm = 0; $last = $t0.ElapsedMilliseconds }; $prev = $now }
-    if ($null -eq $last) { $last = 0 }
-    @{ tailWallMs = $last; tailCpuMs = [math]::Round((Cpu) - $cpu0); quiesced = ($calm -ge 2); samples = $n }
+    @{ tailWallMs = $last; tailBound = 'conservativeUpperBound'; cpuObservationStartMs = $observedMs; cpuObservationStartUnixMs = $observedUnix; tailCpuMs = [math]::Round((Cpu) - $cpu0); quiesced = ($calm -ge 2); samples = $n }
 }
 function Infer([string]$prompt, [int]$max, [int]$timeoutMs = 0) {
     $c = Session; try { $sw = [Diagnostics.Stopwatch]::StartNew(); Send-Ipc $c (Req $prompt $max $timeoutMs); $r = Recv-Ipc $c; @{ r = $r; ms = $sw.ElapsedMilliseconds } } finally { $c.Dispose() }
@@ -69,8 +118,10 @@ function Prefill-Cancel([int]$afterMs) {
         Send-Ipc $c ([ordered]@{ type = 'cancel_request'; request_id = $req.request_id })
         $frames = @(); $code = $null; $tokens = $null
         while ($frames.Count -lt 2) { $f = Recv-Ipc $c 120000; if ($f -is [string]) { $frames += $f; break }; $frames += $f.type; if ($f.type -eq 'inference_response') { $code = $f.error_code; $tokens = $f.tokens_generated } }
+        # Caller response latency must be observed before the CPU-stop sample.
+        $terminalMs = $t0.ElapsedMilliseconds
         $q = Quiesce $t0 $cpu0
-        $q + @{ kind = 'prefillCancel'; stopSentUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $t0.ElapsedMilliseconds; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
+        $q + @{ kind = 'prefillCancel'; stopSentUnixMs = $sentUnix; tailClockOriginUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $terminalMs; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
     } finally { $c.Dispose() }
 }
 # Cancel while generating: short prompt, long output, stop after prefill is done.
@@ -82,8 +133,10 @@ function Decode-Cancel([int]$afterMs) {
         Send-Ipc $c ([ordered]@{ type = 'cancel_request'; request_id = $req.request_id })
         $frames = @(); $code = $null; $tokens = $null
         while ($frames.Count -lt 2) { $f = Recv-Ipc $c 120000; if ($f -is [string]) { $frames += $f; break }; $frames += $f.type; if ($f.type -eq 'inference_response') { $code = $f.error_code; $tokens = $f.tokens_generated } }
+        # Caller response latency must be observed before the CPU-stop sample.
+        $terminalMs = $t0.ElapsedMilliseconds
         $q = Quiesce $t0 $cpu0
-        $q + @{ kind = 'decodeCancel'; stopSentUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $t0.ElapsedMilliseconds; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
+        $q + @{ kind = 'decodeCancel'; stopSentUnixMs = $sentUnix; tailClockOriginUnixMs = $sentUnix; afterMs = $afterMs; requestId = $req.request_id; terminalMs = $terminalMs; frames = ($frames -join ','); errorCode = $code; tokens = $tokens }
     } finally { $c.Dispose() }
 }
 # Both workers busy with a mid-length prompt; a third, queued request is cancelled.
@@ -110,9 +163,86 @@ function Prefill-Deadline([int]$timeoutMs) {
     try {
         $sw = [Diagnostics.Stopwatch]::StartNew(); $req = Req $long 64 $timeoutMs; Send-Ipc $c $req
         $f = Recv-Ipc $c 120000; $answered = $sw.ElapsedMilliseconds
-        $t0 = [Diagnostics.Stopwatch]::StartNew(); $cpu0 = Cpu; $sentUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        # This CPU observation starts AFTER the terminal, not at deadline.
+        $t0 = [Diagnostics.Stopwatch]::StartNew(); $cpu0 = Cpu; $observedUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         $q = Quiesce $t0 $cpu0
-        $q + @{ kind = 'prefillDeadline'; stopSentUnixMs = $sentUnix; requestId = $req.request_id; timeoutMs = $timeoutMs; answeredAfterMs = $answered; errorCode = $f.error_code; tokens = $f.tokens_generated }
+        $q + @{ kind = 'prefillDeadline'; stopSentUnixMs = $observedUnix; tailClockOriginUnixMs = $observedUnix; quiescenceOrigin = 'afterTerminal'; requestId = $req.request_id; timeoutMs = $timeoutMs; answeredAfterMs = $answered; errorCode = $f.error_code; tokens = $f.tokens_generated }
+    } finally { $c.Dispose() }
+}
+
+# Real active-stream cancellation, no generated text logged. The first
+# sanitized text frame proves decoding began before authenticated cancel.
+function Stream-Cancel {
+    $c = Session
+    try {
+        $req = Req 'Tell a long story about a river and its towns.' 400 0 $true
+        $first = [Diagnostics.Stopwatch]::StartNew()
+        Send-Ipc $c $req
+        $started = $false; $firstMs = $null; $prefix = 0; $early = ''
+        while ($prefix -lt 1000 -and $first.ElapsedMilliseconds -lt 60000) {
+            $f = Recv-Ipc $c 15000
+            if ($f -is [string]) { $early = $f; break }
+            if ($f.type -ne 'stream_chunk' -or $f.request_id -ne $req.request_id -or $f.is_final -or $f.error) {
+                $early = 'no active sanitized text stream'; break
+            }
+            $prefix++
+            if ($f.text) { $started = $true; $firstMs = $first.ElapsedMilliseconds; break }
+        }
+        if (-not $started) {
+            return @{ kind = 'streamCancel'; requestId = $req.request_id; started = $false
+                prefixFrames = $prefix; firstTextMs = $firstMs; early = $early
+                ack = $false; ackCount = 0; terminalCount = 0; terminalError = ''
+                terminalMs = $null; ackMs = $null; lateFrames = 0
+                dataAfterAck = 0; unexpectedFrames = 0; quiesced = $false }
+        }
+        $t0 = [Diagnostics.Stopwatch]::StartNew(); $cpu0 = Cpu
+        $stopUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        Send-Ipc $c ([ordered]@{ type = 'cancel_request'; request_id = $req.request_id })
+        $ack = $false; $ackCount = 0; $ackMs = $null
+        $ends = 0; $terminalMs = $null; $err = ''; $terminalBeforeAck = $false
+        $afterAck = 0; $afterFinal = 0; $unexpected = 0; $readOutcome = 'OK'
+        $frames = @()
+        for ($i = 0; $i -lt 100; $i++) {
+            $f = Recv-Ipc $c 15000
+            if ($f -is [string]) { $readOutcome = $f; break }
+            if ($f.request_id -ne $req.request_id) { $unexpected++; break }
+            $frames += $f.type
+            if ($f.type -eq 'cancel_response') {
+                $ackCount++
+                $ack = ($ackCount -eq 1 -and $f.cancelled -eq $true)
+                if ($null -eq $ackMs) { $ackMs = $t0.ElapsedMilliseconds }
+            } elseif ($f.type -eq 'stream_chunk') {
+                if ($f.is_final) {
+                    $ends++
+                    if ($null -eq $terminalMs) { $terminalMs = $t0.ElapsedMilliseconds }
+                    $err = [string]$f.error
+                    if (-not $ack) { $terminalBeforeAck = $true }
+                } else {
+                    if ($ack) { $afterAck++ }
+                    if ($ends -gt 0) { $afterFinal++ }
+                }
+            } else { $unexpected++ }
+            if ($ackCount -gt 1 -or $ends -gt 1 -or ($ack -and $ends -eq 1)) { break }
+        }
+        $late = 0; $post = 'SKIPPED'; $probePhase = 'SKIPPED'
+        # Do not claim 'no late frames' from a 350ms read while native work
+        # may still be running. First observe CPU quiescence (conservative
+        # bound), then probe the same IPC stream for any buffered/delayed
+        # frame. The receiver is not read during the quiescence observation.
+        $q = Quiesce $t0 $cpu0
+        if ($ack -and $ends -eq 1) {
+            $probePhase = 'afterQuiescence'
+            $post = Probe-Late-Bytes $c 350
+            if ($post -ne 'TIMEOUT') { $late++ }
+        }
+        $q + @{ kind = 'streamCancel'; stopSentUnixMs = $stopUnix
+            tailClockOriginUnixMs = $stopUnix; requestId = $req.request_id
+            started = $started; firstTextMs = $firstMs; prefixFrames = $prefix
+            ack = $ack; ackCount = $ackCount; ackMs = $ackMs
+            terminalCount = $ends; terminalMs = $terminalMs
+            terminalBeforeAck = $terminalBeforeAck; terminalError = $err
+            dataAfterAck = $afterAck; dataAfterFinal = $afterFinal; lateFrames = $late; unexpectedFrames = $unexpected
+            readOutcome = $readOutcome; postTerminalRead = $post; postTerminalProbePhase = $probePhase; frames = ($frames -join ',') }
     } finally { $c.Dispose() }
 }
 
@@ -121,12 +251,17 @@ function Prefill-Deadline([int]$timeoutMs) {
 $staged = @()
 foreach ($pair in $Daemons) {
     $label, $exe = $pair -split '=', 2
-    $root = "C:\g184stop-$label"; Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force "$root\models\qwen" | Out-Null
-    if (-not (Test-Path $exe)) { Rec @{ kind = 'identity'; label = $label; error = "missing $exe" }; continue }
-    Copy-Item $exe "$root\gg-core-cli.exe" -Force; if ($RuntimeDir) { Copy-Item "$RuntimeDir\*.dll" $root -Force }
-    Copy-Item $ModelPath "$root\models\qwen\model.gguf" -Force
-    $sha = (Get-FileHash "$root\models\qwen\model.gguf").Hash.ToLower()
+    $root = Join-Path $Out "stage-$label"
+    New-Item -ItemType Directory -Path "$root\models\qwen" -Force | Out-Null
+    Copy-Item -LiteralPath $exe -Destination "$root\gg-core-cli.exe"
+    if ($RuntimeDir) { Copy-Item "$RuntimeDir\*.dll" $root }
+    Copy-Item -LiteralPath $ModelPath -Destination "$root\models\qwen\model.gguf"
+    $stagedModel = "$root\models\qwen\model.gguf"
+    $stagedSize = (Get-Item -LiteralPath $stagedModel).Length
+    $sha = (Get-FileHash -LiteralPath $stagedModel -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($stagedSize -ne $expectedModelBytes -or $sha -ne $expectedModelSha256) {
+        throw 'Staged GGUF model identity changed during copy'
+    }
     @{ model_id = 'qwen'; name = 'Qwen2.5-0.5B-Instruct Q4_K_M'; version = '9217f5db'; capabilities = @('text_generation'); sha256 = $sha; size_bytes = (Get-Item "$root\models\qwen\model.gguf").Length; architecture = 'gguf'; license = 'Apache-2.0' } | ConvertTo-Json | Set-Content "$root\models\qwen\manifest.json" -Encoding ascii
     Rec @{ kind = 'identity'; label = $label; exe = $exe; exe_sha256 = (Get-FileHash "$root\gg-core-cli.exe").Hash.ToLower(); model_sha256 = $sha }
     $staged += , @($label, $root)
@@ -142,13 +277,14 @@ foreach ($ctx in $Contexts) { foreach ($t in $Threads) { foreach ($sd in $staged
     $null = $script:d.Handle; $ready = $false
     for ($i = 0; $i -lt 480; $i++) { Start-Sleep -Milliseconds 250; if ((Get-Content "$Out\$tag.err" -Raw -ErrorAction SilentlyContinue) -match 'IPC server listening') { $ready = $true; break }; if ($script:d.HasExited) { break } }
     Rec @{ kind = 'daemon'; tag = $tag; ready = $ready }
-    if (-not $ready) { continue }
+    if (-not $ready) { if (-not $script:d.HasExited) { $script:d.Kill() }; throw "Native daemon not ready for $tag" }
     for ($r = 0; $r -lt $Reps; $r++) {
         $tp = Infer $long 24; $outHash = if ($tp.r.output) { ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$tp.r.output)))).Replace('-', '').Substring(0, 16) } else { $null }
         Rec @{ kind = 'throughput'; tag = $tag; rep = $r; ms = $tp.ms; tokens = $tp.r.tokens_generated; ok = (-not $tp.r.error); outputSha = $outHash }
         Rec ((Prefill-Cancel (1500 + 500 * $r)) + @{ tag = $tag; rep = $r })
         Rec ((Prefill-Deadline (2000 + 500 * $r)) + @{ tag = $tag; rep = $r })
         Rec ((Decode-Cancel (2500 + 500 * $r)) + @{ tag = $tag; rep = $r })
+        Rec ((Stream-Cancel) + @{ tag = $tag; rep = $r })
         Rec ((Queued-Cancel) + @{ tag = $tag; rep = $r })
         $rc = Infer 'Reply with one word: ok' 4; Rec @{ kind = 'recover'; tag = $tag; rep = $r; ok = (-not $rc.r.error); ms = $rc.ms; alive = (-not $script:d.HasExited) }
     }

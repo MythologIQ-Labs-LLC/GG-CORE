@@ -3,7 +3,8 @@
 //! Measures insert/lookup throughput at various cache sizes,
 //! eviction overhead under memory pressure, and Q8 encode/decode speed.
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
 use gg_core::memory::kv_cache::{KvCacheConfig, KvCacheManager};
 #[cfg(feature = "advanced")]

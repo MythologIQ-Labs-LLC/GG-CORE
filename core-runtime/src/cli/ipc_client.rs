@@ -10,7 +10,13 @@ use std::time::Duration;
 
 use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(unix)]
 use tokio::time::timeout;
+
+#[path = "ipc_client_framing.rs"]
+mod framing;
+#[path = "ipc_client_reply.rs"]
+mod reply;
 
 use crate::engine::InferenceParams;
 use crate::ipc::protocol::{
@@ -113,8 +119,9 @@ impl CliIpcClient {
         prompt: &str,
         params: &InferenceParams,
     ) -> Result<String, CliError> {
+        let request_id = RequestId(1);
         let request = InferenceRequest {
-            request_id: RequestId(1),
+            request_id,
             model_id: model_id.to_string(),
             prompt: prompt.to_string(),
             parameters: params.clone(),
@@ -125,19 +132,7 @@ impl CliIpcClient {
 
         // Inference requires a session: handshake on this same connection.
         let response_bytes = self.send_receive_authenticated(&request_bytes).await?;
-        let response =
-            decode_message(&response_bytes).map_err(|e| CliError::Protocol(e.to_string()))?;
-
-        match response {
-            // A structured failure (unknown model, admission, validation)
-            // travels in `error`, not as a protocol-level Error message.
-            IpcMessage::InferenceResponse(resp) => match resp.error {
-                Some(err) => Err(CliError::Protocol(err)),
-                None => Ok(resp.output),
-            },
-            IpcMessage::Error { message, .. } => Err(CliError::Protocol(message)),
-            _ => Err(CliError::Protocol("Unexpected response type".to_string())),
-        }
+        reply::decode_inference_reply(&response_bytes, request_id)
     }
 
     /// Send streaming inference request, printing tokens as they arrive.
@@ -150,8 +145,9 @@ impl CliIpcClient {
         let mut params = params.clone();
         params.stream = true;
 
+        let request_id = RequestId(1);
         let request = InferenceRequest {
-            request_id: RequestId(1),
+            request_id,
             model_id: model_id.to_string(),
             prompt: prompt.to_string(),
             parameters: params,
@@ -160,47 +156,59 @@ impl CliIpcClient {
         let request_bytes =
             encode_message(&message).map_err(|e| CliError::Protocol(e.to_string()))?;
 
-        self.receive_streaming_response(&request_bytes).await
+        self.receive_streaming_response(&request_bytes, request_id)
+            .await
     }
 
     /// Streaming inference also requires a session: connect, handshake on
     /// the same connection, then stream the request.
-    async fn receive_streaming_response(&self, request: &[u8]) -> Result<String, CliError> {
+    async fn receive_streaming_response(
+        &self,
+        request: &[u8],
+        expected_id: RequestId,
+    ) -> Result<String, CliError> {
         let mut stream = self.connect_authenticated().await?;
         self.handshake_on(&mut stream).await?;
-        self.stream_exchange(&mut stream, request).await
+        self.stream_exchange(&mut stream, request, expected_id)
+            .await
     }
 
-    async fn stream_exchange<S>(&self, stream: &mut S, request: &[u8]) -> Result<String, CliError>
+    async fn stream_exchange<S>(
+        &self,
+        stream: &mut S,
+        request: &[u8],
+        expected_id: RequestId,
+    ) -> Result<String, CliError>
     where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
-        // Send length-prefixed request
-        let len = request.len() as u32;
-        stream.write_all(&len.to_le_bytes()).await?;
-        stream.write_all(request).await?;
-        stream.flush().await?;
+        // The daemon's request deadline + client grace is a total stream
+        // budget. Per-frame timeouts alone can be evaded by endless chunks.
+        let deadline = tokio::time::Instant::now() + self.timeout_duration;
+        self.write_request_frame(stream, request).await?;
 
         let mut full_output = String::new();
 
-        // Read streaming chunks until final
+        // Preserve the per-frame stall guard, also refusing endless valid
+        // chunks once the absolute stream budget has expired.
         loop {
-            let mut len_buf = [0u8; 4];
-            stream.read_exact(&mut len_buf).await?;
-            let response_len = u32::from_le_bytes(len_buf) as usize;
-
-            if response_len > 16 * 1024 * 1024 {
-                return Err(CliError::Protocol("Response too large".to_string()));
+            // timeout_at polls a ready response first, so check the clock
+            // explicitly as well: a busy peer must not bypass the deadline.
+            if tokio::time::Instant::now() >= deadline {
+                return Err(CliError::Timeout);
             }
-
-            let mut response = vec![0u8; response_len];
-            stream.read_exact(&mut response).await?;
+            let response = tokio::time::timeout_at(deadline, self.read_response_frame(stream))
+                .await
+                .map_err(|_| CliError::Timeout)??;
 
             let message =
                 decode_message(&response).map_err(|e| CliError::Protocol(e.to_string()))?;
 
             match message {
                 IpcMessage::StreamChunk(chunk) => {
+                    if chunk.request_id != expected_id {
+                        return Err(CliError::Protocol("Stream request ID mismatch".into()));
+                    }
                     // The daemon reports stream failures (unknown model,
                     // validation, engine errors) as a chunk carrying `error`.
                     if let Some(err) = chunk.error {
@@ -305,28 +313,8 @@ impl CliIpcClient {
     where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
-        // Send length-prefixed request
-        let len = request.len() as u32;
-        stream.write_all(&len.to_le_bytes()).await?;
-        stream.write_all(request).await?;
-        stream.flush().await?;
-
-        // Read length-prefixed response
-        let mut len_buf = [0u8; 4];
-        let read_future = stream.read_exact(&mut len_buf);
-        timeout(self.timeout_duration, read_future)
-            .await
-            .map_err(|_| CliError::Timeout)??;
-
-        let response_len = u32::from_le_bytes(len_buf) as usize;
-        if response_len > 16 * 1024 * 1024 {
-            return Err(CliError::Protocol("Response too large".to_string()));
-        }
-
-        let mut response = vec![0u8; response_len];
-        stream.read_exact(&mut response).await?;
-
-        Ok(response)
+        self.write_request_frame(stream, request).await?;
+        self.read_response_frame(stream).await
     }
 }
 

@@ -90,6 +90,27 @@ jobs:
           workspaces: core-runtime
       - name: Test suite (default features)
         run: cargo test --locked --workspace
+      - name: Set up Python for cross-platform conformance tests (#114)
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Exact-binary identity preflight negative controls (#114)
+        run: python -m unittest discover -s scripts -p test_binary_identity.py -v
+      - name: Public CLI behavioral contract negative controls (#114)
+        run: python -m unittest discover -s scripts -p test_cli_contract.py -v
+      - name: Config CLI fail-closed conformance negative controls (#114)
+        run: python -m unittest discover -s scripts -p test_config_contract.py -v
+      - name: Build default-feature CLI for real identity smoke (#114)
+        run: cargo build --locked --bin gg-core-cli
+      - name: Execute and verify built CLI provenance (#114)
+        run: python scripts/smoke_binary_identity.py
+      # Cargo does not run #[cfg(test)] in build.rs through cargo test.
+      # Compile its pure provenance and Git ref-watch tests explicitly.
+      - name: Build-provenance identity and ref-watch tests (#114)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          rustc --edition=2021 --test build.rs -o target/build-provenance-tests
+          ./target/build-provenance-tests --test-threads=1
       - name: Offline ONNX probe pure unit tests (#171)
         if: matrix.os == 'ubuntu-latest'
         working-directory: .
@@ -155,9 +176,17 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: core-runtime/perf-baseline
-          key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
+          key: criterion-baseline-${{ runner.os }}-criterion-0.8.2-${{ github.sha }}
           restore-keys: |
-            criterion-baseline-${{ runner.os }}-
+            criterion-baseline-${{ runner.os }}-criterion-0.8.2-
+      # rust-cache may restore 0.5.x Criterion analysis files into target/criterion;
+      # 0.8.x expects a different base/sample.json layout. Remove scratch analysis
+      # before measuring so comparison artifacts cannot masquerade as fresh data.
+      # The separate perf-baseline directory is preserved for the run-over-run gate.
+      - name: Discard stale Criterion scratch results
+        run: rm -rf target/criterion
+      - name: Perf gate negative controls (model-free)
+        run: python3 -m unittest discover -s scripts -p test_perf_gate.py -v
       - name: Perf benches (default-feature, CI-safe set)
         run: |
           cargo bench --locked \
@@ -181,7 +210,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: core-runtime/perf-baseline
-          key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
+          key: criterion-baseline-${{ runner.os }}-criterion-0.8.2-${{ github.sha }}
       - name: Upload criterion baseline
         if: always()
         uses: actions/upload-artifact@v7
