@@ -28,6 +28,8 @@ is stricter:
      streaming cancel: first text before stop, exactly one ACK and failed
      terminal in either order, no data after ACK/final, no late frame,
      and a conservative CPU-tail upper bound (not an exact stop instant).
+     The final no-late-frame read must occur AFTER the CPU-quiescence
+     observation; an earlier 350ms timeout does not rule out late output.
 Historical nonstreaming R1-R7 evidence remains valid without R8; passing
 R8 does NOT substitute for native streaming S1-S4 stop-stage trace joins.
 Exit 0 = every rule passes, 1 = a rule failed, 2 = malformed/missing input.
@@ -358,6 +360,9 @@ def r8_stream(rows, a, configs):
             and integer("unexpectedFrames", 0)
             and row.get("readOutcome") == "OK"
             and row.get("postTerminalRead") == "TIMEOUT"
+            # Old receipts checked for late frames before native work had
+            # necessarily quiesced. They cannot certify a post-quiescence drain.
+            and row.get("postTerminalProbePhase") == "afterQuiescence"
             and row.get("quiesced") is True
             and ms("ackMs") and ms("terminalMs") and ms("tailWallMs")
             and row.get("tailBound") == "conservativeUpperBound"

@@ -78,6 +78,16 @@ function Recv-Ipc($c, [int]$ms = 240000) {
     $b = Read-Exact $c ([int][BitConverter]::ToUInt32($h, 0)) $ms; if ($null -eq $b) { return 'TIMEOUT' }; if ($b -is [string]) { return $b }
     [Text.Encoding]::UTF8.GetString($b) | ConvertFrom-Json
 }
+# After a terminal frame, ANY additional byte is a protocol violation, even
+# if it is only part of the next frame's 4-byte length prefix. Recv-Ipc would
+# mistake a partial header/payload timeout for silence; do not use it here.
+function Probe-Late-Bytes($c, [int]$ms) {
+    $buf = New-Object byte[] 1
+    $read = $c.ReadAsync($buf, 0, 1)
+    if (-not $read.Wait($ms)) { return 'TIMEOUT' }
+    if ($read.Result -le 0) { return 'EOF' }
+    'LATE_BYTES'
+}
 $script:rid = 1000
 function Req([string]$prompt, [int]$max, [int]$timeoutMs = 0, [bool]$stream = $false) {
     $script:rid++; $p = [ordered]@{ max_tokens = $max; temperature = 0.0; top_p = 1.0; top_k = 1; stream = $stream }
@@ -214,13 +224,17 @@ function Stream-Cancel {
             } else { $unexpected++ }
             if ($ackCount -gt 1 -or $ends -gt 1 -or ($ack -and $ends -eq 1)) { break }
         }
-        $late = 0; $post = 'SKIPPED'
-        if ($ack -and $ends -eq 1) {
-            $extra = Recv-Ipc $c 350
-            if ($extra -is [string]) { $post = $extra }
-            else { $late++; $post = [string]$extra.type }
-        }
+        $late = 0; $post = 'SKIPPED'; $probePhase = 'SKIPPED'
+        # Do not claim 'no late frames' from a 350ms read while native work
+        # may still be running. First observe CPU quiescence (conservative
+        # bound), then probe the same IPC stream for any buffered/delayed
+        # frame. The receiver is not read during the quiescence observation.
         $q = Quiesce $t0 $cpu0
+        if ($ack -and $ends -eq 1) {
+            $probePhase = 'afterQuiescence'
+            $post = Probe-Late-Bytes $c 350
+            if ($post -ne 'TIMEOUT') { $late++ }
+        }
         $q + @{ kind = 'streamCancel'; stopSentUnixMs = $stopUnix
             tailClockOriginUnixMs = $stopUnix; requestId = $req.request_id
             started = $started; firstTextMs = $firstMs; prefixFrames = $prefix
@@ -228,7 +242,7 @@ function Stream-Cancel {
             terminalCount = $ends; terminalMs = $terminalMs
             terminalBeforeAck = $terminalBeforeAck; terminalError = $err
             dataAfterAck = $afterAck; dataAfterFinal = $afterFinal; lateFrames = $late; unexpectedFrames = $unexpected
-            readOutcome = $readOutcome; postTerminalRead = $post; frames = ($frames -join ',') }
+            readOutcome = $readOutcome; postTerminalRead = $post; postTerminalProbePhase = $probePhase; frames = ($frames -join ',') }
     } finally { $c.Dispose() }
 }
 
