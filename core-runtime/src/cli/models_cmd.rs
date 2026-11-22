@@ -74,10 +74,14 @@ pub fn print_models(response: &ModelsListResponse) {
 
 fn truncate(s: &str, max: usize) -> &str {
     if s.len() <= max {
-        s
-    } else {
-        &s[..max]
+        return s;
     }
+    // Model names may be UTF-8; a byte limit must not split a codepoint.
+    let mut end = max;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }
 
 #[cfg(test)]
@@ -153,5 +157,18 @@ mod tests {
     async fn test_run_list_connection_failure_returns_3() {
         let code = run_list("/nonexistent/gg-core-test.sock", false).await;
         assert_eq!(code, 3, "should return exit code 3 on connection failure");
+    }
+
+    #[test]
+    fn unicode_model_names_do_not_panic_at_byte_boundaries() {
+        let name = "模型🚀one";
+        assert_eq!(truncate(name, 1), "");
+        assert_eq!(truncate(name, 3), "模");
+        assert_eq!(truncate(name, 7), "模型");
+        let response = ModelsListResponse {
+            models: vec![make_model(&name.repeat(10), "ready", 256, 1, 1.0)],
+            total_memory_bytes: 256 * 1024 * 1024,
+        };
+        print_models(&response);
     }
 }

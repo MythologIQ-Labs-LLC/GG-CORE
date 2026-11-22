@@ -212,12 +212,31 @@ fn build_status(
 
     let models = build_models_list(&models_response);
 
-    SystemStatus {
-        health: if health_ok {
-            HealthState::Healthy
-        } else {
+    // Readiness is not the full health state. A partial IPC response cannot
+    // certify healthy status, and a busy/degraded daemon is not necessarily dead.
+    let health = match report.as_ref() {
+        Some(r)
+            if matches!(r.state, crate::health::HealthState::Unhealthy)
+                || !r.accepting_requests =>
+        {
             HealthState::Unhealthy
-        },
+        }
+        Some(r)
+            if !health_ok
+                || !r.ready
+                || matches!(r.state, crate::health::HealthState::Degraded)
+                || metrics.is_none()
+                || models_response.is_none() =>
+        {
+            HealthState::Degraded
+        }
+        Some(_) => HealthState::Healthy,
+        None if health_ok => HealthState::Degraded,
+        None => HealthState::Unhealthy,
+    };
+
+    SystemStatus {
+        health,
         uptime_secs,
         version: VersionInfo {
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -267,7 +286,29 @@ fn build_status(
             avg_batch_size: 0.0,
         },
         gpus: None,
-        recent_events: vec![],
+        recent_events: [
+            report.is_none().then(|| Event {
+                timestamp: "N/A".into(),
+                event_type: "status_ipc".into(),
+                message: "Full health IPC report unavailable; status is incomplete".into(),
+                severity: EventSeverity::Warning,
+            }),
+            metrics.is_none().then(|| Event {
+                timestamp: "N/A".into(),
+                event_type: "status_ipc".into(),
+                message: "Metrics IPC response unavailable; statistics are incomplete".into(),
+                severity: EventSeverity::Warning,
+            }),
+            models_response.is_none().then(|| Event {
+                timestamp: String::new(),
+                event_type: "status_ipc".into(),
+                message: "Models IPC response unavailable; model list is incomplete".into(),
+                severity: EventSeverity::Warning,
+            }),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
         #[cfg(feature = "advanced")]
         speculative_stats: build_speculative_stats(&metrics),
     }
@@ -327,24 +368,22 @@ fn build_models_list(resp: &Option<crate::ipc::ModelsListResponse>) -> Vec<Model
             r.models
                 .iter()
                 .map(|m| {
-                    let avg = if m.request_count > 0 {
-                        m.avg_latency_ms / m.request_count as f64
-                    } else {
-                        0.0
-                    };
+                    // IPC ModelInfo.avg_latency_ms is already a mean. Dividing
+                    // again by request_count would make frequent models look faster.
                     ModelStatus {
                         name: m.name.clone(),
                         format: m.format.clone(),
                         size_bytes: m.size_bytes,
                         loaded_at: m.loaded_at.clone(),
                         request_count: m.request_count,
-                        avg_latency_ms: avg,
+                        avg_latency_ms: m.avg_latency_ms,
                         state: match m.state.as_str() {
                             "loading" => ModelState::Loading,
                             "ready" => ModelState::Ready,
                             "unloading" => ModelState::Unloading,
                             "error" => ModelState::Error,
-                            _ => ModelState::Ready,
+                            // Unknown producer state is not serving-ready.
+                            _ => ModelState::Error,
                         },
                     }
                 })

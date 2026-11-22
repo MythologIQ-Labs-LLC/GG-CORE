@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
-use super::{resident, LifecycleError, ModelHandle, ModelLifecycle};
+use super::{LifecycleError, ModelHandle, ModelLifecycle};
 
 /// Where an operator-loaded model came from, bound to the bytes it loaded.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,34 +93,48 @@ impl ModelLifecycle {
             .map_or(0, |r| r.charged_bytes())
     }
 
-    /// [`Self::unload`], refused if `expected` no longer names the instance.
+    /// The same #219 all-locks-before-mutation transaction as ordinary unload,
+    /// with an expected-handle check while the index is exclusively locked.
     pub(super) async fn unload_matching(
         &self,
         model_id: &str,
         expected: Option<ModelHandle>,
     ) -> Result<ModelHandle, LifecycleError> {
         let mut index = self.index.write().await;
+
         let handle = index
             .get_handle(model_id)
             .ok_or_else(|| LifecycleError::NotLoaded(model_id.into()))?;
-        if expected.is_some_and(|e| e != handle) {
+        if expected.is_some_and(|expected| expected != handle) {
             return Err(LifecycleError::StaleHandle(model_id.into()));
         }
 
+        // Query diagnostics before any mutation; this await is cancellable.
+        let info = self.registry_info(handle).await;
+        // Acquire both component writers before removing resident/index state.
+        // A cancelled waiter leaves every store unchanged. Once acquired,
+        // the registry, inference engine, and index commit with no await.
+        let mut registry_writer = self.registry.registration_writer().await;
+        let mut engine_writer = self.engine.registration_writer().await;
         let resident = index.residents.remove(model_id);
         let (done, watch) = resident::release_channel();
-        if let Some(info) = self.registry_info(handle).await {
+        if let Some(info) = info {
             self.releases.push(model_id.to_string(), info, watch);
         }
-        self.engine.unregister_model(model_id).await;
-        self.registry.unregister(handle).await;
+        engine_writer.remove(model_id);
+        registry_writer.remove(handle);
         index.remove_by_id(model_id);
         self.ops.forget(handle.id());
-        // Budget returns once in-flight requests release the model.
+        // Do not run a backend destructor while holding shared model writers.
+        drop(engine_writer);
+        drop(registry_writer);
+        drop(index);
+        // Budget returns only after native in-flight holders release the model.
         if let Some(entry) = resident {
             entry.release(done);
         }
 
         Ok(handle)
     }
+
 }

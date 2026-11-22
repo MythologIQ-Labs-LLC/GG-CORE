@@ -20,19 +20,114 @@ use super::LifecycleError;
 use crate::engine::Model;
 use crate::memory::{ResidentGuard, ResourceLimits};
 
-/// Poll interval while an unloaded model is still referenced by a request.
-const RELEASE_POLL: Duration = Duration::from_millis(25);
+#[path = "lifecycle_resident_supervisor.rs"]
+mod supervisor;
+use supervisor::enqueue_release;
 
 /// A registered model's budget: the lifecycle's model handle and its guard.
-/// Field order: `model` drops before `guard` (memory freed, then budget).
+/// Drop must explicitly release model memory before returning resident
+/// budget. Field declaration order alone is unsafe if a model destructor
+/// panics: Rust still drops remaining fields during unwinding (#219).
 pub(super) struct Resident {
-    model: Arc<dyn Model>,
+    model: Option<Arc<dyn Model>>,
     guard: Option<ResidentGuard>,
 }
 
+impl Drop for Resident {
+    fn drop(&mut self) {
+        let model = self.model.take();
+        let guard = self.guard.take();
+
+        // The lifecycle can be dropped without explicitly unloading a model.
+        // Its final ownership can disappear while a native worker still holds
+        // an Arc. Transfer that resident reservation to the same independent
+        // supervisor rather than credit capacity early (#219).
+        if guard.is_some()
+            && model
+                .as_ref()
+                .is_some_and(|model| Arc::strong_count(model) > 1)
+        {
+            let (done, _unused_watch) = release_channel();
+            enqueue_release(Self { model, guard }, done);
+            return;
+        }
+
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(model))) {
+            Ok(()) => drop(guard),
+            Err(panic) => {
+                // Backend destruction did not complete. Never credit its
+                // resident memory, even if the unwind drops this Resident.
+                std::mem::forget(guard);
+                tracing::error!(
+                    target: "gg_core::lifecycle",
+                    "backend destructor panicked; resident capacity held fail-closed"
+                );
+                if !std::thread::panicking() {
+                    std::panic::resume_unwind(panic);
+                }
+                // Already unwinding: do not trigger a double-panic abort.
+            }
+        }
+    }
+}
+
+struct PendingRelease {
+    resident: Option<Resident>,
+    done: watch::Sender<bool>,
+}
+
+impl PendingRelease {
+    fn ready(&self) -> bool {
+        self.resident
+            .as_ref()
+            .is_some_and(|resident| resident.only_owner())
+    }
+
+    fn finish(mut self) {
+        if let Some(resident) = self.resident.take() {
+            // A native model destructor can panic. Keep the supervisor alive
+            // so other models still drain, never signal a false release.
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(resident))) {
+                Ok(()) => {
+                    let _ = self.done.send(true);
+                }
+                Err(_) => tracing::error!(
+                    target: "gg_core::lifecycle",
+                    "model destructor panicked; resident capacity held fail-closed"
+                ),
+            }
+        }
+    }
+}
+
+impl Drop for PendingRelease {
+    fn drop(&mut self) {
+        let Some(resident) = self.resident.take() else {
+            return;
+        };
+        // Channel failure or supervisor teardown must never allow a native
+        // destructor panic to unwind through an unrelated release path.
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if !resident.only_owner() {
+                resident.retain_budget();
+            } else {
+                drop(resident);
+            }
+        }));
+        if outcome.is_err() {
+            tracing::error!(
+                target: "gg_core::lifecycle",
+                "fallback release panicked; resident capacity held fail-closed"
+            );
+        }
+    }
+}
+
 /// Observes whether an unloaded instance has been released. A watch whose
-/// sender was dropped without signalling (runtime shutdown, or no runtime)
-/// reads as *not* released, forever: fail closed.
+/// sender was dropped without signalling (for example a native destructor
+/// panic or unrecoverable supervisor failure) reads as *not* released.
+/// Normal Tokio shutdown and absence of a Tokio runtime are supported by the
+/// independent release supervisor; they do not terminate a pending release.
 #[derive(Clone)]
 pub(super) struct ReleaseWatch(watch::Receiver<bool>);
 
@@ -79,39 +174,59 @@ pub(super) fn admit(
 
 impl Resident {
     pub(super) fn new(model: Arc<dyn Model>, guard: Option<ResidentGuard>) -> Self {
-        Self { model, guard }
+        Self {
+            model: Some(model),
+            guard,
+        }
     }
 
-    /// Budget bytes this resident currently charges (0 when unlimited).
+    /// Access the resident's backend while retaining the reservation under
+    /// the same RAII owner across every async suspension during registration.
+    pub(super) fn memory_usage(&self) -> usize {
+        self.model
+            .as_ref()
+            .expect("resident model present")
+            .memory_usage()
+    }
+
+    /// Budget bytes charged by this resident (0 when unlimited).
     pub(super) fn charged_bytes(&self) -> usize {
         self.guard.as_ref().map_or(0, ResidentGuard::bytes)
+    }
+
+    pub(super) fn clone_model(&self) -> Arc<dyn Model> {
+        Arc::clone(self.model.as_ref().expect("resident model present"))
+    }
+
+    pub(super) fn reservation_mut(&mut self) -> &mut Option<ResidentGuard> {
+        &mut self.guard
+    }
+
+    fn only_owner(&self) -> bool {
+        Arc::strong_count(self.model.as_ref().expect("resident model present")) == 1
+    }
+
+    fn retain_budget(mut self) {
+        // This failure path may drop its model reference while others still
+        // exist, but never credits a budget whose backend is still alive.
+        std::mem::forget(self.guard.take());
     }
 
     /// Return the budget once no request holds the model any more, then
     /// signal `done`. Must be called after the engine dropped its own
     /// reference.
     pub(super) fn release(self, done: watch::Sender<bool>) {
-        if Arc::strong_count(&self.model) == 1 {
+        if self.only_owner() {
             drop(self); // model memory freed, then budget released
             let _ = done.send(true);
             return;
         }
-        match tokio::runtime::Handle::try_current() {
-            Ok(rt) => {
-                rt.spawn(self.release_when_idle(done));
-            }
-            // No runtime: keep the budget charged for the rest of the process
-            // rather than release bytes that are still allocated (fail closed).
-            // `done` drops unsignalled, so the instance never reads released.
-            Err(_) => std::mem::forget(self.guard),
-        }
-    }
-
-    async fn release_when_idle(self, done: watch::Sender<bool>) {
-        while Arc::strong_count(&self.model) > 1 {
-            tokio::time::sleep(RELEASE_POLL).await;
-        }
-        drop(self);
-        let _ = done.send(true);
+        // The supervisor holds this entire Resident independently of an
+        // aborted waiter or dropped Tokio runtime.
+        enqueue_release(self, done);
     }
 }
+
+#[cfg(test)]
+#[path = "lifecycle_resident_drop_tests.rs"]
+mod drop_tests;

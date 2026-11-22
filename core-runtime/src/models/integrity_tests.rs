@@ -35,6 +35,23 @@ fn matching_hash_passes() {
 }
 
 #[test]
+fn correct_hash_with_incorrect_declared_size_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = hello_file(&dir);
+    for wrong_size in [0_u64, 10, 12, u64::MAX] {
+        let mut manifest = manifest_with(HELLO_SHA);
+        manifest.size_bytes = wrong_size;
+        let error = verify_manifest_hash(&file, &manifest).unwrap_err();
+        assert!(
+            error.to_string().contains("size mismatch"),
+            "declared size {wrong_size} must not be accepted: {error}"
+        );
+    }
+    verify_manifest_hash(&file, &manifest_with(HELLO_SHA))
+        .expect("matching file size and SHA must remain accepted");
+}
+
+#[test]
 fn uppercase_declared_hash_passes() {
     let dir = tempfile::tempdir().unwrap();
     let p = hello_file(&dir);

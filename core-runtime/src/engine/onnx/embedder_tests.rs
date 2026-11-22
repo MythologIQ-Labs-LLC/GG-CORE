@@ -46,6 +46,49 @@ async fn embed_one(embedder: &OnnxEmbedder, text: &str) -> Vec<f32> {
 }
 
 #[cfg(feature = "onnx")]
+#[test]
+fn committed_onnx_model_with_corrupt_tokenizer_refuses_loading() {
+    let dir = tempfile::tempdir().expect("isolated model dir");
+    let model_dir = dir.path().join(MODEL_ID);
+    std::fs::create_dir(&model_dir).expect("make model directory");
+    let fixture = fixture_model_dir().join(MODEL_ID).join("model.onnx");
+    std::fs::copy(&fixture, model_dir.join("model.onnx")).expect("copy committed ONNX graph");
+    std::fs::write(model_dir.join("tokenizer.json"), b"{ broken tokenizer json")
+        .expect("write malformed sibling tokenizer");
+
+    let err = OnnxEmbedder::load(dir.path(), MODEL_ID, DIM)
+        .err()
+        .expect("invalid tokenizer must prevent model load");
+    assert!(
+        matches!(err, InferenceError::ModelError(message) if message.contains("tokenizer.json")),
+        "must refuse malformed tokenizer on real graph load"
+    );
+}
+
+#[cfg(feature = "onnx")]
+#[test]
+fn public_onnx_classifier_loader_refuses_corrupt_tokenizer() {
+    let dir = tempfile::tempdir().expect("isolated model dir");
+    let path = dir.path().join("model.onnx");
+    let fixture = fixture_model_dir().join(MODEL_ID).join("model.onnx");
+    std::fs::copy(fixture, &path).expect("copy committed ONNX graph");
+    std::fs::write(dir.path().join("tokenizer.json"), b"{ invalid")
+        .expect("write invalid tokenizer");
+    let error = super::super::load_onnx_classifier(
+        &path,
+        "classifier",
+        vec!["negative".into(), "positive".into()],
+        &super::super::OnnxConfig::default(),
+    )
+    .err()
+    .expect("classifier loading must reject malformed tokenizer");
+    assert!(
+        matches!(error, InferenceError::ModelError(message) if message.contains("tokenizer.json")),
+        "classifier cannot silently switch to synthetic hash vocabulary"
+    );
+}
+
+#[cfg(feature = "onnx")]
 #[tokio::test]
 async fn golden_vector_hello_world() {
     let embedder = load_fixture();
@@ -54,6 +97,23 @@ async fn golden_vector_hello_world() {
     for (i, (got, want)) in vector.iter().zip(GOLDEN_HELLO_WORLD.iter()).enumerate() {
         assert!((got - want).abs() < 1e-5, "dim {i}: got {got}, want {want}");
     }
+}
+
+#[cfg(feature = "onnx")]
+#[tokio::test]
+async fn real_onnx_embedder_refuses_wrong_declared_dimensions() {
+    let embedder = OnnxEmbedder::load(&fixture_model_dir(), MODEL_ID, DIM + 1)
+        .expect("committed fixture must load even before inferred output shape is known");
+    let result = embedder
+        .infer(
+            &InferenceInput::Text("hello world".into()),
+            &InferenceConfig::for_embedding(),
+        )
+        .await;
+    assert!(
+        matches!(result, Err(InferenceError::ModelError(message)) if message.contains("dimension mismatch")),
+        "a mismatched embedding width must not produce a success-shaped response"
+    );
 }
 
 #[cfg(feature = "onnx")]
@@ -195,4 +255,62 @@ async fn load_and_embed_real_minilm() {
     eprintln!("minilm cosine: cat/kitten = {near:.4}, cat/quark = {far:.4}");
     assert!((near - 0.6470).abs() < 0.02, "cat/kitten cosine = {near}");
     assert!((far - -0.0415).abs() < 0.02, "cat/quark cosine = {far}");
+}
+
+#[cfg(feature = "onnx")]
+#[tokio::test]
+async fn configured_embedding_batch_limit_rejects_before_native_evaluation() {
+    let model_path = fixture_model_dir().join(MODEL_ID).join("model.onnx");
+    let config = super::super::OnnxConfig {
+        max_batch_size: 1,
+        ..Default::default()
+    };
+    let model = super::super::load_onnx_model(&model_path, "batch-limited", &config)
+        .expect("committed ONNX graph must load");
+    let result = model
+        .infer(
+            &InferenceInput::TextBatch(vec!["hello".into(), "world".into()]),
+            &InferenceConfig::for_embedding(),
+        )
+        .await;
+    assert!(
+        matches!(result, Err(InferenceError::InputValidation(message)) if message.contains("configured max_batch_size 1")),
+        "configured cap must refuse before any ONNX evaluation or output width check"
+    );
+}
+
+#[cfg(feature = "onnx")]
+#[test]
+fn invalid_embedding_batch_limit_fails_before_model_file_access() {
+    let missing = std::path::Path::new("/no-such-onnx-batch-model.onnx");
+    for cap in [0, crate::engine::input::MAX_BATCH_SIZE + 1] {
+        let config = super::super::OnnxConfig {
+            max_batch_size: cap,
+            ..Default::default()
+        };
+        let result = super::super::load_onnx_model(missing, "invalid-limit", &config);
+        assert!(
+            matches!(result, Err(InferenceError::InputValidation(message)) if message.contains("max_batch_size")),
+            "bad batch cap {cap} must be refused before ONNX model IO"
+        );
+    }
+}
+
+#[cfg(feature = "onnx")]
+#[tokio::test]
+async fn configured_limit_preserves_valid_real_single_item_embedding() {
+    let model = load_fixture().with_batch_limit(1);
+    let result = model
+        .infer(
+            &InferenceInput::TextBatch(vec!["hello world".into()]),
+            &InferenceConfig::for_embedding(),
+        )
+        .await
+        .expect("single item under configured limit must still infer");
+    let InferenceOutput::EmbeddingBatch(items) = result else {
+        panic!("expected a real embedding batch result");
+    };
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].dimensions, DIM);
+    assert!(items[0].vector.iter().all(|value| value.is_finite()));
 }

@@ -22,9 +22,30 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      # Cargo deny can resolve a new graph if Cargo.toml and Cargo.lock drift.
+      # Refuse lockfile drift before evaluating dependency policy.
+      - name: Locked dependency graph gate
+        working-directory: core-runtime
+        run: cargo metadata --locked --format-version 1 > /dev/null
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           manifest-path: core-runtime/Cargo.toml
+
+  msrv:
+    name: declared Rust 1.97 MSRV (locked)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: core-runtime
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97.0"
+      - name: Verify declared Rust minimum and committed dependency graph
+        run: cargo check --locked --all-targets
 
   lint:
     name: fmt + clippy (${{ matrix.os }})
@@ -48,7 +69,7 @@ jobs:
       - name: Formatting gate
         run: cargo fmt --check
       - name: Lint gate (issue #54 surface on unix runners)
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
   test:
     name: test (${{ matrix.os }})
@@ -68,11 +89,39 @@ jobs:
         with:
           workspaces: core-runtime
       - name: Test suite (default features)
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
+      - name: Set up Python for cross-platform conformance tests (#114)
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Public conformance receipt fail-closed inventory (#114)
+        working-directory: .
+        run: python -I -m unittest discover -s scripts/qualification -p test_conformance_receipts.py -v
+      - name: Exact-binary identity preflight negative controls (#114)
+        run: python -m unittest discover -s scripts -p test_binary_identity.py -v
+      - name: Public CLI behavioral contract negative controls (#114)
+        run: python -m unittest discover -s scripts -p test_cli_contract.py -v
+      - name: Config CLI fail-closed conformance negative controls (#114)
+        run: python -m unittest discover -s scripts -p test_config_contract.py -v
+      - name: Build default-feature CLI for real identity smoke (#114)
+        run: cargo build --locked --bin gg-core-cli
+      - name: Execute and verify built CLI provenance (#114)
+        run: python scripts/smoke_binary_identity.py
+      # Cargo does not run #[cfg(test)] in build.rs through cargo test.
+      # Compile its pure provenance and Git ref-watch tests explicitly.
+      - name: Build-provenance identity and ref-watch tests (#114)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          rustc --edition=2021 --test build.rs -o target/build-provenance-tests
+          ./target/build-provenance-tests --test-threads=1
       - name: Offline ONNX probe pure unit tests (#171)
         if: matrix.os == 'ubuntu-latest'
         working-directory: .
         run: python3 -m unittest discover -s scripts/qualification -p 'test_typed_onnx_packaged_acceptance.py' -v
+      - name: Offline Windows qualification runner negative controls (#213)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: .
+        run: python3 -m unittest discover -s scripts/qualification -p 'test_native_windows_audit_gate.py' -v
 
   features:
     name: features / ${{ matrix.feature }}
@@ -102,9 +151,9 @@ jobs:
         if: matrix.feature == 'onnx'
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Clippy gate (${{ matrix.feature }})
-        run: cargo clippy --features ${{ matrix.feature }} --all-targets -- -D warnings
+        run: cargo clippy --locked --features ${{ matrix.feature }} --all-targets -- -D warnings
       - name: Test suite (${{ matrix.feature }})
-        run: cargo test --features ${{ matrix.feature }}
+        run: cargo test --locked --features ${{ matrix.feature }}
 
   # B-34: perf baseline + bench smoke gate. Runs the CI-safe (model-free, GPU-free,
   # default-feature) benches so they cannot silently rot; fails on compile error or
@@ -130,12 +179,20 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: core-runtime/perf-baseline
-          key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
+          key: criterion-baseline-${{ runner.os }}-criterion-0.8.2-${{ github.sha }}
           restore-keys: |
-            criterion-baseline-${{ runner.os }}-
+            criterion-baseline-${{ runner.os }}-criterion-0.8.2-
+      # rust-cache may restore 0.5.x Criterion analysis files into target/criterion;
+      # 0.8.x expects a different base/sample.json layout. Remove scratch analysis
+      # before measuring so comparison artifacts cannot masquerade as fresh data.
+      # The separate perf-baseline directory is preserved for the run-over-run gate.
+      - name: Discard stale Criterion scratch results
+        run: rm -rf target/criterion
+      - name: Perf gate negative controls (model-free)
+        run: python3 -m unittest discover -s scripts -p test_perf_gate.py -v
       - name: Perf benches (default-feature, CI-safe set)
         run: |
-          cargo bench \
+          cargo bench --locked \
             --bench ipc_throughput --bench scheduler_throughput --bench concurrent_load \
             --bench memory_overhead --bench kv_cache_throughput \
             --bench generation_throughput --bench inference_latency \
@@ -156,7 +213,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: core-runtime/perf-baseline
-          key: criterion-baseline-${{ runner.os }}-${{ github.sha }}
+          key: criterion-baseline-${{ runner.os }}-criterion-0.8.2-${{ github.sha }}
       - name: Upload criterion baseline
         if: always()
         uses: actions/upload-artifact@v7

@@ -26,6 +26,44 @@ fn logits_to_classification_picks_argmax() {
 }
 
 #[test]
+fn classifier_accepts_single_sample_rank_one_or_two_logits() {
+    let labels = vec!["negative".to_string(), "positive".to_string()];
+    let flat = Tensor::from_vec(vec![-1.0_f32, 3.0], 2, &Device::Cpu).unwrap();
+    let batched = Tensor::from_vec(vec![-1.0_f32, 3.0], (1, 2), &Device::Cpu).unwrap();
+    for logits in [flat, batched] {
+        let result = logits_to_classification(&logits, &labels).expect("single sample logits");
+        assert_eq!(result.label, "positive");
+        assert!(result.confidence.is_finite());
+    }
+}
+
+#[test]
+fn classifier_refuses_multi_row_and_extra_rank_logits() {
+    // Old flatten_all accepted [2,1] with two labels as if two independent
+    // samples were competing classes; [1,1,2] was accepted too.
+    let labels = vec!["negative".to_string(), "positive".to_string()];
+    let ambiguous = [
+        Tensor::from_vec(vec![-1.0_f32, 3.0], (2, 1), &Device::Cpu).unwrap(),
+        Tensor::from_vec(vec![-1.0_f32, 3.0], (1, 1, 2), &Device::Cpu).unwrap(),
+        Tensor::from_vec(vec![-1.0_f32, 3.0], (1, 2, 1), &Device::Cpu).unwrap(),
+    ];
+    for logits in ambiguous {
+        let result = logits_to_classification(&logits, &labels);
+        assert!(
+            matches!(result, Err(InferenceError::ModelError(message)) if message.contains("shape")),
+            "non-scalar classification must fail closed"
+        );
+    }
+
+    // Even if the total element count coincides with a larger label set,
+    // a true [batch, classes] matrix can never represent one classification.
+    let four_labels = vec!["a".into(), "b".into(), "c".into(), "d".into()];
+    let multi_row = Tensor::from_vec(vec![0.1_f32, 0.2, 0.3, 0.4], (2, 2), &Device::Cpu)
+        .expect("construct batch logits");
+    assert!(logits_to_classification(&multi_row, &four_labels).is_err());
+}
+
+#[test]
 fn logits_to_classification_rejects_label_mismatch() {
     let logits = Tensor::new(vec![0.1f32, 0.2, 0.3], &Device::Cpu).unwrap();
     let labels = vec!["a".to_string(), "b".to_string()]; // 2 labels vs 3 logits
@@ -63,7 +101,8 @@ fn load_and_classify() {
         "tinybert".into(),
         vec!["negative".into(), "positive".into()],
         model,
-        super::super::tokenizer::OnnxTokenizer::for_model(&path),
+        super::super::tokenizer::OnnxTokenizer::for_model(&path)
+            .expect("fixture tokenizer must be valid"),
     );
     // The fixture's exact label count is not assumed here; a well-formed result
     // OR a clean label-mismatch error both prove the inference path runs
@@ -75,6 +114,45 @@ fn load_and_classify() {
         }
         Err(InferenceError::ModelError(_)) => {}
         Err(e) => panic!("unexpected error: {e:?}"),
+    }
+}
+
+#[test]
+fn nonfinite_model_logits_are_refused_before_softmax() {
+    let labels = vec!["negative".to_string(), "positive".to_string()];
+    for invalid in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        let logits = Tensor::new(vec![invalid, 1.0], &Device::Cpu).expect("construct logits");
+        let error =
+            logits_to_classification(&logits, &labels).expect_err("invalid logits must fail");
+        assert!(
+            matches!(error, InferenceError::ModelError(message) if message.contains("non-finite")),
+            "non-finite logits must not yield success-shaped confidences"
+        );
+    }
+}
+
+#[tokio::test]
+async fn embedded_classifier_rejects_all_batch_sizes_instead_of_dropping_items() {
+    use crate::engine::Model as _;
+
+    let classifier = OnnxClassifier::new(
+        "classifier".into(),
+        vec!["negative".into(), "positive".into()],
+    );
+    for batch in [
+        vec!["one".to_string()],
+        vec!["one".to_string(), "two".to_string()],
+    ] {
+        let result = classifier
+            .infer(
+                &InferenceInput::TextBatch(batch),
+                &InferenceConfig::for_classification(),
+            )
+            .await;
+        assert!(
+            matches!(result, Err(InferenceError::CapabilityNotSupported(message)) if message.contains("batch")),
+            "even a singleton batch must not return a scalar classification"
+        );
     }
 }
 

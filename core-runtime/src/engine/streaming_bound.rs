@@ -82,6 +82,46 @@ pub(super) async fn bounded_send(
     }
 }
 
+/// Native GGUF producers execute on blocking threads that can outlive their
+/// Tokio runtime. Bound a send using monotonic wall time and non-async
+/// channel operations, so shutdown cannot strand it in a stopped reactor.
+/// Same capacity, deadline, error and first-failure semantics as async sends.
+#[cfg(any(test, feature = "gguf"))]
+pub(super) fn bounded_send_blocking(
+    tx: &mpsc::Sender<StreamItem>,
+    bound: &StreamBound,
+    mut item: StreamItem,
+) -> Result<(), StreamSendError> {
+    let (by, stall_limited) = bound.send_by();
+    let expired = if stall_limited {
+        StreamSendError::Stalled
+    } else {
+        StreamSendError::Deadline
+    };
+    // The first non-blocking attempt may deliver an already-expired
+    // terminal when capacity exists. Subsequent attempts must refuse once
+    // time has passed; never let a newly freed slot send a late token.
+    let mut first_attempt = true;
+    loop {
+        if !first_attempt && Instant::now() >= by {
+            return Err(expired);
+        }
+        first_attempt = false;
+        match tx.try_send(item) {
+            Ok(()) => return Ok(()),
+            Err(TrySendError::Closed(_)) => return Err(StreamSendError::Closed),
+            Err(TrySendError::Full(returned)) => {
+                let now = Instant::now();
+                if now >= by {
+                    return Err(expired);
+                }
+                item = returned;
+                std::thread::sleep(Duration::from_millis(1).min(by.saturating_duration_since(now)));
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "streaming_bound_tests.rs"]
 mod tests;

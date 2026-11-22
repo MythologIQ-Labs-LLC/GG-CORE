@@ -8,9 +8,8 @@
 //! is driven by a single current-thread tokio runtime; no model, no GPU, default
 //! feature → CI-safe.
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
+use std::hint::black_box;
 
 use gg_core::engine::InferenceParams;
 use gg_core::scheduler::{Priority, RequestQueue, RequestQueueConfig};

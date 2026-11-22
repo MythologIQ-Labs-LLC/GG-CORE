@@ -22,17 +22,49 @@ pub struct LoadedModel {
     pub handle_id: u64,
 }
 
+/// Private RAII owner for a prepared model's preflight reservation.
+/// This Arc clone prevents the public `PreparedModel.model` field from running
+/// its native destructor before we can transfer the guard into the same
+/// fail-closed resident release boundary used by the lifecycle (#219).
+struct PreparedReservation {
+    model: Option<Arc<dyn Model>>,
+    guard: Option<crate::memory::ResidentGuard>,
+}
+
+impl PreparedReservation {
+    fn new(model: &Arc<dyn Model>, guard: crate::memory::ResidentGuard) -> Self {
+        Self {
+            model: Some(Arc::clone(model)),
+            guard: Some(guard),
+        }
+    }
+
+    fn into_guard(mut self) -> crate::memory::ResidentGuard {
+        let guard = self.guard.take().expect("prepared reservation present");
+        // The public PreparedModel model is still alive, so dropping the
+        // extra ownership here never destroys the backend before register.
+        drop(self.model.take());
+        guard
+    }
+}
+
+impl Drop for PreparedReservation {
+    fn drop(&mut self) {
+        if let (Some(model), Some(guard)) = (self.model.take(), self.guard.take()) {
+            super::lifecycle::release_prepared_reservation(model, guard);
+        }
+    }
+}
+
 /// A validated, backend-loaded model awaiting lifecycle registration.
-///
-/// Field order matters: `model` drops before `reservation`, so an abandoned
-/// load (failed registration, cancelled caller) frees backend memory before
-/// its budget is returned.
+/// The private reservation owns an extra backend Arc so cancellation or
+/// destructor panic never releases its budget before actual model teardown.
 pub struct PreparedModel {
     pub model_id: String,
     pub metadata: ModelMetadata,
     pub model: Arc<dyn Model>,
     /// Budget taken before backend allocation; resized at registration.
-    reservation: Option<crate::memory::ResidentGuard>,
+    reservation: Option<PreparedReservation>,
 }
 
 #[cfg(test)]
@@ -47,6 +79,7 @@ impl PreparedModel {
             name: model_id.into(),
             size_bytes: model.memory_usage() as u64,
         };
+        let reservation = reservation.map(|guard| PreparedReservation::new(&model, guard));
         Self {
             model_id: model_id.into(),
             metadata,
@@ -65,7 +98,7 @@ pub enum ModelOpError {
     Backend(String),
     #[error("lifecycle: {0}")]
     Lifecycle(#[from] LifecycleError),
-    /// Another operator load, unload or switch held the authority too long.
+    /// Another authenticated operator holds mutation authority.
     #[error("model operation busy: another load, unload or switch is in progress")]
     Busy,
 }
@@ -121,6 +154,7 @@ pub fn prepare_model_admitted_for_workers(
     let model = load_model_dispatch_for_workers(validated.as_path(), &id, workers)
         .map_err(|e| ModelOpError::Backend(e.to_string()))?;
 
+    let reservation = reservation.map(|guard| PreparedReservation::new(&model, guard));
     Ok(PreparedModel {
         model_id: id,
         metadata,
@@ -150,6 +184,10 @@ pub async fn register_prepared(
         model,
         reservation,
     } = prepared;
+    // Disarm the prepared owner only as it transfers both backend and guard
+    // into load_reserved, which owns the combined Resident before its first
+    // cancellable await. No independent guard drop across this handoff.
+    let reservation = reservation.map(PreparedReservation::into_guard);
     let handle = lifecycle
         .load_reserved(model_id.clone(), metadata, model, reservation)
         .await?;
@@ -187,37 +225,6 @@ pub async fn load_model_from_path_for_workers(
     register_prepared(lifecycle, prepared).await
 }
 
-/// Operator load (daemon preload, IPC): take the mutation authority within
-/// `wait`, prepare off the async runtime with the source hashed before the
-/// load (identity re-checked after), register, and record the verified
-/// source so a later cold switch can restore exactly this model.
-pub async fn load_model_operated(
-    lifecycle: &Arc<ModelLifecycle>,
-    loader: &Arc<ModelLoader>,
-    relative_path: &str,
-    model_id: Option<String>,
-    workers: usize,
-    wait: std::time::Duration,
-) -> Result<LoadedModel, ModelOpError> {
-    use super::transition::{load_operated, CanonicalPreparer, Preparer};
-    let loader = Arc::clone(loader);
-    let prep: Arc<dyn Preparer> = Arc::new(CanonicalPreparer { loader, workers });
-    load_operated(lifecycle, &prep, relative_path, model_id, wait).await
-}
-
-/// Operator unload: take the mutation authority within `wait`, then unload.
-pub async fn unload_model_operated(
-    lifecycle: &Arc<ModelLifecycle>,
-    model_id: &str,
-    wait: std::time::Duration,
-) -> Result<(), ModelOpError> {
-    let _authority = lifecycle
-        .begin_operation_within(wait)
-        .await
-        .ok_or(ModelOpError::Busy)?;
-    unload_model(lifecycle, model_id).await
-}
-
 /// Unload a previously loaded model by id.
 pub async fn unload_model(
     lifecycle: &Arc<ModelLifecycle>,
@@ -226,6 +233,10 @@ pub async fn unload_model(
     lifecycle.unload(model_id).await?;
     Ok(())
 }
+
+#[path = "model_ops_operator.rs"]
+mod operator;
+pub use operator::{load_model_operated, unload_model_operated};
 
 #[cfg(test)]
 #[path = "model_ops_tests.rs"]

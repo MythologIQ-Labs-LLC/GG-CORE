@@ -131,6 +131,48 @@ fn manifest_with_unusable_sha256_fails_closed() {
     assert!(msg.contains("sha256 must be 64 hex"), "got: {msg}");
 }
 
+#[test]
+fn manifest_with_sixty_four_nonhex_characters_is_refused_at_parse_boundary() {
+    let dir = fresh_dir("nonhex_digest");
+    let model_path = dir.join("model.gguf");
+    std::fs::write(&model_path, b"gguf bytes").unwrap();
+    let mut m = manifest(
+        ModelArchitecture::Gguf,
+        vec![ModelCapability::TextGeneration],
+    );
+    m.sha256 = "z".repeat(64);
+    std::fs::write(
+        dir.join("model.gguf.manifest.json"),
+        serde_json::to_string(&m).unwrap(),
+    )
+    .unwrap();
+    let error = read_sibling_manifest(&model_path).unwrap_err().to_string();
+    assert!(
+        error.contains("sha256 must be 64 hex characters"),
+        "{error}"
+    );
+}
+
+#[test]
+fn matching_digest_but_false_manifest_size_refuses_backend_load() {
+    let dir = fresh_dir("false_size_digest_valid");
+    let model_path = dir.join("model.gguf");
+    std::fs::write(&model_path, b"gguf bytes").unwrap();
+    let mut m = manifest(
+        ModelArchitecture::Gguf,
+        vec![ModelCapability::TextGeneration],
+    );
+    m.sha256 = crate::models::integrity::file_sha256_hex(&model_path).unwrap();
+    m.size_bytes = 1; // actual file is longer; only length metadata is false
+    std::fs::write(
+        dir.join("model.gguf.manifest.json"),
+        serde_json::to_string(&m).unwrap(),
+    )
+    .unwrap();
+    let error = err_message(load_model_dispatch(&model_path, "m"));
+    assert!(error.contains("size mismatch"), "{error}");
+}
+
 /// Absent manifest is the legitimate manifest-free GGUF case.
 #[test]
 fn absent_manifest_reads_as_none() {

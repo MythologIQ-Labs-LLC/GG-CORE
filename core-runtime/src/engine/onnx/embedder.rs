@@ -17,6 +17,8 @@ use crate::engine::{
 pub struct OnnxEmbedder {
     model_id: String,
     embedding_dim: usize,
+    /// Operator configuration, bounded by the shared input hard limit.
+    max_batch_size: usize,
     memory_bytes: AtomicUsize,
     #[cfg(feature = "onnx")]
     model: Option<candle_onnx::onnx::ModelProto>,
@@ -31,6 +33,7 @@ impl OnnxEmbedder {
         Self {
             model_id,
             embedding_dim,
+            max_batch_size: crate::engine::input::MAX_BATCH_SIZE,
             memory_bytes: AtomicUsize::new(0),
             #[cfg(feature = "onnx")]
             model: None,
@@ -45,6 +48,7 @@ impl OnnxEmbedder {
     /// # Errors
     /// Fails loud when `model.onnx` is missing or not a valid ONNX model. A
     /// missing `tokenizer.json` degrades to the logged hash fallback (B-28).
+    /// A present invalid tokenizer is refused rather than silently downgraded.
     #[cfg(feature = "onnx")]
     pub fn load(
         model_dir: &Path,
@@ -54,7 +58,7 @@ impl OnnxEmbedder {
         let model_path = model_dir.join(model_id).join("model.onnx");
         let model = candle_onnx::read_file(&model_path)
             .map_err(|e| InferenceError::ModelError(format!("load {model_path:?}: {e}")))?;
-        let tokenizer = super::tokenizer::OnnxTokenizer::for_model(&model_path);
+        let tokenizer = super::tokenizer::OnnxTokenizer::for_model(&model_path)?;
         Ok(Self::with_model(
             model_id.to_string(),
             embedding_dim,
@@ -87,10 +91,19 @@ impl OnnxEmbedder {
         Self {
             model_id,
             embedding_dim,
+            max_batch_size: crate::engine::input::MAX_BATCH_SIZE,
             memory_bytes: AtomicUsize::new(estimate),
             model: Some(model),
             tokenizer,
         }
+    }
+
+    /// Apply an already validated loader batch cap without changing the public
+    /// embedded constructor or the existing trait/API signatures.
+    #[cfg(feature = "onnx")]
+    pub(super) fn with_batch_limit(mut self, max_batch_size: usize) -> Self {
+        self.max_batch_size = max_batch_size;
+        self
     }
 
     /// Expected embedding dimensionality of the wrapped model.
@@ -122,7 +135,7 @@ impl OnnxEmbedder {
             InferenceError::ModelError(format!("model '{}' not loaded", self.model_id))
         })?;
 
-        let encoded = self.tokenizer.encode(text);
+        let encoded = self.tokenizer.encode(text)?;
         if !encoded.attention_mask.contains(&1) {
             return Err(InferenceError::InputValidation(
                 "input tokenized to zero attended tokens".into(),
@@ -143,9 +156,21 @@ impl OnnxEmbedder {
             .to_vec1()
             .map_err(|e| InferenceError::ModelError(format!("vec: {e}")))?;
 
-        let vector = tensor_ops::l2_normalize(raw);
-        let dimensions = vector.len();
-        Ok(EmbeddingResult { vector, dimensions })
+        // The loaded model must honor the expected embedding dimension.
+        // A successful but different-width result silently corrupts consumer
+        // vector indexes and breaks cross-model compatibility.
+        if raw.len() != self.embedding_dim || self.embedding_dim == 0 {
+            return Err(InferenceError::ModelError(format!(
+                "embedding dimension mismatch: expected {}, model produced {}",
+                self.embedding_dim,
+                raw.len()
+            )));
+        }
+        let vector = tensor_ops::l2_normalize(raw)?;
+        Ok(EmbeddingResult {
+            vector,
+            dimensions: self.embedding_dim,
+        })
     }
 }
 
@@ -166,18 +191,52 @@ impl crate::engine::Model for OnnxEmbedder {
     async fn infer(
         &self,
         input: &InferenceInput,
+        config: &InferenceConfig,
+    ) -> Result<InferenceOutput, InferenceError> {
+        self.infer_cancellable(input, config, None).await
+    }
+
+    async fn infer_cancellable(
+        &self,
+        input: &InferenceInput,
         _config: &InferenceConfig,
+        is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<InferenceOutput, InferenceError> {
         input.validate()?;
+        // The generic input contract allows up to 32 items, but model loading
+        // can request a stricter cap. Refuse before starting native evaluation.
+        if let InferenceInput::TextBatch(batch) = input {
+            if batch.len() > self.max_batch_size {
+                return Err(InferenceError::InputValidation(format!(
+                    "ONNX embedding batch of {} exceeds configured max_batch_size {}",
+                    batch.len(),
+                    self.max_batch_size
+                )));
+            }
+        }
+        let stop = || {
+            if is_cancelled.is_some_and(|check| check()) {
+                Err(InferenceError::ModelError(
+                    "ONNX embedding cancelled".into(),
+                ))
+            } else {
+                Ok(())
+            }
+        };
+        stop()?;
         match input {
             InferenceInput::Text(text) => {
                 let result = self.embed_text(text)?;
+                stop()?;
                 Ok(InferenceOutput::Embedding(result))
             }
             InferenceInput::TextBatch(batch) => {
                 let mut results = Vec::with_capacity(batch.len());
                 for text in batch {
-                    results.push(self.embed_text(text)?);
+                    stop()?;
+                    let result = self.embed_text(text)?;
+                    stop()?;
+                    results.push(result);
                 }
                 Ok(InferenceOutput::EmbeddingBatch(results))
             }
@@ -201,6 +260,9 @@ impl crate::engine::Model for OnnxEmbedder {
     }
 }
 
+#[cfg(all(test, feature = "onnx"))]
+#[path = "embedder_cancel_tests.rs"]
+mod cancel_tests;
 #[cfg(test)]
 #[path = "embedder_tests.rs"]
 mod tests;

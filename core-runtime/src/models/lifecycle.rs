@@ -3,7 +3,6 @@
 //! Ensures ModelRegistry and InferenceEngine are always in sync.
 //! Provides O(1) bidirectional lookup between model_id and ModelHandle.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -29,56 +28,18 @@ pub enum LifecycleError {
     #[error("Insufficient memory budget: {0} (raise GG_CORE_MAX_TOTAL_MEMORY or unload a model)")]
     ResourceExhausted(String),
 
-    /// The model id now names a different instance than the caller expected.
+    /// The model id was replaced after the caller observed its old handle.
     #[error("Stale model handle: {0}")]
     StaleHandle(String),
 }
 
-/// Bidirectional O(1) lookup between model_id and ModelHandle.
-struct LookupIndex {
-    id_to_handle: HashMap<String, ModelHandle>,
-    handle_to_id: HashMap<u64, String>,
-    /// Resident-weight budget per loaded model, released on unload once no
-    /// request still holds the model.
-    residents: HashMap<String, resident::Resident>,
-}
+#[path = "lifecycle_index.rs"]
+mod lookup_index;
+use lookup_index::LookupIndex;
 
-impl LookupIndex {
-    fn new() -> Self {
-        Self {
-            id_to_handle: HashMap::new(),
-            handle_to_id: HashMap::new(),
-            residents: HashMap::new(),
-        }
-    }
-
-    fn insert(&mut self, model_id: String, handle: ModelHandle) {
-        self.handle_to_id.insert(handle.id(), model_id.clone());
-        self.id_to_handle.insert(model_id, handle);
-    }
-
-    fn remove_by_id(&mut self, model_id: &str) -> Option<ModelHandle> {
-        if let Some(handle) = self.id_to_handle.remove(model_id) {
-            self.handle_to_id.remove(&handle.id());
-            return Some(handle);
-        }
-        None
-    }
-
-    fn get_handle(&self, model_id: &str) -> Option<ModelHandle> {
-        self.id_to_handle.get(model_id).copied()
-    }
-
-    fn get_id(&self, handle_id: u64) -> Option<&str> {
-        self.handle_to_id.get(&handle_id).map(|s| s.as_str())
-    }
-
-    fn contains_id(&self, model_id: &str) -> bool {
-        self.id_to_handle.contains_key(model_id)
-    }
-}
-
-/// Unified model lifecycle coordinator: every load and unload keeps
+/// Unified model lifecycle coordinator.
+///
+/// All model loads and unloads go through this to keep
 /// ModelRegistry and InferenceEngine atomically in sync.
 pub struct ModelLifecycle {
     registry: Arc<ModelRegistry>,
@@ -88,7 +49,7 @@ pub struct ModelLifecycle {
     limits: Option<crate::memory::ResourceLimits>,
     /// Unloaded instances whose memory is still held.
     releases: release::ReleaseTracker,
-    /// Operator authority and recorded sources (`lifecycle_operations.rs`).
+    /// Operator mutation authority and authenticated model sources.
     ops: operations::OpsState,
 }
 
@@ -115,8 +76,10 @@ impl ModelLifecycle {
         self.limits.as_ref()
     }
 
-    /// Atomically load a model into both registry and engine, under the
-    /// index write lock (no TOCTOU race on concurrent loads of one id).
+    /// Atomically load a model into both registry and engine.
+    ///
+    /// Holds write lock for the entire duration to prevent TOCTOU
+    /// races on concurrent loads of the same model_id.
     pub async fn load(
         &self,
         model_id: String,
@@ -136,23 +99,35 @@ impl ModelLifecycle {
         model: Arc<dyn Model>,
         reservation: Option<crate::memory::ResidentGuard>,
     ) -> Result<ModelHandle, LifecycleError> {
+        // Own backend and reservation *before* the first suspension.
+        // An aborted registration waiting on the index lock must not drop
+        // the guard separately while a detached native task holds the model.
+        let mut entry = resident::Resident::new(model, reservation);
+        let memory_usage = entry.memory_usage();
         let mut index = self.index.write().await;
-        let mut reservation = reservation;
         let admitted = if index.contains_id(&model_id) {
             Err(LifecycleError::AlreadyLoaded(model_id.clone()))
         } else {
-            resident::admit(self.limits.as_ref(), &mut reservation, model.memory_usage())
+            resident::admit(self.limits.as_ref(), entry.reservation_mut(), memory_usage)
         };
         if let Err(e) = admitted {
-            drop(model); // free backend memory before the budget returns
-            drop(reservation);
+            // A backend destructor may block or panic. Never execute it while
+            // holding the lifecycle's exclusive index lock: unrelated loads,
+            // unloads and lookups must still make progress (#219).
+            drop(index);
+            // Resident releases only after the backend's last Arc is gone,
+            // and retains budget if native destruction panics (#219).
+            drop(entry);
             return Err(e);
         }
-        let handle = self.registry.register(metadata, model.memory_usage()).await;
-        self.engine
-            .register_model(model_id.clone(), handle, Arc::clone(&model))
-            .await;
-        let entry = resident::Resident::new(model, reservation);
+        // Acquire every fallible-by-cancellation lock before the first
+        // mutation. Once both permits exist, registry, engine, and the
+        // lifecycle index commit synchronously with no intervening await.
+        // Dropping this future while waiting cannot publish a partial model.
+        let mut registry_writer = self.registry.registration_writer().await;
+        let mut engine_writer = self.engine.registration_writer().await;
+        let handle = registry_writer.insert(metadata, memory_usage);
+        engine_writer.insert(model_id.clone(), entry.clone_model());
         index.residents.insert(model_id.clone(), entry);
         index.insert(model_id, handle);
 
@@ -193,8 +168,10 @@ impl ModelLifecycle {
         self.index.read().await.id_to_handle.len()
     }
 
-    /// Whether a handle exists in both the lookup index and the registry
-    /// (`false` when stale: present in one only, or in neither).
+    /// Validate that a handle exists in both the lookup index and the registry.
+    ///
+    /// Returns `false` if the handle is stale (present in one but not the other,
+    /// or absent from both).
     pub async fn validate_handle(&self, handle: &ModelHandle) -> bool {
         let in_index = self
             .index
@@ -205,6 +182,17 @@ impl ModelLifecycle {
         let in_registry = self.registry.contains(*handle).await;
         in_index && in_registry
     }
+}
+
+/// Retire an abandoned prepared backend through the same panic-safe native
+/// model/reservation boundary used for unload and failed registration (#219).
+/// The model may still be held by a detached native task.
+pub(super) fn release_prepared_reservation(
+    model: Arc<dyn Model>,
+    guard: crate::memory::ResidentGuard,
+) {
+    let (done, _unused_watch) = resident::release_channel();
+    resident::Resident::new(model, Some(guard)).release(done);
 }
 
 #[path = "lifecycle_resident.rs"]
@@ -225,6 +213,10 @@ mod tests;
 #[cfg(test)]
 #[path = "lifecycle_resident_tests.rs"]
 mod resident_tests;
+
+#[cfg(test)]
+#[path = "lifecycle_refusal_drop_tests.rs"]
+mod refusal_drop_tests;
 
 #[cfg(test)]
 #[path = "lifecycle_release_tests.rs"]
