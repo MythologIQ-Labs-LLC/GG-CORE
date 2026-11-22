@@ -71,34 +71,8 @@ def executed_tests_pass(log, returncode, names, markers):
 
 
 
-def exact_test_binary(build_log, target, binary):
-    """Select the single executed artifact from Cargo's machine-readable build."""
-    deps = (target / "debug" / "deps").resolve()
-    selected = []
-    for line in build_log.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(event, dict) or event.get("reason") != "compiler-artifact":
-            continue
-        spec = event.get("target") or {}
-        if spec.get("name") != binary or "test" not in spec.get("kind", []):
-            continue
-        raw = event.get("executable")
-        if not isinstance(raw, str):
-            continue
-        candidate = Path(raw)
-        if (not candidate.is_absolute() or candidate.is_symlink()
-                or candidate.suffix.lower() != ".exe"
-                or candidate.resolve().parent != deps or not candidate.is_file()):
-            raise RuntimeError(f"{binary}: Cargo reported an unsafe test executable path")
-        selected.append(candidate.resolve())
-    if len(selected) != 1:
-        raise RuntimeError(
-            f"{binary}: expected exactly one Cargo-built test executable, got {len(selected)}"
-        )
-    return selected[0]
+# One authoritative artifact selector is shared with the hidden-device gate.
+exact_test_binary = common.exact_test_binary
 
 
 
