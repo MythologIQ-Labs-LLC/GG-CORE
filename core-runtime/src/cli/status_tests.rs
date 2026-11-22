@@ -142,3 +142,36 @@ fn test_missing_quantiles_display_as_unavailable() {
     assert_eq!(display_quantile(Some(f64::INFINITY)), "N/A");
     assert_eq!(display_quantile(Some(-1.0)), "N/A");
 }
+
+#[test]
+fn status_never_invents_quantiles_from_min_max_snapshot() {
+    use crate::telemetry::{HistogramSummary, MetricsSnapshot};
+    use std::collections::HashMap;
+
+    let mut histograms = HashMap::new();
+    histograms.insert(
+        "core_inference_latency_ms".to_string(),
+        HistogramSummary {
+            count: 10,
+            sum: 1_000.0,
+            min: 1.0,
+            max: 500.0,
+        },
+    );
+    let metrics = MetricsSnapshot {
+        counters: HashMap::new(),
+        gauges: HashMap::new(),
+        histograms,
+        bucketed_histograms: HashMap::new(),
+    };
+    let status = build_status(true, None, Some(metrics), None);
+    assert_eq!(status.requests.avg_latency_ms, 100.0);
+    assert_eq!(status.requests.p50_latency_ms, None);
+    assert_eq!(status.requests.p95_latency_ms, None);
+    assert_eq!(status.requests.p99_latency_ms, None);
+
+    let serialized = serde_json::to_value(&status).unwrap();
+    assert!(serialized["requests"]["p50_latency_ms"].is_null());
+    assert!(serialized["requests"]["p95_latency_ms"].is_null());
+    assert!(serialized["requests"]["p99_latency_ms"].is_null());
+}
