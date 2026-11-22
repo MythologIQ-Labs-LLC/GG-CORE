@@ -42,6 +42,7 @@ class ConformanceReceiptTests(unittest.TestCase):
         r = mod.report(MANIFEST, [assertion(case, evidence_ref="ci-source-log")], SOURCE)
         self.assertEqual(r["counts"]["RECORDED_PASS"], 1)
         self.assertEqual(r["status"], "HOLD")
+        self.assertEqual(r["cases"][0]["interface"], case["interface"])
         self.assertFalse(r["release_authorized"])
         self.assertFalse(r["evidence_attested"])
 
@@ -75,9 +76,16 @@ class ConformanceReceiptTests(unittest.TestCase):
                 model.write_bytes(b"fake test fixture")
                 item.update(model_path=str(model),
                             model_sha256=hashlib.sha256(model.read_bytes()).hexdigest())
+                if case["tier"] == "installed":
+                    with self.assertRaisesRegex(ValueError, "license review"):
+                        mod.report(MANIFEST, [item], SOURCE)
+                    item["model_license_ref"] = "owner-reviewed-model-fixture-license"
             r = mod.report(MANIFEST, [item], SOURCE)
             self.assertEqual(r["counts"]["RECORDED_PASS"], 1)
             self.assertEqual(r["status"], "HOLD")
+            entry = next(x for x in r["cases"] if x["id"] == case["id"])
+            self.assertEqual(entry["binary_sha256"], item["binary_sha256"])
+            self.assertEqual(entry["model_sha256"], item.get("model_sha256"))
             binary.write_bytes(b"tampered after receipt")
             with self.assertRaisesRegex(ValueError, "content hash mismatch"):
                 mod.report(MANIFEST, [item], SOURCE)

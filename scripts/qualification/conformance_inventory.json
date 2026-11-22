@@ -6,14 +6,16 @@
       "tier": "source",
       "platform": "any",
       "features": [],
-      "model_required": false
+      "model_required": false,
+      "interface": "embedded_rust"
     },
     {
       "id": "ipc_handshake_compat",
       "tier": "source",
       "platform": "any",
       "features": [],
-      "model_required": false
+      "model_required": false,
+      "interface": "ipc"
     },
     {
       "id": "ipc_onnx_unix_fixture",
@@ -22,7 +24,8 @@
       "features": [
         "onnx"
       ],
-      "model_required": true
+      "model_required": true,
+      "interface": "ipc"
     },
     {
       "id": "ipc_onnx_windows_fixture",
@@ -31,7 +34,8 @@
       "features": [
         "onnx"
       ],
-      "model_required": true
+      "model_required": true,
+      "interface": "ipc"
     },
     {
       "id": "ipc_onnx_installed_windows",
@@ -40,7 +44,8 @@
       "features": [
         "onnx"
       ],
-      "model_required": true
+      "model_required": true,
+      "interface": "ipc"
     },
     {
       "id": "ipc_gguf_native_stop_windows",
@@ -49,7 +54,8 @@
       "features": [
         "gguf"
       ],
-      "model_required": true
+      "model_required": true,
+      "interface": "ipc"
     },
     {
       "id": "ffi_external_installed",
@@ -58,7 +64,8 @@
       "features": [
         "ffi"
       ],
-      "model_required": false
+      "model_required": false,
+      "interface": "ffi"
     },
     {
       "id": "python_external_installed",
@@ -67,14 +74,16 @@
       "features": [
         "python"
       ],
-      "model_required": false
+      "model_required": false,
+      "interface": "python"
     },
     {
       "id": "ipc_status_compatibility",
       "tier": "source",
       "platform": "any",
       "features": [],
-      "model_required": false
+      "model_required": false,
+      "interface": "ipc"
     }
   ]
 }

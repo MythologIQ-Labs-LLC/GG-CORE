@@ -32,6 +32,8 @@ def validate_manifest(manifest):
         require(isinstance(ident, str) and re.fullmatch(r"[a-z0-9_]+", ident), "invalid case ID")
         require(ident not in seen, "duplicate case ID: " + ident)
         seen.add(ident)
+        require(row.get("interface") in ("embedded_rust", "ipc", "ffi", "python"),
+                "invalid interface: " + ident)
         require(row.get("tier") in ("source", "installed"), "invalid tier: " + ident)
         require(row.get("platform") in PLATFORMS, "invalid platform: " + ident)
         flags = row.get("features")
@@ -70,7 +72,8 @@ def report(manifest, submitted, source_sha):
         declaration = cases[ident]
         require(item.get("source_sha") == source_sha, "stale source SHA: " + ident)
         state = item.get("status")
-        require(state in STATUSES, "invalid status: " + ident)
+        require(isinstance(state, str) and state in STATUSES,
+                "invalid status: " + ident)
         platform = item.get("platform")
         require(platform in PLATFORMS - {"any"}, "actual platform required: " + ident)
         require(declaration["platform"] in ("any", platform), "wrong platform: " + ident)
@@ -82,6 +85,10 @@ def report(manifest, submitted, source_sha):
                 file_hash(item.get("binary_path"), item.get("binary_sha256"), "binary")
             if declaration["model_required"]:
                 file_hash(item.get("model_path"), item.get("model_sha256"), "model")
+                if declaration["tier"] == "installed":
+                    require(isinstance(item.get("model_license_ref"), str)
+                            and item["model_license_ref"].strip(),
+                            "installed model PASS needs license review reference: " + ident)
         elif state == "UNSUPPORTED":
             require(isinstance(item.get("owner_decision_ref"), str)
                     and item["owner_decision_ref"].strip(),
@@ -96,9 +103,15 @@ def report(manifest, submitted, source_sha):
             "RECORDED_PASS" if item["status"] == "PASS" else item["status"])
         counts[status] += 1
         outcomes.append({
-            "id": ident, "tier": definition["tier"],
-            "platform": definition["platform"], "features": definition["features"],
-            "status": status,
+            "id": ident, "interface": definition["interface"],
+            "tier": definition["tier"], "platform": definition["platform"],
+            "actual_platform": None if item is None else item["platform"],
+            "features": definition["features"], "status": status,
+            "binary_sha256": None if item is None or status != "RECORDED_PASS"
+                             else item.get("binary_sha256"),
+            "model_sha256": None if item is None or status != "RECORDED_PASS"
+                            else item.get("model_sha256"),
+            "model_license_ref": None if item is None else item.get("model_license_ref"),
             "evidence_ref": None if item is None else item.get("evidence_ref"),
         })
     return {
