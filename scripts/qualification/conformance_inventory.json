@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "rust_external_v1",
+      "tier": "source",
+      "platform": "any",
+      "features": [],
+      "model_required": false
+    },
+    {
+      "id": "ipc_handshake_compat",
+      "tier": "source",
+      "platform": "any",
+      "features": [],
+      "model_required": false
+    },
+    {
+      "id": "ipc_onnx_unix_fixture",
+      "tier": "source",
+      "platform": "linux",
+      "features": [
+        "onnx"
+      ],
+      "model_required": true
+    },
+    {
+      "id": "ipc_onnx_windows_fixture",
+      "tier": "source",
+      "platform": "windows",
+      "features": [
+        "onnx"
+      ],
+      "model_required": true
+    },
+    {
+      "id": "ipc_onnx_installed_windows",
+      "tier": "installed",
+      "platform": "windows",
+      "features": [
+        "onnx"
+      ],
+      "model_required": true
+    },
+    {
+      "id": "ipc_gguf_native_stop_windows",
+      "tier": "installed",
+      "platform": "windows",
+      "features": [
+        "gguf"
+      ],
+      "model_required": true
+    },
+    {
+      "id": "ffi_external_installed",
+      "tier": "installed",
+      "platform": "any",
+      "features": [
+        "ffi"
+      ],
+      "model_required": false
+    },
+    {
+      "id": "python_external_installed",
+      "tier": "installed",
+      "platform": "any",
+      "features": [
+        "python"
+      ],
+      "model_required": false
+    },
+    {
+      "id": "ipc_status_compatibility",
+      "tier": "source",
+      "platform": "any",
+      "features": [],
+      "model_required": false
+    }
+  ]
+}
