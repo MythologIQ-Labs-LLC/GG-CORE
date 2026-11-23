@@ -44,9 +44,18 @@ impl IpcHandler {
         if let Err(e) = input.validate() {
             return fail(e.to_string(), InferenceErrorCode::InputInvalid);
         }
-        let deadline = params
-            .timeout_ms
-            .map(|ms| tokio::time::Instant::now() + Duration::from_millis(ms));
+        let deadline = match params.timeout_ms {
+            Some(ms) => match tokio::time::Instant::now().checked_add(Duration::from_millis(ms)) {
+                Some(deadline) => Some(deadline),
+                None => {
+                    return fail(
+                        "timeout_ms exceeds the supported clock range".into(),
+                        InferenceErrorCode::InputInvalid,
+                    );
+                }
+            },
+            None => None,
+        };
         let flag = Arc::new(AtomicBool::new(false));
         let _stop_on_drop = CancelOnDrop(Arc::clone(&flag));
         let enqueued = self

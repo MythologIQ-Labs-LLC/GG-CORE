@@ -67,6 +67,20 @@ impl RequestQueue {
         params: InferenceParams,
         cancelled: Arc<AtomicBool>,
     ) -> Result<(u64, TypedResponseRx), QueueError> {
+        // Bound the deadline before entering the shared queue lock; a
+        // malformed timeout must not panic or silently disable cancellation.
+        let deadline = match params.timeout_ms {
+            Some(0) => return Err(QueueError::InvalidTimeout),
+            Some(ms) if ms > InferenceParams::MAX_TIMEOUT_MS => {
+                return Err(QueueError::InvalidTimeout);
+            }
+            Some(ms) => Some(
+                Instant::now()
+                    .checked_add(Duration::from_millis(ms))
+                    .ok_or(QueueError::InvalidTimeout)?,
+            ),
+            None => None,
+        };
         let queue = self.queue.lock().await;
         if self.is_closed() {
             return Err(QueueError::ShuttingDown);
@@ -77,9 +91,6 @@ impl RequestQueue {
             return Err(QueueError::QueueFull);
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let deadline = params
-            .timeout_ms
-            .map(|ms| Instant::now() + Duration::from_millis(ms));
         let (tx, rx) = tokio::sync::oneshot::channel();
         typed.push_back(TypedQueuedRequest {
             id,

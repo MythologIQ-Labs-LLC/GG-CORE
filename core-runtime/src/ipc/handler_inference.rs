@@ -49,7 +49,19 @@ impl IpcHandler {
             );
         }
         let timeout_ms = request.parameters.timeout_ms;
-        let deadline = timeout_ms.map(|ms| tokio::time::Instant::now() + Duration::from_millis(ms));
+        let deadline = match timeout_ms {
+            Some(ms) => match tokio::time::Instant::now().checked_add(Duration::from_millis(ms)) {
+                Some(deadline) => Some(deadline),
+                None => {
+                    return InferenceResponse::error_coded(
+                        id,
+                        "timeout_ms exceeds the supported clock range".into(),
+                        InferenceErrorCode::InputInvalid,
+                    );
+                }
+            },
+            None => None,
+        };
         let flag = Arc::new(AtomicBool::new(false));
         let _stop_on_drop = CancelOnDrop(Arc::clone(&flag));
 

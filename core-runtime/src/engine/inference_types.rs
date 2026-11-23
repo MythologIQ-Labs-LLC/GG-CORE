@@ -69,6 +69,12 @@ impl Default for InferenceParams {
 }
 
 impl InferenceParams {
+    /// Maximum explicit timeout whose duration fits in a signed 64-bit
+    /// nanosecond count (~292 years). Platform clocks have different ranges;
+    /// a u64 millisecond value alone does not establish a portable deadline.
+    /// Use None for no deadline instead of an unbounded numeric sentinel.
+    pub const MAX_TIMEOUT_MS: u64 = i64::MAX as u64 / 1_000_000;
+
     pub fn validate(&self) -> Result<(), InferenceError> {
         if self.max_tokens == 0 || u32::try_from(self.max_tokens).is_err() {
             return Err(InferenceError::InvalidParams(
@@ -93,6 +99,16 @@ impl InferenceParams {
         if self.timeout_ms == Some(0) {
             return Err(InferenceError::InvalidParams(
                 "timeout_ms must be > 0".into(),
+            ));
+        }
+        if self.timeout_ms.is_some_and(|ms| {
+            ms > Self::MAX_TIMEOUT_MS
+                || std::time::Instant::now()
+                    .checked_add(std::time::Duration::from_millis(ms))
+                    .is_none()
+        }) {
+            return Err(InferenceError::InvalidParams(
+                "timeout_ms exceeds the supported clock range".into(),
             ));
         }
         Ok(())
