@@ -98,14 +98,24 @@ async fn pre_cancelled_shutdown_drains_all_three_queues_with_explicit_errors() {
     assert!(queue.is_closed(), "worker shutdown must seal its intake");
     assert!(matches!(
         queue
-            .enqueue("absent".into(), "late".into(), InferenceParams::default(), Priority::Normal)
+            .enqueue(
+                "absent".into(),
+                "late".into(),
+                InferenceParams::default(),
+                Priority::Normal
+            )
             .await,
         Err(QueueError::ShuttingDown)
     ));
     let (tx, _rx) = TokenStream::new(4, StreamBound::default());
     assert!(matches!(
         queue
-            .enqueue_streaming("absent".into(), "late".into(), InferenceConfig::default(), tx)
+            .enqueue_streaming(
+                "absent".into(),
+                "late".into(),
+                InferenceConfig::default(),
+                tx
+            )
             .await,
         Err(QueueError::ShuttingDown)
     ));
@@ -224,7 +234,12 @@ async fn shutdown_finishes_active_request_but_refuses_queued_work() {
     .expect("queue did not close during active inference");
     assert!(matches!(
         queue
-            .enqueue("held".into(), "late".into(), InferenceParams::default(), Priority::Normal)
+            .enqueue(
+                "held".into(),
+                "late".into(),
+                InferenceParams::default(),
+                Priority::Normal
+            )
             .await,
         Err(QueueError::ShuttingDown)
     ));
