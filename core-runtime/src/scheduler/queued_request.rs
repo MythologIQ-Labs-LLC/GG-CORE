@@ -52,9 +52,13 @@ impl QueuedRequest {
         // Direct construction bypasses queue admission. Overflow fails
         // closed as immediately expired, never an unbounded request or panic.
         let deadline = params.timeout_ms.map(|ms| {
-            enqueued_at
-                .checked_add(Duration::from_millis(ms))
-                .unwrap_or(enqueued_at)
+            if ms > InferenceParams::MAX_TIMEOUT_MS {
+                enqueued_at
+            } else {
+                enqueued_at
+                    .checked_add(Duration::from_millis(ms))
+                    .unwrap_or(enqueued_at)
+            }
         });
         Self {
             id,

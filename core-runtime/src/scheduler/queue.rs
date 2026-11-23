@@ -145,6 +145,7 @@ impl RequestQueue {
         // unrepresentable deadline panic the worker or become unbounded.
         if params.timeout_ms.is_some_and(|ms| {
             ms == 0
+                || ms > InferenceParams::MAX_TIMEOUT_MS
                 || Instant::now()
                     .checked_add(std::time::Duration::from_millis(ms))
                     .is_none()
@@ -266,7 +267,9 @@ impl RequestQueue {
         cancelled: tokio_util::sync::CancellationToken,
     ) -> Result<u64, QueueError> {
         check_context(&prompt, self.config.max_context_tokens)?;
-        if config.timeout_ms == 0 {
+        if config.timeout_ms == 0
+            || config.timeout_ms > InferenceParams::MAX_TIMEOUT_MS
+        {
             return Err(QueueError::InvalidTimeout);
         }
         let deadline = Instant::now()

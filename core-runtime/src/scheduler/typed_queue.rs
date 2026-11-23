@@ -71,6 +71,9 @@ impl RequestQueue {
         // malformed timeout must not panic or silently disable cancellation.
         let deadline = match params.timeout_ms {
             Some(0) => return Err(QueueError::InvalidTimeout),
+            Some(ms) if ms > InferenceParams::MAX_TIMEOUT_MS => {
+                return Err(QueueError::InvalidTimeout);
+            }
             Some(ms) => Some(
                 Instant::now()
                     .checked_add(Duration::from_millis(ms))
