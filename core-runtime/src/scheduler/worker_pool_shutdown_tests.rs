@@ -15,7 +15,7 @@ use crate::engine::{
 };
 use crate::models::ModelHandle;
 use crate::scheduler::queue::{RequestQueue, RequestQueueConfig};
-use crate::scheduler::Priority;
+use crate::scheduler::{Priority, QueueError};
 
 fn worker(
     queue: Arc<RequestQueue>,
@@ -95,6 +95,42 @@ async fn pre_cancelled_shutdown_drains_all_three_queues_with_explicit_errors() {
     assert_eq!(queue.len().await, 0);
     assert_eq!(queue.streaming_len().await, 0);
     assert_eq!(queue.typed_len().await, 0);
+    assert!(queue.is_closed(), "worker shutdown must seal its intake");
+    assert!(matches!(
+        queue
+            .enqueue(
+                "absent".into(),
+                "late".into(),
+                InferenceParams::default(),
+                Priority::Normal
+            )
+            .await,
+        Err(QueueError::ShuttingDown)
+    ));
+    let (tx, _rx) = TokenStream::new(4, StreamBound::default());
+    assert!(matches!(
+        queue
+            .enqueue_streaming(
+                "absent".into(),
+                "late".into(),
+                InferenceConfig::default(),
+                tx
+            )
+            .await,
+        Err(QueueError::ShuttingDown)
+    ));
+    assert!(matches!(
+        queue
+            .enqueue_typed_controlled(
+                "absent".into(),
+                InferenceInput::Text("late".into()),
+                InferenceCapability::Embedding,
+                InferenceParams::default(),
+                Arc::new(AtomicBool::new(false)),
+            )
+            .await,
+        Err(QueueError::ShuttingDown)
+    ));
 }
 
 struct HeldModel {
@@ -187,6 +223,26 @@ async fn shutdown_finishes_active_request_but_refuses_queued_work() {
         .await
         .unwrap();
     shutdown.cancel();
+    // Supervisor must seal intake *while* the active model call is still
+    // held; it must not wait for the worker's native call to finish.
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while !queue.is_closed() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("queue did not close during active inference");
+    assert!(matches!(
+        queue
+            .enqueue(
+                "held".into(),
+                "late".into(),
+                InferenceParams::default(),
+                Priority::Normal
+            )
+            .await,
+        Err(QueueError::ShuttingDown)
+    ));
     assert!(
         !handle.is_finished(),
         "shutdown must not abandon active work"

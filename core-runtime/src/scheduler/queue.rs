@@ -1,7 +1,7 @@
 //! Request queue management.
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{Mutex, Notify};
@@ -47,6 +47,7 @@ pub struct RequestQueue {
     streaming: Arc<Mutex<VecDeque<StreamingQueuedRequest>>>,
     typed: Arc<Mutex<VecDeque<TypedQueuedRequest>>>,
     next_id: AtomicU64,
+    closed: AtomicBool,
     config: RequestQueueConfig,
     notify: Arc<Notify>,
 }
@@ -58,9 +59,23 @@ impl RequestQueue {
             streaming: Arc::new(Mutex::new(VecDeque::new())),
             typed: Arc::new(Mutex::new(VecDeque::new())),
             next_id: AtomicU64::new(1),
+            closed: AtomicBool::new(false),
             config,
             notify: Arc::new(Notify::new()),
         }
+    }
+
+    /// Permanently seal this queue for shutdown. Taking the main queue lock
+    /// is the linearization point shared with all three enqueue paths, so
+    /// a producer racing shutdown either joins the pending drain or refuses.
+    pub(crate) async fn close(&self) {
+        let _queue = self.queue.lock().await;
+        self.closed.store(true, Ordering::Release);
+        self.notify.notify_waiters();
+    }
+
+    pub(crate) fn is_closed(&self) -> bool {
+        self.closed.load(Ordering::Acquire)
     }
 
     /// Enqueue a new request. Returns request ID and queue position.
@@ -128,6 +143,9 @@ impl RequestQueue {
         check_context(&prompt, self.config.max_context_tokens)?;
 
         let mut queue = self.queue.lock().await;
+        if self.is_closed() {
+            return Err(QueueError::ShuttingDown);
+        }
         let streaming = self.streaming.lock().await;
         let typed = self.typed.lock().await;
         let total = queue.len() + streaming.len() + typed.len();
@@ -181,6 +199,9 @@ impl RequestQueue {
     /// streaming check is what turns a streaming wake-up into a return.
     pub async fn wait_and_dequeue(&self) -> Option<QueuedRequest> {
         loop {
+            if self.is_closed() {
+                return None;
+            }
             if let Some(req) = self.dequeue().await {
                 return Some(req);
             }
@@ -243,6 +264,9 @@ impl RequestQueue {
             .ok_or(QueueError::InvalidTimeout)?;
 
         let queue = self.queue.lock().await;
+        if self.is_closed() {
+            return Err(QueueError::ShuttingDown);
+        }
         let mut streaming = self.streaming.lock().await;
         let typed = self.typed.lock().await;
         let pending = queue.len() + streaming.len() + typed.len();
@@ -296,6 +320,7 @@ fn check_context(prompt: &str, max: usize) -> Result<(), QueueError> {
 #[derive(Debug)]
 pub enum QueueError {
     QueueFull,
+    ShuttingDown,
     InvalidTimeout,
     ContextTooLarge { estimated_tokens: usize, max: usize },
 }
@@ -304,6 +329,7 @@ impl std::fmt::Display for QueueError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::QueueFull => write!(f, "request queue is full"),
+            Self::ShuttingDown => write!(f, "request queue is shutting down"),
             Self::InvalidTimeout => write!(f, "invalid streaming timeout"),
             Self::ContextTooLarge {
                 estimated_tokens,
