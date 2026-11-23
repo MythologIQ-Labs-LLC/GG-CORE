@@ -27,7 +27,7 @@ pub(super) fn enqueue_failure_code(e: &QueueError) -> InferenceErrorCode {
     match e {
         QueueError::ContextTooLarge { .. } | QueueError::InvalidTimeout => {
             InferenceErrorCode::InputInvalid
-        },
+        }
         QueueError::ShuttingDown => InferenceErrorCode::Cancelled,
         _ => InferenceErrorCode::AdmissionRejected,
     }
