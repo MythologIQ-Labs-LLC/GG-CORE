@@ -223,6 +223,26 @@ fn typed_classification_success_and_unsupported_task_refusal_remain_distinct() {
     }
 }
 
+/// External-client conformance: JSON null is a present field, not permission
+/// to ignore a second, ambiguous input key on the authenticated wire.
+#[test]
+fn typed_input_null_cannot_bypass_one_shape_wire_contract() {
+    for input in [
+        r#"{"text":"a","texts":null}"#,
+        r#"{"text":null,"texts":["a"]}"#,
+        r#"{"text":null}"#,
+        r#"{"texts":null}"#,
+    ] {
+        let wire = format!(
+            r#"{{"type":"typed_inference_request","request_id":5,"model_id":"m","task":"embedding","input":{input}}}"#
+        );
+        assert!(
+            decode_message(wire.as_bytes()).is_err(),
+            "ambiguous or null typed input must be rejected: {input}"
+        );
+    }
+}
+
 #[test]
 fn compiled_capabilities_do_not_claim_installed_qualification() {
     for entry in compiled_backend_capabilities() {
