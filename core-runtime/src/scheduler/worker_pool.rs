@@ -51,7 +51,22 @@ pub(super) fn spawn(
             let (queue, ctx, shutdown) = (queue.clone(), ctx.clone(), shutdown.clone());
             set.spawn(async move { worker_loop(&queue, &ctx, shutdown).await });
         }
-        while set.join_next().await.is_some() {}
+        // A native worker can remain busy long after shutdown is signalled.
+        // Seal and drain the queue independently rather than waiting for
+        // its current model call to return. Existing native work still joins.
+        let mut closed = false;
+        while !set.is_empty() {
+            tokio::select! {
+                biased;
+                () = shutdown.cancelled(), if !closed => {
+                    closed = true;
+                    queue.close().await;
+                    let mut cursor = 0;
+                    drain_cancelled(&queue, &mut cursor).await;
+                }
+                _ = set.join_next() => {}
+            }
+        }
     })
 }
 

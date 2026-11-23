@@ -26,6 +26,7 @@ impl Drop for CancelOnDrop {
 pub(super) fn enqueue_failure_code(e: &QueueError) -> InferenceErrorCode {
     match e {
         QueueError::ContextTooLarge { .. } => InferenceErrorCode::InputInvalid,
+        QueueError::ShuttingDown => InferenceErrorCode::Cancelled,
         _ => InferenceErrorCode::AdmissionRejected,
     }
 }

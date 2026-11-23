@@ -68,6 +68,9 @@ impl RequestQueue {
         cancelled: Arc<AtomicBool>,
     ) -> Result<(u64, TypedResponseRx), QueueError> {
         let queue = self.queue.lock().await;
+        if self.is_closed() {
+            return Err(QueueError::ShuttingDown);
+        }
         let streaming = self.streaming.lock().await;
         let mut typed = self.typed.lock().await;
         if queue.len() + streaming.len() + typed.len() >= self.config.max_pending {
