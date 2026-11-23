@@ -160,7 +160,13 @@ fn simultaneous_ttl_expiry_cannot_evade_saturation() {
     let mut unseen = request('c', "b");
     unseen.operation_id = format!("{:064x}", MAX_EXPIRED_IDS + 2);
     assert!(matches!(journal.reserve(unseen), Admission::Capacity));
-    assert!(!matches!(journal.reserve(first), Admission::New));
-    assert!(!matches!(journal.reserve(second), Admission::New));
+    assert!(matches!(
+        journal.reserve(first),
+        Admission::Expired | Admission::Capacity
+    ));
+    assert!(matches!(
+        journal.reserve(second),
+        Admission::Expired | Admission::Capacity
+    ));
     assert_eq!(journal.expired.lock().unwrap().len(), MAX_EXPIRED_IDS);
 }
