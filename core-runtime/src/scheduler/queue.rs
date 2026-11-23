@@ -267,9 +267,7 @@ impl RequestQueue {
         cancelled: tokio_util::sync::CancellationToken,
     ) -> Result<u64, QueueError> {
         check_context(&prompt, self.config.max_context_tokens)?;
-        if config.timeout_ms == 0
-            || config.timeout_ms > InferenceParams::MAX_TIMEOUT_MS
-        {
+        if config.timeout_ms == 0 || config.timeout_ms > InferenceParams::MAX_TIMEOUT_MS {
             return Err(QueueError::InvalidTimeout);
         }
         let deadline = Instant::now()
