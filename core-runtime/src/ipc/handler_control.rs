@@ -28,7 +28,7 @@ pub(super) fn enqueue_failure_code(e: &QueueError) -> InferenceErrorCode {
         QueueError::ContextTooLarge { .. } | QueueError::InvalidTimeout => {
             InferenceErrorCode::InputInvalid
         }
-        QueueError::ShuttingDown => InferenceErrorCode::Cancelled,
+        QueueError::ShuttingDown => InferenceErrorCode::ShuttingDown,
         _ => InferenceErrorCode::AdmissionRejected,
     }
 }
@@ -57,4 +57,26 @@ pub(super) fn stopped(
 ) -> crate::ipc::protocol::InferenceResponse {
     let code = stop_code(&error);
     crate::ipc::protocol::InferenceResponse::error_coded(id, error.to_string(), code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enqueue_refusal_codes_preserve_shutdown_distinct_from_caller_cancel() {
+        assert_eq!(
+            enqueue_failure_code(&QueueError::ShuttingDown),
+            InferenceErrorCode::ShuttingDown,
+            "closed intake is a server shutdown, not a caller cancellation"
+        );
+        assert_eq!(
+            enqueue_failure_code(&QueueError::InvalidTimeout),
+            InferenceErrorCode::InputInvalid
+        );
+        assert_eq!(
+            enqueue_failure_code(&QueueError::QueueFull),
+            InferenceErrorCode::AdmissionRejected
+        );
+    }
 }
