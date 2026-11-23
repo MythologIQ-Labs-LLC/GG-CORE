@@ -17,7 +17,11 @@ use crate::models::ModelHandle;
 use crate::scheduler::queue::{RequestQueue, RequestQueueConfig};
 use crate::scheduler::Priority;
 
-fn worker(queue: Arc<RequestQueue>, engine: Arc<InferenceEngine>, stop: CancellationToken) -> tokio::task::JoinHandle<()> {
+fn worker(
+    queue: Arc<RequestQueue>,
+    engine: Arc<InferenceEngine>,
+    stop: CancellationToken,
+) -> tokio::task::JoinHandle<()> {
     super::spawn(
         queue,
         super::WorkerCtx {
@@ -35,12 +39,22 @@ fn worker(queue: Arc<RequestQueue>, engine: Arc<InferenceEngine>, stop: Cancella
 async fn pre_cancelled_shutdown_drains_all_three_queues_with_explicit_errors() {
     let queue = Arc::new(RequestQueue::new(RequestQueueConfig::default()));
     let (_, regular) = queue
-        .enqueue_with_response("absent".into(), "hello".into(), InferenceParams::default(), Priority::Normal)
+        .enqueue_with_response(
+            "absent".into(),
+            "hello".into(),
+            InferenceParams::default(),
+            Priority::Normal,
+        )
         .await
         .unwrap();
     let (stream_tx, stream_rx) = TokenStream::new(8, StreamBound::default());
     queue
-        .enqueue_streaming("absent".into(), "hello".into(), InferenceConfig::default(), stream_tx)
+        .enqueue_streaming(
+            "absent".into(),
+            "hello".into(),
+            InferenceConfig::default(),
+            stream_tx,
+        )
         .await
         .unwrap();
     let (_, typed) = queue
@@ -148,7 +162,12 @@ async fn shutdown_finishes_active_request_but_refuses_queued_work() {
         )
         .await;
     let (_, current) = queue
-        .enqueue_with_response("held".into(), "a".into(), InferenceParams::default(), Priority::Normal)
+        .enqueue_with_response(
+            "held".into(),
+            "a".into(),
+            InferenceParams::default(),
+            Priority::Normal,
+        )
         .await
         .unwrap();
     let shutdown = CancellationToken::new();
@@ -159,11 +178,19 @@ async fn shutdown_finishes_active_request_but_refuses_queued_work() {
         .expect("first request sent start signal");
 
     let (_, pending) = queue
-        .enqueue_with_response("held".into(), "b".into(), InferenceParams::default(), Priority::Normal)
+        .enqueue_with_response(
+            "held".into(),
+            "b".into(),
+            InferenceParams::default(),
+            Priority::Normal,
+        )
         .await
         .unwrap();
     shutdown.cancel();
-    assert!(!handle.is_finished(), "shutdown must not abandon active work");
+    assert!(
+        !handle.is_finished(),
+        "shutdown must not abandon active work"
+    );
     release.notify_one();
     let first = current.await.expect("active request received response");
     assert!(first.is_ok(), "{first:?}");
@@ -173,5 +200,9 @@ async fn shutdown_finishes_active_request_but_refuses_queued_work() {
         .expect("worker pool joined");
     let second = pending.await.expect("queued request received cancellation");
     assert!(second.unwrap_err().to_lowercase().contains("cancel"));
-    assert_eq!(calls.load(Ordering::SeqCst), 1, "queued request must never execute");
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "queued request must never execute"
+    );
 }
