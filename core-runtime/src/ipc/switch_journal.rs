@@ -5,9 +5,11 @@
 //! The server never lists IDs, accepts client-written status, or retries a
 //! second model mutation for the same ID. This ledger is process-local and
 //! deliberately does not survive daemon restart; missing state is UNKNOWN
-//! to the caller, not a success or a new switch authorization. An expired
-//! ID is kept as a bounded tombstone and refused, never re-admitted as new
-//! (the newest `MAX_EXPIRED_IDS` are retained; restart forgets them all).
+//! to the caller, not a success or a new switch authorization. Expired
+//! IDs remain blocked by tombstones. When the bounded history fills, new
+//! switches are refused instead of evicting replay evidence. A restart
+//! resets process-local status to UNKNOWN; clients must not infer that
+//! repeating an old operation is safe.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
@@ -65,10 +67,11 @@ impl SwitchJournal {
                 .finished_at
                 .is_none_or(|time| time.elapsed() < COMPLETED_TTL);
             if !live {
-                if expired.len() >= MAX_EXPIRED_IDS {
-                    expired.pop_front();
+                // Never evict consumed IDs. When history is full,
+                // previously unseen IDs are refused below.
+                if expired.len() < MAX_EXPIRED_IDS {
+                    expired.push_back(id.clone());
                 }
-                expired.push_back(id.clone());
             }
             live
         });
@@ -82,7 +85,9 @@ impl SwitchJournal {
                 Admission::Conflict
             };
         }
-        if records.len() >= MAX_RECORDS {
+        // Known reconnects remain read-only at saturation. Unknown IDs
+        // cannot start another mutation once replay history is full.
+        if expired.len() >= MAX_EXPIRED_IDS || records.len() >= MAX_RECORDS {
             return Admission::Capacity;
         }
         let status = ModelSwitchStatusResponse::new(

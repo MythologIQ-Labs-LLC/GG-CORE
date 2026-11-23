@@ -101,9 +101,11 @@ fn expired_operation_id_is_never_readmitted_as_a_new_switch() {
 }
 
 #[test]
-fn expired_tombstones_are_bounded() {
+fn tombstone_saturation_refuses_new_mutations_and_keeps_old_ids() {
     let journal = SwitchJournal::default();
-    for n in 0..MAX_EXPIRED_IDS + 1 {
+    let running = request('e', "b");
+    assert!(matches!(journal.reserve(running.clone()), Admission::New));
+    for n in 0..MAX_EXPIRED_IDS {
         let mut r = request('f', "b");
         r.operation_id = format!("{n:064x}");
         assert!(matches!(journal.reserve(r.clone()), Admission::New));
@@ -114,7 +116,51 @@ fn expired_tombstones_are_bounded() {
         expire(&journal, &r.operation_id);
     }
     let mut last = request('f', "b");
-    last.operation_id = format!("{:064x}", MAX_EXPIRED_IDS);
+    last.operation_id = format!("{:064x}", MAX_EXPIRED_IDS - 1);
     assert!(matches!(journal.reserve(last), Admission::Expired));
-    assert!(journal.expired.lock().unwrap().len() <= MAX_EXPIRED_IDS);
+    assert_eq!(journal.expired.lock().unwrap().len(), MAX_EXPIRED_IDS);
+
+    let mut oldest = request('f', "b");
+    oldest.operation_id = format!("{:064x}", 0);
+    assert!(matches!(journal.reserve(oldest.clone()), Admission::Expired));
+    let mut new_id = request('f', "b");
+    new_id.operation_id = format!("{MAX_EXPIRED_IDS:064x}");
+    assert!(matches!(journal.reserve(new_id), Admission::Capacity));
+    assert!(matches!(journal.reserve(oldest), Admission::Expired));
+    assert!(matches!(journal.reserve(running.clone()), Admission::Repeat(_)));
+    assert_eq!(
+        journal.status(&running.operation_id).unwrap().phase,
+        ModelSwitchPhase::Running
+    );
+}
+
+#[test]
+fn simultaneous_ttl_expiry_cannot_evade_saturation() {
+    let journal = SwitchJournal::default();
+    {
+        let mut expired = journal.expired.lock().unwrap();
+        for n in 0..MAX_EXPIRED_IDS - 1 {
+            expired.push_back(format!("{n:064x}"));
+        }
+    }
+    let mut first = request('a', "b");
+    first.operation_id = format!("{:064x}", MAX_EXPIRED_IDS);
+    let mut second = request('b', "b");
+    second.operation_id = format!("{:064x}", MAX_EXPIRED_IDS + 1);
+    for r in [&first, &second] {
+        assert!(matches!(journal.reserve(r.clone()), Admission::New));
+    }
+    for r in [&first, &second] {
+        journal.complete(
+            &r.operation_id,
+            SwitchOutcome::Unknown { reason: "expired".into() },
+        );
+        expire(&journal, &r.operation_id);
+    }
+    let mut unseen = request('c', "b");
+    unseen.operation_id = format!("{:064x}", MAX_EXPIRED_IDS + 2);
+    assert!(matches!(journal.reserve(unseen), Admission::Capacity));
+    assert!(!matches!(journal.reserve(first), Admission::New));
+    assert!(!matches!(journal.reserve(second), Admission::New));
+    assert_eq!(journal.expired.lock().unwrap().len(), MAX_EXPIRED_IDS);
 }
