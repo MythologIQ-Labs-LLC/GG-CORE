@@ -49,9 +49,13 @@ impl QueuedRequest {
         response_tx: Option<ResponseTx>,
     ) -> Self {
         let enqueued_at = Instant::now();
-        let deadline = params
-            .timeout_ms
-            .map(|ms| enqueued_at + Duration::from_millis(ms));
+        // Direct construction bypasses queue admission. Overflow fails
+        // closed as immediately expired, never an unbounded request or panic.
+        let deadline = params.timeout_ms.map(|ms| {
+            enqueued_at
+                .checked_add(Duration::from_millis(ms))
+                .unwrap_or(enqueued_at)
+        });
         Self {
             id,
             model_id,

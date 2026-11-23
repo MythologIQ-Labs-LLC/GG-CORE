@@ -95,6 +95,15 @@ impl InferenceParams {
                 "timeout_ms must be > 0".into(),
             ));
         }
+        if self.timeout_ms.is_some_and(|ms| {
+            std::time::Instant::now()
+                .checked_add(std::time::Duration::from_millis(ms))
+                .is_none()
+        }) {
+            return Err(InferenceError::InvalidParams(
+                "timeout_ms exceeds the supported clock range".into(),
+            ));
+        }
         Ok(())
     }
 

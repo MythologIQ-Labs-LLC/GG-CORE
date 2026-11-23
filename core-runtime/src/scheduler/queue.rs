@@ -141,6 +141,16 @@ impl RequestQueue {
         cancelled: Option<Arc<std::sync::atomic::AtomicBool>>,
     ) -> Result<(u64, usize), QueueError> {
         check_context(&prompt, self.config.max_context_tokens)?;
+        // The queue also has direct non-IPC callers; never let an
+        // unrepresentable deadline panic the worker or become unbounded.
+        if params.timeout_ms.is_some_and(|ms| {
+            ms == 0
+                || Instant::now()
+                    .checked_add(std::time::Duration::from_millis(ms))
+                    .is_none()
+        }) {
+            return Err(QueueError::InvalidTimeout);
+        }
 
         let mut queue = self.queue.lock().await;
         if self.is_closed() {
