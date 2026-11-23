@@ -170,3 +170,7 @@ async fn run(ctx: &WorkerCtx, work: Work) {
 #[cfg(test)]
 #[path = "worker_pool_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "worker_pool_shutdown_tests.rs"]
+mod shutdown_tests;
