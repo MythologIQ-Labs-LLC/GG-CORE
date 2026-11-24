@@ -23,8 +23,7 @@ async fn active_socket_survives_second_daemon_bind_attempt() {
     let path = root.path().join("active.sock");
     let path_str = path.to_str().unwrap();
     let (first, first_identity) = bind_owned_socket(path_str).unwrap();
-    let error = bind_owned_socket(path_str)
-        .expect_err("live daemon pathname must not be unlinked");
+    let error = bind_owned_socket(path_str).expect_err("live daemon pathname must not be unlinked");
     assert_eq!(error.kind(), std::io::ErrorKind::AddrInUse);
     let metadata = std::fs::symlink_metadata(&path).unwrap();
     assert_eq!((metadata.dev(), metadata.ino()), first_identity);
