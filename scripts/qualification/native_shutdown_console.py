@@ -60,6 +60,18 @@ def require_inputs(root, output, expected_head, expected_exe):
     return exe
 
 
+def require_offline_windows():
+    """Refuse native evidence outside a no-network-adapter Windows guest."""
+    if platform.system() != "Windows":
+        raise RuntimeError("Native graceful shutdown acceptance requires Windows")
+    command = "@(Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' }).Count"
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
+        capture_output=True, text=True, timeout=20, check=False)
+    if result.returncode or result.stdout.strip() != "0":
+        raise RuntimeError("NO-GO: Windows VM has active network adapters or cannot prove offline")
+
+
 def send_group_break(pid):
     """Target ONLY the new daemon process group, never the runner's group."""
     if pid <= 0:
@@ -133,15 +145,20 @@ def main(argv=None):
     clients = []
     receipt_allowed = False
     try:
-        if platform.system() != "Windows":
-            raise RuntimeError("Native Ctrl+Break acceptance requires Windows")
+        require_offline_windows()
         exe = require_inputs(root, output, args.expected_head, args.exe_sha256)
+        report["cli_sha256"] = args.exe_sha256
+        report["model_sha256"] = APPROVED_MODEL_SHA
+        report["model_bytes"] = APPROVED_MODEL_BYTES
         if not ctypes.windll.kernel32.GetConsoleWindow():
             raise RuntimeError("NO-GO: runner must share an interactive console")
         env = dict(os.environ)
         for name in ("GG_CORE_ALLOW_INSECURE_NO_AUTH", "GG_CORE_BUILD_COMMIT"):
             env.pop(name, None)
         env["CORE_AUTH_TOKEN"] = secrets.token_hex(32)
+        # Never inherit a developer's detect-only or disabled policy.
+        env["GG_CORE_SECURITY_INGRESS"] = "block"
+        env["GG_CORE_SECURITY_EGRESS"] = "redact"
         env["GG_CORE_SOCKET_PATH"] = r"\\.\pipe\ggcore-shutdown-" + uuid.uuid4().hex
         env["GG_CORE_MAX_CONCURRENT"] = "1"
         env["GG_CORE_N_THREADS"] = "2"
@@ -153,6 +170,8 @@ def main(argv=None):
             [str(exe), "version", "--json"], cwd=root, env=env, text=True))
         if version.get("commit") != args.expected_head:
             raise RuntimeError("Packaged CLI source commit mismatch")
+        report["cli_version"] = version.get("version")
+        report["compiled_features"] = version.get("features")
         if not {"gguf", "onnx", "ffi"}.issubset(set(version.get("features", []))):
             raise RuntimeError("Missing expected native qualified compiled features")
         output.mkdir(parents=True)
