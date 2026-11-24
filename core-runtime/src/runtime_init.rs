@@ -315,7 +315,7 @@ pub async fn run_ipc_server(runtime: Runtime) -> Result<(), Box<dyn std::error::
 
     // A bind/listener failure is a startup failure, not a healthy daemon
     // waiting for Ctrl+C. In both exit paths, drain and stop the worker.
-    let stop = await_serve_stop(&mut server_handle, tokio::signal::ctrl_c()).await;
+    let stop = await_serve_stop(&mut server_handle, crate::stop_signal::wait()).await;
     match &stop {
         ServeStop::Signal(Ok(())) => eprintln!("Shutdown signal received, draining..."),
         ServeStop::Signal(Err(e)) => eprintln!("Shutdown signal error: {e}"),
