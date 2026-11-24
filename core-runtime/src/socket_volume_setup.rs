@@ -50,13 +50,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
         )
     };
     if raw < 0 {
-        return Err(format!("open chart socket mount: {}", std::io::Error::last_os_error()));
+        return Err(format!(
+            "open chart socket mount: {}",
+            std::io::Error::last_os_error()
+        ));
     }
     let fd = unsafe { OwnedFd::from_raw_fd(raw) };
     let stat_dir = || -> Result<libc::stat, String> {
         let mut state: libc::stat = unsafe { std::mem::zeroed() };
         if unsafe { libc::fstat(fd.as_raw_fd(), &mut state) } != 0 {
-            return Err(format!("stat chart socket mount: {}", std::io::Error::last_os_error()));
+            return Err(format!(
+                "stat chart socket mount: {}",
+                std::io::Error::last_os_error()
+            ));
         }
         if (state.st_mode & libc::S_IFMT) != libc::S_IFDIR {
             return Err("chart socket mount is not a directory".into());
@@ -74,17 +80,34 @@ pub fn run(args: &[String]) -> Result<(), String> {
         return Err("non-root chart mount owner must already have mode 0700".into());
     }
     if unsafe { libc::fchmod(fd.as_raw_fd(), 0o700) } != 0 {
-        return Err(format!("chmod chart socket mount: {}", std::io::Error::last_os_error()));
+        return Err(format!(
+            "chmod chart socket mount: {}",
+            std::io::Error::last_os_error()
+        ));
     }
     // Preserve the volume's existing GID. Mode 0700 denies its group access.
     if unsafe { libc::fchown(fd.as_raw_fd(), uid, !0 as libc::gid_t) } != 0 {
-        return Err(format!("chown chart socket mount: {}", std::io::Error::last_os_error()));
+        return Err(format!(
+            "chown chart socket mount: {}",
+            std::io::Error::last_os_error()
+        ));
     }
     let after = stat_dir()?;
     if after.st_uid != uid || after.st_mode & 0o777 != 0o700 {
         return Err("chart socket mount owner/mode postcondition failed".into());
     }
     Ok(())
+}
+
+/// Only the chart initializer should invoke the privileged filesystem step.
+pub fn cli_exit(args: &[String]) -> std::process::ExitCode {
+    match run(args) {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(message) => {
+            eprintln!("Helm socket directory preparation refused: {message}");
+            std::process::ExitCode::FAILURE
+        }
+    }
 }
 
 #[cfg(test)]
@@ -95,15 +118,21 @@ mod tests {
     fn rejects_unsafe_uid_or_cli_shape() {
         for uid in ["0", "-1", "not-an-id", "4294967296"] {
             assert!(parse_target_uid(&[
-                "gg-core".into(), "prepare-k8s-socket-dir".into(),
-                "--uid".into(), uid.into()
-            ]).is_err());
+                "gg-core".into(),
+                "prepare-k8s-socket-dir".into(),
+                "--uid".into(),
+                uid.into()
+            ])
+            .is_err());
         }
         assert_eq!(
             parse_target_uid(&[
-                "gg-core".into(), "prepare-k8s-socket-dir".into(),
-                "--uid".into(), "1000".into()
-            ]).unwrap(),
+                "gg-core".into(),
+                "prepare-k8s-socket-dir".into(),
+                "--uid".into(),
+                "1000".into()
+            ])
+            .unwrap(),
             1000
         );
     }

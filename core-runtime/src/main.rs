@@ -62,13 +62,7 @@ async fn main() -> ExitCode {
             ExitCode::from(2u8)
         }
         #[cfg(unix)]
-        "prepare-k8s-socket-dir" => match socket_volume_setup::run(&args) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(message) => {
-                eprintln!("Helm socket directory preparation refused: {message}");
-                ExitCode::FAILURE
-            }
-        },
+        "prepare-k8s-socket-dir" => socket_volume_setup::cli_exit(&args),
         "models" => run_models_cmd(&args).await,
         "config" => run_config_cmd(&args).await,
         _ => {
