@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from native_shutdown_preflight import (
     APPROVED_MODEL_SHA, APPROVED_MODEL_BYTES, sha256, require_inputs,
     require_offline_windows, observed_queued_depth,
+    CTRL_BREAK_EVENT, CREATE_NEW_PROCESS_GROUP,
 )
 
 def send_group_break(pid):

@@ -64,6 +64,8 @@ def observed_queued_depth(raw_json):
         payload = json.loads(raw_json)
     except (ValueError, TypeError):
         return None
+    if not isinstance(payload, dict):
+        return None
     if payload.get("check_type") != "Full":
         return None
     report = payload.get("report")
