@@ -19,7 +19,7 @@ from conformance_receipts import SHA40, SHA64, validate_manifest
 from daemon_json_contract import reject_non_json_constant, unique_json_pairs
 
 TARGET_PLATFORMS = {"linux": "linux", "win32": "windows", "darwin": "macos"}
-TARGET_RE = re.compile(r"(linux|windows|macos)-[a-zA-Z0-9_]+\\Z")
+TARGET_RE = re.compile(r"(linux|windows|macos)-[a-zA-Z0-9_]+\Z")
 MAX_VERSION_BYTES = 8192
 
 
