@@ -62,7 +62,7 @@ class InstalledCliIdentityTests(unittest.TestCase):
         # program that prints valid provenance and restores the inode, mtime
         # and hash before the receipt's post-check. Only pinned execution
         # can reliably reject the forged version response.
-        self.binary.write_bytes(b"#!/bin/sh\\nexit 7\\n".replace(b"\\n", b"\n"))
+        self.binary.write_bytes(b"#!/bin/sh\nexit 7\n")
         self.binary.chmod(0o700)
         self.digest = hashlib.sha256(self.binary.read_bytes()).hexdigest()
 
@@ -72,7 +72,7 @@ class InstalledCliIdentityTests(unittest.TestCase):
             self.binary.rename(saved)
             doc = self.version()
             payload = doc.stdout.decode("utf-8")
-            self.binary.write_text("#!/bin/sh\\nprintf '%s' '" + payload + "'\\n")
+            self.binary.write_text("#!/bin/sh\nprintf '%s' '" + payload + "'\n")
             self.binary.chmod(0o700)
             try:
                 return subprocess.run(argv, **kwargs)
