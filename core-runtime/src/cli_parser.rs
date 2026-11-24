@@ -21,6 +21,7 @@ COMMANDS:
     verify       Verify deployment health and configuration
     models       Manage loaded models (list, load, unload)
     config       Manage configuration (validate, show)
+    prepare-k8s-socket-dir   Linux Helm init-only directory ownership setup
     version      Show version (--json: commit, build date, features)
     help         Show this help message
 

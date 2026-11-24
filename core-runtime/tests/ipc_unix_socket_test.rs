@@ -193,3 +193,60 @@ async fn empty_client_token_is_rejected_by_a_token_protected_daemon() {
     assert!(err.contains("authentication failed"), "got: {err}");
     server.stop().await;
 }
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[tokio::test]
+async fn daemon_starts_under_seccomp_with_private_unix_socket() {
+    use std::process::{Child, Command, Stdio};
+
+    struct Reap(Child);
+    impl Drop for Reap {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    // Unlike the in-process server tests, this runs the real serve bootstrap:
+    // model-free initialization, sandbox install, Unix bind and IPC liveness.
+    // A missing SYS_geteuid allowlist entry would kill this child at bind.
+    let dir = tempfile::tempdir().unwrap();
+    let socket = dir
+        .path()
+        .join("seccomp.sock")
+        .to_string_lossy()
+        .into_owned();
+    let mut daemon = Reap(
+        Command::new(env!("CARGO_BIN_EXE_gg-core-cli"))
+            .arg("serve")
+            .env("CORE_AUTH_TOKEN", TOKEN)
+            .env("GG_CORE_SANDBOX", "seccomp")
+            .env("GG_CORE_SOCKET_PATH", &socket)
+            .env_remove("GG_CORE_PRELOAD_MODELS")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("launch real sandboxed daemon"),
+    );
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        if let Some(exit) = daemon.0.try_wait().expect("check daemon exit") {
+            panic!("sandboxed daemon exited before IPC liveness was usable: {exit}");
+        }
+        if std::path::Path::new(&socket).exists() {
+            let client = CliIpcClient::new(socket.clone()).with_timeout(Duration::from_millis(500));
+            if matches!(
+                client.check_health(HealthCheckType::Liveness).await,
+                Ok(true)
+            ) {
+                assert!(daemon.0.try_wait().unwrap().is_none());
+                break;
+            }
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "default Linux seccomp daemon did not serve IPC within 15 seconds"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
