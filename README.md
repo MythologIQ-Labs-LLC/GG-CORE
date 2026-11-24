@@ -183,9 +183,14 @@ Linux or macOS:
 
 ```bash
 export CORE_AUTH_TOKEN='replace-with-a-long-random-local-secret'
-export GG_CORE_SOCKET_PATH='/tmp/gg-core.sock'
+socket_dir="$HOME/.local/run/gg-core"
+mkdir -p "$socket_dir"
+chmod 700 "$socket_dir"
+export GG_CORE_SOCKET_PATH="$socket_dir/GG-CORE.sock"
 export RUST_LOG='gg_core=info'
 ```
+The Unix socket's immediate parent must be a real directory owned by the daemon's effective UID, with no group/other write bits. A socket directly under shared `/tmp` is refused; use a private directory such as the example above. Reuse the same `GG_CORE_SOCKET_PATH` in CLI shells. For the default `/var/run/gg-core/GG-CORE.sock`, the service operator must pre-provision the directory with the daemon's ownership and mode `0700`. Deployment into Kubernetes `emptyDir` volumes requires separately validated ownership/mode provisioning; see #164.
+
 
 Windows PowerShell:
 
