@@ -227,7 +227,7 @@ async fn daemon_starts_under_seccomp_with_private_unix_socket() {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
     loop {
         if let Some(exit) = daemon.0.try_wait().expect("check daemon exit") {
-            panic!("sandboxed daemon exited before authenticated IPC was usable: {exit}");
+            panic!("sandboxed daemon exited before IPC liveness was usable: {exit}");
         }
         if std::path::Path::new(&socket).exists() {
             let client = CliIpcClient::new(socket.clone())
