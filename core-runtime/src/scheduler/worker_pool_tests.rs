@@ -4,6 +4,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::sync::Barrier;
 
 use crate::engine::inference::InferenceEngine;
 use crate::engine::{
@@ -21,6 +22,9 @@ const WORK: Duration = Duration::from_millis(300);
 struct SlowModel {
     in_flight: AtomicUsize,
     peak: Arc<AtomicUsize>,
+    /// Test-only synchronization for proving concurrent execution without
+    /// assuming any runner's CPU scheduling or absolute wall-clock speed.
+    rendezvous: Option<Arc<Barrier>>,
 }
 
 #[async_trait::async_trait]
@@ -41,6 +45,9 @@ impl Model for SlowModel {
     ) -> Result<InferenceOutput, InferenceError> {
         let now = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
         self.peak.fetch_max(now, Ordering::SeqCst);
+        if let Some(gate) = &self.rendezvous {
+            gate.wait().await;
+        }
         tokio::time::sleep(WORK).await;
         self.in_flight.fetch_sub(1, Ordering::SeqCst);
         Ok(InferenceOutput::Generation(GenerationResult {
@@ -73,10 +80,19 @@ async fn pool(max_concurrent: usize) -> Pool {
 }
 
 async fn spawn_on(queue: Arc<RequestQueue>, max_concurrent: usize) -> Pool {
+    spawn_on_with_gate(queue, max_concurrent, None).await
+}
+
+async fn spawn_on_with_gate(
+    queue: Arc<RequestQueue>,
+    max_concurrent: usize,
+    rendezvous: Option<Arc<Barrier>>,
+) -> Pool {
     let peak = Arc::new(AtomicUsize::new(0));
     let model = SlowModel {
         in_flight: AtomicUsize::new(0),
         peak: peak.clone(),
+        rendezvous,
     };
     let engine = Arc::new(InferenceEngine::new(4096));
     engine
@@ -124,15 +140,18 @@ async fn answered(rx: ResponseRx) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn two_loops_run_two_requests_at_the_same_time() {
-    let p = pool(2).await;
-    let start = Instant::now();
+    let queue = Arc::new(RequestQueue::new(RequestQueueConfig {
+        max_pending: 64,
+        ..Default::default()
+    }));
+    // Both requests must ENTER the real model concurrently before either can
+    // finish. A serialized worker deadlocks at the barrier and fails the
+    // existing bounded response deadline. CPU scheduling latency cannot fake
+    // a failure, unlike the historical elapsed < 525 ms assertion.
+    let p = spawn_on_with_gate(queue, 2, Some(Arc::new(Barrier::new(2)))).await;
     let (a, b) = (request(&p.queue).await, request(&p.queue).await);
     answered(a).await;
     answered(b).await;
-    assert!(
-        start.elapsed() < WORK * 2 - WORK / 4,
-        "requests did not overlap"
-    );
     assert_eq!(p.peak.load(Ordering::SeqCst), 2);
     p.shutdown.cancel();
 }
