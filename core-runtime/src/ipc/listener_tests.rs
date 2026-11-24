@@ -120,3 +120,13 @@ async fn symlinked_socket_parent_refuses_bind_without_touching_target() {
     assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
     assert!(!protected.join("serve.sock").exists());
 }
+
+#[test]
+fn socket_parent_ownership_is_required_even_for_private_permissions() {
+    // Root or another privileged daemon can write into a foreign-owned 0700
+    // directory, but that directory's owner can still replace the socket.
+    assert!(super::trusted_socket_parent(0o700, 1000, 1000));
+    assert!(!super::trusted_socket_parent(0o700, 1001, 1000));
+    assert!(!super::trusted_socket_parent(0o770, 1000, 1000));
+    assert!(!super::trusted_socket_parent(0o777, 1000, 1000));
+}
