@@ -1,7 +1,7 @@
 //! Unix IPC socket ownership: no destructive startup unlink and no stale
 //! cleanup of a replacement pathname. Model-free, no external services.
 
-use std::os::unix::fs::{FileTypeExt, MetadataExt};
+use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
 use super::{bind_owned_socket, remove_owned_socket, SOCKET_MODE};
@@ -12,8 +12,7 @@ async fn occupied_regular_file_survives_server_bind_failure() {
     let path = root.path().join("serve.sock");
     std::fs::write(&path, b"operator-owned sentinel").unwrap();
     let error = bind_owned_socket(path.to_str().unwrap())
-        .err()
-        .expect("occupied non-socket path must refuse startup");
+        .expect_err("occupied non-socket path must refuse startup");
     assert_eq!(error.kind(), std::io::ErrorKind::AddrInUse);
     assert_eq!(std::fs::read(&path).unwrap(), b"operator-owned sentinel");
 }
@@ -25,8 +24,7 @@ async fn active_socket_survives_second_daemon_bind_attempt() {
     let path_str = path.to_str().unwrap();
     let (first, first_identity) = bind_owned_socket(path_str).unwrap();
     let error = bind_owned_socket(path_str)
-        .err()
-        .expect("live daemon pathname must not be unlinked");
+        .expect_err("live daemon pathname must not be unlinked");
     assert_eq!(error.kind(), std::io::ErrorKind::AddrInUse);
     let metadata = std::fs::symlink_metadata(&path).unwrap();
     assert_eq!((metadata.dev(), metadata.ino()), first_identity);
@@ -61,7 +59,10 @@ async fn shutdown_never_removes_replacement_regular_file_or_symlink() {
     std::fs::remove_file(&path).unwrap();
     std::os::unix::fs::symlink(&target, &path).unwrap();
     remove_owned_socket(path_str, second_identity).unwrap();
-    assert!(std::fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
+    assert!(std::fs::symlink_metadata(&path)
+        .unwrap()
+        .file_type()
+        .is_symlink());
     assert_eq!(std::fs::read(&target).unwrap(), b"important");
     drop(second);
 }

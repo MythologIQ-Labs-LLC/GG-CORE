@@ -46,10 +46,8 @@ fn bind_owned_socket(path: &str) -> std::io::Result<(tokio::net::UnixListener, S
         ));
     }
     let identity = (metadata.dev(), metadata.ino());
-    if let Err(error) = std::fs::set_permissions(
-        path,
-        std::fs::Permissions::from_mode(SOCKET_MODE),
-    ) {
+    if let Err(error) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(SOCKET_MODE))
+    {
         let _ = remove_owned_socket(path, identity);
         return Err(error);
     }
@@ -65,8 +63,7 @@ fn remove_owned_socket(path: &str, identity: SocketIdentity) -> std::io::Result<
 
     match std::fs::symlink_metadata(path) {
         Ok(metadata)
-            if metadata.file_type().is_socket()
-                && (metadata.dev(), metadata.ino()) == identity =>
+            if metadata.file_type().is_socket() && (metadata.dev(), metadata.ino()) == identity =>
         {
             std::fs::remove_file(path)
         }
