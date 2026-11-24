@@ -11,6 +11,7 @@ mod sandbox_boot;
 #[cfg(target_os = "linux")]
 mod socket_volume_setup;
 mod version_info;
+mod stop_signal;
 
 use std::process::ExitCode;
 
