@@ -36,6 +36,8 @@ spec:
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- include "gg-core.socketInitContainer" (dict "root" . "tag" (.Values.canary.stable.version | default .Values.image.tag)) | nindent 8 }}
       containers:
         - name: gg-core
           image: "{{ .Values.image.repository }}:{{ .Values.canary.stable.version | default .Values.image.tag }}"
@@ -150,6 +152,8 @@ spec:
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- include "gg-core.socketInitContainer" (dict "root" . "tag" (.Values.canary.canary.version)) | nindent 8 }}
       containers:
         - name: gg-core
           image: "{{ .Values.image.repository }}:{{ .Values.canary.canary.version }}"

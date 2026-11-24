@@ -189,7 +189,7 @@ chmod 700 "$socket_dir"
 export GG_CORE_SOCKET_PATH="$socket_dir/GG-CORE.sock"
 export RUST_LOG='gg_core=info'
 ```
-The Unix socket's immediate parent must be a real directory owned by the daemon's effective UID, with no group/other write bits. A socket directly under shared `/tmp` is refused; use a private directory such as the example above. Reuse the same `GG_CORE_SOCKET_PATH` in CLI shells. For the default `/var/run/gg-core/GG-CORE.sock`, the service operator must pre-provision the directory with the daemon's ownership and mode `0700`. Deployment into Kubernetes `emptyDir` volumes requires separately validated ownership/mode provisioning; see #164.
+The Unix socket's immediate parent must be a real directory owned by the daemon's effective UID, with no group/other write bits. A socket directly under shared `/tmp` is refused; use a private directory such as the example above. Reuse the same `GG_CORE_SOCKET_PATH` in CLI shells. For the default `/var/run/gg-core/GG-CORE.sock`, the service operator must pre-provision the directory with the daemon's ownership and mode `0700`. The Helm manifests now include a bounded CAP_CHOWN init-container using the **same GG-CORE image** to prepare the root-owned `emptyDir` for the non-root daemon. The new image must contain the `prepare-k8s-socket-dir` CLI command. Installed Kubernetes validation and admission-policy testing remain required under #164; clusters that prohibit root init containers intentionally refuse admission.
 
 
 Windows PowerShell:

@@ -81,11 +81,11 @@ probes:
 securityContext:
   runAsNonRoot: true
   runAsUser: 1000
-  fsGroup: 1000
   readOnlyRootFilesystem: true
 
 # Pod security
 podSecurityContext:
+  fsGroup: 1000
   seccompProfile:
     type: RuntimeDefault
 

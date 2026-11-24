@@ -8,6 +8,8 @@ mod chat_template;
 mod cli_parser;
 mod runtime_init;
 mod sandbox_boot;
+#[cfg(unix)]
+mod socket_volume_setup;
 mod version_info;
 
 use std::process::ExitCode;
@@ -59,6 +61,14 @@ async fn main() -> ExitCode {
             eprintln!("Verify command not yet implemented. Use 'GG-CORE health'.");
             ExitCode::from(2u8)
         }
+        #[cfg(unix)]
+        "prepare-k8s-socket-dir" => match socket_volume_setup::run(&args) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(message) => {
+                eprintln!("Helm socket directory preparation refused: {message}");
+                ExitCode::FAILURE
+            }
+        },
         "models" => run_models_cmd(&args).await,
         "config" => run_config_cmd(&args).await,
         _ => {
