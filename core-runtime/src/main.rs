@@ -25,9 +25,9 @@ async fn main() -> ExitCode {
 
     match command {
         "serve" | "" => run_serve(&args).await,
-        "health" => run_probe(|p| Box::pin(run_health(p))).await,
-        "live" | "liveness" => run_probe(|p| Box::pin(run_liveness(p))).await,
-        "ready" | "readiness" => run_probe(|p| Box::pin(run_readiness(p))).await,
+        "health" => run_probe_command(&args, "health").await,
+        "live" | "liveness" => run_probe_command(&args, "live").await,
+        "ready" | "readiness" => run_probe_command(&args, "ready").await,
         "help" | "--help" | "-h" => {
             if let Some(sub) = args.get(2) {
                 cli_parser::print_command_help(sub);
@@ -161,12 +161,23 @@ async fn run_serve(args: &[String]) -> ExitCode {
     }
 }
 
-async fn run_probe<F>(f: F) -> ExitCode
-where
-    F: FnOnce(&str) -> std::pin::Pin<Box<dyn std::future::Future<Output = i32> + Send + '_>>,
-{
-    let sp = get_socket_path();
-    ExitCode::from(f(&sp).await as u8)
+async fn run_probe_command(args: &[String], kind: &str) -> ExitCode {
+    let rest = args.get(2..).unwrap_or_default();
+    let options = match gg_core::cli::probe_args::parse_probe_args(rest, kind == "health") {
+        Ok(options) => options,
+        Err(message) => {
+            eprintln!("probe usage error: {message}");
+            return ExitCode::from(2);
+        }
+    };
+    let code = match (kind, options.json) {
+        ("health", true) => gg_core::cli::health::run_health_json(&options.socket).await,
+        ("health", false) => run_health(&options.socket).await,
+        ("live", false) => run_liveness(&options.socket).await,
+        ("ready", false) => run_readiness(&options.socket).await,
+        _ => 2,
+    };
+    ExitCode::from(code as u8)
 }
 
 async fn run_models_cmd(args: &[String]) -> ExitCode {
