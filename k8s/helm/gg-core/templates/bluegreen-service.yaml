@@ -34,8 +34,10 @@ spec:
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.socketVolumeInit.enabled }}
       initContainers:
         {{- include "gg-core.socketInitContainer" (dict "root" . "tag" (.Values.bluegreen.blue.version)) | nindent 8 }}
+      {{- end }}
       containers:
         - name: gg-core
           image: "{{ .Values.image.repository }}:{{ .Values.bluegreen.blue.version }}"
@@ -152,8 +154,10 @@ spec:
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.socketVolumeInit.enabled }}
       initContainers:
         {{- include "gg-core.socketInitContainer" (dict "root" . "tag" (.Values.bluegreen.green.version)) | nindent 8 }}
+      {{- end }}
       containers:
         - name: gg-core
           image: "{{ .Values.image.repository }}:{{ .Values.bluegreen.green.version }}"
