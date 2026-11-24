@@ -1,9 +1,9 @@
 //! Narrow Kubernetes socket-volume preparation command.
 //! Runs only in the chart's dedicated, bounded-capability init container.
 //! The normal non-root daemon never changes directory ownership or mode.
-#![cfg(unix)]
+#![cfg(target_os = "linux")]
 
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::path::Path;
 
@@ -30,6 +30,32 @@ fn validate_socket_path(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn open_directory(path: &CStr, requested: libc::c_int) -> Result<OwnedFd, String> {
+    let flags = requested | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+    let raw = unsafe { libc::open(path.as_ptr(), flags) };
+    if raw < 0 {
+        return Err(format!(
+            "open chart socket mount: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    Ok(unsafe { OwnedFd::from_raw_fd(raw) })
+}
+
+fn stat_dir(fd: &OwnedFd) -> Result<libc::stat, String> {
+    let mut state: libc::stat = unsafe { std::mem::zeroed() };
+    if unsafe { libc::fstat(fd.as_raw_fd(), &mut state) } != 0 {
+        return Err(format!(
+            "stat chart socket mount: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    if state.st_mode & libc::S_IFMT != libc::S_IFDIR {
+        return Err("chart socket mount is not a directory".into());
+    }
+    Ok(state)
+}
+
 pub fn run(args: &[String]) -> Result<(), String> {
     let uid = parse_target_uid(args)?;
     let socket = std::env::var("GG_CORE_SOCKET_PATH")
@@ -43,33 +69,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
     // Work on the file descriptor so a swapped pathname cannot redirect
     // the chmod/chown to a different host directory.
     let name = CString::new(SOCKET_VOLUME).expect("static Unix mount path");
-    let raw = unsafe {
-        libc::open(
-            name.as_ptr(),
-            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
-        )
-    };
-    if raw < 0 {
-        return Err(format!(
-            "open chart socket mount: {}",
-            std::io::Error::last_os_error()
-        ));
-    }
-    let fd = unsafe { OwnedFd::from_raw_fd(raw) };
-    let stat_dir = || -> Result<libc::stat, String> {
-        let mut state: libc::stat = unsafe { std::mem::zeroed() };
-        if unsafe { libc::fstat(fd.as_raw_fd(), &mut state) } != 0 {
-            return Err(format!(
-                "stat chart socket mount: {}",
-                std::io::Error::last_os_error()
-            ));
-        }
-        if (state.st_mode & libc::S_IFMT) != libc::S_IFDIR {
-            return Err("chart socket mount is not a directory".into());
-        }
-        Ok(state)
-    };
-    let before = stat_dir()?;
+    // O_PATH permits metadata inspection of the already-prepared 0700 mount
+    // even when this root initializer has only CAP_CHOWN and no DAC override.
+    let inspect = open_directory(name.as_c_str(), libc::O_PATH)?;
+    let before = stat_dir(&inspect)?;
     if before.st_uid != 0 && before.st_uid != uid {
         return Err("chart socket mount belongs to an unexpected Unix UID".into());
     }
@@ -78,6 +81,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
     if before.st_uid != 0 {
         return Err("non-root chart mount owner must already have mode 0700".into());
+    }
+    // A root-owned unprepared emptyDir is readable by root without DAC
+    // override. Reopen it for chmod/chown; reject replacement of the inode
+    // between permission-independent inspection and writable operation.
+    let fd = open_directory(name.as_c_str(), libc::O_RDONLY)?;
+    let reopened = stat_dir(&fd)?;
+    if reopened.st_dev != before.st_dev
+        || reopened.st_ino != before.st_ino
+        || reopened.st_uid != 0
+    {
+        return Err("chart socket mount changed during preparation".into());
     }
     if unsafe { libc::fchmod(fd.as_raw_fd(), 0o700) } != 0 {
         return Err(format!(
@@ -92,7 +106,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             std::io::Error::last_os_error()
         ));
     }
-    let after = stat_dir()?;
+    let after = stat_dir(&fd)?;
     if after.st_uid != uid || after.st_mode & 0o777 != 0o700 {
         return Err("chart socket mount owner/mode postcondition failed".into());
     }
@@ -113,6 +127,19 @@ pub fn cli_exit(args: &[String]) -> std::process::ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opath_can_inspect_unreadable_directories_without_dac_override() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let private = dir.path().join("no-read");
+        std::fs::create_dir(&private).unwrap();
+        std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let name = CString::new(private.to_str().unwrap()).unwrap();
+        let inspect = open_directory(name.as_c_str(), libc::O_PATH).unwrap();
+        assert_eq!(stat_dir(&inspect).unwrap().st_mode & 0o777, 0);
+        std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
 
     #[test]
     fn rejects_unsafe_uid_or_cli_shape() {
