@@ -58,9 +58,8 @@ async fn main() -> ExitCode {
             ExitCode::from(gg_core::cli::typed_cmd::run_typed(task, rest).await as u8)
         }
         "verify" => {
-            ExitCode::from(
-                gg_core::cli::verify_cmd::run_verify(args.get(2..).unwrap_or_default()).await as u8,
-            )
+            let rest = args.get(2..).unwrap_or_default();
+            ExitCode::from(gg_core::cli::verify_cmd::run_verify(rest).await as u8)
         }
         #[cfg(target_os = "linux")]
         "prepare-k8s-socket-dir" => socket_volume_setup::cli_exit(&args),
