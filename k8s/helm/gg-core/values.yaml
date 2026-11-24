@@ -33,15 +33,15 @@ models:
 # Runtime configuration
 # All values map directly to GG_CORE_* environment variables.
 # Set to "" to use the compiled-in default.
-config:
-  socketPath: "/var/run/gg-core/gg-core.sock"
-
 # The default 0.5.0 image does not provide the new socket volume helper.
 # Set true ONLY with a matching hardened Linux image that ships
 # "prepare-k8s-socket-dir"; the new hardened daemon requires this on emptyDir.
 # Restricted clusters may reject a root/CAP_CHOWN init. See #164.
 socketVolumeInit:
   enabled: false
+
+config:
+  socketPath: "/var/run/gg-core/gg-core.sock"
 
   # Inference
   maxContextLength: 4096       # GG_CORE_MAX_CONTEXT
