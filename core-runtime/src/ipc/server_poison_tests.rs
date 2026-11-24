@@ -12,7 +12,7 @@ use super::{handle_connection, read_frame};
 use crate::engine::InferenceParams;
 use crate::ipc::conn_writer::write_framed;
 use crate::ipc::connections::{ConnectionConfig, ConnectionPool, IpcServerConfig};
-use crate::ipc::protocol::{encode_message, InferenceRequest, IpcMessage, RequestId};
+use crate::ipc::protocol::{decode_message, encode_message, InferenceRequest, IpcMessage, RequestId};
 use crate::{Runtime, RuntimeConfig};
 
 const TOKEN: &str = "poison-connection-integration-test-secret";
@@ -110,4 +110,57 @@ async fn stalled_frame_write_closes_the_connection_and_cancels_its_requests() {
         !String::from_utf8_lossy(&rest).contains("inference_response"),
         "no response may follow the stalled frame"
     );
+}
+
+#[tokio::test]
+async fn malformed_client_json_cannot_corrupt_error_frame_or_poison_connection() {
+    let (mut client, task) = start().await;
+    for variant in [
+        "unexpected_\\\"\\\\field".to_string(),
+        format!("oversized_{}", "x".repeat(4096)),
+    ] {
+        let malformed = serde_json::to_vec(&serde_json::json!({"type": variant}))
+            .expect("malformed IPC variant is still valid JSON");
+        write_framed(&mut client, &malformed)
+            .await
+            .expect("send unknown message type");
+        let bytes = tokio::time::timeout(
+            Duration::from_secs(3),
+            read_frame(&mut client, 1 << 20),
+        )
+        .await
+        .expect("bounded error response")
+        .expect("complete error frame");
+        let response: serde_json::Value =
+            serde_json::from_slice(&bytes).expect("error response must be valid JSON");
+        assert_eq!(response["type"], "error", "{response}");
+        assert_eq!(response["code"], 400, "{response}");
+        assert_eq!(response.as_object().expect("error object").len(), 3);
+        let message = response["message"].as_str().expect("error diagnostic");
+        assert!(message.chars().count() <= 256, "unbounded reflection");
+    }
+
+    // A malformed frame is not a reason to discard the same client's next
+    // well-formed handshake, or to grant it auth before the handshake.
+    send(
+        &mut client,
+        &IpcMessage::Handshake {
+            token: TOKEN.into(),
+            protocol_version: None,
+        },
+    )
+    .await;
+    let reply = tokio::time::timeout(
+        Duration::from_secs(3),
+        read_frame(&mut client, 1 << 20),
+    )
+    .await
+    .expect("handshake deadline")
+    .expect("handshake response");
+    assert!(matches!(
+        decode_message(&reply).expect("valid handshake response"),
+        IpcMessage::HandshakeAck { .. }
+    ));
+    drop(client);
+    task.await.expect("connection task joined");
 }
