@@ -289,34 +289,55 @@ async fn operator_verify_requires_authenticated_offline_ipc_and_refuses_unready_
 
 #[tokio::test]
 async fn shipped_verify_subcommand_routes_through_authenticated_ipc() {
-    use tokio::process::Command;
+    use std::process::{Command, Stdio};
+    use std::time::Instant;
 
     let server = Server::start().await;
-    let socket = server.socket.as_str();
-    let cases: &[(&[&str], &str, i32)] = &[
-        (&["verify", "--socket", socket], TOKEN, 0),
-        (&["verify", "--all", "--socket", socket], TOKEN, 1),
-        (&["verify", "--socket", socket], "invalid-token", 1),
-        (&["verify", "--unknown"], TOKEN, 2),
-    ];
-    for (args, token, expected) in cases {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_gg-core-cli"));
-        command.args(*args).env(AUTH_TOKEN_ENV, token).kill_on_drop(true);
-        let child = tokio::time::timeout(Duration::from_secs(15), command.output())
-            .await
-            .expect("shipped verify command exceeded bounded deadline")
-            .expect("failed to launch packaged-style CLI executable");
-        assert_eq!(
-            child.status.code(),
-            Some(*expected),
-            "CLI arguments {args:?} must have the expected safe exit status"
-        );
-        let stderr = String::from_utf8_lossy(&child.stderr);
-        let stdout = String::from_utf8_lossy(&child.stdout);
-        assert!(
-            !stdout.contains(token) && !stderr.contains(token),
-            "verify must not expose authentication credentials"
-        );
-    }
+    let socket = server.socket.clone();
+    // Running a synchronous child on the Tokio test thread would starve
+    // the in-process daemon it is checking. Keep it on a blocking worker.
+    tokio::task::spawn_blocking(move || {
+        let cases = [
+            (vec!["verify", "--socket", &socket], TOKEN, 0),
+            (vec!["verify", "--all", "--socket", &socket], TOKEN, 1),
+            (vec!["verify", "--socket", &socket], "invalid-token", 1),
+            (vec!["verify", "--unknown"], TOKEN, 2),
+        ];
+        for (args, token, expected) in cases {
+            let mut child = Command::new(env!("CARGO_BIN_EXE_gg-core-cli"))
+                .args(args)
+                .env(AUTH_TOKEN_ENV, token)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("launch shipped verify executable");
+            let deadline = Instant::now() + Duration::from_secs(15);
+            loop {
+                if child.try_wait().expect("poll verify child").is_some() {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!("verify child exceeded its 15s deadline");
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            let result = child.wait_with_output().expect("collect CLI output");
+            assert_eq!(
+                result.status.code(),
+                Some(expected),
+                "verify must expose its exact safe exit semantics"
+            );
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            let stdout = String::from_utf8_lossy(&result.stdout);
+            assert!(
+                !stdout.contains(token) && !stderr.contains(token),
+                "verify must not expose authentication credentials"
+            );
+        }
+    })
+    .await
+    .expect("join CLI probe test");
     server.stop().await;
 }
