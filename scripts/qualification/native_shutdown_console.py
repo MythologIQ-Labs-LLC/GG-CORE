@@ -109,8 +109,6 @@ def start_infer(exe, root, env, prompt, max_tokens):
         target=stdout_digest, args=(process, started, summary), daemon=True)
     reader.start()
     return process, started, summary, reader
-
-
 def await_ready(exe, root, env, daemon, seconds=120):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -127,8 +125,6 @@ def await_ready(exe, root, env, daemon, seconds=120):
             return
         time.sleep(0.5)
     raise RuntimeError("Packaged daemon never became model-ready")
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--staged-root", type=Path, required=True)
@@ -156,7 +152,6 @@ def main(argv=None):
         for name in ("GG_CORE_ALLOW_INSECURE_NO_AUTH", "GG_CORE_BUILD_COMMIT"):
             env.pop(name, None)
         env["CORE_AUTH_TOKEN"] = secrets.token_hex(32)
-        # Never inherit a developer's detect-only or disabled policy.
         env["GG_CORE_SECURITY_INGRESS"] = "block"
         env["GG_CORE_SECURITY_EGRESS"] = "redact"
         env["GG_CORE_SOCKET_PATH"] = r"\\.\pipe\ggcore-shutdown-" + uuid.uuid4().hex
@@ -178,9 +173,7 @@ def main(argv=None):
         receipt_allowed = True
         with (output / "daemon.stdout").open("wb") as dout, \
                 (output / "daemon.stderr").open("wb") as derr:
-            # An attached console AND new process group are both necessary
-            # for targeted CTRL_BREAK_EVENT delivery. Never DETACHED_PROCESS.
-            daemon = subprocess.Popen(
+                            daemon = subprocess.Popen(
                 [str(exe), "serve", "--model", "models/qwen/model.gguf",
                  "--model-id", "qwen"],
                 cwd=root, env=env, stdin=subprocess.DEVNULL,
@@ -219,8 +212,6 @@ def main(argv=None):
                     raise RuntimeError("Client hung after daemon shutdown") from error
                 reader.join(timeout=5)
                 report[f"client_{idx}"] = {"exit": proc.returncode, **summary}
-        # A process killed by default CTRL_BREAK handler or Kill() cannot be
-        # misrepresented as gracefully drained. Verify the real serve path.
         log = (output / "daemon.stderr").read_text(
             encoding="utf-8", errors="replace")
         if ("Shutdown signal received, draining..." not in log or
@@ -243,8 +234,7 @@ def main(argv=None):
                 proc.kill()
                 proc.wait()
         if daemon is not None and daemon.poll() is None:
-            # Failure cleanup ONLY, never interpreted as graceful evidence.
-            daemon.kill()
+                daemon.kill()
             daemon.wait()
             report["forced_cleanup"] = True
         if receipt_allowed:
