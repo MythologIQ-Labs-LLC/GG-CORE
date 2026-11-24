@@ -1,6 +1,7 @@
 """Model-free negative controls for real Windows Ctrl+Break gate (#219)."""
 import importlib.util
 import pathlib
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -23,6 +24,20 @@ class NativeShutdownTests(unittest.TestCase):
                     "--expected-head", "a" * 40, "--exe-sha256", "b" * 64
                 ]), 1)
             self.assertFalse(out.exists())
+
+    def test_offline_guest_must_prove_no_active_network_adapter(self):
+        with mock.patch.object(mod.platform, "system", return_value="Windows"):
+            with mock.patch.object(mod.subprocess, "run", return_value=(
+                    subprocess.CompletedProcess([], 0, "1\\n", ""))):
+                with self.assertRaisesRegex(RuntimeError, "NO-GO"):
+                    mod.require_offline_windows()
+            with mock.patch.object(mod.subprocess, "run", return_value=(
+                    subprocess.CompletedProcess([], 1, "", "access denied"))):
+                with self.assertRaisesRegex(RuntimeError, "NO-GO"):
+                    mod.require_offline_windows()
+            with mock.patch.object(mod.subprocess, "run", return_value=(
+                    subprocess.CompletedProcess([], 0, "0\\n", ""))):
+                mod.require_offline_windows()
 
     def test_bad_producer_sha_and_output_reuse_are_refused(self):
         with tempfile.TemporaryDirectory() as d:
