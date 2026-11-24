@@ -1,5 +1,6 @@
 """Model-free negative controls for real Windows Ctrl+Break gate (#219)."""
 import importlib.util
+import json
 import pathlib
 import subprocess
 import tempfile
@@ -11,6 +12,7 @@ spec = importlib.util.spec_from_file_location("native_shutdown_console", PATH)
 assert spec and spec.loader
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
+import native_shutdown_preflight as preflight
 
 
 class NativeShutdownTests(unittest.TestCase):
@@ -18,7 +20,7 @@ class NativeShutdownTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             folder = pathlib.Path(d)
             out = folder / "evidence"
-            with mock.patch.object(mod.platform, "system", return_value="Linux"):
+            with mock.patch.object(preflight.platform, "system", return_value="Linux"):
                 self.assertEqual(mod.main([
                     "--staged-root", str(folder), "--evidence-dir", str(out),
                     "--expected-head", "a" * 40, "--exe-sha256", "b" * 64
@@ -26,7 +28,7 @@ class NativeShutdownTests(unittest.TestCase):
             self.assertFalse(out.exists())
 
     def test_offline_guest_must_prove_no_active_network_adapter(self):
-        with mock.patch.object(mod.platform, "system", return_value="Windows"):
+        with mock.patch.object(preflight.platform, "system", return_value="Windows"):
             with mock.patch.object(mod.subprocess, "run", return_value=(
                     subprocess.CompletedProcess([], 0, "1\\n", ""))):
                 with self.assertRaisesRegex(RuntimeError, "NO-GO"):
@@ -73,6 +75,27 @@ class NativeShutdownTests(unittest.TestCase):
             file.write_bytes(b"b")
             self.assertNotEqual(before, mod.sha256(file))
             self.assertEqual(len(before), 64)
+
+    def test_only_actual_full_health_queue_depth_proves_admission(self):
+        full = {"check_type": "Full", "ok": True,
+                "report": {"queue_depth": 1}}
+        self.assertEqual(preflight.observed_queued_depth(json.dumps(full)), 1)
+        for bad in (
+            "not-json", "{}", "null",
+            json.dumps({"check_type": "Readiness", "report": {"queue_depth": 1}}),
+            json.dumps({"check_type": "Full", "report": None}),
+            json.dumps({"check_type": "Full", "report": {"queue_depth": 0}}),
+            json.dumps({"check_type": "Full", "report": {"queue_depth": True}}),
+            json.dumps({"check_type": "Full", "report": {"queue_depth": "1"}}),
+        ):
+            self.assertIsNone(preflight.observed_queued_depth(bad), bad)
+
+    def test_graceful_drain_needs_both_admitted_clients_to_succeed(self):
+        mod.require_drain_results(0, 0)
+        with self.assertRaisesRegex(RuntimeError, "Active streaming client failed"):
+            mod.require_drain_results(1, 0)
+        with self.assertRaisesRegex(RuntimeError, "Admitted queued client failed"):
+            mod.require_drain_results(0, 1)
 
     def test_group_signal_refuses_invalid_pid_before_native_call(self):
         with self.assertRaisesRegex(ValueError, "invalid daemon"):

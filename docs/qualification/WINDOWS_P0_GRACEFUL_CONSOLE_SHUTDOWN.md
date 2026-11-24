@@ -36,11 +36,15 @@ request under GG_CORE_MAX_CONCURRENT=1. Before sending the signal, BOTH calls
 must still be pending. It delivers GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT,
 daemon_pid) to the daemon's new process group, never a broadcast or force kill.
 
-The daemon must exit within 240 seconds with code zero, both clients must
-finish, the pending request must not return success, and the daemon's own
-stderr must prove BOTH "Shutdown signal received, draining..." and
+The exact Full IPC health response must observe main-queue depth >= 1
+while the active stream and queued client are both still running. Mere client
+process liveness does NOT count as admission. The daemon must exit within
+240 seconds with code zero, and BOTH admitted requests must successfully
+complete. The current shutdown contract drains already-admitted queued work;
+it does not cancel the queue before initiating drain. The daemon's own stderr
+must prove BOTH "Shutdown signal received, draining..." and
 "Shutdown complete". A default Ctrl+Break kill, premature exit, silent
-missed signal, hanging client or missing queue refusal is a FAIL.
+missed signal, hanging client or an unsuccessful drain is a FAIL.
 
 Receipt.json reports source/binary/model identity and result, but no secret,
 prompt or model text. The output-byte count/digest is retained instead of
