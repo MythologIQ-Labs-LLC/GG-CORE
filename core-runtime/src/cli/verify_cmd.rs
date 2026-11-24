@@ -6,9 +6,7 @@
 use std::time::Duration;
 
 use crate::config;
-use crate::ipc::protocol::{
-    decode_message, encode_message, HealthCheckType, IpcMessage,
-};
+use crate::ipc::protocol::{decode_message, encode_message, HealthCheckType, IpcMessage};
 use crate::models::backend_capabilities::CAPABILITY_SCHEMA_VERSION;
 
 use super::{get_socket_path, CliIpcClient};
@@ -61,7 +59,9 @@ fn validate_capabilities(bytes: &[u8]) -> Result<(), &'static str> {
     {
         return Err("unsupported capability schema");
     }
-    let operator = snapshot.get("operator").ok_or("missing operator constraints")?;
+    let operator = snapshot
+        .get("operator")
+        .ok_or("missing operator constraints")?;
     if operator.get("auth_required").and_then(|v| v.as_bool()) != Some(true) {
         return Err("daemon does not require authenticated IPC");
     }
@@ -76,31 +76,36 @@ fn validate_capabilities(bytes: &[u8]) -> Result<(), &'static str> {
 /// Verify a running daemon using a fresh local authenticated IPC session.
 /// The stricter --all does not infer model quality from model readiness.
 async fn check_live(options: &VerifyOptions) -> Result<(), &'static str> {
-    if std::env::var("CORE_AUTH_TOKEN").is_err()
-        || std::env::var("CORE_AUTH_TOKEN").is_ok_and(|s| s.is_empty())
-    {
+    if std::env::var("CORE_AUTH_TOKEN").map_or(true, |token| token.is_empty()) {
         return Err("CORE_AUTH_TOKEN is required");
     }
     let client = CliIpcClient::new(options.socket.clone()).with_timeout(IPC_TIMEOUT);
-    if client.check_health(HealthCheckType::Liveness).await != Ok(true) {
+    if !matches!(client.check_health(HealthCheckType::Liveness).await, Ok(true)) {
         return Err("daemon IPC liveness check failed");
     }
     let request = encode_message(&IpcMessage::CapabilitiesRequest)
         .map_err(|_| "capability encoding failed")?;
-    let response = client.send_receive_authenticated(&request).await
+    let response = client
+        .send_receive_authenticated(&request)
+        .await
         .map_err(|_| "authenticated capability request refused")?;
     validate_capabilities(&response)?;
 
     if options.all {
-        if client.check_health(HealthCheckType::Readiness).await != Ok(true) {
+        if !matches!(client.check_health(HealthCheckType::Readiness).await, Ok(true)) {
             return Err("daemon is not ready");
         }
-        let models = client.get_models().await
+        let models = client
+            .get_models()
+            .await
             .map_err(|_| "model list IPC failed")?;
         if !models.models.iter().any(|model| model.state == "ready") {
             return Err("no ready model is reported");
         }
-        client.get_metrics().await.map_err(|_| "metrics IPC failed")?;
+        client
+            .get_metrics()
+            .await
+            .map_err(|_| "metrics IPC failed")?;
     }
     Ok(())
 }
@@ -121,11 +126,15 @@ pub async fn run_verify(args: &[String]) -> i32 {
     match check_live(&options).await {
         Ok(()) => {
             if options.all {
-                println!("VERIFY PASS: config, authenticated offline IPC, liveness, readiness, ready-model listing and metrics");
+                println!(
+                    "VERIFY PASS: config, authenticated offline IPC, liveness, readiness, ready-model listing and metrics"
+                );
             } else {
                 println!("VERIFY PASS: config, authenticated offline IPC and liveness");
             }
-            println!("NOT QUALIFIED: binary attestation, real-model inference, security containment, or v1 release");
+            println!(
+                "NOT QUALIFIED: binary attestation, real-model inference, security containment, or v1 release"
+            );
             0
         }
         Err(code) => {
