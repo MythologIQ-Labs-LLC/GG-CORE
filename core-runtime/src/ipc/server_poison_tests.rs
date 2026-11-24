@@ -12,7 +12,9 @@ use super::{handle_connection, read_frame};
 use crate::engine::InferenceParams;
 use crate::ipc::conn_writer::write_framed;
 use crate::ipc::connections::{ConnectionConfig, ConnectionPool, IpcServerConfig};
-use crate::ipc::protocol::{decode_message, encode_message, InferenceRequest, IpcMessage, RequestId};
+use crate::ipc::protocol::{
+    decode_message, encode_message, InferenceRequest, IpcMessage, RequestId,
+};
 use crate::{Runtime, RuntimeConfig};
 
 const TOKEN: &str = "poison-connection-integration-test-secret";
@@ -124,13 +126,10 @@ async fn malformed_client_json_cannot_corrupt_error_frame_or_poison_connection()
         write_framed(&mut client, &malformed)
             .await
             .expect("send unknown message type");
-        let bytes = tokio::time::timeout(
-            Duration::from_secs(3),
-            read_frame(&mut client, 1 << 20),
-        )
-        .await
-        .expect("bounded error response")
-        .expect("complete error frame");
+        let bytes = tokio::time::timeout(Duration::from_secs(3), read_frame(&mut client, 1 << 20))
+            .await
+            .expect("bounded error response")
+            .expect("complete error frame");
         let response: serde_json::Value =
             serde_json::from_slice(&bytes).expect("error response must be valid JSON");
         assert_eq!(response["type"], "error", "{response}");
@@ -150,13 +149,10 @@ async fn malformed_client_json_cannot_corrupt_error_frame_or_poison_connection()
         },
     )
     .await;
-    let reply = tokio::time::timeout(
-        Duration::from_secs(3),
-        read_frame(&mut client, 1 << 20),
-    )
-    .await
-    .expect("handshake deadline")
-    .expect("handshake response");
+    let reply = tokio::time::timeout(Duration::from_secs(3), read_frame(&mut client, 1 << 20))
+        .await
+        .expect("handshake deadline")
+        .expect("handshake response");
     assert!(matches!(
         decode_message(&reply).expect("valid handshake response"),
         IpcMessage::HandshakeAck { .. }
