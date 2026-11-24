@@ -97,6 +97,23 @@ class NativeShutdownTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Admitted queued client failed"):
             mod.require_drain_results(0, 1)
 
+    def test_group_signal_targets_only_the_explicit_child_group(self):
+        with mock.patch.object(mod.ctypes, "windll", create=True) as windll:
+            kernel = windll.kernel32
+            kernel.GetConsoleWindow.return_value = 1
+            kernel.GenerateConsoleCtrlEvent.return_value = 1
+            mod.send_group_break(7788)
+            kernel.GenerateConsoleCtrlEvent.assert_called_once_with(
+                preflight.CTRL_BREAK_EVENT, 7788)
+            self.assertNotEqual(preflight.CTRL_BREAK_EVENT, 0)
+
+    def test_group_signal_no_console_refuses_without_event(self):
+        with mock.patch.object(mod.ctypes, "windll", create=True) as windll:
+            windll.kernel32.GetConsoleWindow.return_value = 0
+            with self.assertRaisesRegex(RuntimeError, "shared console"):
+                mod.send_group_break(7788)
+            windll.kernel32.GenerateConsoleCtrlEvent.assert_not_called()
+
     def test_group_signal_refuses_invalid_pid_before_native_call(self):
         with self.assertRaisesRegex(ValueError, "invalid daemon"):
             mod.send_group_break(0)
