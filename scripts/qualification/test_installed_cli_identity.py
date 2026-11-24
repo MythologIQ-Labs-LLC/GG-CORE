@@ -56,6 +56,14 @@ class InstalledCliIdentityTests(unittest.TestCase):
         with self.assertRaisesRegex(identity.ProbeError, "missing-or-symlinked"):
             self.check()
 
+    def test_executable_mutation_during_probe_refuses_receipt(self):
+        def replace(*args, **kwargs):
+            self.binary.write_bytes(b"binary changed during execution")
+            return self.version()
+        with self.assertRaisesRegex(identity.ProbeError, "binary-changed-during-probe"):
+            identity.probe(MANIFEST, CASE, self.root, self.name,
+                           self.digest, SHA, runner=replace)
+
     def test_source_features_protocol_and_target_refuse_false_identity(self):
         for changes, code in [
             ({"commit": "b" * 40}, "source-commit-mismatch"),

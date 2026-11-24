@@ -84,6 +84,7 @@ def probe(manifest, case_id, stage, name, claimed_digest, source_sha, runner=Non
     if platform is None or case["platform"] not in ("any", platform):
         raise ProbeError("unsupported-or-mismatched-platform")
     path = staged_binary(stage, name, claimed_digest)
+    original = path.stat()
     execute = runner or subprocess.run
     try:
         result = execute(
@@ -93,6 +94,14 @@ def probe(manifest, case_id, stage, name, claimed_digest, source_sha, runner=Non
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ProbeError("cli-version-execution-failed") from exc
+    # A hash checked only before exec is not enough if a writable stage
+    # changes the executable while the process runs. Refuse such receipts.
+    observed = path.stat()
+    if (path.is_symlink()
+        or (original.st_dev, original.st_ino, original.st_size, original.st_mtime_ns)
+        != (observed.st_dev, observed.st_ino, observed.st_size, observed.st_mtime_ns)
+        or sha256_file(path) != claimed_digest):
+        raise ProbeError("binary-changed-during-probe")
     if result.returncode != 0:
         raise ProbeError("cli-version-exit-nonzero")
     if len(result.stdout) > MAX_VERSION_BYTES:
