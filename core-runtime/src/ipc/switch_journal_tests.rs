@@ -122,12 +122,18 @@ fn tombstone_saturation_refuses_new_mutations_and_keeps_old_ids() {
 
     let mut oldest = request('f', "b");
     oldest.operation_id = format!("{:064x}", 0);
-    assert!(matches!(journal.reserve(oldest.clone()), Admission::Expired));
+    assert!(matches!(
+        journal.reserve(oldest.clone()),
+        Admission::Expired
+    ));
     let mut new_id = request('f', "b");
     new_id.operation_id = format!("{MAX_EXPIRED_IDS:064x}");
     assert!(matches!(journal.reserve(new_id), Admission::Capacity));
     assert!(matches!(journal.reserve(oldest), Admission::Expired));
-    assert!(matches!(journal.reserve(running.clone()), Admission::Repeat(_)));
+    assert!(matches!(
+        journal.reserve(running.clone()),
+        Admission::Repeat(_)
+    ));
     assert_eq!(
         journal.status(&running.operation_id).unwrap().phase,
         ModelSwitchPhase::Running
@@ -153,7 +159,9 @@ fn simultaneous_ttl_expiry_cannot_evade_saturation() {
     for r in [&first, &second] {
         journal.complete(
             &r.operation_id,
-            SwitchOutcome::Unknown { reason: "expired".into() },
+            SwitchOutcome::Unknown {
+                reason: "expired".into(),
+            },
         );
         expire(&journal, &r.operation_id);
     }
