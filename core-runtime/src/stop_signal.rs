@@ -7,8 +7,6 @@
 
 #[cfg(windows)]
 pub(crate) async fn wait() -> std::io::Result<()> {
-    use std::io;
-
     // Register both handlers before waiting. Tokio treats Ctrl+C and
     // Ctrl+Break as distinct console events on Windows.
     let mut ctrl_c = tokio::signal::windows::ctrl_c()?;
