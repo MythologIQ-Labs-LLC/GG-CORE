@@ -7,7 +7,9 @@ use std::time::Duration;
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn active_guard_is_charged_until_release_and_new_work_is_refused() {
     let coordinator = Arc::new(ShutdownCoordinator::new());
-    let guard = coordinator.track().expect("running coordinator accepts work");
+    let guard = coordinator
+        .track()
+        .expect("running coordinator accepts work");
     assert_eq!(coordinator.in_flight_count(), 1);
     let waiter = {
         let coordinator = coordinator.clone();
@@ -20,9 +22,15 @@ async fn active_guard_is_charged_until_release_and_new_work_is_refused() {
     })
     .await
     .expect("shutdown reaches Draining");
-    assert!(coordinator.track().is_none(), "no admission after drain begins");
+    assert!(
+        coordinator.track().is_none(),
+        "no admission after drain begins"
+    );
     assert_eq!(coordinator.in_flight_count(), 1);
-    assert!(!waiter.is_finished(), "cannot finish while actual guard exists");
+    assert!(
+        !waiter.is_finished(),
+        "cannot finish while actual guard exists"
+    );
     drop(guard);
     assert_eq!(
         tokio::time::timeout(Duration::from_secs(5), waiter)
@@ -32,7 +40,10 @@ async fn active_guard_is_charged_until_release_and_new_work_is_refused() {
         ShutdownResult::Complete
     );
     assert_eq!(coordinator.state().await, ShutdownState::Stopped);
-    assert!(coordinator.track().is_none(), "stopped coordinator stays closed");
+    assert!(
+        coordinator.track().is_none(),
+        "stopped coordinator stays closed"
+    );
     assert_eq!(coordinator.in_flight_count(), 0);
 }
 
