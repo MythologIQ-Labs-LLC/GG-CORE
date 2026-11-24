@@ -142,6 +142,7 @@ def main(argv=None):
         env["GG_CORE_SECURITY_EGRESS"] = "redact"
         env["GG_CORE_SOCKET_PATH"] = r"\\.\pipe\ggcore-shutdown-" + uuid.uuid4().hex
         env["GG_CORE_MAX_CONCURRENT"] = "1"
+        env["GG_CORE_SHUTDOWN_TIMEOUT"] = "200"
         env["GG_CORE_N_THREADS"] = "2"
         env["GG_CORE_N_CTX"] = "8192"
         env["GG_CORE_MAX_CONTEXT"] = "8192"
@@ -170,7 +171,7 @@ def main(argv=None):
             active = start_infer(
                 exe, root, env,
                 "Describe a river, its banks and the changing seasons in detail.",
-                1200)
+                600)
             clients.append(active)
             if not active[1].wait(90):
                 raise RuntimeError("Active stream produced no bytes; native work not proven")
