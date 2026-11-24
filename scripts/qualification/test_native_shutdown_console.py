@@ -120,7 +120,7 @@ class NativeShutdownTests(unittest.TestCase):
     def test_offline_preflight_queries_hidden_adapters(self):
         with mock.patch.object(preflight.platform, "system", return_value="Windows"):
             with mock.patch.object(mod.subprocess, "run", return_value=(
-                    subprocess.CompletedProcess([], 0, "0\\n", ""))) as call:
+                    subprocess.CompletedProcess([], 0, "0\n", ""))) as call:
                 preflight.require_offline_windows()
             args = call.call_args.args[0]
             self.assertIn("-IncludeHidden", args[-1])
