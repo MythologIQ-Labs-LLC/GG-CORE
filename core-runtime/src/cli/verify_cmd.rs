@@ -73,12 +73,46 @@ fn validate_capabilities(bytes: &[u8]) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// Refuse an IPC endpoint that could direct the shared token to a remote
+/// Windows pipe, or to a Unix socket under a directory writable by another
+/// UID. The daemon's identity remains unauthenticated by this client.
+fn validate_local_endpoint(socket: &str) -> Result<(), &'static str> {
+    #[cfg(windows)]
+    {
+        const LOCAL_PIPE: &str = r"\\.\pipe\";
+        if !socket.starts_with(LOCAL_PIPE) || socket.len() == LOCAL_PIPE.len() {
+            return Err("verify requires a local Windows named pipe");
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        use std::path::Path;
+
+        let path = Path::new(socket);
+        if !path.is_absolute() {
+            return Err("verify requires an absolute Unix socket path");
+        }
+        let parent = path.parent().ok_or("socket parent unavailable")?;
+        let metadata = std::fs::metadata(parent).map_err(|_| "socket parent unavailable")?;
+        let uid = unsafe { libc::geteuid() };
+        if !metadata.is_dir()
+            || metadata.permissions().mode() & 0o022 != 0
+            || (metadata.uid() != 0 && metadata.uid() != uid)
+        {
+            return Err("socket parent must be private and owned by root or this user");
+        }
+    }
+    Ok(())
+}
+
 /// Verify a running daemon using a fresh local authenticated IPC session.
 /// The stricter --all does not infer model quality from model readiness.
 async fn check_live(options: &VerifyOptions) -> Result<(), &'static str> {
     if std::env::var("CORE_AUTH_TOKEN").map_or(true, |token| token.is_empty()) {
         return Err("CORE_AUTH_TOKEN is required");
     }
+    validate_local_endpoint(&options.socket)?;
     let client = CliIpcClient::new(options.socket.clone()).with_timeout(IPC_TIMEOUT);
     if !matches!(
         client.check_health(HealthCheckType::Liveness).await,
@@ -139,7 +173,7 @@ pub async fn run_verify(args: &[String]) -> i32 {
                 println!("VERIFY PASS: config, authenticated offline IPC and liveness");
             }
             println!(
-                "NOT QUALIFIED: binary attestation, real-model inference, security containment, or v1 release"
+                "NOT ATTESTED: daemon identity, binary provenance, real-model inference, containment or v1 release"
             );
             0
         }

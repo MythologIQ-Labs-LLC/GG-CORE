@@ -86,3 +86,25 @@ fn unexpected_and_invalid_response_are_refused() {
     );
     assert!(validate_capabilities(b"not-json").is_err());
 }
+
+#[cfg(unix)]
+#[test]
+fn local_unix_socket_requires_a_private_owner_controlled_parent() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("verify.sock");
+    let socket = path.to_str().unwrap();
+    assert!(validate_local_endpoint(socket).is_ok());
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o777)).unwrap();
+    assert!(validate_local_endpoint(socket).is_err());
+    assert!(validate_local_endpoint("relative.sock").is_err());
+}
+
+#[cfg(windows)]
+#[test]
+fn local_windows_socket_refuses_remote_named_pipes() {
+    assert!(validate_local_endpoint(r"\\.\pipe\GG-CORE").is_ok());
+    assert!(validate_local_endpoint(r"\\remote-host\pipe\GG-CORE").is_err());
+    assert!(validate_local_endpoint(r"\\.\pipe\").is_err());
+}
