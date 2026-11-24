@@ -211,7 +211,11 @@ async fn daemon_starts_under_seccomp_with_private_unix_socket() {
     // model-free initialization, sandbox install, Unix bind and IPC liveness.
     // A missing SYS_geteuid allowlist entry would kill this child at bind.
     let dir = tempfile::tempdir().unwrap();
-    let socket = dir.path().join("seccomp.sock").to_string_lossy().into_owned();
+    let socket = dir
+        .path()
+        .join("seccomp.sock")
+        .to_string_lossy()
+        .into_owned();
     let mut daemon = Reap(
         Command::new(env!("CARGO_BIN_EXE_gg-core-cli"))
             .arg("serve")
@@ -230,8 +234,7 @@ async fn daemon_starts_under_seccomp_with_private_unix_socket() {
             panic!("sandboxed daemon exited before IPC liveness was usable: {exit}");
         }
         if std::path::Path::new(&socket).exists() {
-            let client = CliIpcClient::new(socket.clone())
-                .with_timeout(Duration::from_millis(500));
+            let client = CliIpcClient::new(socket.clone()).with_timeout(Duration::from_millis(500));
             if matches!(
                 client.check_health(HealthCheckType::Liveness).await,
                 Ok(true)
