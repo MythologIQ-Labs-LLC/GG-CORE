@@ -55,10 +55,15 @@ impl ShutdownCoordinator {
 
     /// Track an in-flight request. Returns None if shutting down.
     pub fn track(&self) -> Option<ShutdownGuard> {
-        if !self.is_accepting() {
+        // Keep the admission read lock until the counter is charged. Checking
+        // is_accepting() separately allowed initiate() to switch to Draining
+        // (and observe zero work) between the check and fetch_add().
+        let state = self.state.try_read().ok()?;
+        if *state != ShutdownState::Running {
             return None;
         }
         self.in_flight.fetch_add(1, Ordering::SeqCst);
+        drop(state);
         Some(ShutdownGuard {
             counter: self.in_flight.clone(),
             notify: self.notify.clone(),
@@ -93,6 +98,12 @@ impl ShutdownCoordinator {
         let deadline = tokio::time::Instant::now() + timeout;
 
         loop {
+            // Register for notifications BEFORE reading the count. Otherwise
+            // a guard may drop between reading a positive count and the
+            // select! installing its waiter, forcing a spurious full timeout.
+            let notified = self.notify.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
             let count = self.in_flight_count();
             if count == 0 {
                 return ShutdownResult::Complete;
@@ -104,7 +115,7 @@ impl ShutdownCoordinator {
             }
 
             tokio::select! {
-                _ = self.notify.notified() => continue,
+                _ = &mut notified => continue,
                 _ = tokio::time::sleep(remaining_time) => {
                     let final_count = self.in_flight_count();
                     if final_count == 0 {
@@ -135,3 +146,7 @@ impl Drop for ShutdownGuard {
         self.notify.notify_one();
     }
 }
+
+#[cfg(test)]
+#[path = "shutdown_tests.rs"]
+mod tests;
