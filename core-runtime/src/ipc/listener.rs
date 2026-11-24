@@ -36,20 +36,34 @@ type SocketIdentity = (u64, u64);
 /// Relative sockets use the current directory as their parent.
 #[cfg(unix)]
 fn validate_socket_parent(path: &str) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
     let parent = std::path::Path::new(path)
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| std::path::Path::new("."));
     let metadata = std::fs::symlink_metadata(parent)?;
-    if !metadata.file_type().is_dir() || metadata.permissions().mode() & 0o022 != 0 {
+    // A root daemon can bind inside an attacker-owned 0700 directory.
+    // Permission bits alone therefore cannot establish ownership of the path.
+    // Only a directory owned by our effective uid can host our socket.
+    let effective_uid = unsafe { libc::geteuid() };
+    if !metadata.file_type().is_dir()
+        || !trusted_socket_parent(metadata.permissions().mode(), metadata.uid(), effective_uid)
+    {
         return Err(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
-            "IPC socket parent must be a real directory without group/other write access",
+            "IPC socket parent must be a real directory owned by the daemon and not writable by group/others",
         ));
     }
     Ok(())
+}
+
+/// True only when the directory owner is the daemon and no other local
+/// principal has group/other write access. An untrusted owner can replace
+/// entries in a 0700 directory even though its permission bits look private.
+#[cfg(unix)]
+fn trusted_socket_parent(mode: u32, owner_uid: u32, effective_uid: u32) -> bool {
+    owner_uid == effective_uid && mode & 0o022 == 0
 }
 
 /// Bind without deleting an occupied path. The prior unconditional unlink
