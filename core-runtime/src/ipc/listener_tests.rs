@@ -1,7 +1,7 @@
 //! Unix IPC socket ownership: no destructive startup unlink and no stale
 //! cleanup of a replacement pathname. Model-free, no external services.
 
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
 
 use super::{bind_owned_socket, remove_owned_socket, SOCKET_MODE};
@@ -82,4 +82,41 @@ async fn shutdown_does_not_unlink_successor_daemon_socket() {
     drop(second);
     remove_owned_socket(path_str, second_identity).unwrap();
     assert!(!path.exists());
+}
+
+#[tokio::test]
+async fn writable_socket_directory_refuses_bind_without_creating_socket() {
+    let root = tempfile::tempdir().unwrap();
+    let parent = root.path().join("insecure");
+    std::fs::create_dir(&parent).unwrap();
+    let socket = parent.join("serve.sock");
+    for mode in [0o777, 0o770] {
+        std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(mode)).unwrap();
+        let err = bind_owned_socket(socket.to_str().unwrap())
+            .expect_err("untrusted writable parent must refuse startup");
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+        assert!(!socket.exists(), "refusal must not leave a socket behind");
+    }
+
+    // A protected parent restores the existing authenticated local transport.
+    std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let (listener, identity) = bind_owned_socket(socket.to_str().unwrap()).unwrap();
+    assert!(tokio::net::UnixStream::connect(&socket).await.is_ok());
+    drop(listener);
+    remove_owned_socket(socket.to_str().unwrap(), identity).unwrap();
+}
+
+#[tokio::test]
+async fn symlinked_socket_parent_refuses_bind_without_touching_target() {
+    let root = tempfile::tempdir().unwrap();
+    let protected = root.path().join("protected");
+    std::fs::create_dir(&protected).unwrap();
+    std::fs::set_permissions(&protected, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let redirect = root.path().join("redirect");
+    std::os::unix::fs::symlink(&protected, &redirect).unwrap();
+    let socket = redirect.join("serve.sock");
+    let error = bind_owned_socket(socket.to_str().unwrap())
+        .expect_err("symlinked immediate parent must be refused");
+    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    assert!(!protected.join("serve.sock").exists());
 }
