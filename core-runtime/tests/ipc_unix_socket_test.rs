@@ -250,3 +250,35 @@ async fn daemon_starts_under_seccomp_with_private_unix_socket() {
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
 }
+
+#[tokio::test]
+async fn operator_verify_requires_authenticated_offline_ipc_and_refuses_unready_model() {
+    let _guard = ENV_LOCK.lock().await;
+    let server = Server::start().await;
+    let args = vec!["--socket".to_string(), server.socket.clone()];
+    std::env::set_var(AUTH_TOKEN_ENV, TOKEN);
+    assert_eq!(
+        gg_core::cli::verify_cmd::run_verify(&args).await,
+        0,
+        "a running model-free daemon has valid IPC liveness and authenticated capabilities"
+    );
+    let all = vec!["--all".to_string(), "--socket".to_string(), server.socket.clone()];
+    assert_eq!(
+        gg_core::cli::verify_cmd::run_verify(&all).await,
+        1,
+        "--all must not claim inference-readiness without a loaded model"
+    );
+    std::env::set_var(AUTH_TOKEN_ENV, "wrong-token");
+    assert_eq!(
+        gg_core::cli::verify_cmd::run_verify(&args).await,
+        1,
+        "a healthy unauthenticated probe must not mask invalid credentials"
+    );
+    std::env::remove_var(AUTH_TOKEN_ENV);
+    assert_eq!(
+        gg_core::cli::verify_cmd::run_verify(&args).await,
+        1,
+        "a missing token must never produce a verification PASS"
+    );
+    server.stop().await;
+}

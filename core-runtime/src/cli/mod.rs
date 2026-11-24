@@ -25,6 +25,7 @@ pub mod models_release_cmd;
 pub mod status;
 pub mod status_format;
 pub mod typed_cmd;
+pub mod verify_cmd;
 
 pub use health::{run_health, run_liveness, run_readiness};
 pub use ipc_client::{CliError, CliIpcClient};
