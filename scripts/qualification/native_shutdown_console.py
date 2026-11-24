@@ -8,12 +8,9 @@ this script does NOT certify those gates itself.
 """
 import argparse
 import ctypes
-import hashlib
 import json
 import os
 from pathlib import Path
-import platform
-import re
 import secrets
 import subprocess
 import sys
@@ -21,56 +18,12 @@ import threading
 import time
 import uuid
 
-APPROVED_MODEL_SHA = "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"
-APPROVED_MODEL_BYTES = 491400032
-SHA40 = re.compile(r"^[a-f0-9]{40}$")
-SHA64 = re.compile(r"^[a-f0-9]{64}$")
-CTRL_BREAK_EVENT = 1
-CREATE_NEW_PROCESS_GROUP = 0x00000200
-
-
-def sha256(path):
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def require_inputs(root, output, expected_head, expected_exe):
-    if not SHA40.fullmatch(expected_head):
-        raise ValueError("Expected producer SHA must be full lowercase Git SHA")
-    if not SHA64.fullmatch(expected_exe):
-        raise ValueError("Expected executable SHA-256 must be 64 lowercase hex")
-    if root.is_symlink() or not root.is_dir():
-        raise ValueError("Staged root is missing or a symlink")
-    if output == root or root in output.parents:
-        raise ValueError("Evidence output must not be inside staged root")
-    if output.exists() or output.is_symlink():
-        raise ValueError("Evidence directory must be absent, never reused")
-    exe = root / "gg-core-cli.exe"
-    model = root / "models" / "qwen" / "model.gguf"
-    for path in (exe, model):
-        if path.is_symlink() or not path.is_file():
-            raise ValueError("Required staged executable/model missing or symlinked")
-    if sha256(exe) != expected_exe:
-        raise ValueError("Executable digest differs from qualified exact build")
-    if model.stat().st_size != APPROVED_MODEL_BYTES or sha256(model) != APPROVED_MODEL_SHA:
-        raise ValueError("Unapproved model bytes/digest")
-    return exe
-
-
-def require_offline_windows():
-    """Refuse native evidence outside a no-network-adapter Windows guest."""
-    if platform.system() != "Windows":
-        raise RuntimeError("Native graceful shutdown acceptance requires Windows")
-    command = "@(Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' }).Count"
-    result = subprocess.run(
-        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
-        capture_output=True, text=True, timeout=20, check=False)
-    if result.returncode or result.stdout.strip() != "0":
-        raise RuntimeError("NO-GO: Windows VM has active network adapters or cannot prove offline")
-
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from native_shutdown_preflight import (
+    APPROVED_MODEL_SHA, APPROVED_MODEL_BYTES, sha256, require_inputs,
+    require_offline_windows, observed_queued_depth,
+)
 
 def send_group_break(pid):
     """Target ONLY the new daemon process group, never the runner's group."""
@@ -97,11 +50,13 @@ def stdout_digest(process, started, summary):
     summary.update({"stdout_bytes": n, "stdout_sha256": h.hexdigest()})
 
 
-def start_infer(exe, root, env, prompt, max_tokens):
+def start_infer(exe, root, env, prompt, max_tokens, stream=True):
+    args = [str(exe), "infer", "--model", "qwen", "--prompt", prompt,
+            "--max-tokens", str(max_tokens), "--timeout-ms", "180000"]
+    if stream:
+        args.append("--stream")
     process = subprocess.Popen(
-        [str(exe), "infer", "--model", "qwen", "--prompt", prompt,
-         "--max-tokens", str(max_tokens), "--timeout-ms", "180000", "--stream"],
-        cwd=root, env=env, stdin=subprocess.DEVNULL,
+        args, cwd=root, env=env, stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     started = threading.Event()
     summary = {}
@@ -125,6 +80,34 @@ def await_ready(exe, root, env, daemon, seconds=120):
             return
         time.sleep(0.5)
     raise RuntimeError("Packaged daemon never became model-ready")
+def wait_for_admitted_queue(exe, root, env, daemon, active, queued, seconds=35):
+    """Only a daemon-owned Full health queue count can establish admission."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if any(p.poll() is not None for p in (daemon, active, queued)):
+            raise RuntimeError("Client or daemon exited before queue admission was observed")
+        try:
+            probe = subprocess.run(
+                [str(exe), "health", "--json"], cwd=root, env=env,
+                stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                timeout=8, check=False)
+        except subprocess.TimeoutExpired:
+            continue
+        depth = observed_queued_depth(probe.stdout)
+        if depth is not None:
+            return depth
+        time.sleep(0.2)
+    raise RuntimeError("No authenticated IPC queue admission observed within 35s")
+
+
+def require_drain_results(active_exit, queued_exit):
+    """Drain promises success for admitted active AND queued work."""
+    if active_exit != 0:
+        raise RuntimeError("Active streaming client failed during graceful drain")
+    if queued_exit != 0:
+        raise RuntimeError("Admitted queued client failed during graceful drain")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--staged-root", type=Path, required=True)
@@ -146,6 +129,8 @@ def main(argv=None):
         report["cli_sha256"] = args.exe_sha256
         report["model_sha256"] = APPROVED_MODEL_SHA
         report["model_bytes"] = APPROVED_MODEL_BYTES
+        if args.staged_root.is_symlink():
+            raise RuntimeError("NO-GO: staged root must not be symlinked")
         if not ctypes.windll.kernel32.GetConsoleWindow():
             raise RuntimeError("NO-GO: runner must share an interactive console")
         env = dict(os.environ)
@@ -173,7 +158,7 @@ def main(argv=None):
         receipt_allowed = True
         with (output / "daemon.stdout").open("wb") as dout, \
                 (output / "daemon.stderr").open("wb") as derr:
-                            daemon = subprocess.Popen(
+            daemon = subprocess.Popen(
                 [str(exe), "serve", "--model", "models/qwen/model.gguf",
                  "--model-id", "qwen"],
                 cwd=root, env=env, stdin=subprocess.DEVNULL,
@@ -192,11 +177,11 @@ def main(argv=None):
                 raise RuntimeError("Active request already exited before shutdown test")
             report["active_started"] = True
             queued = start_infer(
-                exe, root, env, "Reply with the word READY.", 10)
+                exe, root, env, "Reply with the word READY.", 10, stream=False)
             clients.append(queued)
-            time.sleep(0.4)
-            if active[0].poll() is not None or queued[0].poll() is not None:
-                raise RuntimeError("Two in-flight requests were not retained before signal")
+            depth = wait_for_admitted_queue(
+                exe, root, env, daemon, active[0], queued[0])
+            report["queued_admitted_depth"] = depth
             report["queued_pending_at_signal"] = True
             send_group_break(daemon.pid)
             report["group_break_sent"] = True
@@ -219,9 +204,8 @@ def main(argv=None):
             raise RuntimeError("Daemon did not execute both graceful shutdown stages")
         if daemon.returncode != 0:
             raise RuntimeError("Graceful server returned nonzero exit")
-        if clients[1][0].returncode == 0:
-            raise RuntimeError("Queued request unexpectedly succeeded after shutdown signal")
-        report["status"] = "GRACEFUL_GROUP_SIGNAL_ACTIVE_AND_QUEUED_PASS__RELEASE_HOLD"
+        require_drain_results(clients[0][0].returncode, clients[1][0].returncode)
+        report["status"] = "GRACEFUL_GROUP_SIGNAL_BOTH_ADMITTED_REQUESTS_DRAINED__RELEASE_HOLD"
         return 0
     except Exception as error:
         report["error"] = str(error)
@@ -234,7 +218,7 @@ def main(argv=None):
                 proc.kill()
                 proc.wait()
         if daemon is not None and daemon.poll() is None:
-                daemon.kill()
+            daemon.kill()
             daemon.wait()
             report["forced_cleanup"] = True
         if receipt_allowed:
