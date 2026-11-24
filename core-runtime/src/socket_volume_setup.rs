@@ -87,9 +87,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     // between permission-independent inspection and writable operation.
     let fd = open_directory(name.as_c_str(), libc::O_RDONLY)?;
     let reopened = stat_dir(&fd)?;
-    if reopened.st_dev != before.st_dev
-        || reopened.st_ino != before.st_ino
-        || reopened.st_uid != 0
+    if reopened.st_dev != before.st_dev || reopened.st_ino != before.st_ino || reopened.st_uid != 0
     {
         return Err("chart socket mount changed during preparation".into());
     }
