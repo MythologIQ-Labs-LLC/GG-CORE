@@ -110,6 +110,13 @@ def require_drain_results(active_exit, queued_exit):
         raise RuntimeError("Admitted queued client failed during graceful drain")
 
 
+def read_build_identity(exe, root, env):
+    # A bad/hung binary must never stall the unstarted native gate forever.
+    return json.loads(subprocess.check_output(
+        [str(exe), "version", "--json"], cwd=root, env=env,
+        text=True, timeout=30))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--staged-root", type=Path, required=True)
@@ -149,8 +156,7 @@ def main(argv=None):
         env["GG_CORE_MAX_CONTEXT"] = "8192"
         env["GG_CORE_MAX_CONTEXT_TOKENS"] = "8192"
         env["GG_CORE_REQUIRE_REAL_MODEL"] = "1"
-        version = json.loads(subprocess.check_output(
-            [str(exe), "version", "--json"], cwd=root, env=env, text=True))
+        version = read_build_identity(exe, root, env)
         if version.get("commit") != args.expected_head:
             raise RuntimeError("Packaged CLI source commit mismatch")
         report["cli_version"] = version.get("version")

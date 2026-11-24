@@ -49,7 +49,7 @@ def require_offline_windows():
     """Refuse native evidence outside a no-network-adapter Windows guest."""
     if platform.system() != "Windows":
         raise RuntimeError("Native graceful shutdown acceptance requires Windows")
-    command = "@(Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' }).Count"
+    command = "@(Get-NetAdapter -IncludeHidden -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' }).Count"
     result = subprocess.run(
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
         capture_output=True, text=True, timeout=20, check=False)

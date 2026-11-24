@@ -117,6 +117,23 @@ class NativeShutdownTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Admitted queued client failed"):
             mod.require_drain_results(0, 1)
 
+    def test_offline_preflight_queries_hidden_adapters(self):
+        with mock.patch.object(preflight.platform, "system", return_value="Windows"):
+            with mock.patch.object(mod.subprocess, "run", return_value=(
+                    subprocess.CompletedProcess([], 0, "0\\n", ""))) as call:
+                preflight.require_offline_windows()
+            args = call.call_args.args[0]
+            self.assertIn("-IncludeHidden", args[-1])
+            self.assertIn("-ErrorAction Stop", args[-1])
+
+    def test_version_probe_has_bounded_timeout_and_refuses_hung_binary(self):
+        with mock.patch.object(mod.subprocess, "check_output",
+                               side_effect=subprocess.TimeoutExpired("gg-core-cli", 30)) as call:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                mod.read_build_identity(pathlib.Path("gg-core-cli.exe"),
+                                        pathlib.Path("."), {})
+            self.assertEqual(call.call_args.kwargs["timeout"], 30)
+
     def test_group_signal_targets_only_the_explicit_child_group(self):
         with mock.patch.object(mod.ctypes, "windll", create=True) as windll:
             kernel = windll.kernel32
