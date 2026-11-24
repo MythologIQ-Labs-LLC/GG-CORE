@@ -80,7 +80,10 @@ async fn check_live(options: &VerifyOptions) -> Result<(), &'static str> {
         return Err("CORE_AUTH_TOKEN is required");
     }
     let client = CliIpcClient::new(options.socket.clone()).with_timeout(IPC_TIMEOUT);
-    if !matches!(client.check_health(HealthCheckType::Liveness).await, Ok(true)) {
+    if !matches!(
+        client.check_health(HealthCheckType::Liveness).await,
+        Ok(true)
+    ) {
         return Err("daemon IPC liveness check failed");
     }
     let request = encode_message(&IpcMessage::CapabilitiesRequest)
@@ -92,7 +95,10 @@ async fn check_live(options: &VerifyOptions) -> Result<(), &'static str> {
     validate_capabilities(&response)?;
 
     if options.all {
-        if !matches!(client.check_health(HealthCheckType::Readiness).await, Ok(true)) {
+        if !matches!(
+            client.check_health(HealthCheckType::Readiness).await,
+            Ok(true)
+        ) {
             return Err("daemon is not ready");
         }
         let models = client

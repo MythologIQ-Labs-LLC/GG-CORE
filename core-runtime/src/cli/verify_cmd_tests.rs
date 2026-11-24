@@ -81,6 +81,8 @@ fn unauthenticated_network_and_invalid_schema_are_refused() {
 
 #[test]
 fn unexpected_and_invalid_response_are_refused() {
-    assert!(validate_capabilities(&encode_message(&IpcMessage::CapabilitiesRequest).unwrap()).is_err());
+    assert!(
+        validate_capabilities(&encode_message(&IpcMessage::CapabilitiesRequest).unwrap()).is_err()
+    );
     assert!(validate_capabilities(b"not-json").is_err());
 }

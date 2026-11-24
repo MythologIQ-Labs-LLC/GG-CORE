@@ -262,7 +262,11 @@ async fn operator_verify_requires_authenticated_offline_ipc_and_refuses_unready_
         0,
         "a running model-free daemon has valid IPC liveness and authenticated capabilities"
     );
-    let all = vec!["--all".to_string(), "--socket".to_string(), server.socket.clone()];
+    let all = vec![
+        "--all".to_string(),
+        "--socket".to_string(),
+        server.socket.clone(),
+    ];
     assert_eq!(
         gg_core::cli::verify_cmd::run_verify(&all).await,
         1,
