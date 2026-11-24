@@ -52,16 +52,22 @@ fn emit_provenance() {
     println!("cargo:rustc-env=VERGEN_RUSTC_SEMVER={}", semver);
 }
 
-/// Only an explicitly producer-authorized source commit may override Git.
+/// A Git checkout is authoritative. An archive may have an explicit
+/// producer-stamped SHA, but an override must never contradict a real HEAD.
 fn source_commit(explicit: Option<&str>, checkout_head: Option<&str>) -> String {
-    if let Some(raw) = explicit.filter(|raw| !raw.trim().is_empty()) {
-        return canonical_commit(raw)
-            .expect("GG_CORE_BUILD_COMMIT must be a full 40-character hexadecimal Git commit");
+    let stamp = explicit.filter(|raw| !raw.trim().is_empty()).map(|raw| {
+        canonical_commit(raw)
+            .expect("GG_CORE_BUILD_COMMIT must be a full 40-character hexadecimal Git commit")
+    });
+    let source = checkout_head.and_then(canonical_commit);
+    match (source, stamp) {
+        (Some(actual), Some(claim)) if actual != claim => {
+            panic!("GG_CORE_BUILD_COMMIT contradicts the checked-out Git source revision")
+        }
+        (Some(actual), _) => actual,
+        (None, Some(claim)) => claim,
+        (None, None) => "unknown".to_string(),
     }
-    // A Git dependency builds from its own checkout, not the consumer repo.
-    checkout_head
-        .and_then(canonical_commit)
-        .unwrap_or_else(|| "unknown".to_string())
 }
 
 /// Accept only a full Git SHA-1 commit, never arbitrary text or short refs.
@@ -172,12 +178,14 @@ mod tests {
     }
 
     #[test]
-    fn explicit_archive_commit_is_validated_and_overrides_checkout() {
+    fn archives_can_be_stamped_but_checkout_mismatch_fails_closed() {
         let source = "a".repeat(40);
         let override_sha = "B".repeat(40);
-        assert_eq!(
-            source_commit(Some(&override_sha), Some(&source)),
-            "b".repeat(40)
+        assert_eq!(source_commit(Some(&override_sha), None), "b".repeat(40));
+        assert_eq!(source_commit(Some(&source), Some(&source)), source);
+        assert!(
+            std::panic::catch_unwind(|| { source_commit(Some(&override_sha), Some(&source)) })
+                .is_err()
         );
         assert!(
             std::panic::catch_unwind(|| { source_commit(Some("not-a-valid-commit"), None) })
