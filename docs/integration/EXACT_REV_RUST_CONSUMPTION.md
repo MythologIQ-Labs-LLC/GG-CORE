@@ -28,7 +28,9 @@ When used as a Cargo Git dependency, GG-CORE builds from its own Git
 checkout and must ignore the consuming application's unrelated GITHUB_SHA.
 A source archive with no Git metadata must provide explicit full-hex
 GG_CORE_BUILD_COMMIT or report "unknown", which is not an acceptable
-release identity. This override is not a cryptographic authenticity proof.
+release identity. If Git metadata exists, an explicit override that disagrees
+with Git HEAD fails the build instead of falsifying source identity.
+The override is not a cryptographic authenticity proof.
 
 ## Upgrade and rollback
 
