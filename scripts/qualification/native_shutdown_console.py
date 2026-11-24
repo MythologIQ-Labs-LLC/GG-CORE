@@ -8,6 +8,7 @@ this script does NOT certify those gates itself.
 """
 import argparse
 import ctypes
+import hashlib
 import json
 import os
 from pathlib import Path

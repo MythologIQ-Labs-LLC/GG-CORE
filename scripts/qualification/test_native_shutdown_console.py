@@ -1,5 +1,8 @@
 """Model-free negative controls for real Windows Ctrl+Break gate (#219)."""
 import importlib.util
+import io
+import hashlib
+import threading
 import json
 import pathlib
 import subprocess
@@ -75,6 +78,23 @@ class NativeShutdownTests(unittest.TestCase):
             file.write_bytes(b"b")
             self.assertNotEqual(before, mod.sha256(file))
             self.assertEqual(len(before), 64)
+
+    def test_stdout_digest_observes_tokens_without_storing_text(self):
+        raw = b"synthetic stream chunk"
+        proc = mock.Mock()
+        proc.stdout = io.BufferedReader(io.BytesIO(raw))
+        started = threading.Event()
+        receipt = {}
+        mod.stdout_digest(proc, started, receipt)
+        self.assertTrue(started.is_set())
+        self.assertEqual(receipt["stdout_bytes"], len(raw))
+        self.assertEqual(receipt["stdout_sha256"], hashlib.sha256(raw).hexdigest())
+        self.assertNotIn("synthetic stream chunk", str(receipt))
+        empty = mock.Mock()
+        empty.stdout = io.BufferedReader(io.BytesIO(b""))
+        no_data = threading.Event()
+        mod.stdout_digest(empty, no_data, {})
+        self.assertFalse(no_data.is_set())
 
     def test_only_actual_full_health_queue_depth_proves_admission(self):
         full = {"check_type": "Full", "ok": True,
