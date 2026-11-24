@@ -30,7 +30,7 @@ class NativeShutdownTests(unittest.TestCase):
     def test_offline_guest_must_prove_no_active_network_adapter(self):
         with mock.patch.object(preflight.platform, "system", return_value="Windows"):
             with mock.patch.object(mod.subprocess, "run", return_value=(
-                    subprocess.CompletedProcess([], 0, "1\\n", ""))):
+                    subprocess.CompletedProcess([], 0, "1\n", ""))):
                 with self.assertRaisesRegex(RuntimeError, "NO-GO"):
                     mod.require_offline_windows()
             with mock.patch.object(mod.subprocess, "run", return_value=(
@@ -38,7 +38,7 @@ class NativeShutdownTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "NO-GO"):
                     mod.require_offline_windows()
             with mock.patch.object(mod.subprocess, "run", return_value=(
-                    subprocess.CompletedProcess([], 0, "0\\n", ""))):
+                    subprocess.CompletedProcess([], 0, "0\n", ""))):
                 mod.require_offline_windows()
 
     def test_bad_producer_sha_and_output_reuse_are_refused(self):
