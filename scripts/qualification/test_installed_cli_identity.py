@@ -56,6 +56,34 @@ class InstalledCliIdentityTests(unittest.TestCase):
         with self.assertRaisesRegex(identity.ProbeError, "missing-or-symlinked"):
             self.check()
 
+    @unittest.skipIf(sys.platform == "win32", "shell-script swap negative is Unix only")
+    def test_swap_and_restore_original_path_cannot_spoof_snapshot(self):
+        # The verified program actually exits 7. An attacker substitutes a
+        # program that prints valid provenance and restores the inode, mtime
+        # and hash before the receipt's post-check. Only pinned execution
+        # can reliably reject the forged version response.
+        self.binary.write_bytes(b"#!/bin/sh\\nexit 7\\n".replace(b"\\n", b"\n"))
+        self.binary.chmod(0o700)
+        self.digest = hashlib.sha256(self.binary.read_bytes()).hexdigest()
+
+        def swap_and_run(argv, **kwargs):
+            saved = self.root / "temporarily-held-original"
+            self.assertNotEqual(Path(argv[0]), self.binary)
+            self.binary.rename(saved)
+            doc = self.version()
+            payload = doc.stdout.decode("utf-8")
+            self.binary.write_text("#!/bin/sh\\nprintf '%s' '" + payload + "'\\n")
+            self.binary.chmod(0o700)
+            try:
+                return subprocess.run(argv, **kwargs)
+            finally:
+                self.binary.unlink()
+                saved.rename(self.binary)
+
+        with self.assertRaisesRegex(identity.ProbeError, "cli-version-exit-nonzero"):
+            identity.probe(MANIFEST, CASE, self.root, self.name,
+                           self.digest, SHA, runner=swap_and_run)
+
     def test_executable_mutation_during_probe_refuses_receipt(self):
         def replace(*args, **kwargs):
             self.binary.write_bytes(b"binary changed during execution")

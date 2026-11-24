@@ -12,7 +12,9 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
+import tempfile
 import sys
 
 from conformance_receipts import SHA40, SHA64, validate_manifest
@@ -87,11 +89,25 @@ def probe(manifest, case_id, stage, name, claimed_digest, source_sha, runner=Non
     original = path.stat()
     execute = runner or subprocess.run
     try:
-        result = execute(
-            [str(path), "version", "--json"],
-            cwd=str(stage.resolve(strict=True)), timeout=10,
-            capture_output=True, check=False,
-        )
+        # Execute a verified private snapshot, not a replaceable name in
+        # the staged directory. A swap-and-restore can defeat two path hashes.
+        with tempfile.TemporaryDirectory(prefix="gg114-identity-") as temp:
+            snapshot = Path(temp) / path.name
+            shutil.copy2(path, snapshot)
+            if sha256_file(snapshot) != claimed_digest:
+                raise ProbeError("snapshot-sha256-mismatch")
+            env = dict(os.environ)
+            # A relocated Windows executable may load bundled DLLs by PATH.
+            # This checks the CLI's identity, not installed loader isolation.
+            if os.name == "nt":
+                env["PATH"] = str(stage.resolve(strict=True)) + os.pathsep + env.get("PATH", "")
+            result = execute(
+                [str(snapshot), "version", "--json"],
+                cwd=str(stage.resolve(strict=True)), timeout=10,
+                capture_output=True, check=False, env=env,
+            )
+            if sha256_file(snapshot) != claimed_digest:
+                raise ProbeError("snapshot-changed-during-execution")
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ProbeError("cli-version-execution-failed") from exc
     # A hash checked only before exec is not enough if a writable stage
