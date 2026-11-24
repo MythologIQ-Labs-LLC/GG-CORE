@@ -179,10 +179,10 @@ mod tests {
             source_commit(Some(&override_sha), Some(&source)),
             "b".repeat(40)
         );
-        assert!(std::panic::catch_unwind(|| {
-            source_commit(Some("not-a-valid-commit"), None)
-        })
-        .is_err());
+        assert!(
+            std::panic::catch_unwind(|| { source_commit(Some("not-a-valid-commit"), None) })
+                .is_err()
+        );
     }
 
     #[test]
