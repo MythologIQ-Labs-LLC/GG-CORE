@@ -97,6 +97,9 @@ jobs:
       - name: Public conformance receipt fail-closed inventory (#114)
         working-directory: .
         run: python -I -m unittest discover -s scripts/qualification -p test_conformance_receipts.py -v
+      - name: Windows group shutdown probe negative controls (#219)
+        working-directory: .
+        run: python -I -m unittest discover -s scripts/qualification -p test_native_shutdown_console.py -v
       - name: Exact-binary identity preflight negative controls (#114)
         run: python -m unittest discover -s scripts -p test_binary_identity.py -v
       - name: Public CLI behavioral contract negative controls (#114)
