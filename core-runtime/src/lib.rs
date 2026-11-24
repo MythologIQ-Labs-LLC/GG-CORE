@@ -22,6 +22,7 @@
 //! - Network: Blocked (deny all)
 //! - IPC: Named pipes/Unix sockets only. No HTTP/REST/WebSocket.
 
+pub mod build_identity;
 pub mod config;
 pub mod engine;
 pub mod health;
