@@ -46,7 +46,18 @@ impl Model for SlowModel {
         let now = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
         self.peak.fetch_max(now, Ordering::SeqCst);
         if let Some(gate) = &self.rendezvous {
-            gate.wait().await;
+            // Native worker inference may outlive the awaiting test task.
+            // A missing peer must release the native worker itself; an outer
+            // test timeout cannot cancel an already-started spawn_blocking.
+            if tokio::time::timeout(Duration::from_secs(4), gate.wait())
+                .await
+                .is_err()
+            {
+                self.in_flight.fetch_sub(1, Ordering::SeqCst);
+                return Err(InferenceError::ModelError(
+                    "concurrent worker never reached model rendezvous".into(),
+                ));
+            }
         }
         tokio::time::sleep(WORK).await;
         self.in_flight.fetch_sub(1, Ordering::SeqCst);
@@ -145,9 +156,9 @@ async fn two_loops_run_two_requests_at_the_same_time() {
         ..Default::default()
     }));
     // Both requests must ENTER the real model concurrently before either can
-    // finish. A serialized worker deadlocks at the barrier and fails the
-    // existing bounded response deadline. CPU scheduling latency cannot fake
-    // a failure, unlike the historical elapsed < 525 ms assertion.
+    // finish. A serialized worker fails the model's own 4s rendezvous limit;
+    // no orphaned native blocking task survives a failed test. This avoids the
+    // historical elapsed < 525ms test's CPU-load false positives.
     let p = spawn_on_with_gate(queue, 2, Some(Arc::new(Barrier::new(2)))).await;
     let (a, b) = (request(&p.queue).await, request(&p.queue).await);
     answered(a).await;
