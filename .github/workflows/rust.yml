@@ -107,6 +107,9 @@ jobs:
         run: cargo build --locked --bin gg-core-cli
       - name: Execute and verify built CLI provenance (#114)
         run: python scripts/smoke_binary_identity.py
+      - name: External exact-Git-revision Cargo consumer (#113)
+        working-directory: core-runtime
+        run: python scripts/git_consumer_contract.py
       # Cargo does not run #[cfg(test)] in build.rs through cargo test.
       # Compile its pure provenance and Git ref-watch tests explicitly.
       - name: Build-provenance identity and ref-watch tests (#114)
