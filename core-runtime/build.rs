@@ -6,7 +6,7 @@
 //! - Always: records build provenance (git commit, build date, rustc) as
 //!   `VERGEN_*` compile-time env vars consumed by `version --json` and
 //!   `status --json`, so a consumer can bind a running binary to an exact
-//!   source revision. `GITHUB_SHA` (CI) takes precedence over `git`.
+//!   source revision. Source Git HEAD wins over an unrelated consumer CI SHA.
 //! - With the `ffi` feature: generates the C header via cbindgen.
 
 fn main() {
@@ -22,7 +22,7 @@ fn main() {
 }
 
 fn emit_provenance() {
-    println!("cargo:rerun-if-env-changed=GITHUB_SHA");
+    // GITHUB_SHA identifies the invoking CI project, not necessarily this crate.
     println!("cargo:rerun-if-env-changed=GG_CORE_BUILD_COMMIT");
     // .git/HEAD usually contains a symbolic ref (e.g. refs/heads/main).
     // Its contents do not change when new commits advance that same branch.
@@ -30,22 +30,9 @@ fn emit_provenance() {
     for path in git_watch_paths() {
         println!("cargo:rerun-if-changed={path}");
     }
-    let explicit = std::env::var("GG_CORE_BUILD_COMMIT")
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .or_else(|| {
-            std::env::var("GITHUB_SHA")
-                .ok()
-                .filter(|s| !s.trim().is_empty())
-        });
-    let commit = explicit
-        .map(|value| {
-            canonical_commit(&value).expect(
-                "GG_CORE_BUILD_COMMIT/GITHUB_SHA must be a full 40-character hexadecimal Git commit",
-            )
-        })
-        .or_else(git_head)
-        .unwrap_or_else(|| "unknown".to_string());
+    let explicit = std::env::var("GG_CORE_BUILD_COMMIT").ok();
+    let checkout_head = git_head();
+    let commit = source_commit(explicit.as_deref(), checkout_head.as_deref());
     println!("cargo:rustc-env=VERGEN_GIT_SHA={commit}");
 
     let secs = std::time::SystemTime::now()
@@ -63,6 +50,18 @@ fn emit_provenance() {
         .and_then(|s| s.split_whitespace().nth(1).map(str::to_string))
         .unwrap_or_else(|| "unknown".to_string());
     println!("cargo:rustc-env=VERGEN_RUSTC_SEMVER={}", semver);
+}
+
+/// Only an explicitly producer-authorized source commit may override Git.
+fn source_commit(explicit: Option<&str>, checkout_head: Option<&str>) -> String {
+    if let Some(raw) = explicit.filter(|raw| !raw.trim().is_empty()) {
+        return canonical_commit(raw)
+            .expect("GG_CORE_BUILD_COMMIT must be a full 40-character hexadecimal Git commit");
+    }
+    // A Git dependency builds from its own checkout, not the consumer repo.
+    checkout_head
+        .and_then(canonical_commit)
+        .unwrap_or_else(|| "unknown".to_string())
 }
 
 /// Accept only a full Git SHA-1 commit, never arbitrary text or short refs.
@@ -159,6 +158,31 @@ mod tests {
         ] {
             assert!(canonical_commit(&invalid).is_none(), "invalid SHA accepted");
         }
+    }
+
+    #[test]
+    fn checkout_identity_is_separate_from_consumer_ci_identity() {
+        let producer = "a".repeat(40);
+        let consumer_ci = "b".repeat(40);
+        assert_ne!(producer, consumer_ci);
+        // No GITHUB_SHA argument exists: only GG-CORE's source checkout counts.
+        assert_eq!(source_commit(None, Some(&producer)), producer);
+        assert_eq!(source_commit(None, None), "unknown");
+        assert_eq!(source_commit(Some(""), Some(&producer)), producer);
+    }
+
+    #[test]
+    fn explicit_archive_commit_is_validated_and_overrides_checkout() {
+        let source = "a".repeat(40);
+        let override_sha = "B".repeat(40);
+        assert_eq!(
+            source_commit(Some(&override_sha), Some(&source)),
+            "b".repeat(40)
+        );
+        assert!(std::panic::catch_unwind(|| {
+            source_commit(Some("not-a-valid-commit"), None)
+        })
+        .is_err());
     }
 
     #[test]
