@@ -120,8 +120,8 @@ OPTIONS:
 
 EXIT CODES:
     0  System is healthy
-    1  System is unhealthy
-    3  Connection error
+    1  System is unhealthy / daemon unavailable
+    2  Invalid probe arguments
 "
     );
 }
@@ -138,8 +138,8 @@ OPTIONS:
 
 EXIT CODES:
     0  Process is alive
-    1  Process is unresponsive
-    3  Connection error
+    1  Process is unresponsive / daemon unavailable
+    2  Invalid probe arguments
 "
     );
 }
@@ -156,8 +156,8 @@ OPTIONS:
 
 EXIT CODES:
     0  Ready to serve traffic
-    1  Not ready
-    3  Connection error
+    1  Not ready / daemon unavailable
+    2  Invalid probe arguments
 "
     );
 }

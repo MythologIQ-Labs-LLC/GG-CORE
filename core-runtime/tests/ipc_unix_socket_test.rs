@@ -341,3 +341,61 @@ async fn shipped_verify_subcommand_routes_through_authenticated_ipc() {
     .expect("join CLI probe test");
     server.stop().await;
 }
+
+#[tokio::test]
+async fn shipped_health_probe_flags_operate_on_explicit_socket_and_return_real_json() {
+    use std::process::{Command, Stdio};
+    use std::time::Instant;
+
+    let server = Server::start().await;
+    let socket = server.socket.clone();
+    tokio::task::spawn_blocking(move || {
+        let cases = [
+            (vec!["health", "--socket", &socket], 0, false),
+            (vec!["health", "--json", "--socket", &socket], 0, true),
+            (vec!["health", "--socket", &socket, "--json"], 0, true),
+            (vec!["live", "--socket", &socket], 0, false),
+            (vec!["ready", "--socket", &socket], 0, false),
+            (vec!["ready", "--json", "--socket", &socket], 2, false),
+            (vec!["health", "--socket"], 2, false),
+        ];
+        for (args, expected, json) in cases {
+            let mut child = Command::new(env!("CARGO_BIN_EXE_gg-core-cli"))
+                .args(&args)
+                // A bad environment fallback proves that --socket is honored.
+                .env("GG_CORE_SOCKET_PATH", "/nonexistent/ignored-socket.sock")
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("launch real probe command");
+            let deadline = Instant::now() + Duration::from_secs(15);
+            loop {
+                if child.try_wait().expect("poll child").is_some() {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!("health CLI exceeded bounded execution deadline");
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            let result = child.wait_with_output().expect("collect probe output");
+            assert_eq!(
+                result.status.code(),
+                Some(expected),
+                "probe flags {args:?} must have an honest return code"
+            );
+            if json {
+                let doc: serde_json::Value =
+                    serde_json::from_slice(&result.stdout).expect("one valid health JSON");
+                assert_eq!(doc["check_type"], "Full");
+                assert_eq!(doc["ok"], true);
+                assert!(doc["report"].is_object());
+            }
+        }
+    })
+    .await
+    .expect("join shipped health CLI probe test");
+    server.stop().await;
+}
