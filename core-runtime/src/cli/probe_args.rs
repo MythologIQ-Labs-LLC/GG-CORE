@@ -59,7 +59,11 @@ mod tests {
         assert_eq!(a, b);
         assert_eq!(a.socket, "/private/gg.sock");
         assert!(a.json);
-        assert!(!parse(&["--socket", "/private/gg.sock"], false).unwrap().json);
+        assert!(
+            !parse(&["--socket", "/private/gg.sock"], false)
+                .unwrap()
+                .json
+        );
     }
 
     #[test]

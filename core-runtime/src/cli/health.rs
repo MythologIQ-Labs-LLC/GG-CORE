@@ -25,9 +25,7 @@ pub async fn run_health(socket_path: &str) -> i32 {
 pub async fn run_health_json(socket_path: &str) -> i32 {
     let client = CliIpcClient::new(socket_path.to_string());
     match client.get_health_report().await {
-        Ok(reply)
-            if reply.check_type == HealthCheckType::Full && reply.report.is_some() =>
-        {
+        Ok(reply) if reply.check_type == HealthCheckType::Full && reply.report.is_some() => {
             match serde_json::to_string(&reply) {
                 Ok(serialized) => {
                     println!("{serialized}");
