@@ -1,11 +1,13 @@
 """Deterministic negative controls for model-free benchmark evidence validation."""
 import copy
+import io
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
-from validate_backend_bench import main, validate
+from validate_backend_bench import MAX_LINE_BYTES, main, validate
 
 BASE = dict(schema_version=1, backend="gguf", task="generation", status="verified",
             source_commit="a" * 40, host_id="isolated-win-1", os="Windows 11",
@@ -68,6 +70,33 @@ class ReceiptTests(unittest.TestCase):
             path = Path(directory) / "malformed-enums.jsonl"
             rows = [dict(BASE, backend=[]), dict(BASE, task={}), dict(BASE, status=[]), BASE]
             path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+            self.assertEqual(main([str(path)]), 1)
+
+    def test_oversized_integer_metrics_are_rejected_not_crashed(self):
+        for key, value in (("latency_ms", [10 ** 309]),
+                           ("decode_tokens_per_second", 10 ** 309)):
+            with self.subTest(key=key):
+                row = dict(BASE, **{key: value})
+                self.assertTrue(validate(row))
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "huge-int.jsonl"
+                    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+                    self.assertEqual(main([str(path)]), 1)
+
+    def test_validator_bounded_reader_prevents_unlimited_line_allocation(self):
+        class GuardedReader(io.BytesIO):
+            def readline(self, size=-1):
+                if size != MAX_LINE_BYTES + 1:
+                    raise AssertionError("attempted an unbounded input read")
+                return super().readline(size)
+        reader = GuardedReader(b"x" * (MAX_LINE_BYTES + 64))
+        with patch.object(Path, "open", return_value=reader):
+            self.assertEqual(main(["untrusted.jsonl"]), 1)
+
+    def test_validator_rejects_deeply_nested_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "deep.jsonl"
+            path.write_text("[" * 15000 + "0" + "]" * 15000 + "\n", encoding="utf-8")
             self.assertEqual(main([str(path)]), 1)
 
     def test_cli_accepts_valid_jsonl(self):
