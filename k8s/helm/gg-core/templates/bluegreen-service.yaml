@@ -27,9 +27,6 @@ spec:
         {{- include "gg-core.selectorLabels" . | nindent 8 }}
         gg-core.hearthlink.ai/environment: blue
         gg-core.hearthlink.ai/version: {{ .Values.bluegreen.blue.version | quote }}
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
     spec:
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
@@ -148,9 +145,6 @@ spec:
         {{- include "gg-core.selectorLabels" . | nindent 8 }}
         gg-core.hearthlink.ai/environment: green
         gg-core.hearthlink.ai/version: {{ .Values.bluegreen.green.version | quote }}
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
     spec:
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
