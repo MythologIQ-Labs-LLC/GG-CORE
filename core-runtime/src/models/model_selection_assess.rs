@@ -1,6 +1,7 @@
 //! Fail-closed per-model evidence and resource checks.
 
 use super::{CandidateRefusal, ModelOffer, SelectionPolicy};
+use crate::models::hardware_profile::{HardwareProfile, TargetAvailability};
 use crate::models::backend_capabilities::{
     RuntimeBackendCapabilities, ServingPath, CAPABILITY_SCHEMA_VERSION,
 };
@@ -9,9 +10,32 @@ pub(super) fn assess(
     model: &ModelOffer<'_>,
     policy: &SelectionPolicy<'_>,
     compiled: &[RuntimeBackendCapabilities],
+    hardware: Option<&HardwareProfile>,
 ) -> Result<u64, CandidateRefusal> {
     check_authority_and_path(model, policy, compiled)?;
-    check_resource_and_latency(model, policy)
+    if let Some(snapshot) = hardware {
+        if snapshot.target_availability(model.target) != TargetAvailability::VerifiedAvailable {
+            return Err(CandidateRefusal::HardwareTargetUnverified);
+        }
+    }
+    let estimated = check_resource_and_latency(model, policy)?;
+    if let Some(snapshot) = hardware.filter(|_| model.resident_handle.is_none()) {
+        // A cold proposal needs enough unreserved space for BOTH the model
+        // and its request working set. Existing residents are not recharged
+        // here; actual request admission still validates their working set.
+        let required = model
+            .resident_memory_bytes
+            .zip(model.working_memory_bytes)
+            .and_then(|(resident, working)| resident.checked_add(working))
+            .ok_or(CandidateRefusal::MissingOrInvalidEvidence)?;
+        let free = snapshot
+            .unreserved_bytes(model.target)
+            .ok_or(CandidateRefusal::HardwareHeadroomUnknown)?;
+        if required > free {
+            return Err(CandidateRefusal::OverHardwareHeadroom);
+        }
+    }
+    Ok(estimated)
 }
 
 fn check_authority_and_path(
