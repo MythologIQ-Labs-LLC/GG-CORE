@@ -24,7 +24,7 @@ fn all_serve_containers_reference_existing_secret_without_plaintext() {
         ("bluegreen", BLUEGREEN, 2usize),
     ] {
         assert_eq!(
-            body.matches("args:\n            - serve").count(),
+            body.lines().filter(|line| line.trim() == "- serve").count(),
             expected,
             "{name}: unexpected number of serve containers"
         );
