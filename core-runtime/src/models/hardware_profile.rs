@@ -11,6 +11,7 @@
 use serde::Serialize;
 
 use super::backend_capabilities::ExecutionTarget;
+use crate::memory::ResourceLimits;
 
 pub const HARDWARE_PROFILE_SCHEMA_VERSION: u16 = 1;
 
@@ -31,7 +32,8 @@ pub struct HardwareProfile {
     pub cpu: TargetAvailability,
     pub cuda: TargetAvailability,
     pub metal: TargetAvailability,
-    /// Unreserved headroom, *not* installed RAM or a physical-memory guess.
+    /// Shared admission-budget headroom. Not a physical free-RAM guarantee;
+    /// must be rechecked by canonical memory reservation at execution.
     pub unreserved_ram_bytes: Option<u64>,
     /// Unreserved device headroom. None means no trusted measurement exists.
     pub unreserved_vram_bytes: Option<u64>,
@@ -55,6 +57,27 @@ impl HardwareProfile {
         }
     }
 
+    /// Observe the current shared admission-budget headroom (#50).
+    ///
+    /// ResourceLimits accounts for both held model weights and in-flight
+    /// working reservations using one atomic counter. This is NOT physical
+    /// free RAM, a claim of loadability, or an execution reservation:
+    /// concurrent admissions may consume the reported bytes immediately.
+    /// Final model loading must acquire the same canonical reservation.
+    ///
+    /// With no configured resource limits, headroom stays unknown instead
+    /// of treating an unlimited embedded budget as infinite physical RAM.
+    pub fn detect_with_limits(limits: Option<&ResourceLimits>) -> Self {
+        let mut profile = Self::detect_local();
+        if let Some(limits) = limits {
+            let unreserved = limits
+                .max_total_memory()
+                .saturating_sub(limits.current_memory());
+            profile.unreserved_ram_bytes = u64::try_from(unreserved).ok();
+        }
+        profile
+    }
+
     pub fn is_valid(&self) -> bool {
         self.schema_version == HARDWARE_PROFILE_SCHEMA_VERSION
             && !self.cpu_architecture.trim().is_empty()
@@ -76,3 +99,7 @@ impl HardwareProfile {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "hardware_profile_limits_tests.rs"]
+mod limits_tests;
