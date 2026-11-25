@@ -56,6 +56,20 @@ class ReceiptTests(unittest.TestCase):
         self.assertTrue(validate(dict(BASE, schema_version=True)))
         self.assertTrue(validate(dict(BASE, decode_tokens_per_second=True)))
 
+    def test_malformed_enum_types_return_errors_without_crashing(self):
+        for field in ("backend", "task", "status"):
+            for malformed in ([], {}, {"field": "value"}, 1, False, None):
+                with self.subTest(field=field, malformed=malformed):
+                    errors = validate(dict(BASE, **{field: malformed}))
+                    self.assertIn(f"invalid {field}", errors)
+
+    def test_cli_continues_after_malformed_enum_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "malformed-enums.jsonl"
+            rows = [dict(BASE, backend=[]), dict(BASE, task={}), dict(BASE, status=[]), BASE]
+            path.write_text("".join(json.dumps(row) + "\\n" for row in rows), encoding="utf-8")
+            self.assertEqual(main([str(path)]), 1)
+
     def test_cli_accepts_valid_jsonl(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "valid.jsonl"
