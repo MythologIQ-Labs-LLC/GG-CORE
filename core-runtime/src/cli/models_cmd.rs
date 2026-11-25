@@ -16,7 +16,7 @@ use crate::ipc::protocol::ModelsListResponse;
 /// refusal, 3 connection failure.
 pub async fn run_list(socket_path: &str, json: bool) -> i32 {
     let client = CliIpcClient::new(socket_path.to_string());
-    match client.get_models().await {
+    match client.get_models_authenticated().await {
         Ok(response) => {
             if json {
                 match serde_json::to_string_pretty(&response) {

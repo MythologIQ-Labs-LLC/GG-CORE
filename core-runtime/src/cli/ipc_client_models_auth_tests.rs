@@ -82,7 +82,7 @@ async fn models_list_handshakes_before_request_and_receives_capabilities() {
         send_message(&mut conn, &IpcMessage::ModelsResponse(reply)).await;
     });
     let client = CliIpcClient::new(path);
-    let response = timeout(Duration::from_secs(3), client.get_models())
+    let response = timeout(Duration::from_secs(3), client.get_models_authenticated())
         .await
         .expect("models list must finish")
         .expect("authenticated model listing");
@@ -119,7 +119,7 @@ async fn auth_refusal_must_not_retry_unauthenticated_models_request() {
         assert_eq!(read, 0, "no unauthenticated fallback or model request");
     });
     let client = CliIpcClient::new(path);
-    let result = timeout(Duration::from_secs(3), client.get_models())
+    let result = timeout(Duration::from_secs(3), client.get_models_authenticated())
         .await
         .expect("auth refusal must finish");
     assert!(
@@ -153,5 +153,32 @@ async fn models_list_cli_maps_auth_refusal_to_failure_not_connection_loss() {
     .await
     .expect("CLI auth refusal must finish");
     assert_eq!(code, 1, "authentication failure is not a transport outage");
+    server.await.expect("mock daemon assertion");
+}
+
+#[tokio::test]
+async fn readonly_status_models_probe_remains_unauthenticated() {
+    let (_dir, listener, path) = socket();
+    let server = tokio::spawn(async move {
+        let (mut conn, _) = listener.accept().await.expect("accept client");
+        assert!(matches!(
+            read_message(&mut conn).await,
+            IpcMessage::ModelsRequest
+        ));
+        send_message(
+            &mut conn,
+            &IpcMessage::ModelsResponse(ModelsListResponse {
+                models: vec![],
+                total_memory_bytes: 0,
+            }),
+        )
+        .await;
+    });
+    let client = CliIpcClient::new(path);
+    let response = timeout(Duration::from_secs(3), client.get_models())
+        .await
+        .expect("read-only status model probe must finish")
+        .expect("unauthenticated model inventory");
+    assert!(response.models.is_empty());
     server.await.expect("mock daemon assertion");
 }
