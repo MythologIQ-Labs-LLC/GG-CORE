@@ -492,7 +492,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "process_resident_memory_bytes{namespace=\"{{ .Release.Namespace }}\",app=\"{{ include \"GG-CORE.name\" . }}\"}",
+              "expr": "process_resident_memory_bytes{namespace=\"{{ .Release.Namespace }}\",app=\"{{ include "gg-core.name" . }}\"}",
               "legendFormat": "RSS",
               "refId": "A"
             },
@@ -601,7 +601,7 @@ data:
                 "uid": "${datasource}"
               },
               "expr": "gg_core_gpu_utilization_percent{namespace=\"{{ .Release.Namespace }}\"}",
-              "legendFormat": "GPU {{ \"{{\" }}gpu_id{{ \"}}\" }}",
+              "legendFormat": "GPU {{ "{{" }}gpu_id{{ "}}" }}",
               "refId": "A"
             }
           ],
@@ -691,7 +691,7 @@ data:
                 "uid": "${datasource}"
               },
               "expr": "gg_core_gpu_memory_used_bytes{namespace=\"{{ .Release.Namespace }}\"}",
-              "legendFormat": "Used GPU {{ \"{{\" }}gpu_id{{ \"}}\" }}",
+              "legendFormat": "Used GPU {{ "{{" }}gpu_id{{ "}}" }}",
               "refId": "A"
             },
             {
@@ -700,7 +700,7 @@ data:
                 "uid": "${datasource}"
               },
               "expr": "gg_core_gpu_memory_total_bytes{namespace=\"{{ .Release.Namespace }}\"}",
-              "legendFormat": "Total GPU {{ \"{{\" }}gpu_id{{ \"}}\" }}",
+              "legendFormat": "Total GPU {{ "{{" }}gpu_id{{ "}}" }}",
               "refId": "B"
             }
           ],
@@ -790,7 +790,7 @@ data:
                 "uid": "${datasource}"
               },
               "expr": "gg_core_gpu_temperature_celsius{namespace=\"{{ .Release.Namespace }}\"}",
-              "legendFormat": "GPU {{ \"{{\" }}gpu_id{{ \"}}\" }}",
+              "legendFormat": "GPU {{ "{{" }}gpu_id{{ "}}" }}",
               "refId": "A"
             }
           ],
@@ -893,7 +893,7 @@ data:
                 "uid": "${datasource}"
               },
               "expr": "gg_core_scheduler_queue_depth{namespace=\"{{ .Release.Namespace }}\"}",
-              "legendFormat": "{{ \"{{\" }}priority{{ \"}}\" }} priority",
+              "legendFormat": "{{ "{{" }}priority{{ "}}" }} priority",
               "refId": "A"
             }
           ],
