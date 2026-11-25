@@ -28,6 +28,9 @@ spec:
         gg-core.hearthlink.ai/environment: blue
         gg-core.hearthlink.ai/version: {{ .Values.bluegreen.blue.version | quote }}
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -146,6 +149,9 @@ spec:
         gg-core.hearthlink.ai/environment: green
         gg-core.hearthlink.ai/version: {{ .Values.bluegreen.green.version | quote }}
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}

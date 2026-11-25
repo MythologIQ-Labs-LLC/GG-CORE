@@ -107,7 +107,11 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
-# Network policy (deny all by default - Alcatraz principle)
+# Default-deny both ingress and egress for all pods in this Helm release.
+# Requires CNI NetworkPolicy enforcement. No DNS, HTTP metrics, API server,
+# cloud-metadata or inference network traffic is implicitly allowed.
+# enabled=false OR denyAll=false renders NO NetworkPolicy and must not be
+# interpreted as isolated. Installed negative egress checks are required (#164).
 networkPolicy:
   enabled: true
   denyAll: true

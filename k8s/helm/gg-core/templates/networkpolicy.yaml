@@ -1,0 +1,24 @@
+{{- /*
+Alcatraz network isolation: isolate all pods of this Helm release, including
+normal, canary and blue/green deployments, on BOTH ingress and egress.
+No DNS, metadata service, HTTP metrics or inference traffic is permitted.
+This API object requires a CNI that actually enforces NetworkPolicy; it is
+not evidence of cluster enforcement or installed Kubernetes qualification.
+*/ -}}
+{{- if and .Values.networkPolicy.enabled .Values.networkPolicy.denyAll }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "gg-core.fullname" . }}-default-deny
+  labels:
+    {{- include "gg-core.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "gg-core.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress: []
+{{- end }}

@@ -26,6 +26,9 @@ spec:
         gg-core.hearthlink.ai/deployment-type: stable
         gg-core.hearthlink.ai/version: {{ .Values.canary.stable.version | default .Values.image.tag | quote }}
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -138,6 +141,9 @@ spec:
         gg-core.hearthlink.ai/deployment-type: canary
         gg-core.hearthlink.ai/version: {{ .Values.canary.canary.version | quote }}
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
