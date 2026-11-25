@@ -9,45 +9,36 @@ import json
 import sys
 from pathlib import Path
 
-from validate_backend_bench import BACKENDS, TASKS, _reject_constant, _unique_object, validate
-
-MAX_RECEIPTS = 2000
-MAX_LINE_BYTES = 2 * 1024 * 1024
-MAX_TOTAL_BYTES = 32 * 1024 * 1024
+from validate_backend_bench import (
+    BACKENDS, TASKS, MAX_LINE_BYTES, MAX_RECEIPTS, MAX_TOTAL_BYTES,
+    _reject_constant, _unique_object, bounded_lines, validate,
+)
 
 
 def read_receipts(path):
     """Read strict JSONL and reject ALL output if any receipt is invalid."""
     rows = []
-    total_bytes = 0
-    with path.open("rb") as stream:
-        for number, raw in enumerate(iter(lambda: stream.readline(MAX_LINE_BYTES + 1), b""), 1):
-            total_bytes += len(raw)
-            if total_bytes > MAX_TOTAL_BYTES:
-                raise ValueError("benchmark evidence exceeds total size ceiling")
-            if len(raw) > MAX_LINE_BYTES:
-                raise ValueError(f"line {number}: exceeds receipt size ceiling")
-            if not raw.strip():
-                continue
-            if len(rows) >= MAX_RECEIPTS:
-                raise ValueError("receipt count exceeds safe limit")
-            try:
-                row = json.loads(raw.decode("utf-8"),
-                                 object_pairs_hook=_unique_object,
-                                 parse_constant=_reject_constant)
-            except (ValueError, UnicodeError, RecursionError) as exc:
-                raise ValueError(f"line {number}: invalid JSON: {exc}") from exc
-            try:
-                errors = validate(row)
-            except (OverflowError, TypeError, ValueError) as exc:
-                raise ValueError(f"line {number}: invalid numeric receipt") from exc
-            if errors:
-                raise ValueError(f"line {number}: {'; '.join(errors)}")
-            rows.append(row)
+    for number, raw in bounded_lines(path):
+        if not raw.strip():
+            continue
+        if len(rows) >= MAX_RECEIPTS:
+            raise ValueError("receipt count exceeds safe limit")
+        try:
+            row = json.loads(raw.decode("utf-8"),
+                             object_pairs_hook=_unique_object,
+                             parse_constant=_reject_constant)
+        except (ValueError, UnicodeError, RecursionError) as exc:
+            raise ValueError(f"line {number}: invalid JSON: {exc}") from exc
+        try:
+            errors = validate(row)
+        except (OverflowError, TypeError, ValueError) as exc:
+            raise ValueError(f"line {number}: invalid numeric receipt") from exc
+        if errors:
+            raise ValueError(f"line {number}: {'; '.join(errors)}")
+        rows.append(row)
     if not rows:
         raise ValueError("no valid receipts supplied")
     return rows
-
 
 def safe_median(samples):
     ordered = sorted(samples)

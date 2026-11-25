@@ -7,6 +7,10 @@ import re
 import sys
 from pathlib import Path
 
+MAX_RECEIPTS = 2000
+MAX_LINE_BYTES = 2 * 1024 * 1024
+MAX_TOTAL_BYTES = 32 * 1024 * 1024
+
 SHA256 = re.compile(r"[0-9a-fA-F]{64}\Z")
 SHA40 = re.compile(r"[0-9a-fA-F]{40}\Z")
 STATUSES = {"verified", "conditional", "unsupported", "blocked", "unmeasured"}
@@ -83,37 +87,49 @@ def _reject_constant(value):
     raise ValueError(f"non-JSON numeric constant {value}")
 
 
+def bounded_lines(path):
+    total_bytes = 0
+    with path.open("rb") as stream:
+        for number, raw in enumerate(iter(lambda: stream.readline(MAX_LINE_BYTES + 1), b""), 1):
+            total_bytes += len(raw)
+            if len(raw) > MAX_LINE_BYTES:
+                raise ValueError(f"line {number}: receipt size ceiling exceeded")
+            if total_bytes > MAX_TOTAL_BYTES:
+                raise ValueError(f"line {number}: evidence total size ceiling exceeded")
+            yield number, raw
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("jsonl", type=Path)
     args = parser.parse_args(argv)
-    count = failures = 0
+    failed = count = 0
     try:
-        with args.jsonl.open(encoding="utf-8") as stream:
-            for line_no, line in enumerate(stream, 1):
-                if not line.strip():
-                    continue
-                count += 1
-                try:
-                    row = json.loads(line, object_pairs_hook=_unique_object,
-                                     parse_constant=_reject_constant)
-                    errors = validate(row)
-                except (ValueError, TypeError) as exc:
-                    errors = [f"invalid JSON: {exc}"]
-                for error in errors:
-                    failures += 1
-                    print(f"{args.jsonl}:{line_no}: {error}", file=sys.stderr)
-    except (OSError, UnicodeError) as exc:
-        print(f"cannot read receipts: {exc}", file=sys.stderr)
+        for line_no, line in bounded_lines(args.jsonl):
+            if not line.strip():
+                continue
+            count += 1
+            if count > MAX_RECEIPTS:
+                raise ValueError("receipt count exceeds safe limit")
+            try:
+                row = json.loads(line, object_pairs_hook=_unique_object,
+                                 parse_constant=_reject_constant)
+                errors = validate(row)
+            except (ValueError, TypeError, UnicodeError, OverflowError, RecursionError) as exc:
+                errors = [f"invalid JSON or receipt: {exc}"]
+            for error in errors:
+                failed += 1
+                print(f"{args.jsonl}:{line_no}: {error}", file=sys.stderr)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"receipt input rejected: {exc}", file=sys.stderr)
         return 1
     if not count:
         print("empty JSONL receipts", file=sys.stderr)
         return 1
-    if failures:
+    if failed:
         return 1
     print(f"validated {count} backend benchmark receipts")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
