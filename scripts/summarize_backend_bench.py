@@ -21,7 +21,7 @@ def read_receipts(path):
     rows = []
     total_bytes = 0
     with path.open("rb") as stream:
-        for number, raw in enumerate(stream, 1):
+        for number, raw in enumerate(iter(lambda: stream.readline(MAX_LINE_BYTES + 1), b""), 1):
             total_bytes += len(raw)
             if total_bytes > MAX_TOTAL_BYTES:
                 raise ValueError("benchmark evidence exceeds total size ceiling")

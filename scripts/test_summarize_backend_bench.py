@@ -4,8 +4,9 @@ import io
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
-from summarize_backend_bench import main, read_receipts, summarize, safe_median
+from summarize_backend_bench import MAX_LINE_BYTES, main, read_receipts, summarize, safe_median
 
 BASE = {"schema_version": 1, "backend": "gguf", "task": "generation",
         "status": "verified", "source_commit": "a"*40,
@@ -77,6 +78,17 @@ class MatrixTests(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()) as output:
                 self.assertEqual(main([str(p)]), 1)
             self.assertEqual(output.getvalue(), "")
+
+    def test_line_read_is_bounded_before_allocation(self):
+        class LimitedReader(io.BytesIO):
+            def readline(self, size=-1):
+                self_assert.assertEqual(size, MAX_LINE_BYTES + 1)
+                return super().readline(size)
+        self_assert = self
+        reader = LimitedReader(b"x" * (MAX_LINE_BYTES + 64))
+        with patch.object(Path, "open", return_value=reader):
+            with self.assertRaisesRegex(ValueError, "size ceiling"):
+                read_receipts(Path("untrusted.jsonl"))
 
     def test_input_file_size_ceiling(self):
         with tempfile.TemporaryDirectory() as directory:
