@@ -17,6 +17,14 @@ def done(code=0, payload=None):
     return subprocess.CompletedProcess([], code, out, b"")
 
 
+def denied():
+    return subprocess.CompletedProcess([], 1, b"", b"Error: Protocol error: authentication failed: x")
+
+
+def unrelated():
+    return subprocess.CompletedProcess([], 1, b"", b"Error: Connection failed: pipe not found")
+
+
 class Daemon:
     def __init__(self, exit_code=None):
         self.exit_code = exit_code
@@ -79,16 +87,24 @@ class TestMissingAuth(unittest.TestCase):
         self.assertEqual(seen, [False, False], "token must be absent on both calls")
 
     def test_refused_or_capability_free_listing_passes(self):
-        self.run_case(done(0, NO_CAPS), done(1))
-        self.run_case(done(1), done(1))
+        self.run_case(done(0, NO_CAPS), denied())
+        self.run_case(denied(), denied())
+
+    def test_unrelated_failures_are_not_auth_evidence(self):
+        with self.assertRaisesRegex(NegativeError, "unauthenticated-listing-refusal-not-auth"):
+            self.run_case(unrelated(), denied())
+        with self.assertRaisesRegex(NegativeError, "unauthenticated-typed-refusal-not-auth"):
+            self.run_case(denied(), unrelated())
+        with self.assertRaisesRegex(NegativeError, "unauthenticated-typed-refusal-not-auth"):
+            self.run_case(done(0, NO_CAPS), done(1))
 
     def test_exposed_capabilities_or_allowed_inference_fail(self):
         with self.assertRaisesRegex(NegativeError, "unauthenticated-capabilities-exposed"):
-            self.run_case(done(0, READY), done(1))
+            self.run_case(done(0, READY), denied())
         with self.assertRaisesRegex(NegativeError, "unauthenticated-typed-inference-allowed"):
             self.run_case(done(0, NO_CAPS), done(0))
         with self.assertRaisesRegex(NegativeError, "unauthenticated-listing-invalid"):
-            self.run_case(subprocess.CompletedProcess([], 0, b"nope", b""), done(1))
+            self.run_case(subprocess.CompletedProcess([], 0, b"nope", b""), denied())
 
 
 if __name__ == "__main__":
