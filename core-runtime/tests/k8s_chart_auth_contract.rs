@@ -75,7 +75,7 @@ fn all_serve_pods_disable_kubernetes_api_token_automount() {
 
 #[test]
 fn default_deny_networkpolicy_selects_all_release_pods_without_allow_rules() {
-    assert!(VALUES.contains("networkPolicy:\n  enabled: true\n  denyAll: true"));
+    assert!(VALUES.replace("\r\n", "\n").contains("networkPolicy:\n  enabled: true\n  denyAll: true"));
     assert!(NETWORK.contains(
         "if and .Values.networkPolicy.enabled .Values.networkPolicy.denyAll"
     ));
