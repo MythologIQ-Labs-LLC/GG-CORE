@@ -70,6 +70,17 @@ class ReceiptTests(unittest.TestCase):
             path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
             self.assertEqual(main([str(path)]), 1)
 
+    def test_oversized_integer_metrics_are_rejected_not_crashed(self):
+        for key, value in (("latency_ms", [10 ** 309]),
+                           ("decode_tokens_per_second", 10 ** 309)):
+            with self.subTest(key=key):
+                row = dict(BASE, **{key: value})
+                self.assertTrue(validate(row))
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "huge-int.jsonl"
+                    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+                    self.assertEqual(main([str(path)]), 1)
+
     def test_cli_accepts_valid_jsonl(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "valid.jsonl"

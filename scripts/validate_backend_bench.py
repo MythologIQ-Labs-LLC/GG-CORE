@@ -14,6 +14,15 @@ BACKENDS = {"gguf", "onnx", "hologram"}
 TASKS = {"generation", "embedding", "classification"}
 
 
+def finite_nonnegative(value):
+    if type(value) not in (int, float) or value < 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def validate(row):
     """Return diagnostic messages; do not mutate supplied benchmark receipts."""
     if not isinstance(row, dict):
@@ -39,7 +48,7 @@ def validate(row):
     if measured:
         samples = row.get("latency_ms")
         if (not isinstance(samples, list) or not samples or
-                any(type(x) not in (int, float) or not math.isfinite(x) or x < 0 for x in samples)):
+                any(not finite_nonnegative(x) for x in samples)):
             errors.append("measured latency_ms must contain finite nonnegative raw samples")
         if row.get("correctness_passed") is not True:
             errors.append("measured status requires correctness_passed=true")
@@ -54,7 +63,7 @@ def validate(row):
             errors.append("unmeasured statuses require a reason")
     if "decode_tokens_per_second" in row:
         value = row["decode_tokens_per_second"]
-        if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+        if not finite_nonnegative(value):
             errors.append("decode_tokens_per_second must be finite nonnegative number")
     if any(key in row for key in ("p50_ms", "p95_ms", "p99_ms")):
         errors.append("precomputed percentile claims prohibited; derive from raw samples")
