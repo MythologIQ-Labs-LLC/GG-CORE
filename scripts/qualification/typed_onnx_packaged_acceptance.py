@@ -19,9 +19,9 @@ import secrets
 import subprocess
 import sys
 import tempfile
-import time
 
-from typed_onnx_readiness import typed_models_ready
+from typed_onnx_negative import NegativeError, unauthenticated_refused
+from typed_onnx_readiness import wait_typed_ready
 
 SHA = re.compile(r"[0-9a-f]{64}\Z")
 COMMIT = re.compile(r"[0-9a-f]{40}\Z")
@@ -95,6 +95,14 @@ def invoke(binary, env, args, timeout=90):
         raise AcceptanceError("command-timeout") from exc
 
 
+def _invoke_probe(binary, env, args, timeout=5):
+    # A hung listing is retried like any other not-yet-ready probe.
+    try:
+        return invoke(binary, env, args, timeout=timeout)
+    except AcceptanceError:
+        return subprocess.CompletedProcess(args, 1, b"", b"")
+
+
 def typed(binary, env, mode, model, prompt):
     result = invoke(binary, env, [mode, "--model", model, "--text", prompt, "--timeout-ms", "60000"])
     if result.returncode != 0:
@@ -160,9 +168,14 @@ def exercise_models(binary, env, spec):
     denied = invoke(binary, denied_env, ["embed", "--model", embed, "--text", "Example."],
                     timeout=30)
     required_refusal(denied, "authentication failed", "wrong-auth")
+    try:
+        unauthenticated_refused(invoke, binary, env, embed)
+    except NegativeError as exc:
+        raise AcceptanceError(str(exc)) from exc
     finite_vector(typed(binary, env, "embed", embed, "A person is eating a meal."))
     return {"typed_embedding": "pass", "similarity_order": "pass",
-            "typed_classification": "pass", "wrong_task": "pass", "wrong_auth": "pass"}
+            "typed_classification": "pass", "wrong_task": "pass", "wrong_auth": "pass",
+            "missing_auth": "pass"}
 
 
 def run_checks(binary, spec, stage, timeout):
@@ -181,23 +194,9 @@ def run_checks(binary, spec, stage, timeout):
         daemon = subprocess.Popen(args, cwd=stage, env=env, stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL)
         try:
-            deadline = time.monotonic() + timeout
-            while True:
-                if daemon.poll() is not None:
-                    raise AcceptanceError("daemon-exited-before-ready")
-                if time.monotonic() >= deadline:
-                    raise AcceptanceError("daemon-startup-timeout")
-                try:
-                    probe = invoke(binary, env, ["models", "list", "--json"], timeout=5)
-                    if probe.returncode == 0:
-                        try:
-                            if typed_models_ready(probe.stdout):
-                                break
-                        except (ValueError, UnicodeError) as exc:
-                            raise AcceptanceError("models-list-invalid") from exc
-                except AcceptanceError:
-                    pass
-                time.sleep(1)
+            failure = wait_typed_ready(_invoke_probe, binary, env, daemon, timeout)
+            if failure is not None:
+                raise AcceptanceError(failure)
             return exercise_models(binary, env, spec)
         finally:
             daemon.terminate()
