@@ -101,3 +101,7 @@ fn plan_with_compiled_catalog_and_hardware<'a>(
 #[cfg(test)]
 #[path = "model_selection_test_hardware.rs"]
 mod test_hardware;
+
+#[cfg(test)]
+#[path = "model_selection_test_local_limits.rs"]
+mod test_local_limits;
