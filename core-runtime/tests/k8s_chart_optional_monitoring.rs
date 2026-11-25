@@ -11,11 +11,23 @@ const BLUEGREEN: &str = include_str!("../../k8s/helm/gg-core/templates/bluegreen
 #[test]
 fn unqualified_monitoring_is_disabled_by_default() {
     let values = VALUES.replace("\r\n", "\n");
-    let monitor = values.split_once("monitoring:").expect("monitoring block").1;
+    let monitor = values
+        .split_once("monitoring:")
+        .expect("monitoring block")
+        .1;
     let grafana = monitor.split_once("grafana:").expect("grafana block").1;
-    let grafana = grafana.split_once("prometheus:").expect("prometheus block").0;
-    let prometheus = monitor.split_once("prometheus:").expect("prometheus block").1;
-    let prometheus = prometheus.split_once("serviceMonitor:").expect("service monitor").0;
+    let grafana = grafana
+        .split_once("prometheus:")
+        .expect("prometheus block")
+        .0;
+    let prometheus = monitor
+        .split_once("prometheus:")
+        .expect("prometheus block")
+        .1;
+    let prometheus = prometheus
+        .split_once("serviceMonitor:")
+        .expect("service monitor")
+        .0;
     assert!(grafana.contains("enabled: false"));
     assert!(prometheus.contains("enabled: false"));
     assert!(monitor.contains("serviceMonitor:\n    enabled: false"));
