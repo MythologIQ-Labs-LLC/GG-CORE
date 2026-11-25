@@ -70,6 +70,14 @@ class MatrixTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"line 2"):
                 read_receipts(p)
 
+    def test_deeply_nested_json_is_refused_without_traceback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            p = Path(directory) / "deep.jsonl"
+            p.write_text("[" * 15000 + "0" + "]" * 15000 + "\n", encoding="utf-8")
+            with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(main([str(p)]), 1)
+            self.assertEqual(output.getvalue(), "")
+
     def test_input_file_size_ceiling(self):
         with tempfile.TemporaryDirectory() as directory:
             p=Path(directory)/"huge.jsonl"

@@ -6,7 +6,6 @@ cannot independently attest an inference binary, hardware, model, or output.
 """
 import argparse
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -36,7 +35,7 @@ def read_receipts(path):
                 row = json.loads(raw.decode("utf-8"),
                                  object_pairs_hook=_unique_object,
                                  parse_constant=_reject_constant)
-            except (ValueError, UnicodeError) as exc:
+            except (ValueError, UnicodeError, RecursionError) as exc:
                 raise ValueError(f"line {number}: invalid JSON: {exc}") from exc
             try:
                 errors = validate(row)
