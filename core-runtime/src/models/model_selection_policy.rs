@@ -47,7 +47,6 @@ pub fn plan_model_selection_with_hardware<'a>(
     decision::plan(offers, policy, &compiled, Some(hardware))
 }
 
-
 /// Opt-in local-budget advisory selector, without client-supplied hardware
 /// headroom. The snapshot reads the same shared reservation accounting used
 /// by native model residency and per-request working admission.
@@ -64,7 +63,6 @@ pub fn plan_model_selection_with_local_limits<'a>(
     let hardware = HardwareProfile::detect_with_limits(limits);
     plan_model_selection_with_hardware(offers, policy, &hardware)
 }
-
 
 /// Private seam for tests: production always uses its own compiled catalog.
 fn plan_with_compiled_catalog<'a>(

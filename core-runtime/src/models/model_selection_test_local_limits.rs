@@ -13,18 +13,12 @@ fn local_budget_planner_tracks_reservations_without_minting_serving_paths() {
     });
     let offer = test_support::quality();
     let p = test_support::policy();
-    let open = plan_model_selection_with_local_limits(
-        std::slice::from_ref(&offer),
-        &p,
-        Some(&limits),
-    );
+    let open =
+        plan_model_selection_with_local_limits(std::slice::from_ref(&offer), &p, Some(&limits));
 
     let guard = limits.reserve_resident(512).expect("reserve other model");
-    let occupied = plan_model_selection_with_local_limits(
-        std::slice::from_ref(&offer),
-        &p,
-        Some(&limits),
-    );
+    let occupied =
+        plan_model_selection_with_local_limits(std::slice::from_ref(&offer), &p, Some(&limits));
     if cfg!(feature = "gguf") {
         assert!(matches!(open.action, ModelAction::ProposeColdSwitch { .. }));
         assert_eq!(
@@ -49,12 +43,11 @@ fn local_budget_planner_tracks_reservations_without_minting_serving_paths() {
 #[test]
 fn local_budget_planner_without_limits_never_invents_cold_fit() {
     let offer = test_support::quality();
-    let result = plan_model_selection_with_local_limits(
-        &[offer],
-        &test_support::policy(),
-        None,
+    let result = plan_model_selection_with_local_limits(&[offer], &test_support::policy(), None);
+    assert_eq!(
+        result.action,
+        ModelAction::Refuse(PlanRefusal::NoEligibleModel)
     );
-    assert_eq!(result.action, ModelAction::Refuse(PlanRefusal::NoEligibleModel));
     let refusal = if cfg!(feature = "gguf") {
         CandidateRefusal::HardwareHeadroomUnknown
     } else {

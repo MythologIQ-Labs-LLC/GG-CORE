@@ -55,7 +55,9 @@ fn resident_reservation_is_counted_once_and_restored_only_on_drop() {
 #[test]
 fn exhausted_budget_is_zero_not_unknown_or_available() {
     let account = limits(2_048);
-    let held = account.reserve_resident(2_048).expect("full budget reservation");
+    let held = account
+        .reserve_resident(2_048)
+        .expect("full budget reservation");
     assert_eq!(
         HardwareProfile::detect_with_limits(Some(&account)).unreserved_ram_bytes,
         Some(0)
