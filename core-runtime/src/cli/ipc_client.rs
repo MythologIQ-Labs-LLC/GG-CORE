@@ -94,13 +94,31 @@ impl CliIpcClient {
         }
     }
 
-    /// Get loaded models list via IPC.
+    /// Get the read-only model inventory for unauthenticated health/status probes.
+    /// The daemon deliberately redacts task capabilities on this path.
     pub async fn get_models(&self) -> Result<ModelsListResponse, CliError> {
+        self.get_models_with_auth(false).await
+    }
+
+    /// Get model task capabilities only after the session handshake.
+    /// Used by the CLI models-list command, not unauthenticated status probes.
+    pub async fn get_models_authenticated(&self) -> Result<ModelsListResponse, CliError> {
+        self.get_models_with_auth(true).await
+    }
+
+    async fn get_models_with_auth(
+        &self,
+        authenticate: bool,
+    ) -> Result<ModelsListResponse, CliError> {
         let message = IpcMessage::ModelsRequest;
         let request_bytes =
             encode_message(&message).map_err(|e| CliError::Protocol(e.to_string()))?;
 
-        let response_bytes = self.send_receive(&request_bytes).await?;
+        let response_bytes = if authenticate {
+            self.send_receive_authenticated(&request_bytes).await?
+        } else {
+            self.send_receive(&request_bytes).await?
+        };
 
         let response =
             decode_message(&response_bytes).map_err(|e| CliError::Protocol(e.to_string()))?;
@@ -420,3 +438,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "ipc_client_models_auth_tests.rs"]
+mod models_auth_tests;
