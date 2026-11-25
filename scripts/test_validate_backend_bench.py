@@ -67,7 +67,7 @@ class ReceiptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "malformed-enums.jsonl"
             rows = [dict(BASE, backend=[]), dict(BASE, task={}), dict(BASE, status=[]), BASE]
-            path.write_text("".join(json.dumps(row) + "\\n" for row in rows), encoding="utf-8")
+            path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
             self.assertEqual(main([str(path)]), 1)
 
     def test_cli_accepts_valid_jsonl(self):
