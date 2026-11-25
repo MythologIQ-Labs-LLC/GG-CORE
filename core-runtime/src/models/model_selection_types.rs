@@ -73,6 +73,9 @@ pub enum CandidateRefusal {
     BelowQualityFloor,
     OverMemoryBudget,
     OverLatencyBudget,
+    HardwareTargetUnverified,
+    HardwareHeadroomUnknown,
+    OverHardwareHeadroom,
     NotReady,
 }
 
@@ -81,6 +84,7 @@ pub enum CandidateRefusal {
 #[non_exhaustive]
 pub enum PlanRefusal {
     InvalidPolicy,
+    InvalidHardwareProfile,
     DuplicateModelId,
     NoEligibleModel,
     AmbiguousBestCandidate,

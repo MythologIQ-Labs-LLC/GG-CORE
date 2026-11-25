@@ -11,6 +11,7 @@
 //! model/benchmark records. These public structs are NOT a trust boundary.
 
 use super::backend_capabilities::{compiled_backend_capabilities, RuntimeBackendCapabilities};
+use super::hardware_profile::HardwareProfile;
 
 #[path = "model_selection_types.rs"]
 mod types;
@@ -33,13 +34,26 @@ pub fn plan_model_selection<'a>(
     plan_with_compiled_catalog(offers, policy, &compiled)
 }
 
+/// Opt-in, non-executing hardware-aware selection. Trusted local capability
+/// evidence and the host's policy limits are both mandatory. Unknown target
+/// availability or cold-load headroom refuses the candidate, rather than
+/// assuming that a compiled backend can serve it on the actual machine.
+pub fn plan_model_selection_with_hardware<'a>(
+    offers: &[ModelOffer<'a>],
+    policy: &SelectionPolicy<'_>,
+    hardware: &HardwareProfile,
+) -> ModelSelectionPlan<'a> {
+    let compiled = compiled_backend_capabilities();
+    decision::plan(offers, policy, &compiled, Some(hardware))
+}
+
 /// Private seam for tests: production always uses its own compiled catalog.
 fn plan_with_compiled_catalog<'a>(
     offers: &[ModelOffer<'a>],
     policy: &SelectionPolicy<'_>,
     compiled: &[RuntimeBackendCapabilities],
 ) -> ModelSelectionPlan<'a> {
-    decision::plan(offers, policy, compiled)
+    decision::plan(offers, policy, compiled, None)
 }
 
 #[cfg(test)]
@@ -54,3 +68,17 @@ mod test_quality;
 #[cfg(test)]
 #[path = "model_selection_test_support.rs"]
 mod test_support;
+
+#[cfg(test)]
+fn plan_with_compiled_catalog_and_hardware<'a>(
+    offers: &[ModelOffer<'a>],
+    policy: &SelectionPolicy<'_>,
+    compiled: &[RuntimeBackendCapabilities],
+    hardware: &HardwareProfile,
+) -> ModelSelectionPlan<'a> {
+    decision::plan(offers, policy, compiled, Some(hardware))
+}
+
+#[cfg(test)]
+#[path = "model_selection_test_hardware.rs"]
+mod test_hardware;
