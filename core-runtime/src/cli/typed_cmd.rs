@@ -8,7 +8,9 @@ use std::time::Duration;
 
 use super::{get_socket_path, CliError, CliIpcClient};
 use crate::ipc::protocol::{decode_message, encode_message, IpcMessage, RequestId};
-use crate::ipc::protocol_typed::{TypedInferenceRequest, TypedInput, TypedResult, TypedTask};
+use crate::ipc::protocol_typed::{
+    TypedInferenceRequest, TypedInput, TypedResult, TypedTask, TYPED_INFERENCE_FEATURE,
+};
 
 /// Client-side grace beyond the daemon-enforced deadline (as for `infer`).
 const CLIENT_GRACE_MS: u64 = 5_000;
@@ -20,18 +22,45 @@ impl CliIpcClient {
         &self,
         request: TypedInferenceRequest,
     ) -> Result<TypedResult, CliError> {
+        let request_id = request.request_id;
         let bytes = encode_message(&IpcMessage::TypedInferenceRequest(request))
             .map_err(|e| CliError::Protocol(e.to_string()))?;
-        let reply = self.send_receive_authenticated(&bytes).await?;
-        match decode_message(&reply).map_err(|e| CliError::Protocol(e.to_string()))? {
-            IpcMessage::TypedInferenceResponse(resp) => match (resp.result, resp.error) {
-                (Some(result), None) => Ok(result),
-                (_, Some(err)) => Err(CliError::Protocol(err)),
-                (None, None) => Err(CliError::Protocol("empty typed response".into())),
-            },
-            IpcMessage::Error { message, .. } => Err(CliError::Protocol(message)),
-            _ => Err(CliError::Protocol("Unexpected response type".into())),
-        }
+        // An authenticated legacy daemon may not understand typed frames.
+        // Demand the additive protocol feature on the SAME connection before
+        // sending any typed request; a missing list is an explicit refusal.
+        let mut stream = self.connect_authenticated().await?;
+        let features = self.handshake_features_on(&mut stream).await?;
+        ensure_typed_feature(&features)?;
+        let reply = self.exchange_data(&mut stream, &bytes).await?;
+        decode_typed_reply(&reply, request_id)
+    }
+}
+
+fn ensure_typed_feature(features: &[String]) -> Result<(), CliError> {
+    if features
+        .iter()
+        .any(|feature| feature == TYPED_INFERENCE_FEATURE)
+    {
+        Ok(())
+    } else {
+        Err(CliError::Protocol(
+            "daemon does not advertise typed_inference_v1; typed inference unsupported".into(),
+        ))
+    }
+}
+
+fn decode_typed_reply(bytes: &[u8], expected_id: RequestId) -> Result<TypedResult, CliError> {
+    match decode_message(bytes).map_err(|e| CliError::Protocol(e.to_string()))? {
+        IpcMessage::TypedInferenceResponse(resp) if resp.request_id != expected_id => Err(
+            CliError::Protocol("Typed inference response request ID mismatch".into()),
+        ),
+        IpcMessage::TypedInferenceResponse(resp) => match (resp.result, resp.error) {
+            (Some(result), None) => Ok(result),
+            (_, Some(err)) => Err(CliError::Protocol(err)),
+            (None, None) => Err(CliError::Protocol("empty typed response".into())),
+        },
+        IpcMessage::Error { message, .. } => Err(CliError::Protocol(message)),
+        _ => Err(CliError::Protocol("Unexpected response type".into())),
     }
 }
 
@@ -116,32 +145,5 @@ pub async fn run_typed(task: TypedTask, args: &[String]) -> i32 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn args(v: &[&str]) -> Vec<String> {
-        v.iter().map(|s| s.to_string()).collect()
-    }
-
-    #[test]
-    fn parses_single_and_batch_texts() {
-        let a = parse_typed_args(&args(&["--model", "m", "--text", "a", "--text", "b"])).unwrap();
-        assert_eq!(a.model_id, "m");
-        assert_eq!(a.texts, vec!["a", "b"]);
-        assert_eq!(a.timeout_ms, DEFAULT_TIMEOUT_MS);
-    }
-
-    #[test]
-    fn rejects_missing_or_unknown_arguments() {
-        assert!(parse_typed_args(&args(&["--text", "a"])).is_err());
-        assert!(parse_typed_args(&args(&["--model", "m"])).is_err());
-        assert!(parse_typed_args(&args(&["--model", "m", "--text"])).is_err());
-        assert!(
-            parse_typed_args(&args(&["--model", "m", "--text", "a", "--backend", "x"])).is_err()
-        );
-        assert!(parse_typed_args(&args(&["--model", "m", "--model", "n", "--text", "a"])).is_err());
-        assert!(
-            parse_typed_args(&args(&["--model", "m", "--text", "a", "--timeout-ms", "0"])).is_err()
-        );
-    }
-}
+#[path = "typed_cmd_tests.rs"]
+mod tests;

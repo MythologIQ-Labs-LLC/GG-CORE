@@ -193,3 +193,209 @@ async fn empty_client_token_is_rejected_by_a_token_protected_daemon() {
     assert!(err.contains("authentication failed"), "got: {err}");
     server.stop().await;
 }
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[tokio::test]
+async fn daemon_starts_under_seccomp_with_private_unix_socket() {
+    use std::process::{Child, Command, Stdio};
+
+    struct Reap(Child);
+    impl Drop for Reap {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    // Unlike the in-process server tests, this runs the real serve bootstrap:
+    // model-free initialization, sandbox install, Unix bind and IPC liveness.
+    // A missing SYS_geteuid allowlist entry would kill this child at bind.
+    let dir = tempfile::tempdir().unwrap();
+    let socket = dir
+        .path()
+        .join("seccomp.sock")
+        .to_string_lossy()
+        .into_owned();
+    let mut daemon = Reap(
+        Command::new(env!("CARGO_BIN_EXE_gg-core-cli"))
+            .arg("serve")
+            .env("CORE_AUTH_TOKEN", TOKEN)
+            .env("GG_CORE_SANDBOX", "seccomp")
+            .env("GG_CORE_SOCKET_PATH", &socket)
+            .env_remove("GG_CORE_PRELOAD_MODELS")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("launch real sandboxed daemon"),
+    );
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        if let Some(exit) = daemon.0.try_wait().expect("check daemon exit") {
+            panic!("sandboxed daemon exited before IPC liveness was usable: {exit}");
+        }
+        if std::path::Path::new(&socket).exists() {
+            let client = CliIpcClient::new(socket.clone()).with_timeout(Duration::from_millis(500));
+            if matches!(
+                client.check_health(HealthCheckType::Liveness).await,
+                Ok(true)
+            ) {
+                assert!(daemon.0.try_wait().unwrap().is_none());
+                break;
+            }
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "default Linux seccomp daemon did not serve IPC within 15 seconds"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+#[tokio::test]
+async fn operator_verify_requires_authenticated_offline_ipc_and_refuses_unready_model() {
+    let _guard = ENV_LOCK.lock().await;
+    let server = Server::start().await;
+    let args = vec!["--socket".to_string(), server.socket.clone()];
+    std::env::set_var(AUTH_TOKEN_ENV, TOKEN);
+    assert_eq!(
+        gg_core::cli::verify_cmd::run_verify(&args).await,
+        0,
+        "a running model-free daemon has valid IPC liveness and authenticated capabilities"
+    );
+    let all = vec![
+        "--all".to_string(),
+        "--socket".to_string(),
+        server.socket.clone(),
+    ];
+    assert_eq!(
+        gg_core::cli::verify_cmd::run_verify(&all).await,
+        1,
+        "--all must not claim inference-readiness without a loaded model"
+    );
+    std::env::set_var(AUTH_TOKEN_ENV, "wrong-token");
+    assert_eq!(
+        gg_core::cli::verify_cmd::run_verify(&args).await,
+        1,
+        "a healthy unauthenticated probe must not mask invalid credentials"
+    );
+    std::env::remove_var(AUTH_TOKEN_ENV);
+    assert_eq!(
+        gg_core::cli::verify_cmd::run_verify(&args).await,
+        1,
+        "a missing token must never produce a verification PASS"
+    );
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn shipped_verify_subcommand_routes_through_authenticated_ipc() {
+    use std::process::{Command, Stdio};
+    use std::time::Instant;
+
+    let server = Server::start().await;
+    let socket = server.socket.clone();
+    // Running a synchronous child on the Tokio test thread would starve
+    // the in-process daemon it is checking. Keep it on a blocking worker.
+    tokio::task::spawn_blocking(move || {
+        let cases = [
+            (vec!["verify", "--socket", &socket], TOKEN, 0),
+            (vec!["verify", "--all", "--socket", &socket], TOKEN, 1),
+            (vec!["verify", "--socket", &socket], "invalid-token", 1),
+            (vec!["verify", "--unknown"], TOKEN, 2),
+        ];
+        for (args, token, expected) in cases {
+            let mut child = Command::new(env!("CARGO_BIN_EXE_gg-core-cli"))
+                .args(args)
+                .env(AUTH_TOKEN_ENV, token)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("launch shipped verify executable");
+            let deadline = Instant::now() + Duration::from_secs(15);
+            loop {
+                if child.try_wait().expect("poll verify child").is_some() {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!("verify child exceeded its 15s deadline");
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            let result = child.wait_with_output().expect("collect CLI output");
+            assert_eq!(
+                result.status.code(),
+                Some(expected),
+                "verify must expose its exact safe exit semantics"
+            );
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            let stdout = String::from_utf8_lossy(&result.stdout);
+            assert!(
+                !stdout.contains(token) && !stderr.contains(token),
+                "verify must not expose authentication credentials"
+            );
+        }
+    })
+    .await
+    .expect("join CLI probe test");
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn shipped_health_probe_flags_operate_on_explicit_socket_and_return_real_json() {
+    use std::process::{Command, Stdio};
+    use std::time::Instant;
+
+    let server = Server::start().await;
+    let socket = server.socket.clone();
+    tokio::task::spawn_blocking(move || {
+        let cases = [
+            (vec!["health", "--socket", &socket], 0, false),
+            (vec!["health", "--json", "--socket", &socket], 0, true),
+            (vec!["health", "--socket", &socket, "--json"], 0, true),
+            (vec!["live", "--socket", &socket], 0, false),
+            (vec!["ready", "--socket", &socket], 0, false),
+            (vec!["ready", "--json", "--socket", &socket], 2, false),
+            (vec!["health", "--socket"], 2, false),
+        ];
+        for (args, expected, json) in cases {
+            let mut child = Command::new(env!("CARGO_BIN_EXE_gg-core-cli"))
+                .args(&args)
+                // A bad environment fallback proves that --socket is honored.
+                .env("GG_CORE_SOCKET_PATH", "/nonexistent/ignored-socket.sock")
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("launch real probe command");
+            let deadline = Instant::now() + Duration::from_secs(15);
+            loop {
+                if child.try_wait().expect("poll child").is_some() {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!("health CLI exceeded bounded execution deadline");
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            let result = child.wait_with_output().expect("collect probe output");
+            assert_eq!(
+                result.status.code(),
+                Some(expected),
+                "probe flags {args:?} must have an honest return code"
+            );
+            if json {
+                let doc: serde_json::Value =
+                    serde_json::from_slice(&result.stdout).expect("one valid health JSON");
+                assert_eq!(doc["check_type"], "Full");
+                assert_eq!(doc["ok"], true);
+                assert!(doc["report"].is_object());
+            }
+        }
+    })
+    .await
+    .expect("join shipped health CLI probe test");
+    server.stop().await;
+}

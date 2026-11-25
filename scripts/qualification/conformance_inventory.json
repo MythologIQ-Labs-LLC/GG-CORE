@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "rust_external_v1",
+      "tier": "source",
+      "platform": "any",
+      "features": [],
+      "model_required": false,
+      "interface": "embedded_rust"
+    },
+    {
+      "id": "ipc_handshake_compat",
+      "tier": "source",
+      "platform": "any",
+      "features": [],
+      "model_required": false,
+      "interface": "ipc"
+    },
+    {
+      "id": "ipc_onnx_unix_fixture",
+      "tier": "source",
+      "platform": "linux",
+      "features": [
+        "onnx"
+      ],
+      "model_required": true,
+      "interface": "ipc"
+    },
+    {
+      "id": "ipc_onnx_windows_fixture",
+      "tier": "source",
+      "platform": "windows",
+      "features": [
+        "onnx"
+      ],
+      "model_required": true,
+      "interface": "ipc"
+    },
+    {
+      "id": "ipc_onnx_installed_windows",
+      "tier": "installed",
+      "platform": "windows",
+      "features": [
+        "onnx"
+      ],
+      "model_required": true,
+      "interface": "ipc"
+    },
+    {
+      "id": "ipc_gguf_native_stop_windows",
+      "tier": "installed",
+      "platform": "windows",
+      "features": [
+        "gguf"
+      ],
+      "model_required": true,
+      "interface": "ipc"
+    },
+    {
+      "id": "ffi_external_installed",
+      "tier": "installed",
+      "platform": "any",
+      "features": [
+        "ffi"
+      ],
+      "model_required": false,
+      "interface": "ffi"
+    },
+    {
+      "id": "python_external_installed",
+      "tier": "installed",
+      "platform": "any",
+      "features": [
+        "python"
+      ],
+      "model_required": false,
+      "interface": "python"
+    },
+    {
+      "id": "ipc_status_compatibility",
+      "tier": "source",
+      "platform": "any",
+      "features": [],
+      "model_required": false,
+      "interface": "ipc"
+    },
+    {
+      "id": "cli_version_default_installed",
+      "tier": "installed",
+      "platform": "any",
+      "features": [],
+      "model_required": false,
+      "interface": "cli"
+    },
+    {
+      "id": "cli_version_onnx_gguf_ffi_installed",
+      "tier": "installed",
+      "platform": "any",
+      "features": [
+        "onnx",
+        "gguf",
+        "ffi"
+      ],
+      "model_required": false,
+      "interface": "cli"
+    }
+  ]
+}

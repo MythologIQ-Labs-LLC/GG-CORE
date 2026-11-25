@@ -103,3 +103,51 @@ fn daemon_config_refuses_per_call_above_explicit_total() {
     std::env::remove_var("GG_CORE_MAX_MEMORY_PER_CALL");
     assert!(result.is_err(), "#182: no silent total increase");
 }
+
+#[tokio::test]
+async fn listener_bind_failure_is_observed_without_a_shutdown_signal() {
+    let mut listener = tokio::spawn(async {
+        Err::<(), _>(server::ServerError::Io(std::io::Error::new(
+            std::io::ErrorKind::AddrInUse,
+            "occupied IPC socket",
+        )))
+    });
+    let stopped = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        await_serve_stop(&mut listener, std::future::pending::<std::io::Result<()>>()),
+    )
+    .await
+    .expect("listener failure must not wait for Ctrl+C");
+    match stopped {
+        ServeStop::Listener(Ok(Err(server::ServerError::Io(e)))) => {
+            assert_eq!(e.kind(), std::io::ErrorKind::AddrInUse);
+        }
+        _ => panic!("listener startup failure was not observed"),
+    }
+}
+
+#[tokio::test]
+async fn silent_listener_exit_is_not_mistaken_for_a_shutdown_signal() {
+    let mut listener = tokio::spawn(async { Ok::<(), server::ServerError>(()) });
+    let stopped = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        await_serve_stop(&mut listener, std::future::pending::<std::io::Result<()>>()),
+    )
+    .await
+    .expect("listener termination must be promptly observed");
+    assert!(matches!(stopped, ServeStop::Listener(Ok(Ok(())))));
+}
+
+#[tokio::test]
+async fn requested_shutdown_can_end_while_listener_is_still_running() {
+    let mut listener = tokio::spawn(std::future::pending::<Result<(), server::ServerError>>());
+    let stopped = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        await_serve_stop(&mut listener, std::future::ready(Ok(()))),
+    )
+    .await
+    .expect("signal must end wait without listener exit");
+    assert!(matches!(stopped, ServeStop::Signal(Ok(()))));
+    listener.abort();
+    let _ = listener.await;
+}

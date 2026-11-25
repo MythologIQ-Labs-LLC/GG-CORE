@@ -77,7 +77,7 @@ impl ModelManifest {
                 "model_id cannot be empty".into(),
             ));
         }
-        if self.sha256.len() != 64 {
+        if self.sha256.len() != 64 || !self.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err(InferenceError::ModelError(
                 "sha256 must be 64 hex characters".into(),
             ));

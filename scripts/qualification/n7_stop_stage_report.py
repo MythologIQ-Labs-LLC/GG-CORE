@@ -24,6 +24,14 @@ is stricter:
      (exactly one S2, S3 and S4) and every running-stop cell represented
   R6 trace on/off uncancelled throughput median ratio within 0.97..1.03
   R7 exactly one uncancelled output hash per config across --hash-labels
+  R8 (optional --require-stream) each label/config/rep has a real active
+     streaming cancel: first text before stop, exactly one ACK and failed
+     terminal in either order, no data after ACK/final, no late frame,
+     and a conservative CPU-tail upper bound (not an exact stop instant).
+     The final no-late-frame read must occur AFTER the CPU-quiescence
+     observation; an earlier 350ms timeout does not rule out late output.
+Historical nonstreaming R1-R7 evidence remains valid without R8; passing
+R8 does NOT substitute for native streaming S1-S4 stop-stage trace joins.
 Exit 0 = every rule passes, 1 = a rule failed, 2 = malformed/missing input.
 Joins are valid only for the harness as run: one client, one stop at a
 time, non-streaming (review N7-R2). Lines dropped at the very end of a
@@ -133,14 +141,14 @@ def validate(rows):
     for r in rows:
         if not isinstance(r, dict) or "kind" not in r:
             raise BadInput(f"row without kind: {r}")
-        if r["kind"] in STOPS + ("throughput", "recover"):
+        if r["kind"] in STOPS + ("throughput", "recover", "streamCancel"):
             if not isinstance(r.get("tag"), str) or r["tag"].count("-") < 2:
                 raise BadInput(f"row with malformed tag: {r}")
-        if r["kind"] in STOPS + ("throughput", "recover") and (type(r.get("rep")) is not int or r["rep"] < 0):
+        if r["kind"] in STOPS + ("throughput", "recover", "streamCancel") and (type(r.get("rep")) is not int or r["rep"] < 0):
             raise BadInput(f"measurement row without nonnegative integer repetition: {r}")
-        if r["kind"] in STOPS and not isinstance(r.get("requestId"), int):
+        if r["kind"] in STOPS + ("streamCancel",) and (type(r.get("requestId")) is not int or r["requestId"] < 0):
             raise BadInput(f"stop row without integer requestId: {r}")
-        if r["kind"] in STOPS:
+        if r["kind"] in STOPS + ("streamCancel",):
             key = (r["tag"], r["requestId"])
             if key in seen:
                 raise BadInput(f"duplicate stop row for {key}")
@@ -208,8 +216,12 @@ def join(rows, traces, trace_label):
         st = None
         if split_tag(r["tag"])[0] == trace_label:
             st = stages_for(traces.get(r["tag"], []), r["requestId"], r["kind"])
-            if st.get("s4_unix_ms") and r.get("stopSentUnixMs") is not None:
-                st["s4_to_quiet_ms"] = round(r["stopSentUnixMs"] + (r.get("tailWallMs") or 0) - st["s4_unix_ms"], 1)
+            # Measure from the actual CPU-sampling start, not the terminal or
+            # a guessed deadline timestamp. Historical receipts without this
+            # field get no derived S4-to-quiet statistic (rather than fiction).
+            quiet_started = r.get("tailClockOriginUnixMs")
+            if st.get("s4_unix_ms") and type(quiet_started) is int:
+                st["s4_to_quiet_ms"] = round(quiet_started + (r.get("tailWallMs") or 0) - st["s4_unix_ms"], 1)
         joined.append({**r, "stages": st})
     return joined
 
@@ -308,6 +320,75 @@ def throughput(rows, a, configs):
     return (r6, d6), (r7, d7)
 
 
+def r8_stream(rows, a, configs):
+    """Fail-closed real-stream receipt matrix; no fabricated trace claims."""
+    expected = {(label, cfg, rep) for label in a.labels for cfg in configs
+                for rep in range(a.reps)}
+    seen = {}
+    invalid = []
+    for row in rows:
+        if row.get("kind") != "streamCancel":
+            continue
+        label, cfg = split_tag(row["tag"])
+        key = (label, cfg, row["rep"])
+        seen[key] = seen.get(key, 0) + 1
+        def integer(name, value):
+            return type(value) is int and value == row.get(name)
+        def ms(name):
+            value = row.get(name)
+            return (type(value) in (int, float) and math.isfinite(value)
+                    and value >= 0)
+        # Receipts require actual generated TEXT before cancel, not merely
+        # an idle queue cancellation. Positive and negative evidence are
+        # explicit: ACK exactly once, failed terminal exactly once, no
+        # output after ACK, no late frames, no unexpected IDs/frames, and
+        # measured CPU stop. All timing comes from the same cancel stopwatch.
+        ok = (
+            row.get("started") is True
+            and integer("prefixFrames", row.get("prefixFrames"))
+            and row["prefixFrames"] >= 1
+            and ms("firstTextMs")
+            and row.get("ack") is True
+            and integer("ackCount", 1)
+            and integer("terminalCount", 1)
+            # Terminal may race ahead of ACK on the same connection.
+            and isinstance(row.get("terminalError"), str)
+            and "cancel" in row["terminalError"].lower()
+            and integer("lateFrames", 0)
+            and integer("dataAfterAck", 0)
+            and integer("dataAfterFinal", 0)
+            and integer("unexpectedFrames", 0)
+            and row.get("readOutcome") == "OK"
+            and row.get("postTerminalRead") == "TIMEOUT"
+            # Old receipts checked for late frames before native work had
+            # necessarily quiesced. They cannot certify a post-quiescence drain.
+            and row.get("postTerminalProbePhase") == "afterQuiescence"
+            and row.get("quiesced") is True
+            and ms("ackMs") and ms("terminalMs") and ms("tailWallMs")
+            and row.get("tailBound") == "conservativeUpperBound"
+            and ms("cpuObservationStartMs")
+            and row["tailWallMs"] >= row["cpuObservationStartMs"]
+            and type(row.get("stopSentUnixMs")) is int
+            and row["stopSentUnixMs"] > 0
+            and type(row.get("tailClockOriginUnixMs")) is int
+            and row["tailClockOriginUnixMs"] == row["stopSentUnixMs"]
+            and type(row.get("cpuObservationStartUnixMs")) is int
+            and row["cpuObservationStartUnixMs"] >= row["stopSentUnixMs"]
+        )
+        if not ok:
+            invalid.append(str(key))
+    missing = expected - set(seen)
+    extra = set(seen) - expected
+    duplicates = {key for key, count in seen.items() if count != 1}
+    ok = not (missing or extra or duplicates or invalid)
+    detail = (f"qualified {len(expected) - len(missing) - len(duplicates) - len(invalid)}/{len(expected)}; "
+              f"missing {sorted(map(str, missing))[:6]}; "
+              f"unexpected {sorted(map(str, extra))[:6]}; "
+              f"duplicate {sorted(map(str, duplicates))[:6]}; "
+              f"invalid {invalid[:6]}")
+    return ok, detail
+
+
 def rules(rows, joined, a):
     configs = [f"ctx{c}-t{t}" for c in a.contexts for t in a.threads]
     traced = [j["stages"] for j in joined if j["stages"] is not None]
@@ -327,6 +408,9 @@ def rules(rows, joined, a):
         ("R6 trace on/off throughput median ratio within 0.97..1.03", *r6),
         ("R7 one uncancelled output hash per config across hash labels", *r7),
     ]
+    if a.require_stream:
+        results.append(("R8 real active streaming cancel/no late frames/CPU quiescence",
+                        *r8_stream(rows, a, configs)))
     print("\nACCEPTANCE (complete traced runs only)")
     for name, ok, detail in results:
         print(f"{'PASS' if ok else 'FAIL'} {name}: {detail}")
@@ -346,6 +430,8 @@ def args_of(argv):
     p.add_argument("--threads", default="0,1,2")
     p.add_argument("--reps", type=int, default=3)
     p.add_argument("--rows", action="store_true")
+    p.add_argument("--require-stream", action="store_true",
+                   help="require qualified active streaming cancel for every matrix cell")
     a = p.parse_args(argv)
     a.labels, a.hash_labels = a.labels.split(","), a.hash_labels.split(",")
     a.contexts, a.threads = a.contexts.split(","), a.threads.split(",")

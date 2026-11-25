@@ -59,7 +59,7 @@ flowchart LR
     H -. no tool or business authority .-> K[Pure execution boundary]
 ```
 
-**Serving boundary:** This diagram describes backend components, not uniform availability through every public interface. The authenticated standalone IPC inference protocol currently serves GGUF text generation; typed ONNX embedding and classification responses are **not yet supported over standalone IPC** (tracked by [#171](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171)). Do not interpret ONNX model loading or library-level evaluation as installed, end-to-end typed serving support.
+**Serving boundary:** This diagram describes backend components, not uniform availability through every public interface. The current `main` source supports authenticated GGUF text generation and typed ONNX embedding/classification over local IPC (`typed_inference_request` / `typed_inference_response`, when compiled with `onnx`). A [GG-CORE-only offline Windows packaged functional probe](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171#issuecomment-6935778220) passed on `main@79a16fb` with pinned MiniLM and DistilBERT fixtures. This does **not** establish a signed/published ONNX release, cross-platform security or endurance qualification, or GGUF↔ONNX model-switch readiness. [#171](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171) remains open; cold-switch [PR #211](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/211) is draft and native-qualification blocked. Model registration or `loaded_unverified` is not proof of serving readiness.
 
 ## Start here
 
@@ -86,7 +86,7 @@ The labels below are part of the product contract:
 | --- | --- | --- |
 | Secure Rust inference façade | **Verified** | `Runtime::infer` and `infer_stream` are the sole external engine path; direct engine execution is crate-private. |
 | GGUF text generation | **Verified + Conditional** | Real-model E2E coverage exists for Qwen 2.5 0.5B Q4_K_M. Other llama.cpp-compatible GGUF families are expected, not blanket-certified. |
-| ONNX embedding and classification | **Verified + Conditional (not an RC package surface)** | Enabled with `onnx` in source; CPU execution; selected by a sibling `manifest.json`; classification requires ordered labels. The GGUF/FFI-only RC archives do not qualify this backend for installed use; the current standalone IPC protocol does not return typed ONNX embedding/classification results ([#171](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171)). |
+| ONNX embedding and classification | **Verified + Conditional (not an RC package surface)** | CPU backend enabled with `onnx`; manifest-driven model loading and authenticated typed IPC inference are implemented. A pinned MiniLM/DistilBERT packaged **Windows functional slice** passed on `main@79a16fb` ([#171](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171)). The published GGUF/FFI-only RC does not qualify ONNX, and installed security, cross-platform, long-run and v1 release gates remain open. |
 | Local IPC daemon | **Verified + Conditional** | Server, authentication, probes, status, inference, streaming, cancellation, metrics, and model listing exist. A model must already be registered. |
 | Standalone first-run model bootstrap | **Verified + Conditional** | Startup `serve --model ... --model-id ...`, authenticated CLI load/unload and model-gated readiness pass packaged real-GGUF acceptance on all three supported build platforms; requires local model and token ([#130](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/130)). |
 | Adaptive speculative decoding | **Experimental** | Wired behind `advanced`, off by default, with correctness and fallback tests. Current `main` does not claim a demonstrated wall-clock speedup. |
@@ -187,9 +187,14 @@ Linux or macOS:
 
 ```bash
 export CORE_AUTH_TOKEN='replace-with-a-long-random-local-secret'
-export GG_CORE_SOCKET_PATH='/tmp/gg-core.sock'
+socket_dir="$HOME/.local/run/gg-core"
+mkdir -p "$socket_dir"
+chmod 700 "$socket_dir"
+export GG_CORE_SOCKET_PATH="$socket_dir/GG-CORE.sock"
 export RUST_LOG='gg_core=info'
 ```
+The Unix socket's immediate parent must be a real directory owned by the daemon's effective UID, with no group/other write bits. A socket directly under shared `/tmp` is refused; use a private directory such as the example above. Reuse the same `GG_CORE_SOCKET_PATH` in CLI shells. For the default `/var/run/gg-core/GG-CORE.sock`, the service operator must pre-provision the directory with the daemon's ownership and mode `0700`. The Helm manifests support an **opt-in** CAP_CHOWN init-container using the **same GG-CORE image** to prepare the root-owned `emptyDir` for the non-root daemon. Set `socketVolumeInit.enabled=true` only when deploying an image with the `prepare-k8s-socket-dir` command. The chart defaults to `false` because its legacy `0.5.0` image does not ship that command; a hardened daemon using the emptyDir must enable initialization or refuse startup. Installed Kubernetes validation and admission-policy testing remain required under #164; clusters that prohibit root init containers intentionally refuse admission.
+
 
 Windows PowerShell:
 

@@ -80,6 +80,144 @@ class Gate(unittest.TestCase):
         self.assertIn(rule, failed_rules(text), text)
         self.assertIn("VERDICT: FAIL", text)
 
+
+    @staticmethod
+    def stream_rows():
+        return [
+            {"kind": "streamCancel", "tag": tag, "rep": 0, "requestId": 990 + j,
+             "started": True, "prefixFrames": 1, "firstTextMs": 420,
+             "ack": True, "ackCount": 1, "ackMs": 8,
+             "terminalCount": 1, "terminalMs": 31, "terminalBeforeAck": False,
+             "terminalError": "stream cancelled", "dataAfterAck": 0,
+             "dataAfterFinal": 0, "lateFrames": 0, "unexpectedFrames": 0,
+             "readOutcome": "OK", "postTerminalRead": "TIMEOUT",
+             "postTerminalProbePhase": "afterQuiescence", "quiesced": True,
+             "tailWallMs": 440, "tailBound": "conservativeUpperBound",
+             "cpuObservationStartMs": 380, "cpuObservationStartUnixMs": 100380,
+             "stopSentUnixMs": 100000, "tailClockOriginUnixMs": 100000}
+            for j, tag in enumerate((TAG_OFF, TAG_ON))
+        ]
+
+    def test_r8_active_stream_receipts_pass_only_when_required(self):
+        rows, events = evidence()
+        code, detail = run(rows + self.stream_rows(), events, ["--require-stream"])
+        self.assertEqual(code, 0, detail)
+        self.assertIn("PASS R8", detail)
+        code, detail = run(rows, events)
+        self.assertEqual(code, 0, detail)  # historical R1-R7 are unaffected
+
+    def test_r8_old_before_quiescence_probe_cannot_claim_no_late_frames(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        # Even a TIMEOUT is not proof if the worker was still in native work.
+        stream[0]["postTerminalProbePhase"] = "beforeQuiescence"
+        code, detail = run(rows + stream, events, ["--require-stream"])
+        self.assertEqual(code, 1, detail)
+        self.assertIn("FAIL R8", detail)
+
+        # Historical evidence with no probe phase is also unqualified.
+        stream[0].pop("postTerminalProbePhase")
+        code, detail = run(rows + stream, events, ["--require-stream"])
+        self.assertEqual(code, 1, detail)
+        self.assertIn("FAIL R8", detail)
+
+    def test_stream_harness_probes_after_cpu_quiescence(self):
+        # Structural source check, not a substitute for running the VM.
+        script = (HERE / "n7_packaged_stop_tail.ps1").read_text(encoding="utf-8")
+        start = script.index("function Stream-Cancel {")
+        end = script.index("# Stage every daemon first", start)
+        stream = script[start:end]
+        self.assertLess(
+            stream.index("$q = Quiesce $t0 $cpu0"),
+            stream.index("$post = Probe-Late-Bytes $c 350"),
+        )
+        self.assertIn("postTerminalProbePhase = $probePhase", stream)
+        self.assertNotIn("Recv-Ipc $c 350", stream)
+        self.assertIn("$read = $c.ReadAsync($buf, 0, 1)", script)
+        self.assertIn("if ($post -ne 'TIMEOUT') { $late++ }", stream)
+
+    def test_r8_post_terminal_single_byte_is_a_failure(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        # Even if an outer client did not count a complete late frame,
+        # a post-terminal byte (including partial IPC length prefix) is invalid.
+        stream[0]["postTerminalRead"] = "LATE_BYTES"
+        code, detail = run(rows + stream, events, ["--require-stream"])
+        self.assertEqual(code, 1, detail)
+        self.assertIn("FAIL R8", detail)
+
+    def test_r8_missing_active_stream_fails(self):
+        rows, events = evidence()
+        code, detail = run(rows, events, ["--require-stream"])
+        self.assertEqual(code, 1, detail)
+        self.assertIn("FAIL R8", detail)
+
+    def test_r8_early_ended_stream_fails(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        stream[0]["started"] = False
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+
+    def test_r8_late_stream_frame_fails(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        stream[0]["lateFrames"] = 1
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+
+    def test_r8_data_after_ack_fails(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        stream[0]["dataAfterAck"] = 1
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+
+    def test_r8_terminal_before_ack_is_permitted(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        stream[0]["terminalBeforeAck"] = True
+        stream[0]["terminalMs"] = 4
+        stream[0]["ackMs"] = 8
+        code, detail = run(rows + stream, events, ["--require-stream"])
+        self.assertEqual(code, 0, detail)
+
+    def test_r8_data_after_terminal_fails(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        stream[0]["dataAfterFinal"] = 1
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+
+    def test_r8_zero_tail_before_delayed_cpu_observation_is_refused(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        stream[0]["tailWallMs"] = 0
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+        stream[0]["tailWallMs"] = 440
+        stream[0]["tailBound"] = "exact"
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+
+    def test_r8_terminal_missing_or_success_fails(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        stream[0]["terminalCount"] = 0
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+        stream[0]["terminalCount"] = 1
+        stream[0]["terminalError"] = ""
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+
+    def test_r8_missing_or_duplicate_matrix_cell_fails(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        self.assertEqual(run(rows + stream[:1], events, ["--require-stream"])[0], 1)
+        self.assertEqual(run(rows + stream + stream[:1], events, ["--require-stream"])[0], 2)
+
+    def test_r8_ambiguous_cpu_measurement_fails(self):
+        rows, events = evidence()
+        stream = self.stream_rows()
+        stream[0]["quiesced"] = False
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+        stream[0]["quiesced"] = True
+        stream[0]["tailClockOriginUnixMs"] = 100300
+        self.assertEqual(run(rows + stream, events, ["--require-stream"])[0], 1)
+
     def test_complete_evidence_passes(self):
         code, text = run(*evidence())
         self.assertEqual(code, 0, text)

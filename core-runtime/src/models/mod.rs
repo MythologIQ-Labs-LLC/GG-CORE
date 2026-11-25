@@ -7,6 +7,7 @@ pub mod backend_dispatch;
 pub mod backend_eligibility;
 pub mod backend_selection;
 pub mod capability_snapshot;
+pub mod hardware_profile;
 pub mod manifest;
 pub mod model_selection_policy;
 pub mod pool;

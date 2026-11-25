@@ -1,7 +1,8 @@
 //! IPC encoding/decoding throughput benchmarks.
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::fs;
+use std::hint::black_box;
 
 use gg_core::engine::InferenceParams;
 use gg_core::ipc::protocol::{

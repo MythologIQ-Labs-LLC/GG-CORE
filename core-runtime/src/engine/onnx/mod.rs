@@ -47,6 +47,19 @@ pub enum OnnxDevice {
 #[cfg(feature = "onnx")]
 const DEFAULT_EMBEDDING_DIM: usize = 384;
 
+/// The configured limit cannot disable all batching or bypass the shared
+/// 32-item input hard limit. Validate before opening potentially large models.
+#[cfg(feature = "onnx")]
+fn checked_embedding_batch_limit(max_batch_size: usize) -> Result<usize, InferenceError> {
+    if !(1..=crate::engine::input::MAX_BATCH_SIZE).contains(&max_batch_size) {
+        return Err(InferenceError::InputValidation(format!(
+            "ONNX max_batch_size must be between 1 and {}",
+            crate::engine::input::MAX_BATCH_SIZE
+        )));
+    }
+    Ok(max_batch_size)
+}
+
 /// Load an ONNX model from a file path.
 ///
 /// # Arguments
@@ -60,13 +73,15 @@ const DEFAULT_EMBEDDING_DIM: usize = 384;
 pub fn load_onnx_model(
     path: &Path,
     model_id: &str,
-    _config: &OnnxConfig,
+    config: &OnnxConfig,
 ) -> Result<Arc<dyn Model>, InferenceError> {
+    let batch_limit = checked_embedding_batch_limit(config.max_batch_size)?;
     let model = candle_onnx::read_file(path)
         .map_err(|e| InferenceError::ModelError(format!("load {path:?}: {e}")))?;
-    let tok = tokenizer::OnnxTokenizer::for_model(path);
+    let tok = tokenizer::OnnxTokenizer::for_model(path)?;
     let embedder =
-        OnnxEmbedder::with_model(model_id.to_string(), DEFAULT_EMBEDDING_DIM, model, tok);
+        OnnxEmbedder::with_model(model_id.to_string(), DEFAULT_EMBEDDING_DIM, model, tok)
+            .with_batch_limit(batch_limit);
     Ok(Arc::new(embedder))
 }
 
@@ -96,7 +111,7 @@ pub fn load_onnx_classifier(
 ) -> Result<Arc<dyn Model>, InferenceError> {
     let model = candle_onnx::read_file(path)
         .map_err(|e| InferenceError::ModelError(format!("load {path:?}: {e}")))?;
-    let tok = tokenizer::OnnxTokenizer::for_model(path);
+    let tok = tokenizer::OnnxTokenizer::for_model(path)?;
     let classifier = OnnxClassifier::with_model(model_id.to_string(), labels, model, tok);
     Ok(Arc::new(classifier))
 }

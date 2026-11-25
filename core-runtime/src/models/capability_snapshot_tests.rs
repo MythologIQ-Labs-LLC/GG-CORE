@@ -175,3 +175,18 @@ fn a_detected_backend_serves_only_its_compiled_declared_paths() {
         "a backend absent from the catalog serves nothing"
     );
 }
+
+#[test]
+fn existing_ipc_hardware_shape_remains_unchanged_after_profile_integration() {
+    let hardware = hardware_facts();
+    let value = serde_json::to_value(&hardware).expect("hardware facts JSON");
+    let object = value.as_object().expect("hardware facts object");
+    assert_eq!(
+        object.len(),
+        2,
+        "do not silently change the versioned capability response contract"
+    );
+    assert!(object.contains_key("logical_cpus"));
+    assert_eq!(object.get("accelerators"), Some(&serde_json::Value::Null));
+    assert!(hardware.logical_cpus >= 1);
+}

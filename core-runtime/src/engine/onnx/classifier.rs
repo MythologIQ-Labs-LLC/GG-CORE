@@ -85,7 +85,7 @@ impl OnnxClassifier {
         })?;
 
         let device = candle_core::Device::Cpu;
-        let encoded = self.tokenizer.encode(text);
+        let encoded = self.tokenizer.encode(text)?;
         let inputs = super::tensor_ops::build_transformer_inputs(&encoded, &device)?;
 
         let outputs = candle_onnx::simple_eval(model, inputs)
@@ -116,6 +116,20 @@ fn logits_to_classification(
     logits: &candle_core::Tensor,
     labels: &[String],
 ) -> Result<ClassificationResult, InferenceError> {
+    // A scalar classification result represents exactly one input. Flattening
+    // an arbitrary tensor first lets multi-row or extra-rank outputs masquerade
+    // as a single label distribution whenever their element count happens to
+    // equal labels.len(). Refuse that ambiguity before reading probabilities.
+    let valid_shape = match logits.dims() {
+        [classes] | [1, classes] => *classes == labels.len() && *classes > 0,
+        _ => false,
+    };
+    if !valid_shape {
+        return Err(InferenceError::ModelError(
+            "classifier logits must have shape [num_labels] or [1, num_labels] with matching labels"
+                .into(),
+        ));
+    }
     let flat = logits
         .flatten_all()
         .map_err(|e| InferenceError::ModelError(format!("flatten: {e}")))?;
@@ -129,6 +143,15 @@ fn logits_to_classification(
             raw.len(),
             labels.len()
         )));
+    }
+
+    // Direct Rust Model::infer callers do not pass through the typed IPC
+    // validator. Reject invalid model logits here as well, before softmax can
+    // turn NaN/Infinity into success-shaped, non-serializable confidences.
+    if raw.iter().any(|value| !value.is_finite()) {
+        return Err(InferenceError::ModelError(
+            "classifier logits contain non-finite values".into(),
+        ));
     }
 
     let probs = softmax(&raw);
@@ -176,22 +199,42 @@ impl crate::engine::Model for OnnxClassifier {
     async fn infer(
         &self,
         input: &InferenceInput,
+        config: &InferenceConfig,
+    ) -> Result<InferenceOutput, InferenceError> {
+        self.infer_cancellable(input, config, None).await
+    }
+
+    async fn infer_cancellable(
+        &self,
+        input: &InferenceInput,
         _config: &InferenceConfig,
+        is_cancelled: Option<&(dyn Fn() -> bool + Send + Sync)>,
     ) -> Result<InferenceOutput, InferenceError> {
         input.validate()?;
+        let stop = || {
+            if is_cancelled.is_some_and(|check| check()) {
+                Err(InferenceError::ModelError(
+                    "ONNX classification cancelled".into(),
+                ))
+            } else {
+                Ok(())
+            }
+        };
+        stop()?;
 
         match input {
             InferenceInput::Text(text) => {
                 let result = self.classify_text(text)?;
+                stop()?;
                 Ok(InferenceOutput::Classification(result))
             }
-            InferenceInput::TextBatch(batch) => {
-                let text = batch.first().ok_or_else(|| {
-                    InferenceError::InputValidation("batch cannot be empty".into())
-                })?;
-                let result = self.classify_text(text)?;
-                Ok(InferenceOutput::Classification(result))
-            }
+            // Classification has a single-result contract. Historically this
+            // branch classified the first item and silently discarded every
+            // remaining batch input. The IPC path already rejects batches;
+            // mirror that fail-closed behavior for embedded Rust consumers.
+            InferenceInput::TextBatch(_) => Err(InferenceError::CapabilityNotSupported(
+                "classification batch results are not yet supported".into(),
+            )),
             InferenceInput::ChatMessages(_) => Err(InferenceError::CapabilityNotSupported(
                 "chat messages not supported for classification".into(),
             )),
@@ -211,6 +254,11 @@ impl crate::engine::Model for OnnxClassifier {
         self
     }
 }
+
+#[cfg(test)]
+#[cfg(feature = "onnx")]
+#[path = "classifier_cancel_tests.rs"]
+mod cancel_tests;
 
 #[cfg(test)]
 #[cfg(feature = "onnx")]

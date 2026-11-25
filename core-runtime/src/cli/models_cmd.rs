@@ -12,10 +12,11 @@ use crate::ipc::protocol::ModelsListResponse;
 /// Run `models list`, connecting via IPC at `socket_path`.
 ///
 /// `json` prints the raw `ModelsListResponse` as pretty JSON (B-41, #106).
-/// Returns exit code: 0 on success, 3 on connection failure.
+/// Requires CORE_AUTH_TOKEN. Exit codes: 0 success, 1 auth/protocol
+/// refusal, 3 connection failure.
 pub async fn run_list(socket_path: &str, json: bool) -> i32 {
     let client = CliIpcClient::new(socket_path.to_string());
-    match client.get_models().await {
+    match client.get_models_authenticated().await {
         Ok(response) => {
             if json {
                 match serde_json::to_string_pretty(&response) {
@@ -30,10 +31,14 @@ pub async fn run_list(socket_path: &str, json: bool) -> i32 {
             }
             0
         }
-        Err(e) => {
+        Err(e @ (crate::cli::CliError::ConnectionFailed(_) | crate::cli::CliError::Timeout)) => {
             eprintln!("Error connecting to GG-CORE server: {}", e);
             eprintln!("Is the server running? Check GG_CORE_SOCKET_PATH.");
             3
+        }
+        Err(e) => {
+            eprintln!("Error listing models: {}", e);
+            1
         }
     }
 }
@@ -74,10 +79,14 @@ pub fn print_models(response: &ModelsListResponse) {
 
 fn truncate(s: &str, max: usize) -> &str {
     if s.len() <= max {
-        s
-    } else {
-        &s[..max]
+        return s;
     }
+    // Model names may be UTF-8; a byte limit must not split a codepoint.
+    let mut end = max;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }
 
 #[cfg(test)]
@@ -153,5 +162,18 @@ mod tests {
     async fn test_run_list_connection_failure_returns_3() {
         let code = run_list("/nonexistent/gg-core-test.sock", false).await;
         assert_eq!(code, 3, "should return exit code 3 on connection failure");
+    }
+
+    #[test]
+    fn unicode_model_names_do_not_panic_at_byte_boundaries() {
+        let name = "模型🚀one";
+        assert_eq!(truncate(name, 1), "");
+        assert_eq!(truncate(name, 3), "模");
+        assert_eq!(truncate(name, 7), "模型");
+        let response = ModelsListResponse {
+            models: vec![make_model(&name.repeat(10), "ready", 256, 1, 1.0)],
+            total_memory_bytes: 256 * 1024 * 1024,
+        };
+        print_models(&response);
     }
 }

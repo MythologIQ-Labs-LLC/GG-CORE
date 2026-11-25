@@ -70,19 +70,24 @@ impl Default for InferenceParams {
 
 impl InferenceParams {
     pub fn validate(&self) -> Result<(), InferenceError> {
-        if self.max_tokens == 0 {
+        if self.max_tokens == 0 || u32::try_from(self.max_tokens).is_err() {
             return Err(InferenceError::InvalidParams(
-                "max_tokens must be > 0".into(),
+                "max_tokens must be in the range 1..=u32::MAX".into(),
             ));
         }
-        if self.temperature < 0.0 {
+        if u32::try_from(self.top_k).is_err() {
             return Err(InferenceError::InvalidParams(
-                "temperature must be >= 0".into(),
+                "top_k must be <= u32::MAX".into(),
             ));
         }
-        if self.top_p <= 0.0 || self.top_p > 1.0 {
+        if !self.temperature.is_finite() || !(0.0..=2.0).contains(&self.temperature) {
             return Err(InferenceError::InvalidParams(
-                "top_p must be in (0, 1]".into(),
+                "temperature must be finite and in [0, 2]".into(),
+            ));
+        }
+        if !self.top_p.is_finite() || self.top_p <= 0.0 || self.top_p > 1.0 {
+            return Err(InferenceError::InvalidParams(
+                "top_p must be finite and in (0, 1]".into(),
             ));
         }
         if self.timeout_ms == Some(0) {
@@ -94,12 +99,17 @@ impl InferenceParams {
     }
 
     /// Convert to internal InferenceConfig format.
+    ///
+    /// Call `validate` before using this configuration for inference. For
+    /// callers that convert an unvalidated value, bound integer narrowing
+    /// saturates rather than wrapping a large request to zero or a smaller
+    /// token count; normal admitted requests never need the fallback.
     pub fn to_config(&self) -> InferenceConfig {
         InferenceConfig {
-            max_tokens: Some(self.max_tokens as u32),
+            max_tokens: Some(u32::try_from(self.max_tokens).unwrap_or(u32::MAX)),
             temperature: self.temperature,
             top_p: self.top_p,
-            top_k: self.top_k as u32,
+            top_k: u32::try_from(self.top_k).unwrap_or(u32::MAX),
             repetition_penalty: 1.1,
             timeout_ms: self.timeout_ms.unwrap_or(30_000),
             max_memory_bytes: None,
@@ -114,4 +124,74 @@ pub struct InferenceResult {
     pub output: String,
     pub tokens_generated: usize,
     pub finished: bool,
+}
+
+#[cfg(test)]
+mod parameter_admission_tests {
+    use super::*;
+
+    #[test]
+    fn finite_range_boundaries_are_accepted_and_invalid_values_refused() {
+        let mut params = InferenceParams::default();
+        assert!(params.validate().is_ok());
+        for temperature in [0.0_f32, 2.0] {
+            params.temperature = temperature;
+            assert!(params.validate().is_ok());
+        }
+        for temperature in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.01, 2.01] {
+            params.temperature = temperature;
+            assert!(
+                params.validate().is_err(),
+                "accepted temperature {temperature:?}"
+            );
+        }
+        params.temperature = 0.7;
+        for top_p in [0.000_1_f32, 1.0] {
+            params.top_p = top_p;
+            assert!(params.validate().is_ok());
+        }
+        for top_p in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.1, 0.0, 1.01] {
+            params.top_p = top_p;
+            assert!(params.validate().is_err(), "accepted top_p {top_p:?}");
+        }
+    }
+
+    #[test]
+    fn oversized_wire_integer_limits_cannot_wrap_backend_config() {
+        let mut params = InferenceParams {
+            max_tokens: 0,
+            ..Default::default()
+        };
+        assert!(params.validate().is_err());
+        params.max_tokens = 1;
+        assert!(params.validate().is_ok());
+        if let Ok(too_large) = usize::try_from(u64::from(u32::MAX) + 1) {
+            params.max_tokens = too_large;
+            assert!(params.validate().is_err(), "oversized max_tokens admitted");
+            assert_eq!(params.to_config().max_tokens, Some(u32::MAX));
+            params.max_tokens = 1;
+            params.top_k = too_large;
+            assert!(params.validate().is_err(), "oversized top_k admitted");
+            assert_eq!(params.to_config().top_k, u32::MAX);
+        }
+    }
+
+    #[test]
+    fn valid_parameters_convert_without_mutation() {
+        let params = InferenceParams {
+            max_tokens: 512,
+            temperature: 0.0,
+            top_p: 1.0,
+            top_k: 60,
+            stream: false,
+            timeout_ms: Some(12_345),
+        };
+        assert!(params.validate().is_ok());
+        let converted = params.to_config();
+        assert_eq!(converted.max_tokens, Some(512));
+        assert_eq!(converted.top_k, 60);
+        assert_eq!(converted.temperature, 0.0);
+        assert_eq!(converted.top_p, 1.0);
+        assert_eq!(converted.timeout_ms, 12_345);
+    }
 }

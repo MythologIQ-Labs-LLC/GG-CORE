@@ -193,6 +193,25 @@ pub fn verify_manifest_hash(
     manifest: &ModelManifest,
 ) -> Result<FileIdentity, InferenceError> {
     let (actual, identity) = hash_file(model_path)?;
+    // A pinned manifest attests both digest and declared on-disk length.
+    // Matching the hash alone must not mark contradictory metadata valid:
+    // consumers may rely on size_bytes for pre-admission and capacity plans.
+    if identity.len != manifest.size_bytes {
+        log_security_event(
+            SecurityEvent::ModelHashMismatch,
+            "model file size does not match its manifest",
+            &[
+                ("model_id", &manifest.model_id),
+                ("path", &model_path.display().to_string()),
+                ("declared_bytes", &manifest.size_bytes.to_string()),
+                ("actual_bytes", &identity.len.to_string()),
+            ],
+        );
+        return Err(InferenceError::ModelError(format!(
+            "model size mismatch for '{}': manifest declares {} bytes but file has {}",
+            manifest.model_id, manifest.size_bytes, identity.len
+        )));
+    }
     if !actual.eq_ignore_ascii_case(&manifest.sha256) {
         log_security_event(
             SecurityEvent::ModelHashMismatch,
