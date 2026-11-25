@@ -20,7 +20,8 @@ def validate(row):
         return ["receipt must be an object"]
     errors = []
     for key, allowed in (("backend", BACKENDS), ("task", TASKS), ("status", STATUSES)):
-        if row.get(key) not in allowed:
+        value = row.get(key)
+        if not isinstance(value, str) or value not in allowed:
             errors.append(f"invalid {key}")
     if type(row.get("schema_version")) is not int or row["schema_version"] != 1:
         errors.append("schema_version must be integer 1")
@@ -29,7 +30,7 @@ def validate(row):
     for key in ("host_id", "os"):
         if not isinstance(row.get(key), str) or not row[key].strip():
             errors.append(f"{key} must be a nonempty string")
-    measured = row.get("status") in {"verified", "conditional"}
+    measured = isinstance(row.get("status"), str) and row["status"] in {"verified", "conditional"}
     for key in ("model_sha256", "fixture_sha256"):
         value = row.get(key)
         if measured or value is not None:
