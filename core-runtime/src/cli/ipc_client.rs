@@ -106,7 +106,10 @@ impl CliIpcClient {
         self.get_models_with_auth(true).await
     }
 
-    async fn get_models_with_auth(&self, authenticate: bool) -> Result<ModelsListResponse, CliError> {
+    async fn get_models_with_auth(
+        &self,
+        authenticate: bool,
+    ) -> Result<ModelsListResponse, CliError> {
         let message = IpcMessage::ModelsRequest;
         let request_bytes =
             encode_message(&message).map_err(|e| CliError::Protocol(e.to_string()))?;
