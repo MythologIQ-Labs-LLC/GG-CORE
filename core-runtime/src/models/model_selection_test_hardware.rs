@@ -88,7 +88,7 @@ fn measured_headroom_refuses_unfit_cold_model_and_admits_fit_candidate() {
     let mut hardware = HardwareProfile::detect_local();
     hardware.unreserved_ram_bytes = Some(1_700);
     let offer = test_support::quality(); // 1500 resident + 300 working
-    let result = choose(&[offer.clone()], &test_support::policy(), &hardware);
+    let result = choose(std::slice::from_ref(&offer), &test_support::policy(), &hardware);
     assert_eq!(
         result.assessments[0].refusal,
         Some(CandidateRefusal::OverHardwareHeadroom)
@@ -132,14 +132,14 @@ fn unverifiable_gpu_is_refused_even_when_synthetic_backend_supports_it() {
     }];
     let mut hardware = HardwareProfile::detect_local();
     let result =
-        plan_with_compiled_catalog_and_hardware(&[model.clone()], &policy, &catalog, &hardware);
+        plan_with_compiled_catalog_and_hardware(std::slice::from_ref(&model), &policy, &catalog, &hardware);
     assert_eq!(
         result.assessments[0].refusal,
         Some(CandidateRefusal::HardwareTargetUnverified)
     );
     hardware.cuda = TargetAvailability::VerifiedUnavailable;
     let result =
-        plan_with_compiled_catalog_and_hardware(&[model.clone()], &policy, &catalog, &hardware);
+        plan_with_compiled_catalog_and_hardware(std::slice::from_ref(&model), &policy, &catalog, &hardware);
     assert_eq!(
         result.assessments[0].refusal,
         Some(CandidateRefusal::HardwareTargetUnverified)
