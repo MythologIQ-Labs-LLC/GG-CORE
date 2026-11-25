@@ -1,0 +1,23 @@
+name: Backend benchmark evidence contract (model-free)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/backend-benchmark-contract.yml'
+      - 'scripts/validate_backend_bench.py'
+      - 'scripts/test_validate_backend_bench.py'
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-negative-controls:
+    name: Task-aware evidence and provenance negatives
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute Python stdlib evidence regressions
+        run: python3 -W error::ResourceWarning -m unittest discover -s scripts -p 'test_validate_backend_bench.py' -v
+      - name: Syntax-check validator and regression tests
+        run: python3 -m py_compile scripts/validate_backend_bench.py scripts/test_validate_backend_bench.py
