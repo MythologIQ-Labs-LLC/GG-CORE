@@ -33,6 +33,9 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9090"
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -152,6 +155,9 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9090"
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}

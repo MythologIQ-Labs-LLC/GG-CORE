@@ -58,6 +58,12 @@ helm template gg-core ./k8s/helm/gg-core \
 
 This renders source only. It cannot verify that the Secret, image, binary,
 socket helper, model PVC, OS dependencies, or Pod permissions actually work.
+The chart's default networkPolicy.enabled=true and denyAll=true now render a
+NetworkPolicy selecting all release pods, denying both ingress and egress.
+Setting either switch false renders no NetworkPolicy; this is not isolation.
+Pods explicitly disable Kubernetes ServiceAccount token automount even if
+an operator supplies an external ServiceAccount. Only an enforcing CNI and
+real negative ingress/egress tests can prove actual network containment.
 Inspect the generated manifests for unwanted networked monitoring
 or incompatible deployment-strategy resources. Do not apply them merely
 because Helm lint or template succeeds.
