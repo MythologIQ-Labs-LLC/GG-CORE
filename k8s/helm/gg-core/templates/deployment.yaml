@@ -28,6 +28,7 @@ spec:
           args:
             - serve
           env:
+            {{- include "gg-core.authTokenEnv" . | nindent 12 }}
             - name: GG_CORE_SOCKET_PATH
               value: {{ .Values.config.socketPath | quote }}
             - name: GG_CORE_MAX_CONTEXT

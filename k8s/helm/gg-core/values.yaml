@@ -7,6 +7,13 @@ image:
   tag: "0.5.0"
   pullPolicy: IfNotPresent
 
+# Local IPC auth uses an existing namespaced Kubernetes Secret.
+# Never set token bytes in Helm values, ConfigMaps, or source control.
+# With no reference, secure serve refuses startup; no anonymous fallback.
+auth:
+  existingSecretName: ""
+  secretKey: token
+
 serviceAccount:
   create: true
   name: ""
