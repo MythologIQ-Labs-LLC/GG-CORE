@@ -12,6 +12,7 @@ use super::backend_capabilities::{
     compiled_backend_capabilities, BackendKind, ExecutionTarget, InferenceTask,
     RuntimeBackendCapabilities, ServingPath, CAPABILITY_SCHEMA_VERSION,
 };
+use super::hardware_profile::HardwareProfile;
 use super::lifecycle::ModelLifecycle;
 use crate::engine::{InferenceCapability, InferenceEngine, Model};
 
@@ -177,8 +178,9 @@ fn tasks_of(model: &dyn Model) -> Vec<InferenceTask> {
 }
 
 fn hardware_facts() -> HardwareFacts {
+    let local = HardwareProfile::detect_local();
     HardwareFacts {
-        logical_cpus: std::thread::available_parallelism().map_or(1, |n| n.get()),
+        logical_cpus: local.available_cpu_threads.unwrap_or(1),
         accelerators: None,
     }
 }

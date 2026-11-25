@@ -47,6 +47,23 @@ pub fn plan_model_selection_with_hardware<'a>(
     decision::plan(offers, policy, &compiled, Some(hardware))
 }
 
+/// Opt-in local-budget advisory selector, without client-supplied hardware
+/// headroom. The snapshot reads the same shared reservation accounting used
+/// by native model residency and per-request working admission.
+///
+/// It is a proposal only, never a memory reservation. A concurrent
+/// request can consume capacity before the suggested model is loaded.
+/// Exact model evidence, host approval and canonical admission remain
+/// mandatory at the execution boundary.
+pub fn plan_model_selection_with_local_limits<'a>(
+    offers: &[ModelOffer<'a>],
+    policy: &SelectionPolicy<'_>,
+    limits: Option<&crate::memory::ResourceLimits>,
+) -> ModelSelectionPlan<'a> {
+    let hardware = HardwareProfile::detect_with_limits(limits);
+    plan_model_selection_with_hardware(offers, policy, &hardware)
+}
+
 /// Private seam for tests: production always uses its own compiled catalog.
 fn plan_with_compiled_catalog<'a>(
     offers: &[ModelOffer<'a>],
@@ -82,3 +99,7 @@ fn plan_with_compiled_catalog_and_hardware<'a>(
 #[cfg(test)]
 #[path = "model_selection_test_hardware.rs"]
 mod test_hardware;
+
+#[cfg(test)]
+#[path = "model_selection_test_local_limits.rs"]
+mod test_local_limits;
