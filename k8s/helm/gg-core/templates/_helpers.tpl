@@ -85,3 +85,15 @@ Create the name of the service account to use
     - name: socket
       mountPath: /var/run/gg-core
 {{- end -}}
+
+{{/* Existing namespaced auth Secret. NEVER render a plaintext token value. */}}
+{{- define "gg-core.authTokenEnv" -}}
+{{- if .Values.auth.existingSecretName -}}
+- name: CORE_AUTH_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.auth.existingSecretName | quote }}
+      key: {{ required "auth.secretKey is required with auth.existingSecretName" .Values.auth.secretKey | quote }}
+      optional: false
+{{- end -}}
+{{- end -}}
