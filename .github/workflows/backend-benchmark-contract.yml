@@ -6,6 +6,9 @@ on:
       - '.github/workflows/backend-benchmark-contract.yml'
       - 'scripts/validate_backend_bench.py'
       - 'scripts/test_validate_backend_bench.py'
+      - 'scripts/summarize_backend_bench.py'
+      - 'scripts/test_summarize_backend_bench.py'
+      - 'docs/performance/BACKEND_EVIDENCE_MATRIX.md'
 
 permissions:
   contents: read
@@ -18,6 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Execute Python stdlib evidence regressions
-        run: python3 -W error::ResourceWarning -m unittest discover -s scripts -p 'test_validate_backend_bench.py' -v
-      - name: Syntax-check validator and regression tests
-        run: python3 -m py_compile scripts/validate_backend_bench.py scripts/test_validate_backend_bench.py
+        run: |
+          python3 -W error::ResourceWarning -m unittest discover -s scripts -p 'test_validate_backend_bench.py' -v
+          python3 -W error::ResourceWarning -m unittest discover -s scripts -p 'test_summarize_backend_bench.py' -v
+      - name: Syntax-check evidence scripts and regressions
+        run: python3 -m py_compile scripts/validate_backend_bench.py scripts/test_validate_backend_bench.py scripts/summarize_backend_bench.py scripts/test_summarize_backend_bench.py
