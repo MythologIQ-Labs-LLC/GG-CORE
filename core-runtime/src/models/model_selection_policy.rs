@@ -34,7 +34,6 @@ pub fn plan_model_selection<'a>(
     plan_with_compiled_catalog(offers, policy, &compiled)
 }
 
-
 /// Opt-in, non-executing hardware-aware selection. Trusted local capability
 /// evidence and the host's policy limits are both mandatory. Unknown target
 /// availability or cold-load headroom refuses the candidate, rather than

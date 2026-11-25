@@ -1,10 +1,10 @@
 //! Fail-closed per-model evidence and resource checks.
 
 use super::{CandidateRefusal, ModelOffer, SelectionPolicy};
-use crate::models::hardware_profile::{HardwareProfile, TargetAvailability};
 use crate::models::backend_capabilities::{
     RuntimeBackendCapabilities, ServingPath, CAPABILITY_SCHEMA_VERSION,
 };
+use crate::models::hardware_profile::{HardwareProfile, TargetAvailability};
 
 pub(super) fn assess(
     model: &ModelOffer<'_>,

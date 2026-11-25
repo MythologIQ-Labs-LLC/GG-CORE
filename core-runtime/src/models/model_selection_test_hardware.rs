@@ -73,7 +73,10 @@ fn unmeasured_cold_headroom_is_not_permission_to_load() {
         &test_support::policy(),
         &HardwareProfile::detect_local(),
     );
-    assert_eq!(result.action, ModelAction::Refuse(PlanRefusal::NoEligibleModel));
+    assert_eq!(
+        result.action,
+        ModelAction::Refuse(PlanRefusal::NoEligibleModel)
+    );
     assert_eq!(
         result.assessments[0].refusal,
         Some(CandidateRefusal::HardwareHeadroomUnknown)
@@ -128,35 +131,22 @@ fn unverifiable_gpu_is_refused_even_when_synthetic_backend_supports_it() {
         qualified_paths: vec![],
     }];
     let mut hardware = HardwareProfile::detect_local();
-    let result = plan_with_compiled_catalog_and_hardware(
-        &[model.clone()],
-        &policy,
-        &catalog,
-        &hardware,
-    );
+    let result =
+        plan_with_compiled_catalog_and_hardware(&[model.clone()], &policy, &catalog, &hardware);
     assert_eq!(
         result.assessments[0].refusal,
         Some(CandidateRefusal::HardwareTargetUnverified)
     );
     hardware.cuda = TargetAvailability::VerifiedUnavailable;
-    let result = plan_with_compiled_catalog_and_hardware(
-        &[model.clone()],
-        &policy,
-        &catalog,
-        &hardware,
-    );
+    let result =
+        plan_with_compiled_catalog_and_hardware(&[model.clone()], &policy, &catalog, &hardware);
     assert_eq!(
         result.assessments[0].refusal,
         Some(CandidateRefusal::HardwareTargetUnverified)
     );
     // Only synthetic evidence for a tested path; not a production GPU claim.
     hardware.cuda = TargetAvailability::VerifiedAvailable;
-    let result = plan_with_compiled_catalog_and_hardware(
-        &[model],
-        &policy,
-        &catalog,
-        &hardware,
-    );
+    let result = plan_with_compiled_catalog_and_hardware(&[model], &policy, &catalog, &hardware);
     assert!(matches!(result.action, ModelAction::UseResident { .. }));
 }
 
