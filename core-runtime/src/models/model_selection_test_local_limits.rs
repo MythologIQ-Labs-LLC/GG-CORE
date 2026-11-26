@@ -83,7 +83,10 @@ fn public_opt_in_resident_preference_uses_real_compiled_paths_and_local_budget()
         ));
         assert!(plan.assessments.iter().all(|item| item.refusal.is_none()));
     } else {
-        assert_eq!(plan.action, ModelAction::Refuse(PlanRefusal::NoEligibleModel));
+        assert_eq!(
+            plan.action,
+            ModelAction::Refuse(PlanRefusal::NoEligibleModel)
+        );
         assert!(plan
             .assessments
             .iter()
