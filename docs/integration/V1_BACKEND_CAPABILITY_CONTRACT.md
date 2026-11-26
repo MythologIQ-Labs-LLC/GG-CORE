@@ -68,3 +68,28 @@ HardwareProfile::detect_with_limits(Some(&limits)) observes the shared ResourceL
 plan_model_selection_with_local_limits is an opt-in library-only proposal helper that uses this locally read budget and preserves all host allowlists, qualification, custody, task and final admission checks. Its values may be stale immediately due to concurrency. No execution, switching or network behavior is added.
 
 The existing authenticated capability snapshot still serializes precisely hardware: { logical_cpus, accelerators } in its previous schema. Its CPU detector reuses the local HardwareProfile source, but there are NO new IPC keys or public Rust shape changes. Publishing richer data externally remains gated by issue #112 compatibility review. Physical RAM/VRAM measurement, true GPU qualification, measured model quality, safe cold switching and native installed acceptance remain open.
+
+
+## 2026-11-25: host-governed resident-first degraded selection (#50)
+
+This library-only advisory selection adds DegradedModelPreference with these
+explicit host choices:
+
+- FastestEligible: unchanged default ranking using measured additive model cost.
+- PreferReadyResident: favor authorized, qualified, currently ready residents;
+  if none qualify, use the existing eligible ranking.
+- RequireReadyResident: refuse with ResidentRequiredByHost if no authorized,
+  qualified resident meets every constraint; never propose a cold model load.
+
+The new plan_model_selection_with_local_limits_and_preference entry point reads
+the shared local reservation snapshot before evaluating offers. The preference
+is *not* an auth, model-quality, or resource override. It cannot lower the
+quality floor, ignore pins/allowlists, grant reroute/switch/escalation consent,
+claim GPU/VRAM support, create benchmark/model provenance, or permit remote
+fallback. The public offer values still require trusted exact-artifact
+qualification and the canonical execution boundary must revalidate all
+admission, lifecycle, identity and readiness checks.
+
+Existing SelectionPolicy fields, existing default selection calls, and the
+authenticated IPC schema are unchanged. A stable Rust/IPC contract and
+installed model-source evidence still require #112 and #50 acceptance.
