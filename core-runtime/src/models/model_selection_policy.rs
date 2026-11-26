@@ -44,7 +44,13 @@ pub fn plan_model_selection_with_hardware<'a>(
     hardware: &HardwareProfile,
 ) -> ModelSelectionPlan<'a> {
     let compiled = compiled_backend_capabilities();
-    decision::plan(offers, policy, &compiled, Some(hardware))
+    decision::plan(
+        offers,
+        policy,
+        &compiled,
+        Some(hardware),
+        DegradedModelPreference::default(),
+    )
 }
 
 /// Opt-in local-budget advisory selector, without client-supplied hardware
@@ -64,13 +70,35 @@ pub fn plan_model_selection_with_local_limits<'a>(
     plan_model_selection_with_hardware(offers, policy, &hardware)
 }
 
+/// Opt-in host choice for constrained-model planning (#50).
+///
+/// This changes candidate ranking only, not qualification, hard limits,
+/// authorization or any real model loading. Existing callers are unchanged;
+/// no public policy struct or authenticated IPC schema changes.
+pub fn plan_model_selection_with_local_limits_and_preference<'a>(
+    offers: &[ModelOffer<'a>],
+    policy: &SelectionPolicy<'_>,
+    limits: Option<&crate::memory::ResourceLimits>,
+    preference: DegradedModelPreference,
+) -> ModelSelectionPlan<'a> {
+    let hardware = HardwareProfile::detect_with_limits(limits);
+    let compiled = compiled_backend_capabilities();
+    decision::plan(offers, policy, &compiled, Some(&hardware), preference)
+}
+
 /// Private seam for tests: production always uses its own compiled catalog.
 fn plan_with_compiled_catalog<'a>(
     offers: &[ModelOffer<'a>],
     policy: &SelectionPolicy<'_>,
     compiled: &[RuntimeBackendCapabilities],
 ) -> ModelSelectionPlan<'a> {
-    decision::plan(offers, policy, compiled, None)
+    decision::plan(
+        offers,
+        policy,
+        compiled,
+        None,
+        DegradedModelPreference::default(),
+    )
 }
 
 #[cfg(test)]
@@ -93,12 +121,32 @@ fn plan_with_compiled_catalog_and_hardware<'a>(
     compiled: &[RuntimeBackendCapabilities],
     hardware: &HardwareProfile,
 ) -> ModelSelectionPlan<'a> {
-    decision::plan(offers, policy, compiled, Some(hardware))
+    decision::plan(
+        offers,
+        policy,
+        compiled,
+        Some(hardware),
+        DegradedModelPreference::default(),
+    )
 }
 
 #[cfg(test)]
 #[path = "model_selection_test_hardware.rs"]
 mod test_hardware;
+
+#[cfg(test)]
+fn plan_with_catalog_and_degraded_preference<'a>(
+    offers: &[ModelOffer<'a>],
+    policy: &SelectionPolicy<'_>,
+    compiled: &[RuntimeBackendCapabilities],
+    preference: DegradedModelPreference,
+) -> ModelSelectionPlan<'a> {
+    decision::plan(offers, policy, compiled, None, preference)
+}
+
+#[cfg(test)]
+#[path = "model_selection_test_degraded_preference.rs"]
+mod test_degraded_preference;
 
 #[cfg(test)]
 #[path = "model_selection_test_local_limits.rs"]

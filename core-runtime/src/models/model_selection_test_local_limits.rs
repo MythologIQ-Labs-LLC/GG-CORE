@@ -55,3 +55,41 @@ fn local_budget_planner_without_limits_never_invents_cold_fit() {
     };
     assert_eq!(result.assessments[0].refusal, Some(refusal));
 }
+
+#[test]
+fn public_opt_in_resident_preference_uses_real_compiled_paths_and_local_budget() {
+    use crate::memory::{ResourceLimits, ResourceLimitsConfig};
+
+    let limits = ResourceLimits::new(ResourceLimitsConfig {
+        max_memory_per_call: 4_096,
+        max_total_memory: 4_096,
+        max_concurrent: 2,
+    });
+    let offers = [test_support::light(), test_support::quality()];
+    let plan = plan_model_selection_with_local_limits_and_preference(
+        &offers,
+        &test_support::policy(),
+        Some(&limits),
+        DegradedModelPreference::PreferReadyResident,
+    );
+    if cfg!(feature = "gguf") {
+        assert!(matches!(
+            plan.action,
+            ModelAction::UseResident {
+                model_id: "light",
+                handle_id: 17,
+                ..
+            }
+        ));
+        assert!(plan.assessments.iter().all(|item| item.refusal.is_none()));
+    } else {
+        assert_eq!(
+            plan.action,
+            ModelAction::Refuse(PlanRefusal::NoEligibleModel)
+        );
+        assert!(plan
+            .assessments
+            .iter()
+            .all(|item| item.refusal == Some(CandidateRefusal::PathNotCompiled)));
+    }
+}
