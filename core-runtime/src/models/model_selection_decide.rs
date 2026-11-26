@@ -3,7 +3,8 @@
 use std::collections::HashSet;
 
 use super::{
-    CandidateAssessment, ModelAction, ModelOffer, ModelSelectionPlan, PlanRefusal, SelectionPolicy,
+    CandidateAssessment, DegradedModelPreference, ModelAction, ModelOffer, ModelSelectionPlan,
+    PlanRefusal, SelectionPolicy,
 };
 use crate::models::backend_capabilities::RuntimeBackendCapabilities;
 use crate::models::hardware_profile::HardwareProfile;
@@ -23,6 +24,7 @@ pub(super) fn plan<'a>(
     policy: &SelectionPolicy<'_>,
     compiled: &[RuntimeBackendCapabilities],
     hardware: Option<&HardwareProfile>,
+    preference: DegradedModelPreference,
 ) -> ModelSelectionPlan<'a> {
     if let Some(reason) = invalid_policy_or_catalog(offers, policy) {
         return denied(reason);
@@ -42,10 +44,30 @@ pub(super) fn plan<'a>(
             && offers[choice.index].resident_handle.is_some()
     });
     let permitted = authorized_choices(offers, &viable, policy);
-    let ranked = if permitted.is_empty() {
+    // Only authorized, independently ready residents can satisfy constrained
+    // preference. A preference cannot create permission or lower quality.
+    let residents: Vec<Eligible> = permitted
+        .iter()
+        .copied()
+        .filter(|choice| offers[choice.index].resident_handle.is_some())
+        .collect();
+    if preference == DegradedModelPreference::RequireReadyResident && residents.is_empty() {
+        return ModelSelectionPlan {
+            action: ModelAction::Refuse(PlanRefusal::ResidentRequiredByHost),
+            assessments,
+        };
+    }
+    let normal_ranked = if permitted.is_empty() {
         &viable
     } else {
         &permitted
+    };
+    let ranked = if preference != DegradedModelPreference::FastestEligible
+        && !residents.is_empty()
+    {
+        &residents
+    } else {
+        normal_ranked
     };
     let winner = match best(ranked, incumbent) {
         Ok(candidate) => stabilize(offers, candidate, incumbent, policy),
