@@ -92,7 +92,6 @@ judgment.
 | F-62 | Speculative KV-cache reuse — persistent GGUF session (self_cell; delta-decode + draft rollback; token-equivalent to fresh context; advanced-gated) | core-runtime/src/engine/gguf/speculative_session.rs | docs/research-brief-b21f-kv-cache-reuse-2026-07-31.md | core-runtime/src/engine/gguf/speculative_session_tests.rs | verified |
 | F-63 | Prompt-lookup draft — model-free n-gram speculative draft (BlockDraftModel; advanced-gated) | core-runtime/src/engine/adaptive_speculative/prompt_lookup.rs | docs/research-brief-b21f-kv-cache-reuse-2026-07-31.md | core-runtime/src/engine/adaptive_speculative/prompt_lookup_tests.rs | verified |
 | F-64 | Speculative telemetry in `status` — executor emits Prometheus counters; `build_status` derives live counts + acceptance rate over the metrics channel (advanced-gated) | core-runtime/src/cli/status.rs | docs/plan-b21-loose-ends-b40-ci-2026-08-01.md | core-runtime/src/cli/status_tests.rs | verified |
-
 | F-65 | Operator-pinned GGUF artifact preflight (library-only; not installed model or execution qualification) | core-runtime/src/models/artifact_preflight.rs | docs/integration/V1_PINNED_GGUF_ARTIFACT_PREFLIGHT.md | core-runtime/src/models/artifact_preflight_tests.rs | unverified |
 
 ## Open coverage gaps
