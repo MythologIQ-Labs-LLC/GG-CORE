@@ -48,8 +48,8 @@ pub fn verify_pinned_gguf_artifact(
     let path = loader
         .validate_path(relative_path)
         .map_err(|_| refused("model path rejected"))?;
-    let metadata = std::fs::symlink_metadata(path.as_path())
-        .map_err(|_| refused("model file unavailable"))?;
+    let metadata =
+        std::fs::symlink_metadata(path.as_path()).map_err(|_| refused("model file unavailable"))?;
     if !metadata.is_file() {
         return Err(refused("model must be a regular file"));
     }

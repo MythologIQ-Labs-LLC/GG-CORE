@@ -95,7 +95,11 @@ fn missing_manifest_does_not_become_approved() {
 fn bad_bytes_fail_even_with_matching_manifest() {
     let f = Fixture::new();
     std::fs::write(&f.model, b"hello w0rld").unwrap();
-    assert!(f.verify().unwrap_err().to_string().contains("hash mismatch"));
+    assert!(f
+        .verify()
+        .unwrap_err()
+        .to_string()
+        .contains("hash mismatch"));
 }
 
 #[test]
@@ -103,7 +107,11 @@ fn inconsistent_size_fails_even_with_matching_pin() {
     let mut f = Fixture::new();
     f.approved.size_bytes = 12;
     f.write_manifest(&f.approved);
-    assert!(f.verify().unwrap_err().to_string().contains("size mismatch"));
+    assert!(f
+        .verify()
+        .unwrap_err()
+        .to_string()
+        .contains("size mismatch"));
 }
 
 #[test]
