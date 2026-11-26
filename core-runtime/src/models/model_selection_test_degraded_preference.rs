@@ -39,7 +39,10 @@ fn existing_ranking_is_unchanged_by_default() {
         DegradedModelPreference::FastestEligible,
     );
     assert_eq!(baseline, opted);
-    assert!(matches!(opted.action, ModelAction::ProposeColdSwitch { .. }));
+    assert!(matches!(
+        opted.action,
+        ModelAction::ProposeColdSwitch { .. }
+    ));
 }
 
 #[test]
@@ -70,8 +73,17 @@ fn prefer_resident_falls_back_to_cold_only_if_no_ready_resident() {
         &test_support::policy(),
         DegradedModelPreference::PreferReadyResident,
     );
-    assert_eq!(plan.assessments[0].refusal, Some(CandidateRefusal::NotReady));
-    assert!(matches!(plan.action, ModelAction::ProposeColdSwitch { model_id: "quality", .. }));
+    assert_eq!(
+        plan.assessments[0].refusal,
+        Some(CandidateRefusal::NotReady)
+    );
+    assert!(matches!(
+        plan.action,
+        ModelAction::ProposeColdSwitch {
+            model_id: "quality",
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -95,14 +107,33 @@ fn residency_preference_cannot_override_quality_floor_or_pin() {
     let offers = [test_support::light(), test_support::quality()];
     let mut host = test_support::policy();
     host.quality_floor_bps = 8_000;
-    let no_quality = select(&offers, &host, DegradedModelPreference::RequireReadyResident);
-    assert_eq!(no_quality.assessments[0].refusal, Some(CandidateRefusal::BelowQualityFloor));
-    assert_eq!(no_quality.action, ModelAction::Refuse(PlanRefusal::ResidentRequiredByHost));
+    let no_quality = select(
+        &offers,
+        &host,
+        DegradedModelPreference::RequireReadyResident,
+    );
+    assert_eq!(
+        no_quality.assessments[0].refusal,
+        Some(CandidateRefusal::BelowQualityFloor)
+    );
+    assert_eq!(
+        no_quality.action,
+        ModelAction::Refuse(PlanRefusal::ResidentRequiredByHost)
+    );
     host.quality_floor_bps = 7_000;
     host.pinned_model_id = Some("quality");
     let pinned = select(&offers, &host, DegradedModelPreference::PreferReadyResident);
-    assert_eq!(pinned.assessments[0].refusal, Some(CandidateRefusal::NotPinned));
-    assert!(matches!(pinned.action, ModelAction::ProposeColdSwitch { model_id: "quality", .. }));
+    assert_eq!(
+        pinned.assessments[0].refusal,
+        Some(CandidateRefusal::NotPinned)
+    );
+    assert!(matches!(
+        pinned.action,
+        ModelAction::ProposeColdSwitch {
+            model_id: "quality",
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -111,10 +142,23 @@ fn no_reroute_consent_cannot_be_minted_by_preference() {
     host.current_model_id = None;
     host.allow_resident_reroute = false;
     let offers = [test_support::light(), test_support::quality()];
-    let required = select(&offers, &host, DegradedModelPreference::RequireReadyResident);
-    assert_eq!(required.action, ModelAction::Refuse(PlanRefusal::ResidentRequiredByHost));
+    let required = select(
+        &offers,
+        &host,
+        DegradedModelPreference::RequireReadyResident,
+    );
+    assert_eq!(
+        required.action,
+        ModelAction::Refuse(PlanRefusal::ResidentRequiredByHost)
+    );
     let preferred = select(&offers, &host, DegradedModelPreference::PreferReadyResident);
-    assert!(matches!(preferred.action, ModelAction::ProposeColdSwitch { model_id: "quality", .. }));
+    assert!(matches!(
+        preferred.action,
+        ModelAction::ProposeColdSwitch {
+            model_id: "quality",
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -130,5 +174,8 @@ fn no_escalation_consent_cannot_be_minted_by_ready_residency() {
         &host,
         DegradedModelPreference::RequireReadyResident,
     );
-    assert_eq!(plan.action, ModelAction::Refuse(PlanRefusal::ResidentRequiredByHost));
+    assert_eq!(
+        plan.action,
+        ModelAction::Refuse(PlanRefusal::ResidentRequiredByHost)
+    );
 }

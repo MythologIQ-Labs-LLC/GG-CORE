@@ -62,8 +62,7 @@ pub(super) fn plan<'a>(
     } else {
         &permitted
     };
-    let ranked = if preference != DegradedModelPreference::FastestEligible
-        && !residents.is_empty()
+    let ranked = if preference != DegradedModelPreference::FastestEligible && !residents.is_empty()
     {
         &residents
     } else {

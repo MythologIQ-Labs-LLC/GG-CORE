@@ -44,7 +44,13 @@ pub fn plan_model_selection_with_hardware<'a>(
     hardware: &HardwareProfile,
 ) -> ModelSelectionPlan<'a> {
     let compiled = compiled_backend_capabilities();
-    decision::plan(offers, policy, &compiled, Some(hardware), DegradedModelPreference::default())
+    decision::plan(
+        offers,
+        policy,
+        &compiled,
+        Some(hardware),
+        DegradedModelPreference::default(),
+    )
 }
 
 /// Opt-in local-budget advisory selector, without client-supplied hardware
@@ -86,7 +92,13 @@ fn plan_with_compiled_catalog<'a>(
     policy: &SelectionPolicy<'_>,
     compiled: &[RuntimeBackendCapabilities],
 ) -> ModelSelectionPlan<'a> {
-    decision::plan(offers, policy, compiled, None, DegradedModelPreference::default())
+    decision::plan(
+        offers,
+        policy,
+        compiled,
+        None,
+        DegradedModelPreference::default(),
+    )
 }
 
 #[cfg(test)]
@@ -109,7 +121,13 @@ fn plan_with_compiled_catalog_and_hardware<'a>(
     compiled: &[RuntimeBackendCapabilities],
     hardware: &HardwareProfile,
 ) -> ModelSelectionPlan<'a> {
-    decision::plan(offers, policy, compiled, Some(hardware), DegradedModelPreference::default())
+    decision::plan(
+        offers,
+        policy,
+        compiled,
+        Some(hardware),
+        DegradedModelPreference::default(),
+    )
 }
 
 #[cfg(test)]
