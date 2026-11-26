@@ -27,9 +27,6 @@ spec:
         {{- include "gg-core.selectorLabels" . | nindent 8 }}
         gg-core.hearthlink.ai/environment: blue
         gg-core.hearthlink.ai/version: {{ .Values.bluegreen.blue.version | quote }}
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
     spec:
       # No Kubernetes API credentials inside the isolated inference Pod.
       # Required even when serviceAccount.create=false or an external SA is set.
@@ -151,9 +148,6 @@ spec:
         {{- include "gg-core.selectorLabels" . | nindent 8 }}
         gg-core.hearthlink.ai/environment: green
         gg-core.hearthlink.ai/version: {{ .Values.bluegreen.green.version | quote }}
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
     spec:
       # No Kubernetes API credentials inside the isolated inference Pod.
       # Required even when serviceAccount.create=false or an external SA is set.

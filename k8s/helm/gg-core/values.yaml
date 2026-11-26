@@ -18,6 +18,10 @@ serviceAccount:
   create: true
   name: ""
 
+# Inference needs no Kubernetes API permissions by default.
+rbac:
+  create: false
+
 resources:
   requests:
     memory: "2Gi"
@@ -231,7 +235,7 @@ monitoring:
   grafana:
     dashboard:
       # Enable Grafana dashboard ConfigMap
-      enabled: true
+      enabled: false
       # Dashboard labels for Grafana sidecar discovery
       labels:
         grafana_dashboard: "1"
@@ -242,7 +246,7 @@ monitoring:
   prometheus:
     rules:
       # Enable PrometheusRule resource
-      enabled: true
+      enabled: false
       # Additional labels for PrometheusRule
       additionalLabels:
         release: prometheus

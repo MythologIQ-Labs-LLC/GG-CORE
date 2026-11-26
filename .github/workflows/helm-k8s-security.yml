@@ -1,0 +1,30 @@
+name: Kubernetes Helm source security contract
+
+on:
+  pull_request:
+    paths:
+      - 'k8s/helm/gg-core/**'
+      - 'scripts/qualification/helm_k8s_security_matrix.sh'
+      - '.github/workflows/helm-k8s-security.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'k8s/helm/gg-core/**'
+      - 'scripts/qualification/helm_k8s_security_matrix.sh'
+      - '.github/workflows/helm-k8s-security.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  rendered-chart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned Helm CLI
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112
+        with:
+          version: v3.18.6
+      - name: Test rendered chart policy, Secrets, monitoring and RBAC
+        run: bash scripts/qualification/helm_k8s_security_matrix.sh
