@@ -34,10 +34,12 @@ def exposes_capabilities(stdout):
 def unauthenticated_refused(invoke, binary, env, embed_id):
     anon = {k: v for k, v in env.items() if k != "CORE_AUTH_TOKEN"}
     listing = invoke(binary, anon, ["models", "list", "--json"], timeout=10)
-    if listing.returncode == 0:
+    # An error exit does not establish non-disclosure. Any stdout must
+    # satisfy the same capability-free listing contract.
+    if listing.returncode == 0 or listing.stdout:
         if exposes_capabilities(listing.stdout):
             raise NegativeError("unauthenticated-capabilities-exposed")
-    elif not auth_refused(listing):
+    if listing.returncode != 0 and not auth_refused(listing):
         raise NegativeError("unauthenticated-listing-refusal-not-auth")
     typed = invoke(binary, anon, ["embed", "--model", embed_id, "--text", "Example."], timeout=30)
     if typed.returncode == 0:

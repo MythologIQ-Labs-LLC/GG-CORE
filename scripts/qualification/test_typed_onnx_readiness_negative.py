@@ -90,6 +90,17 @@ class TestMissingAuth(unittest.TestCase):
         self.run_case(done(0, NO_CAPS), denied())
         self.run_case(denied(), denied())
 
+    def test_error_exit_cannot_hide_capability_disclosure(self):
+        stderr = denied().stderr
+        leaked = subprocess.CompletedProcess([], 1, done(0, READY).stdout, stderr)
+        with self.assertRaisesRegex(NegativeError, "unauthenticated-capabilities-exposed"):
+            self.run_case(leaked, denied())
+        no_caps = subprocess.CompletedProcess([], 1, done(0, NO_CAPS).stdout, stderr)
+        self.run_case(no_caps, denied())
+        malformed = subprocess.CompletedProcess([], 1, b"nope", stderr)
+        with self.assertRaisesRegex(NegativeError, "unauthenticated-listing-invalid"):
+            self.run_case(malformed, denied())
+
     def test_unrelated_failures_are_not_auth_evidence(self):
         with self.assertRaisesRegex(NegativeError, "unauthenticated-listing-refusal-not-auth"):
             self.run_case(unrelated(), denied())
