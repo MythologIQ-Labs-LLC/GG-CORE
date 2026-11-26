@@ -8,7 +8,7 @@ use std::path::Path;
 use crate::engine::error::InferenceError;
 
 /// Model metadata from manifest.json file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelManifest {
     /// Unique model identifier (e.g., "email-classifier-v1").
     pub model_id: String,
