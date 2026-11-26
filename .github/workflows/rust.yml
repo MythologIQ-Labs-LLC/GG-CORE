@@ -12,6 +12,13 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
 
+# Cancel superseded commits for the SAME PR only. Never cancel another PR
+# or a protected main push's independent source/security qualification.
+# The push fallback uses a unique run ID to preserve every main check.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Review C3: machine-enforced supply-chain gate. Advisories (RUSTSEC), the
   # C.O.R.E. forbidden-dependency bans, license allowlist, and registry pinning
