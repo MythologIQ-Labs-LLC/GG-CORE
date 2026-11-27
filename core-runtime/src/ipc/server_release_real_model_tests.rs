@@ -10,7 +10,7 @@ use tokio::io::DuplexStream;
 
 use super::handle_connection;
 use super::release::TEST_LOCK;
-use super::release_stub::{receive, send};
+use super::release_stub::{calibrate_frame_deadline, frame_deadline, receive, send};
 use crate::engine::gguf::{GgufConfig, GgufGenerator};
 use crate::engine::{InferenceParams, Model};
 use crate::ipc::connections::{ConnectionConfig, ConnectionPool, IpcServerConfig};
@@ -134,10 +134,21 @@ fn generate(id: u64, model: &str, stream: bool) -> IpcMessage {
         parameters: InferenceParams {
             max_tokens,
             stream,
-            timeout_ms: Some(120_000),
+            timeout_ms: Some(frame_deadline().as_millis() as u64),
             ..Default::default()
         },
     })
+}
+
+/// Scale the frame and request deadlines from one short request measured
+/// on this host now (floor 120 s): the assertions below are about release
+/// ordering and accounting, not about host speed under contention.
+async fn calibrate(d: &Daemon) {
+    let mut probe = connect(d, 64 * 1024).await;
+    let start = std::time::Instant::now();
+    let reply = infer_reply(&mut probe, 900, "a").await;
+    assert!(reply.error.is_none(), "{reply:?}");
+    calibrate_frame_deadline(start.elapsed());
 }
 
 async fn release_wait(c: &mut DuplexStream, ms: u64) -> ModelReleaseWaitResponse {
@@ -175,6 +186,7 @@ async fn a_held_instance_is_released_only_after_its_stream_ends() {
     let Some(a) = instance() else { return };
     let (w, total) = budget(a.as_ref());
     let d = daemon(a, w, total).await;
+    calibrate(&d).await;
     let (mut stream, mut c) = hold_and_unload(&d).await;
     refused_while_held(&d, &mut c).await;
     // 7. Resume reading: the stream ends cleanly, served by `a` throughout.

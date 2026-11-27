@@ -14,7 +14,8 @@ param(
     [int]$Reps = 3,
     [string[]]$TraceLabels = @(),    # labels launched with GG_CORE_STOP_TRACE=1 (stage events on stderr)
     [string]$ModelPath = 'C:\Preview\models\qwen2.5-0.5b-instruct-q4_k_m.gguf',
-    [string]$RuntimeDir = 'C:\host\vcdlls'   # VC runtime DLLs copied beside each daemon ('' = none)
+    [string]$RuntimeDir = 'C:\host\vcdlls',  # VC runtime DLLs copied beside each daemon ('' = none)
+    [string]$HostLoadFile = ''               # optional host-side load log; its last line is recorded per throughput row
 )
 $ErrorActionPreference = 'Stop'
 # PowerShell -File accepts a comma-separated array as a single argument.
@@ -96,6 +97,21 @@ function Req([string]$prompt, [int]$max, [int]$timeoutMs = 0, [bool]$stream = $f
 }
 function Session { $c = New-Ipc; Send-Ipc $c ([ordered]@{ type = 'handshake'; token = $token; protocol_version = 'V1' }); $a = Recv-Ipc $c 15000; if ($a -is [string] -or $a.type -ne 'handshake_ack') { throw "auth failed" }; $c }
 function Cpu { $script:d.Refresh(); $script:d.TotalProcessorTime.TotalMilliseconds }
+# Guest contention: CPU time of every process other than the measured daemon (the other staged
+# daemons are idle while one is measured; a busy one is recorded, not hidden).
+function Other-Cpu {
+    $sum = 0.0
+    foreach ($p in Get-Process) { if ($p.Id -ne $script:d.Id) { try { $sum += $p.TotalProcessorTime.TotalMilliseconds } catch { } } }
+    $sum
+}
+# Host contention is not observable from the guest; the operator may tail a host-side load
+# log into the guest, and its last line travels with each throughput row for the report.
+function Host-Load {
+    if (-not $HostLoadFile -or -not (Test-Path -LiteralPath $HostLoadFile -PathType Leaf)) { return $null }
+    $line = Get-Content -LiteralPath $HostLoadFile -Tail 1 -ErrorAction SilentlyContinue
+    if ($line) { [string]$line } else { $null }
+}
+$logicalCpus = [Environment]::ProcessorCount
 # Wall and CPU time from $t0 (stop sent) until two consecutive 100 ms samples add < 15 ms CPU.
 function Quiesce($t0, $cpu0) {
     # A CPU observation starting after reply/late-frame reads cannot know
@@ -246,8 +262,11 @@ function Stream-Cancel {
     } finally { $c.Dispose() }
 }
 
-# Stage every daemon first, then run configuration-outer / daemon-inner so the daemons
-# (notably trace off vs on of one binary) interleave per configuration (audit F7).
+# Stage every daemon first. Per configuration, every daemon (notably trace off vs on of one
+# binary) is started on its own pipe, then the repetitions interleave DAEMON-INNER: rep k of
+# each daemon runs back to back (revision 3; audit F7 interleaved per configuration only), so
+# paired reps see the same guest/host contention. Idle daemons cost no CPU; each throughput
+# row records the guest's non-daemon CPU share and the optional host load sample.
 $staged = @()
 foreach ($pair in $Daemons) {
     $label, $exe = $pair -split '=', 2
@@ -266,28 +285,43 @@ foreach ($pair in $Daemons) {
     Rec @{ kind = 'identity'; label = $label; exe = $exe; exe_sha256 = (Get-FileHash "$root\gg-core-cli.exe").Hash.ToLower(); model_sha256 = $sha }
     $staged += , @($label, $root)
 }
-foreach ($ctx in $Contexts) { foreach ($t in $Threads) { foreach ($sd in $staged) {
-    $label, $root = $sd
-    $tag = "$label-ctx$ctx-t$t"; $script:pipeName = "gg184-$tag-" + [guid]::NewGuid().ToString('N')
-    $env:CORE_AUTH_TOKEN = $token; $env:GG_CORE_SOCKET_PATH = "\\.\pipe\$($script:pipeName)"
-    $env:GG_CORE_N_CTX = "$ctx"; $env:GG_CORE_MAX_CONTEXT = "$ctx"; $env:GG_CORE_MAX_CONTEXT_TOKENS = "$ctx"; $env:GG_CORE_N_THREADS = "$t"; $env:GG_CORE_MAX_CONCURRENT = '2'
-    if ($TraceLabels -contains $label) { $env:GG_CORE_STOP_TRACE = '1' }
-    $script:d = Start-Process -FilePath "$root\gg-core-cli.exe" -ArgumentList 'serve', '--model', 'models/qwen/model.gguf', '--model-id', 'qwen' -WorkingDirectory $root -RedirectStandardError "$Out\$tag.err" -RedirectStandardOutput "$Out\$tag.out" -NoNewWindow -PassThru
-    foreach ($k in 'CORE_AUTH_TOKEN', 'GG_CORE_SOCKET_PATH', 'GG_CORE_N_CTX', 'GG_CORE_MAX_CONTEXT', 'GG_CORE_MAX_CONTEXT_TOKENS', 'GG_CORE_N_THREADS', 'GG_CORE_MAX_CONCURRENT', 'GG_CORE_STOP_TRACE') { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
-    $null = $script:d.Handle; $ready = $false
-    for ($i = 0; $i -lt 480; $i++) { Start-Sleep -Milliseconds 250; if ((Get-Content "$Out\$tag.err" -Raw -ErrorAction SilentlyContinue) -match 'IPC server listening') { $ready = $true; break }; if ($script:d.HasExited) { break } }
-    Rec @{ kind = 'daemon'; tag = $tag; ready = $ready }
-    if (-not $ready) { if (-not $script:d.HasExited) { $script:d.Kill() }; throw "Native daemon not ready for $tag" }
-    for ($r = 0; $r -lt $Reps; $r++) {
-        $tp = Infer $long 24; $outHash = if ($tp.r.output) { ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$tp.r.output)))).Replace('-', '').Substring(0, 16) } else { $null }
-        Rec @{ kind = 'throughput'; tag = $tag; rep = $r; ms = $tp.ms; tokens = $tp.r.tokens_generated; ok = (-not $tp.r.error); outputSha = $outHash }
+foreach ($ctx in $Contexts) { foreach ($t in $Threads) {
+    $live = @()
+    foreach ($sd in $staged) {
+        $label, $root = $sd
+        $tag = "$label-ctx$ctx-t$t"; $pipe = "gg184-$tag-" + [guid]::NewGuid().ToString('N')
+        $env:CORE_AUTH_TOKEN = $token; $env:GG_CORE_SOCKET_PATH = "\\.\pipe\$pipe"
+        $env:GG_CORE_N_CTX = "$ctx"; $env:GG_CORE_MAX_CONTEXT = "$ctx"; $env:GG_CORE_MAX_CONTEXT_TOKENS = "$ctx"; $env:GG_CORE_N_THREADS = "$t"; $env:GG_CORE_MAX_CONCURRENT = '2'
+        if ($TraceLabels -contains $label) { $env:GG_CORE_STOP_TRACE = '1' }
+        $proc = Start-Process -FilePath "$root\gg-core-cli.exe" -ArgumentList 'serve', '--model', 'models/qwen/model.gguf', '--model-id', 'qwen' -WorkingDirectory $root -RedirectStandardError "$Out\$tag.err" -RedirectStandardOutput "$Out\$tag.out" -NoNewWindow -PassThru
+        foreach ($k in 'CORE_AUTH_TOKEN', 'GG_CORE_SOCKET_PATH', 'GG_CORE_N_CTX', 'GG_CORE_MAX_CONTEXT', 'GG_CORE_MAX_CONTEXT_TOKENS', 'GG_CORE_N_THREADS', 'GG_CORE_MAX_CONCURRENT', 'GG_CORE_STOP_TRACE') { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
+        $null = $proc.Handle; $ready = $false
+        for ($i = 0; $i -lt 480; $i++) { Start-Sleep -Milliseconds 250; if ((Get-Content "$Out\$tag.err" -Raw -ErrorAction SilentlyContinue) -match 'IPC server listening') { $ready = $true; break }; if ($proc.HasExited) { break } }
+        Rec @{ kind = 'daemon'; tag = $tag; ready = $ready }
+        if (-not $ready) {
+            if (-not $proc.HasExited) { $proc.Kill() }
+            foreach ($dm in $live) { if (-not $dm.proc.HasExited) { $dm.proc.Kill() } }
+            throw "Native daemon not ready for $tag"
+        }
+        $live += , @{ tag = $tag; pipe = $pipe; proc = $proc }
+    }
+    for ($r = 0; $r -lt $Reps; $r++) { foreach ($dm in $live) {
+        $tag = $dm.tag; $script:pipeName = $dm.pipe; $script:d = $dm.proc
+        # Throughput with the contention observed around it: the daemon's own CPU share and
+        # every other guest process's share of the same wall interval, plus the host sample.
+        $other0 = Other-Cpu; $cpuA = Cpu; $wall = [Diagnostics.Stopwatch]::StartNew()
+        $tp = Infer $long 24
+        $wallMs = [math]::Max(1, $wall.ElapsedMilliseconds); $cpuB = Cpu; $other1 = Other-Cpu
+        $den = [double]($wallMs * $logicalCpus)
+        $outHash = if ($tp.r.output) { ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$tp.r.output)))).Replace('-', '').Substring(0, 16) } else { $null }
+        Rec @{ kind = 'throughput'; tag = $tag; rep = $r; ms = $tp.ms; tokens = $tp.r.tokens_generated; ok = (-not $tp.r.error); outputSha = $outHash; guestOtherCpuPct = [math]::Round(100.0 * ($other1 - $other0) / $den, 1); daemonCpuPct = [math]::Round(100.0 * ($cpuB - $cpuA) / $den, 1); logicalCpus = $logicalCpus; hostLoad = (Host-Load) }
         Rec ((Prefill-Cancel (1500 + 500 * $r)) + @{ tag = $tag; rep = $r })
         Rec ((Prefill-Deadline (2000 + 500 * $r)) + @{ tag = $tag; rep = $r })
         Rec ((Decode-Cancel (2500 + 500 * $r)) + @{ tag = $tag; rep = $r })
         Rec ((Stream-Cancel) + @{ tag = $tag; rep = $r })
         Rec ((Queued-Cancel) + @{ tag = $tag; rep = $r })
         $rc = Infer 'Reply with one word: ok' 4; Rec @{ kind = 'recover'; tag = $tag; rep = $r; ok = (-not $rc.r.error); ms = $rc.ms; alive = (-not $script:d.HasExited) }
-    }
-    if (-not $script:d.HasExited) { $script:d.Kill() }; Start-Sleep 1
-} } }
+    } }
+    foreach ($dm in $live) { if (-not $dm.proc.HasExited) { $dm.proc.Kill() } }; Start-Sleep 1
+} }
 Note 'done'; Set-Content "$Out\DONE" 'done'

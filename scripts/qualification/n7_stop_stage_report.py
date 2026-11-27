@@ -21,8 +21,16 @@ is stricter:
      every recovery request succeeded on a live daemon
   R5 S2->S3 <= last_decode_ms + 5 ms (0 + 5 ms for a setup-phase stop) in
      >= 95% of traced running stops; every traced running stop must be timed
-     (exactly one S2, S3 and S4) and every running-stop cell represented
-  R6 trace on/off uncancelled throughput median ratio within 0.97..1.03
+     (exactly one S2, S3 and S4) and every running-stop cell represented.
+     For a prefillDeadline stop the origin is the deadline instant, not the
+     answer: when S2 carries `deadline_lag_ms` the join anchors at
+     t(S2) - lag and S3 must follow that anchor (S3 may precede S2 by the
+     lag, which is the answering task's scheduling delay, not a backend
+     fault). Without the field the legacy S2 anchor applies unchanged.
+  R6 trace on/off uncancelled throughput median ratio within 0.97..1.03;
+     throughput rows may carry guest contention samples (`guestOtherCpuPct`,
+     `daemonCpuPct`, `hostLoad`) which are reported next to the ratio and
+     per-rep paired ratios; they never widen the band
   R7 exactly one uncancelled output hash per config across --hash-labels
   R8 (optional --require-stream) each label/config/rep has a real active
      streaming cancel: first text before stop, exactly one ACK and failed
@@ -70,10 +78,11 @@ def validate_trace_fields(event):
         value = event.get(field)
         if value is not None and (type(value) is not int or value < 0):
             raise BadInput(f"stop-trace field {field} must be a nonnegative integer")
-    value = event.get("last_decode_ms")
-    if value is not None and (type(value) not in (int, float)
-                              or not math.isfinite(value) or value < 0):
-        raise BadInput("stop-trace last_decode_ms must be finite and nonnegative")
+    for field in ("last_decode_ms", "deadline_lag_ms"):
+        value = event.get(field)
+        if value is not None and (type(value) not in (int, float)
+                                  or not math.isfinite(value) or value < 0):
+            raise BadInput(f"stop-trace {field} must be finite and nonnegative")
     for field in ("matched", "stream"):
         if field in event and type(event[field]) is not bool:
             raise BadInput(f"stop-trace field {field} must be boolean")
@@ -157,6 +166,9 @@ def validate(rows):
             ms = r.get("ms")
             if type(ms) not in (int, float) or not math.isfinite(ms) or ms <= 0:
                 raise BadInput(f"throughput row without positive finite ms: {r}")
+        if r["kind"] == "throughput":
+            for field in ("guestOtherCpuPct", "daemonCpuPct"):
+                contention_pct(r, field)  # optional; malformed when present and not a finite percentage
 
 
 def split_tag(tag):
@@ -177,14 +189,28 @@ def stages_for(events, request_id, kind):
     if len(s2) != 1:
         return {"incomplete": True, "missing": "S2" if not s2 else "duplicate S2", "queued_reached_backend": False}
     qid, t2 = s2[0].get("queue_id"), s2[0]["t"]
+    # Stop origin. An explicit cancel is signalled by the answering task, so
+    # S2 causally precedes the backend's observation. A daemon-side deadline
+    # is a wall-clock instant that the answering task (after its timer wakes
+    # and it is scheduled) and the backend checkpoint observe independently:
+    # S3 may precede S2 by the answer's lag. A daemon that reports that lag
+    # (`deadline_lag_ms` on S2) lets the join anchor at the deadline instant
+    # itself; without it the legacy S2 anchor stays (no silent widening).
+    anchor, anchor_kind = t2, "answer"
+    lag = s2[0].get("deadline_lag_ms")
+    if kind == "prefillDeadline" and lag is not None:
+        anchor, anchor_kind = t2 - lag / 1000, "daemon_deadline"
+    elif kind == "prefillDeadline":
+        anchor_kind = "answer_legacy"
     # No one-second lookback: a prior S3 cannot demonstrate a later stop.
     s3 = [e for e in events if msg(e, "backend stop observed") and e.get("queue_id") == qid]
     s4 = [e for e in events if msg(e, "worker released after stop") and e.get("queue_id") == qid]
-    row = {"queue_id": qid, "kind": s2[0].get("kind"), "n_s3": len(s3), "n_s4": len(s4)}
+    row = {"queue_id": qid, "kind": s2[0].get("kind"), "n_s3": len(s3), "n_s4": len(s4),
+           "anchor": anchor_kind}
     if s1:
         row["ack_ms"] = round((t2 - s1[0]["t"]) * 1000, 2)
     if s3:
-        row.update(observe_ms=round((s3[0]["t"] - t2) * 1000, 1), phase=s3[0].get("phase"),
+        row.update(observe_ms=round((s3[0]["t"] - anchor) * 1000, 1), phase=s3[0].get("phase"),
                    last_decode_ms=s3[0].get("last_decode_ms"), last_decode_tokens=s3[0].get("last_decode_tokens"))
     if s3 and s4:
         row["release_ms"] = round((s4[0]["t"] - s3[0]["t"]) * 1000, 1)
@@ -198,7 +224,7 @@ def stages_for(events, request_id, kind):
     no_s1 = explicit and (len(s1) != 1 or s1[0].get("matched") is not True)
     wrong_kind = s2[0].get("kind") != CODES[kind] or not isinstance(qid, int)
     bad_order = (explicit and len(s1) == 1 and s1[0]["t"] > t2
-                 or len(s3) == 1 and s3[0]["t"] < t2
+                 or len(s3) == 1 and s3[0]["t"] < anchor
                  or len(s3) == 1 and len(s4) == 1 and s4[0]["t"] < s3[0]["t"])
     row["incomplete"] = bool(any_drop or no_s1 or no_s3 or no_s4 or reached or bad_order or wrong_kind)
     row["missing"] = ("dropped lines" if any_drop else "invalid S1" if no_s1
@@ -293,25 +319,62 @@ def r5_observe(traced, joined, a, configs):
                 f"cells without a timed stop: {sorted(need - cells)[:4]}")
 
 
+def contention_pct(row, field):
+    """A recorded CPU-share sample in percent, or None when the harness did not record one."""
+    value = row.get(field)
+    if value is None:
+        return None
+    if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+        raise BadInput(f"throughput row {field} must be a finite nonnegative number")
+    return value
+
+
+def contention_detail(on_rows, off_rows):
+    """Paired per-rep ratios and recorded guest/host contention for one config.
+
+    Interleaved per-rep measurement (harness revision 3) makes rep k of the
+    trace-on daemon a near-neighbour of rep k of the trace-off daemon, so the
+    paired ratios expose drift that a median hides. Contention is reported,
+    never used to relax R6: a contended run is a visibly contended run.
+    """
+    by_rep = lambda rows: {r.get("rep"): r for r in rows if type(r.get("rep")) is int}
+    on, off = by_rep(on_rows), by_rep(off_rows)
+    pairs = [on[k]["ms"] / off[k]["ms"] for k in sorted(on) if k in off and off[k]["ms"]]
+    other = [contention_pct(r, "guestOtherCpuPct") for r in on_rows + off_rows]
+    other = [v for v in other if v is not None]
+    hosts = sorted({str(r["hostLoad"]) for r in on_rows + off_rows if r.get("hostLoad") is not None})
+    out = ""
+    if pairs:
+        out += "(pairs " + ",".join(f"{p:.3f}" for p in pairs) + ")"
+    if other:
+        out += f"(guestOtherCpu max {max(other):.1f}%)"
+    if hosts:
+        out += "(host " + ";".join(hosts[:3]) + ")"
+    return out
+
+
 def throughput(rows, a, configs):
     tp = {}
     for r in rows:
         if r.get("kind") == "throughput":
             label, cfg = split_tag(r["tag"])
             tp.setdefault(cfg, {}).setdefault(label, []).append(r)
-    ratios, hashes, short = {}, {}, []
+    ratios, hashes, short, contention = {}, {}, [], {}
     for cfg in configs:
         for l in sorted({a.trace_label, a.off_label, *a.hash_labels}):
             good = [r for r in tp.get(cfg, {}).get(l, []) if r.get("ok") and r.get("outputSha")]
             if len(good) < a.reps:
                 short.append(f"{cfg}/{l}={len(good)}")
-        on = [r["ms"] for r in tp.get(cfg, {}).get(a.trace_label, []) if r.get("ok")]
-        off = [r["ms"] for r in tp.get(cfg, {}).get(a.off_label, []) if r.get("ok")]
+        on_rows = [r for r in tp.get(cfg, {}).get(a.trace_label, []) if r.get("ok")]
+        off_rows = [r for r in tp.get(cfg, {}).get(a.off_label, []) if r.get("ok")]
+        on = [r["ms"] for r in on_rows]
+        off = [r["ms"] for r in off_rows]
         ratios[cfg] = statistics.median(on) / statistics.median(off) if on and off else None
         hashes[cfg] = {r.get("outputSha") for l in a.hash_labels for r in tp.get(cfg, {}).get(l, [])}
+        contention[cfg] = contention_detail(on_rows, off_rows)
     r6 = not short and all(v is not None and 0.97 <= v <= 1.03 for v in ratios.values())
     r7 = not short and all(len(h) == 1 and None not in h for h in hashes.values())
-    d6 = " ".join(f"{c}={'none' if v is None else f'{v:.3f}'}" for c, v in ratios.items())
+    d6 = " ".join(f"{c}={'none' if v is None else f'{v:.3f}'}{contention[c]}" for c, v in ratios.items())
     if short:
         d6 += f"; throughput rows short: {short[:6]}"
     d7 = " ".join(f"{c}={sorted(map(str, h))}" for c, h in hashes.items())

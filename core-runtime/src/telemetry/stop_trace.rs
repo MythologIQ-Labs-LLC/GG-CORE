@@ -50,6 +50,31 @@ pub fn answered(request_id: u64, queue_id: Option<u64>, cancelled: bool, stream:
     tracing::info!(target: STOP_TARGET, request_id, queue_id, kind, stream, dropped, "stop answered to caller");
 }
 
+/// S2 for a daemon-side deadline. `deadline_lag_ms` is how long after the
+/// request's deadline instant this answer is being written. A deadline is a
+/// wall-clock event that the answering task and the backend's cooperative
+/// checkpoint observe independently, so S3 may legitimately precede this
+/// S2 by the lag; the report anchors deadline stops at `t(S2) - lag`.
+pub fn deadline_answered(
+    request_id: u64,
+    queue_id: Option<u64>,
+    stream: bool,
+    deadline_lag_ms: f64,
+) {
+    let kind = "deadline_exceeded";
+    let dropped = dropped();
+    tracing::info!(
+        target: STOP_TARGET,
+        request_id,
+        queue_id,
+        kind,
+        stream,
+        deadline_lag_ms,
+        dropped,
+        "stop answered to caller"
+    );
+}
+
 /// `true` only for the exact value `1`.
 pub fn enabled(value: Option<&str>) -> bool {
     value == Some("1")
