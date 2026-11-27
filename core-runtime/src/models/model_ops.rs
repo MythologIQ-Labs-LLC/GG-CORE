@@ -98,6 +98,9 @@ pub enum ModelOpError {
     Backend(String),
     #[error("lifecycle: {0}")]
     Lifecycle(#[from] LifecycleError),
+    /// Another authenticated operator holds mutation authority.
+    #[error("model operation busy: another load, unload or switch is in progress")]
+    Busy,
 }
 
 /// Validate the path, read metadata, and run backend dispatch (blocking).
@@ -230,6 +233,10 @@ pub async fn unload_model(
     lifecycle.unload(model_id).await?;
     Ok(())
 }
+
+#[path = "model_ops_operator.rs"]
+mod operator;
+pub use operator::{load_model_operated, unload_model_operated};
 
 #[cfg(test)]
 #[path = "model_ops_tests.rs"]

@@ -114,6 +114,8 @@ pub struct IpcHandler {
     pub(super) model_lifecycle: Arc<crate::models::ModelLifecycle>,
     /// Path-validating loader bound to the runtime's base path (B-41, #106).
     pub(super) model_loader: Arc<crate::models::ModelLoader>,
+    /// Process-local, bounded status for detached authenticated cold switches.
+    pub(super) switch_journal: Arc<super::switch_journal::SwitchJournal>,
     /// Streaming path (gguf feature) and typed capability listing.
     pub(super) inference_engine: Arc<InferenceEngine>,
 }
@@ -148,6 +150,7 @@ impl IpcHandler {
             model_registry,
             model_lifecycle,
             model_loader,
+            switch_journal: Arc::new(super::switch_journal::SwitchJournal::default()),
             inference_engine,
         }
     }
@@ -261,6 +264,14 @@ impl IpcHandler {
                 Ok((IpcMessage::ModelUnloadResponse(response), None))
             }
 
+            IpcMessage::ModelSwitchRequest(request) => {
+                self.require_auth(session).await?;
+                Ok((self.start_model_switch(request), None))
+            }
+            IpcMessage::ModelSwitchStatusRequest(request) => {
+                self.require_auth(session).await?;
+                Ok((self.read_model_switch(request), None))
+            }
             _ => {
                 let error = IpcMessage::Error {
                     code: 400,

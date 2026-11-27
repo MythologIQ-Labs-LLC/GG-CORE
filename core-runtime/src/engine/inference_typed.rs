@@ -44,7 +44,7 @@ impl InferenceEngine {
             return Err(stopped);
         }
 
-        let model = self.get_model(model_id).await?;
+        let model = self.admit(model_id, Some(control)).await?;
         if !model.capabilities().contains(&capability) {
             return Err(InferenceError::InvalidParams(
                 "requested task is not supported by selected model".into(),

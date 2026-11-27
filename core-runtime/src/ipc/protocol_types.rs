@@ -367,6 +367,14 @@ pub enum IpcMessage {
     CapabilitiesRequest,
     #[serde(rename = "capabilities_response")]
     CapabilitiesResponse(super::protocol_capability_types::CapabilitiesResponse),
+    #[serde(rename = "model_switch_request")]
+    ModelSwitchRequest(super::protocol_switch_types::ModelSwitchRequest),
+    #[serde(rename = "model_switch_response")]
+    ModelSwitchResponse(super::protocol_switch_types::ModelSwitchStatusResponse),
+    #[serde(rename = "model_switch_status_request")]
+    ModelSwitchStatusRequest(super::protocol_switch_types::ModelSwitchStatusRequest),
+    #[serde(rename = "model_switch_status_response")]
+    ModelSwitchStatusResponse(super::protocol_switch_types::ModelSwitchStatusResponse),
     #[serde(rename = "error")]
     Error { code: u32, message: String },
 }

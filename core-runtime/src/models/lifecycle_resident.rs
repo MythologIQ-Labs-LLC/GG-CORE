@@ -189,6 +189,11 @@ impl Resident {
             .memory_usage()
     }
 
+    /// Budget bytes charged by this resident (0 when unlimited).
+    pub(super) fn charged_bytes(&self) -> usize {
+        self.guard.as_ref().map_or(0, ResidentGuard::bytes)
+    }
+
     pub(super) fn clone_model(&self) -> Arc<dyn Model> {
         Arc::clone(self.model.as_ref().expect("resident model present"))
     }

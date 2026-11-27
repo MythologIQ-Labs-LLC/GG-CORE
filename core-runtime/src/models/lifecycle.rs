@@ -27,6 +27,10 @@ pub enum LifecycleError {
     /// (`GG_CORE_MAX_TOTAL_MEMORY`, also the Windows Job Object cap).
     #[error("Insufficient memory budget: {0} (raise GG_CORE_MAX_TOTAL_MEMORY or unload a model)")]
     ResourceExhausted(String),
+
+    /// The model id was replaced after the caller observed its old handle.
+    #[error("Stale model handle: {0}")]
+    StaleHandle(String),
 }
 
 #[path = "lifecycle_index.rs"]
@@ -45,6 +49,8 @@ pub struct ModelLifecycle {
     limits: Option<crate::memory::ResourceLimits>,
     /// Unloaded instances whose memory is still held.
     releases: release::ReleaseTracker,
+    /// Operator mutation authority and authenticated model sources.
+    ops: operations::OpsState,
 }
 
 impl ModelLifecycle {
@@ -55,6 +61,7 @@ impl ModelLifecycle {
             index: Arc::new(RwLock::new(LookupIndex::new())),
             limits: None,
             releases: release::ReleaseTracker::default(),
+            ops: operations::OpsState::default(),
         }
     }
 
@@ -133,37 +140,7 @@ impl ModelLifecycle {
     /// instance is recorded as releasing *before* it leaves the registry, so
     /// a concurrent listing never misses memory that is still held.
     pub async fn unload(&self, model_id: &str) -> Result<ModelHandle, LifecycleError> {
-        let mut index = self.index.write().await;
-
-        let handle = index
-            .get_handle(model_id)
-            .ok_or_else(|| LifecycleError::NotLoaded(model_id.into()))?;
-
-        // Query diagnostics before any mutation; this await is cancellable.
-        let info = self.registry_info(handle).await;
-        // Acquire both component writers before removing resident/index state.
-        // A cancelled waiter leaves every store unchanged. Once acquired,
-        // the registry, inference engine, and index commit with no await.
-        let mut registry_writer = self.registry.registration_writer().await;
-        let mut engine_writer = self.engine.registration_writer().await;
-        let resident = index.residents.remove(model_id);
-        let (done, watch) = resident::release_channel();
-        if let Some(info) = info {
-            self.releases.push(model_id.to_string(), info, watch);
-        }
-        engine_writer.remove(model_id);
-        registry_writer.remove(handle);
-        index.remove_by_id(model_id);
-        // Do not run a backend destructor while holding shared model writers.
-        drop(engine_writer);
-        drop(registry_writer);
-        drop(index);
-        // Budget returns only after native in-flight holders release the model.
-        if let Some(entry) = resident {
-            entry.release(done);
-        }
-
-        Ok(handle)
+        self.unload_matching(model_id, None).await
     }
 
     async fn registry_info(&self, handle: ModelHandle) -> Option<super::LoadedModelInfo> {
@@ -225,6 +202,13 @@ mod resident;
 mod release;
 pub use release::MAX_RELEASE_WAIT;
 
+#[path = "lifecycle_operations.rs"]
+mod operations;
+pub(crate) use operations::{ModelSource, OperationGuard};
+
+#[path = "lifecycle_fence.rs"]
+mod fence;
+
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]
 mod tests;
@@ -240,3 +224,7 @@ mod refusal_drop_tests;
 #[cfg(test)]
 #[path = "lifecycle_release_tests.rs"]
 mod release_tests;
+
+#[cfg(test)]
+#[path = "lifecycle_transition_tests.rs"]
+mod transition_tests;
