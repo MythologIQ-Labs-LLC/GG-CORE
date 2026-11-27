@@ -84,6 +84,26 @@
       "features": [],
       "model_required": false,
       "interface": "ipc"
+    },
+    {
+      "id": "cli_version_default_installed",
+      "tier": "installed",
+      "platform": "any",
+      "features": [],
+      "model_required": false,
+      "interface": "cli"
+    },
+    {
+      "id": "cli_version_onnx_gguf_ffi_installed",
+      "tier": "installed",
+      "platform": "any",
+      "features": [
+        "onnx",
+        "gguf",
+        "ffi"
+      ],
+      "model_required": false,
+      "interface": "cli"
     }
   ]
 }

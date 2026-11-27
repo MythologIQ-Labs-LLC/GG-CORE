@@ -8,10 +8,6 @@ metadata:
   labels:
     {{- include "gg-core.labels" . | nindent 4 }}
     gg-core.hearthlink.ai/deployment-type: stable
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "9090"
-    prometheus.io/path: "/metrics"
 spec:
   replicas: {{ .Values.canary.stable.replicas | default .Values.replicaCount }}
   selector:
@@ -29,13 +25,17 @@ spec:
         {{- include "gg-core.selectorLabels" . | nindent 8 }}
         gg-core.hearthlink.ai/deployment-type: stable
         gg-core.hearthlink.ai/version: {{ .Values.canary.stable.version | default .Values.image.tag | quote }}
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.socketVolumeInit.enabled }}
+      initContainers:
+        {{- include "gg-core.socketInitContainer" (dict "root" . "tag" (.Values.canary.stable.version | default .Values.image.tag)) | nindent 8 }}
+      {{- end }}
       containers:
         - name: gg-core
           image: "{{ .Values.image.repository }}:{{ .Values.canary.stable.version | default .Values.image.tag }}"
@@ -43,6 +43,7 @@ spec:
           args:
             - serve
           env:
+            {{- include "gg-core.authTokenEnv" . | nindent 12 }}
             - name: GG_CORE_SOCKET_PATH
               value: {{ .Values.config.socketPath }}
             - name: GG_CORE_MAX_CONTEXT
@@ -122,10 +123,6 @@ metadata:
   labels:
     {{- include "gg-core.labels" . | nindent 4 }}
     gg-core.hearthlink.ai/deployment-type: canary
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "9090"
-    prometheus.io/path: "/metrics"
 spec:
   replicas: {{ .Values.canary.canary.replicas | default 1 }}
   selector:
@@ -143,13 +140,17 @@ spec:
         {{- include "gg-core.selectorLabels" . | nindent 8 }}
         gg-core.hearthlink.ai/deployment-type: canary
         gg-core.hearthlink.ai/version: {{ .Values.canary.canary.version | quote }}
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.socketVolumeInit.enabled }}
+      initContainers:
+        {{- include "gg-core.socketInitContainer" (dict "root" . "tag" (.Values.canary.canary.version)) | nindent 8 }}
+      {{- end }}
       containers:
         - name: gg-core
           image: "{{ .Values.image.repository }}:{{ .Values.canary.canary.version }}"
@@ -157,6 +158,7 @@ spec:
           args:
             - serve
           env:
+            {{- include "gg-core.authTokenEnv" . | nindent 12 }}
             - name: GG_CORE_SOCKET_PATH
               value: {{ .Values.config.socketPath }}
             - name: GG_CORE_MAX_CONTEXT

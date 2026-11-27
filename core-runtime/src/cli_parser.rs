@@ -18,9 +18,10 @@ COMMANDS:
     live         Liveness probe for Kubernetes (exit 0 if alive)
     ready        Readiness probe for Kubernetes (exit 0 if ready)
     status       Show system status and statistics
-    verify       Verify deployment health and configuration
+    verify       Check config, authenticated local IPC and daemon security posture
     models       Manage loaded models (list, load, unload)
     config       Manage configuration (validate, show)
+    prepare-k8s-socket-dir   Linux Helm init-only directory ownership setup
     version      Show version (--json: commit, build date, features)
     help         Show this help message
 
@@ -119,8 +120,8 @@ OPTIONS:
 
 EXIT CODES:
     0  System is healthy
-    1  System is unhealthy
-    3  Connection error
+    1  System is unhealthy / daemon unavailable
+    2  Invalid probe arguments
 "
     );
 }
@@ -137,8 +138,8 @@ OPTIONS:
 
 EXIT CODES:
     0  Process is alive
-    1  Process is unresponsive
-    3  Connection error
+    1  Process is unresponsive / daemon unavailable
+    2  Invalid probe arguments
 "
     );
 }
@@ -155,8 +156,8 @@ OPTIONS:
 
 EXIT CODES:
     0  Ready to serve traffic
-    1  Not ready
-    3  Connection error
+    1  Not ready / daemon unavailable
+    2  Invalid probe arguments
 "
     );
 }
@@ -209,18 +210,24 @@ EXAMPLES:
 
 fn print_verify_help() {
     eprintln!(
-        "GG-CORE verify - Verify deployment
+        "GG-CORE verify - Check local daemon configuration and IPC security posture
 
 USAGE:
-    GG-CORE verify [OPTIONS]
+    GG-CORE verify [--socket PATH] [--all]
+
+CHECKS:
+    Default: client config parsing, daemon liveness and an authenticated
+             capability snapshot declaring offline-only, authenticated IPC.
+    --all:   also require daemon readiness, a ready model and metrics IPC.
 
 OPTIONS:
-    --socket PATH  Override IPC socket path
-    --all          Run all verification checks
+    --socket PATH  Override GG_CORE_SOCKET_PATH for this verification
+    --all          Require a ready model and observable metrics
 
 EXIT CODES:
-    0  All checks passed
-    1  One or more checks failed
+    0  Checked conditions passed (NOT model or release qualification)
+    1  Configuration, auth, daemon or readiness check failed
+    2  Invalid command arguments
 "
     );
 }

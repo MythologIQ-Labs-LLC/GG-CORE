@@ -27,13 +27,17 @@ spec:
         {{- include "gg-core.selectorLabels" . | nindent 8 }}
         gg-core.hearthlink.ai/environment: blue
         gg-core.hearthlink.ai/version: {{ .Values.bluegreen.blue.version | quote }}
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.socketVolumeInit.enabled }}
+      initContainers:
+        {{- include "gg-core.socketInitContainer" (dict "root" . "tag" (.Values.bluegreen.blue.version)) | nindent 8 }}
+      {{- end }}
       containers:
         - name: gg-core
           image: "{{ .Values.image.repository }}:{{ .Values.bluegreen.blue.version }}"
@@ -41,6 +45,7 @@ spec:
           args:
             - serve
           env:
+            {{- include "gg-core.authTokenEnv" . | nindent 12 }}
             - name: GG_CORE_SOCKET_PATH
               value: {{ .Values.config.socketPath }}
             - name: GG_CORE_MAX_CONTEXT
@@ -143,13 +148,17 @@ spec:
         {{- include "gg-core.selectorLabels" . | nindent 8 }}
         gg-core.hearthlink.ai/environment: green
         gg-core.hearthlink.ai/version: {{ .Values.bluegreen.green.version | quote }}
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.socketVolumeInit.enabled }}
+      initContainers:
+        {{- include "gg-core.socketInitContainer" (dict "root" . "tag" (.Values.bluegreen.green.version)) | nindent 8 }}
+      {{- end }}
       containers:
         - name: gg-core
           image: "{{ .Values.image.repository }}:{{ .Values.bluegreen.green.version }}"
@@ -157,6 +166,7 @@ spec:
           args:
             - serve
           env:
+            {{- include "gg-core.authTokenEnv" . | nindent 12 }}
             - name: GG_CORE_SOCKET_PATH
               value: {{ .Values.config.socketPath }}
             - name: GG_CORE_MAX_CONTEXT

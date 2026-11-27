@@ -83,13 +83,18 @@ The first-run journey on a clean checkout (binary: `gg-core-cli`):
 
 ```bash
 export CORE_AUTH_TOKEN="choose-a-token"
-export GG_CORE_SOCKET_PATH=/tmp/gg-core.sock   # or default path
+socket_dir="$HOME/.local/run/gg-core"
+mkdir -p "$socket_dir"
+chmod 700 "$socket_dir"
+export GG_CORE_SOCKET_PATH="$socket_dir/GG-CORE.sock"
 
 # Start with a preloaded model (path relative to base path; repeatable).
 # A preload failure aborts startup — no silent empty daemon.
 ./target/release/gg-core-cli serve \
   --model models/qwen2.5-0.5b-instruct-q4_k_m.gguf --model-id local-model
 ```
+
+Unix sockets under shared `/tmp` now refuse startup. The socket parent must be a real directory owned by the daemon's effective UID without group/other write access. Provision `/var/run/gg-core` securely for the default path, and use the same `GG_CORE_SOCKET_PATH` for CLI clients. For hardened GG-CORE images, set the Helm `socketVolumeInit.enabled=true` option to prepare the `emptyDir` via a root init container limited to CAP_CHOWN, using the **matching GG-CORE image** and the `prepare-k8s-socket-dir` helper. This option defaults to false for compatibility with the older `0.5.0` chart image, which lacks the helper; a hardened daemon with the root-owned emptyDir will refuse startup until migration is enabled. This must pass cluster admission and installed qualification under #164; do not weaken directory permissions to make deployment pass.
 
 From another terminal:
 

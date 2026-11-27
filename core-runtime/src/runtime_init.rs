@@ -255,6 +255,28 @@ pub async fn run_inference(args: &[String]) -> i32 {
     }
 }
 
+// The listener must be observed alongside Ctrl+C. Otherwise an occupied
+// Unix socket or failed Windows pipe bind can leave a daemon with no IPC
+// endpoint waiting indefinitely for a signal, appearing to be running.
+enum ServeStop {
+    Signal(std::io::Result<()>),
+    Listener(Result<Result<(), server::ServerError>, tokio::task::JoinError>),
+}
+
+async fn await_serve_stop<F>(
+    server_handle: &mut tokio::task::JoinHandle<Result<(), server::ServerError>>,
+    signal: F,
+) -> ServeStop
+where
+    F: std::future::Future<Output = std::io::Result<()>>,
+{
+    tokio::select! {
+        biased;
+        result = &mut *server_handle => ServeStop::Listener(result),
+        result = signal => ServeStop::Signal(result),
+    }
+}
+
 /// Run the IPC server with the given runtime.
 pub async fn run_ipc_server(runtime: Runtime) -> Result<(), Box<dyn std::error::Error>> {
     let socket_path = get_socket_path();
@@ -277,7 +299,7 @@ pub async fn run_ipc_server(runtime: Runtime) -> Result<(), Box<dyn std::error::
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
-    let server_handle = tokio::spawn(server::run_server(
+    let mut server_handle = tokio::spawn(server::run_server(
         socket_path,
         handler,
         connections,
@@ -285,9 +307,16 @@ pub async fn run_ipc_server(runtime: Runtime) -> Result<(), Box<dyn std::error::
         ipc_config,
     ));
 
-    tokio::signal::ctrl_c().await?;
-    eprintln!("Shutdown signal received, draining...");
-
+    // A bind/listener failure is a startup failure, not a healthy daemon
+    // waiting for Ctrl+C. In both exit paths, drain and stop the worker.
+    let stop = await_serve_stop(&mut server_handle, crate::stop_signal::wait()).await;
+    match &stop {
+        ServeStop::Signal(Ok(())) => eprintln!("Shutdown signal received, draining..."),
+        ServeStop::Signal(Err(e)) => eprintln!("Shutdown signal error: {e}"),
+        ServeStop::Listener(Ok(Err(e))) => eprintln!("IPC listener failed: {e}"),
+        ServeStop::Listener(Ok(Ok(()))) => eprintln!("IPC listener exited unexpectedly"),
+        ServeStop::Listener(Err(e)) => eprintln!("IPC listener task failed: {e}"),
+    }
     let _ = shutdown_tx.send(true);
 
     match shutdown.initiate(shutdown_timeout).await {
@@ -301,11 +330,24 @@ pub async fn run_ipc_server(runtime: Runtime) -> Result<(), Box<dyn std::error::
     runtime.request_queue.wake();
     let _ = worker_handle.await;
 
-    if let Err(e) = server_handle.await? {
-        eprintln!("Server error: {}", e);
+    match stop {
+        ServeStop::Signal(signal) => {
+            // Also check the listener's final result. A signal does not make
+            // an independently failing listener a successful serve session.
+            let server_result = server_handle.await;
+            signal?;
+            server_result??;
+            Ok(())
+        }
+        ServeStop::Listener(result) => {
+            result??;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "IPC listener exited before a shutdown signal",
+            )
+            .into())
+        }
     }
-
-    Ok(())
 }
 
 #[cfg(test)]

@@ -89,8 +89,20 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
         let message = match decode_message(&request_bytes) {
             Ok(m) => m,
             Err(e) => {
-                let err = format!(r#"{{"type":"error","code":400,"message":"{}"}}"#, e);
-                let _ = write_half.write_frame(err.as_bytes()).await;
+                // Decoder diagnostics may contain attacker-controlled field
+                // values (including quotes). Always frame them as typed JSON,
+                // never interpolate directly into a JSON string. Bound the
+                // diagnostic so a malformed request cannot amplify its reply.
+                let error = IpcMessage::Error {
+                    code: 400,
+                    message: e.to_string().chars().take(256).collect(),
+                };
+                let Ok(bytes) = encode_message(&error) else {
+                    break;
+                };
+                if write_half.write_frame(&bytes).await.is_err() {
+                    break;
+                }
                 continue;
             }
         };
@@ -242,8 +254,13 @@ async fn handle_connection<S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'sta
                         } else {
                             500
                         };
-                    let err = format!(r#"{{"type":"error","code":{},"message":"{}"}}"#, code, e);
-                    let _ = write_half.write_frame(err.as_bytes()).await;
+                    let error = IpcMessage::Error {
+                        code,
+                        message: e.to_string().chars().take(256).collect(),
+                    };
+                    if let Ok(bytes) = encode_message(&error) {
+                        let _ = write_half.write_frame(&bytes).await;
+                    }
                     break;
                 }
             },

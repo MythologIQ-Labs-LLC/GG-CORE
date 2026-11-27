@@ -4,7 +4,20 @@ use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+/// Wait (bounded) for the pool to report `n` executed tasks. A fixed sleep
+/// races the workers on a loaded host; the assertion itself is unchanged.
+fn wait_for_executed(pool: &ThreadPool, n: u64) -> u64 {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let executed = pool.stats().total_tasks_executed;
+        if executed >= n || Instant::now() >= deadline {
+            return executed;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+}
 
 #[test]
 fn test_thread_pool_basic() {
@@ -19,7 +32,7 @@ fn test_thread_pool_basic() {
     }))
     .unwrap();
 
-    thread::sleep(Duration::from_millis(100));
+    wait_for_executed(&pool, 1);
     assert_eq!(counter.load(Ordering::SeqCst), 1);
 }
 
@@ -47,10 +60,7 @@ fn test_priority_tasks() {
     pool.submit_with_priority(Box::new(|| {}), TaskPriority::High)
         .unwrap();
 
-    thread::sleep(Duration::from_millis(100));
-
-    let stats = pool.stats();
-    assert!(stats.total_tasks_executed >= 3);
+    assert!(wait_for_executed(&pool, 3) >= 3);
 }
 
 #[test]
@@ -72,8 +82,5 @@ fn test_stats_tracking() {
         pool.submit(Box::new(|| {})).unwrap();
     }
 
-    thread::sleep(Duration::from_millis(200));
-
-    let stats = pool.stats();
-    assert!(stats.total_tasks_executed >= 10);
+    assert!(wait_for_executed(&pool, 10) >= 10);
 }

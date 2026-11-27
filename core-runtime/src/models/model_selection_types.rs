@@ -30,6 +30,22 @@ pub struct ModelOffer<'a> {
     pub serving_ready: bool,
 }
 
+/// Host-selected degraded model planning preference. No preference changes
+/// required quality, task, custody, model pin or execution authority.
+/// This is advisory ordering, not a promise of model readiness or admission.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum DegradedModelPreference {
+    /// Existing ranking: lowest measured additive planning cost.
+    #[default]
+    FastestEligible,
+    /// Prefer an authorized, ready resident; otherwise use normal ranking.
+    PreferReadyResident,
+    /// Refuse if no authorized and ready resident meets the host's policy.
+    RequireReadyResident,
+}
+
 /// All limits/preferences are host/operator decisions. No global quality
 /// thresholds or unapproved quality/latency trade-offs are hardcoded.
 #[derive(Debug, Clone)]
@@ -73,6 +89,9 @@ pub enum CandidateRefusal {
     BelowQualityFloor,
     OverMemoryBudget,
     OverLatencyBudget,
+    HardwareTargetUnverified,
+    HardwareHeadroomUnknown,
+    OverHardwareHeadroom,
     NotReady,
 }
 
@@ -81,6 +100,7 @@ pub enum CandidateRefusal {
 #[non_exhaustive]
 pub enum PlanRefusal {
     InvalidPolicy,
+    InvalidHardwareProfile,
     DuplicateModelId,
     NoEligibleModel,
     AmbiguousBestCandidate,
@@ -88,6 +108,7 @@ pub enum PlanRefusal {
     ResidentRerouteNotAuthorized,
     ColdSwitchNotAuthorized,
     QualityEscalationNotAuthorized,
+    ResidentRequiredByHost,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]

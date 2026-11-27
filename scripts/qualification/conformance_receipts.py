@@ -33,7 +33,7 @@ def validate_manifest(manifest):
         require(isinstance(ident, str) and re.fullmatch(r"[a-z0-9_]+", ident), "invalid case ID")
         require(ident not in seen, "duplicate case ID: " + ident)
         seen.add(ident)
-        require(row.get("interface") in ("embedded_rust", "ipc", "ffi", "python"),
+        require(row.get("interface") in ("embedded_rust", "ipc", "ffi", "python", "cli"),
                 "invalid interface: " + ident)
         require(row.get("tier") in ("source", "installed"), "invalid tier: " + ident)
         require(row.get("platform") in PLATFORMS, "invalid platform: " + ident)
