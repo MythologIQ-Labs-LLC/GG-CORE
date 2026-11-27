@@ -36,7 +36,7 @@ def strict_object(raw):
 def check_pin(pin):
     fields = {"receipt_sha256", "producer_sha", "model_sha256", "daemon_sha256",
               "prompt_sha256", "model_id", "host", "requested", "concurrency"}
-    if set(pin) != fields:
+    if not isinstance(pin, dict) or set(pin) != fields:
         raise ValueError("invalid-pin-fields")
     for field in ("receipt_sha256", "model_sha256", "daemon_sha256", "prompt_sha256",
                   "producer_sha"):
@@ -82,7 +82,8 @@ def match_metadata(doc, pin):
     version = doc.get("packaged_binary_version")
     if not isinstance(version, dict) or version.get("commit") != pin["producer_sha"]:
         raise ValueError("binary-source-mismatch")
-    if version.get("protocol_version") != "V1" or not isinstance(version.get("version"), str) or not version["version"]:
+    if (version.get("protocol_version") != "V1"
+            or not isinstance(version.get("version"), str) or not version["version"].strip()):
         raise ValueError("invalid-binary-version")
 
 
@@ -127,7 +128,7 @@ def compare(raw, pin):
     return {"status": "PIN_MATCH_ONLY", "receipt_sha256": digest,
             "producer_sha": pin["producer_sha"], "model_sha256": pin["model_sha256"],
             "daemon_sha256": pin["daemon_sha256"], "concurrency": pin["concurrency"],
-            "sample_count": len(durations), "reported_resident_p95_ms": quantile(durations, .95),
+            "sample_count": len(durations), "reported_request_p95_ms": quantile(durations, .95),
             "evidence_attested": False, "execution_authorized": False,
             "note": "Descriptive sample percentile; not SLA, quality or installed qualification."}
 

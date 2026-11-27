@@ -37,7 +37,7 @@ class PinnedLatencyReceipt(unittest.TestCase):
     def test_pin_match_derives_raw_p95_and_grants_no_authority(self):
         result = compare(self.raw(), self.pin)
         self.assertEqual(result["status"], "PIN_MATCH_ONLY")
-        self.assertAlmostEqual(result["reported_resident_p95_ms"], 19.05)
+        self.assertAlmostEqual(result["reported_request_p95_ms"], 19.05)
         self.assertEqual(result["sample_count"], 20)
         self.assertFalse(result["execution_authorized"])
         self.assertFalse(result["evidence_attested"])
@@ -86,6 +86,11 @@ class PinnedLatencyReceipt(unittest.TestCase):
         for row in self.doc["results"]:
             row["samples"] = row["samples"][:19 * row["concurrency"]]
         with self.assertRaisesRegex(ValueError, "insufficient-p95-samples"):
+            compare(self.raw(), self.pin)
+
+    def test_stale_binary_commit_refused(self):
+        self.doc["packaged_binary_version"]["commit"] = "e" * 40
+        with self.assertRaisesRegex(ValueError, "binary-source-mismatch"):
             compare(self.raw(), self.pin)
 
     def test_duplicate_json_key_refused_even_when_pinned(self):
