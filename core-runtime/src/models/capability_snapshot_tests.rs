@@ -96,7 +96,18 @@ async fn hardware_and_compiled_paths_never_become_qualified_or_loaded() {
     assert_eq!(snap.compiled, compiled_backend_capabilities());
     assert_eq!(snap.schema_version, CAPABILITY_SCHEMA_VERSION);
     let json = serde_json::to_string(&snap).unwrap();
-    assert!(!json.contains("\"target\":\"cuda\"") && !json.contains("\"target\":\"metal\""));
+    let has_cuda = json.contains("\"target\":\"cuda\"");
+    let has_metal = json.contains("\"target\":\"metal\"");
+    assert_eq!(has_cuda, cfg!(feature = "gguf-cuda"));
+    assert_eq!(
+        has_metal,
+        cfg!(all(feature = "gguf-metal", target_os = "macos"))
+    );
+    // A compiled native target is still not a loaded, ready or qualified
+    // model/accelerator. Hardware facts remain unknown without an installed probe.
+    assert!(snap.loaded.is_empty());
+    assert!(snap.qualified.is_empty());
+    assert!(snap.compiled.iter().all(|c| c.qualified_paths.is_empty()));
 }
 
 #[tokio::test]

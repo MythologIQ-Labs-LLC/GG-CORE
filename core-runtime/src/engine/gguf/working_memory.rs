@@ -28,6 +28,10 @@ pub struct ContextShape {
     pub n_ubatch: u32,
     /// Test-only override: force flash attention off (auto otherwise).
     pub flash_attn_disabled: bool,
+    /// Whether this load requested GPU layers. When false, the KV cache and
+    /// ops also stay on the CPU, so `n_gpu_layers = 0` means CPU-only even in
+    /// a CUDA/Metal build (llama.cpp otherwise offloads both by default).
+    pub gpu_offload: bool,
 }
 
 impl ContextShape {
@@ -36,6 +40,7 @@ impl ContextShape {
             n_ctx,
             n_ubatch: N_UBATCH,
             flash_attn_disabled: false,
+            gpu_offload: false,
         }
     }
 }
@@ -140,7 +145,9 @@ mod native {
                 .with_type_k(KvCacheType::F16)
                 .with_type_v(KvCacheType::F16)
                 .with_n_threads(n_threads)
-                .with_n_threads_batch(n_threads);
+                .with_n_threads_batch(n_threads)
+                .with_offload_kqv(self.gpu_offload)
+                .with_op_offload(self.gpu_offload);
             if self.flash_attn_disabled {
                 return p.with_flash_attention_policy(FLASH_ATTN_DISABLED);
             }

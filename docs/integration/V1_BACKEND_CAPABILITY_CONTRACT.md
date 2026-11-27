@@ -60,6 +60,15 @@ This change **does not** create a trusted evidence registry; public Rust candida
 
 **Latency evidence semantics:** summing the independently measured p95 inference and p95 cold-load components yields an additive planning estimate, **not** a measured end-to-end p95 or probability guarantee. The field is named `estimated_total_ms` and compared with a host-supplied `max_estimated_total_ms`. End-to-end p95 must be measured independently under #136 before any benchmark/support claim.
 
+## Native accelerator compile-path candidate (PR #216, not release-qualified)
+
+The historical CPU-only statements above describe the earlier `main` snapshot. Draft [PR #216](https://github.com/MythologIQ-Labs-LLC/GG-CORE/pull/216) adds optional `gguf-cuda` and `gguf-metal` features that compile llama.cpp **inference backends**, unlike the older `cuda`/`metal` device-management features. The daemon forwards an explicit `GG_CORE_N_GPU_LAYERS` count to the native GGUF model loader; zero remains the CPU default. A nonzero count on an unsupported build/platform is refused instead of silently ignored.
+
+`compiled_backend_capabilities()` reports a **GGUF text-generation/CUDA** compile path only when `gguf-cuda` is enabled and a **GGUF text-generation/Metal** compile path only under `gguf-metal` on macOS. It always reports GGUF CPU generation when GGUF is compiled and does not fabricate ONNX GPU execution. Its `qualified_paths` stays **empty** for every build, including GPU-enabled builds.
+
+The compiled path is a capability of the binary's *code graph*, **not** evidence of a present NVIDIA/Apple GPU, compatible driver, successful kernel execution, installed-model offload, or release support. The runtime's `hardware.accelerators` remains unknown until measured, and the loaded-model snapshot does not claim GPU use from a configured layer count. Native CUDA/Metal acceptance must record model/binary hashes, GPU utilization, VRAM, correct output, streaming, cancel/drop, memory reclamation, fallback/refusal and standalone packaging. In particular P0 [#219](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/219) must be resolved before any stream/offload release claim.
+
+Any consumer may inspect compiled paths, but a selector still must refuse a target with no **independently verified model+hardware+task** support evidence, irrespective of the compiled feature flag. No global qualification or model-routing approval is implied by this PR.
 
 ## 2026-11-25: owner-budget hardware evidence after PR #295 (#50)
 

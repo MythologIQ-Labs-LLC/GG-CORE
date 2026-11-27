@@ -44,6 +44,7 @@ pub fn run_defaults() {
     println!("GG_CORE_SHUTDOWN_TIMEOUT=30");
     println!("GG_CORE_SESSION_TIMEOUT=3600");
     println!("GG_CORE_N_CTX=2048");
+    println!("GG_CORE_N_GPU_LAYERS=0 (CPU only; native GGUF GPU backend required for >0)");
     println!("GG_CORE_N_THREADS=0 (auto: min(logical, 16) / GG_CORE_MAX_CONCURRENT, at least 1)");
     println!("GG_CORE_IPC_FRAME_LIMIT=16777216");
     println!("GG_CORE_MAX_CONNECTIONS=64");
@@ -100,6 +101,7 @@ fn print_config(cfg: &EffectiveConfig) {
     println!("GG_CORE_N_CTX={}", cfg.n_ctx);
     let threads = describe(cfg.n_threads, cfg.resource_max_concurrent);
     println!("GG_CORE_N_THREADS={threads}");
+    println!("GG_CORE_N_GPU_LAYERS={}", cfg.n_gpu_layers);
     println!("GG_CORE_IPC_FRAME_LIMIT={}", cfg.ipc_frame_limit);
     println!("GG_CORE_MAX_CONNECTIONS={}", cfg.max_connections);
     println!("GG_CORE_STREAM_STALL_MS={}", cfg.stream_stall_ms);
@@ -123,6 +125,7 @@ mod tests {
         "GG_CORE_SESSION_TIMEOUT",
         "GG_CORE_N_CTX",
         "GG_CORE_N_THREADS",
+        "GG_CORE_N_GPU_LAYERS",
         "GG_CORE_IPC_FRAME_LIMIT",
         "GG_CORE_MAX_CONNECTIONS",
         "GG_CORE_STREAM_STALL_MS",
@@ -179,6 +182,7 @@ mod tests {
             session_timeout_secs: 3600,
             n_ctx: 2048,
             n_threads: 0,
+            n_gpu_layers: 0,
             ipc_frame_limit: 16_777_216,
             max_connections: 64,
             stream_stall_ms: 5_000,

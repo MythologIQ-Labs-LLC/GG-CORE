@@ -61,10 +61,26 @@ impl LlamaBackendInner {
     /// Load a GGUF model from disk.
     pub fn load(path: &Path, config: &super::GgufConfig) -> Result<Self, InferenceError> {
         let backend = process_backend()?;
+        // Hold the same device-allocation gate used for native context
+        // creation. Otherwise two local workers can both pass independent
+        // VRAM snapshots while loading weights / creating KV buffers.
+        // CPU-only requests never acquire this GPU lock.
+        let _allocation = (config.n_gpu_layers > 0)
+            .then(super::offload::lock_gpu_allocation)
+            .transpose()?;
+        super::offload::check(backend, config.n_gpu_layers)?;
         let model_params = LlamaModelParams::default().with_n_gpu_layers(config.n_gpu_layers);
         let model = LlamaModel::load_from_file(backend, path, &model_params)
             .map_err(|e| InferenceError::ModelError(format!("load: {e}")))?;
-        let (shape, working_bytes) = super::working_memory::shape_for(&model, config.n_ctx);
+        let (mut shape, working_bytes) = super::working_memory::shape_for(&model, config.n_ctx);
+        shape.gpu_offload = config.n_gpu_layers > 0;
+        // A model whose configured GPU context cannot fit must never be
+        // registered as loadable/ready. Query free device memory after weights
+        // are loaded; create_context rechecks the budget immediately before
+        // allocation to catch later demand or external GPU pressure.
+        if shape.gpu_offload {
+            super::offload::check_context_memory(working_bytes)?;
+        }
         let n_threads = resolve_threads(config.n_threads);
         Ok(Self {
             backend,
@@ -364,6 +380,17 @@ impl LlamaBackendInner {
     }
 
     pub(super) fn create_context(&self) -> Result<LlamaContext<'_>, InferenceError> {
+        // Serialize the device-memory sample with native context creation so
+        // concurrent GG-CORE workers cannot both pass the same free snapshot.
+        // External GPU users can still race this check; hardware acceptance
+        // must verify no driver-managed paging on supported devices.
+        let _admission = if self.shape.gpu_offload {
+            let guard = super::offload::lock_gpu_allocation()?;
+            super::offload::check_context_memory(self.working_bytes)?;
+            Some(guard)
+        } else {
+            None
+        };
         self.model
             .new_context(self.backend, self.shape.params(self.n_threads))
             .map_err(|e| InferenceError::ModelError(format!("ctx: {e}")))
