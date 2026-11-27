@@ -138,6 +138,9 @@ pub(super) fn allowed_syscalls() -> Vec<libc::c_long> {
         SYS_clock_getres,
         // Process info / limits / entropy
         SYS_getpid,
+        // IPC listener verifies directory owner against the daemon's effective UID
+        // after seccomp is installed; this read-only identity query must survive.
+        SYS_geteuid,
         SYS_exit,
         SYS_exit_group,
         SYS_prlimit64,

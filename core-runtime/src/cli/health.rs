@@ -20,6 +20,38 @@ pub async fn run_health(socket_path: &str) -> i32 {
     run_check(socket_path, HealthCheckType::Full, "health").await
 }
 
+/// Machine-readable full IPC health. On transport failure emit no JSON;
+/// never manufacture a success-shaped report from missing daemon state.
+pub async fn run_health_json(socket_path: &str) -> i32 {
+    let client = CliIpcClient::new(socket_path.to_string());
+    match client.get_health_report().await {
+        Ok(reply) if reply.check_type == HealthCheckType::Full && reply.report.is_some() => {
+            match serde_json::to_string(&reply) {
+                Ok(serialized) => {
+                    println!("{serialized}");
+                    if reply.ok {
+                        EXIT_HEALTHY
+                    } else {
+                        EXIT_UNHEALTHY
+                    }
+                }
+                Err(_) => {
+                    eprintln!("health: failed to serialize IPC health response");
+                    EXIT_UNHEALTHY
+                }
+            }
+        }
+        Ok(_) => {
+            eprintln!("health: daemon returned an incomplete full health report");
+            EXIT_UNHEALTHY
+        }
+        Err(err) => {
+            eprintln!("health: IPC query failed: {err}");
+            EXIT_UNHEALTHY
+        }
+    }
+}
+
 /// Run liveness probe - exits 0 if alive, 1 if dead.
 pub async fn run_liveness(socket_path: &str) -> i32 {
     run_check(socket_path, HealthCheckType::Liveness, "liveness").await
@@ -96,6 +128,14 @@ mod tests {
         EXIT_UNHEALTHY != 0,
         "Unhealthy exit code should be non-zero"
     );
+
+    #[tokio::test]
+    async fn json_health_refuses_missing_ipc_without_success_shaped_output() {
+        assert_eq!(
+            run_health_json("/nonexistent/gg-core-test-json.sock").await,
+            EXIT_UNHEALTHY
+        );
+    }
 
     #[tokio::test]
     async fn test_run_health_connection_failure() {

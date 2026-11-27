@@ -12,10 +12,11 @@ use crate::ipc::protocol::ModelsListResponse;
 /// Run `models list`, connecting via IPC at `socket_path`.
 ///
 /// `json` prints the raw `ModelsListResponse` as pretty JSON (B-41, #106).
-/// Returns exit code: 0 on success, 3 on connection failure.
+/// Requires CORE_AUTH_TOKEN. Exit codes: 0 success, 1 auth/protocol
+/// refusal, 3 connection failure.
 pub async fn run_list(socket_path: &str, json: bool) -> i32 {
     let client = CliIpcClient::new(socket_path.to_string());
-    match client.get_models().await {
+    match client.get_models_authenticated().await {
         Ok(response) => {
             if json {
                 match serde_json::to_string_pretty(&response) {
@@ -30,10 +31,14 @@ pub async fn run_list(socket_path: &str, json: bool) -> i32 {
             }
             0
         }
-        Err(e) => {
+        Err(e @ (crate::cli::CliError::ConnectionFailed(_) | crate::cli::CliError::Timeout)) => {
             eprintln!("Error connecting to GG-CORE server: {}", e);
             eprintln!("Is the server running? Check GG_CORE_SOCKET_PATH.");
             3
+        }
+        Err(e) => {
+            eprintln!("Error listing models: {}", e);
+            1
         }
     }
 }

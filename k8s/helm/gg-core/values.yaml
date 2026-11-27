@@ -7,9 +7,20 @@ image:
   tag: "0.5.0"
   pullPolicy: IfNotPresent
 
+# Local IPC auth uses an existing namespaced Kubernetes Secret.
+# Never set token bytes in Helm values, ConfigMaps, or source control.
+# With no reference, secure serve refuses startup; no anonymous fallback.
+auth:
+  existingSecretName: ""
+  secretKey: token
+
 serviceAccount:
   create: true
   name: ""
+
+# Inference needs no Kubernetes API permissions by default.
+rbac:
+  create: false
 
 resources:
   requests:
@@ -33,6 +44,13 @@ models:
 # Runtime configuration
 # All values map directly to GG_CORE_* environment variables.
 # Set to "" to use the compiled-in default.
+# The default 0.5.0 image does not provide the new socket volume helper.
+# Set true ONLY with a matching hardened Linux image that ships
+# "prepare-k8s-socket-dir"; the new hardened daemon requires this on emptyDir.
+# Restricted clusters may reject a root/CAP_CHOWN init. See #164.
+socketVolumeInit:
+  enabled: false
+
 config:
   socketPath: "/var/run/gg-core/gg-core.sock"
 
@@ -81,15 +99,19 @@ probes:
 securityContext:
   runAsNonRoot: true
   runAsUser: 1000
-  fsGroup: 1000
   readOnlyRootFilesystem: true
 
 # Pod security
 podSecurityContext:
+  fsGroup: 1000
   seccompProfile:
     type: RuntimeDefault
 
-# Network policy (deny all by default - Alcatraz principle)
+# Default-deny both ingress and egress for all pods in this Helm release.
+# Requires CNI NetworkPolicy enforcement. No DNS, HTTP metrics, API server,
+# cloud-metadata or inference network traffic is implicitly allowed.
+# enabled=false OR denyAll=false renders NO NetworkPolicy and must not be
+# interpreted as isolated. Installed negative egress checks are required (#164).
 networkPolicy:
   enabled: true
   denyAll: true
@@ -213,7 +235,7 @@ monitoring:
   grafana:
     dashboard:
       # Enable Grafana dashboard ConfigMap
-      enabled: true
+      enabled: false
       # Dashboard labels for Grafana sidecar discovery
       labels:
         grafana_dashboard: "1"
@@ -224,7 +246,7 @@ monitoring:
   prometheus:
     rules:
       # Enable PrometheusRule resource
-      enabled: true
+      enabled: false
       # Additional labels for PrometheusRule
       additionalLabels:
         release: prometheus

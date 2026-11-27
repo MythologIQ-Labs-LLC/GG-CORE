@@ -39,38 +39,42 @@ pub enum TypedInput {
 }
 
 /// Strict wire form: `{"text": ".."}` or `{"texts": [..]}`, never both,
-/// never neither, no other fields.
+/// never neither, never explicit null. Untagged variants each deny unknown
+/// fields: a second key with null must not be silently treated as absent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+enum TypedInputWire {
+    Single(SingleTextWire),
+    Batch(BatchTextsWire),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct TypedInputWire {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    text: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    texts: Option<Vec<String>>,
+struct SingleTextWire {
+    text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BatchTextsWire {
+    texts: Vec<String>,
 }
 
 impl TryFrom<TypedInputWire> for TypedInput {
     type Error = &'static str;
     fn try_from(wire: TypedInputWire) -> Result<Self, Self::Error> {
-        match (wire.text, wire.texts) {
-            (Some(text), None) => Ok(Self::Single(text)),
-            (None, Some(texts)) => Ok(Self::Batch(texts)),
-            _ => Err("typed input requires exactly one of `text` or `texts`"),
-        }
+        Ok(match wire {
+            TypedInputWire::Single(wire) => Self::Single(wire.text),
+            TypedInputWire::Batch(wire) => Self::Batch(wire.texts),
+        })
     }
 }
 
 impl From<TypedInput> for TypedInputWire {
     fn from(input: TypedInput) -> Self {
         match input {
-            TypedInput::Single(text) => Self {
-                text: Some(text),
-                texts: None,
-            },
-            TypedInput::Batch(texts) => Self {
-                text: None,
-                texts: Some(texts),
-            },
+            TypedInput::Single(text) => Self::Single(SingleTextWire { text }),
+            TypedInput::Batch(texts) => Self::Batch(BatchTextsWire { texts }),
         }
     }
 }

@@ -2,9 +2,9 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ include "GG-CORE.fullname" . }}-alerts
+  name: {{ include "gg-core.fullname" . }}-alerts
   labels:
-    {{- include "GG-CORE.labels" . | nindent 4 }}
+    {{- include "gg-core.labels" . | nindent 4 }}
     {{- with .Values.monitoring.prometheus.rules.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -15,7 +15,7 @@ spec:
       rules:
         - alert: GgCoreDown
           expr: |
-            absent(up{job="{{ include "GG-CORE.fullname" . }}",namespace="{{ .Release.Namespace }}"}) == 1
+            absent(up{job="{{ include "gg-core.fullname" . }}",namespace="{{ .Release.Namespace }}"}) == 1
           for: 1m
           labels:
             severity: critical
@@ -26,7 +26,7 @@ spec:
             
         - alert: GgCoreHighRestartRate
           expr: |
-            increase(kube_pod_container_status_restarts_total{container="{{ include "GG-CORE.name" . }}",namespace="{{ .Release.Namespace }}"}[1h]) > 3
+            increase(kube_pod_container_status_restarts_total{container="{{ include "gg-core.name" . }}",namespace="{{ .Release.Namespace }}"}[1h]) > 3
           for: 5m
           labels:
             severity: warning
@@ -37,7 +37,7 @@ spec:
 
         - alert: GgCorePodNotReady
           expr: |
-            kube_pod_status_ready{pod=~"{{ include "GG-CORE.fullname" . }}-.*",namespace="{{ .Release.Namespace }}"} == 0
+            kube_pod_status_ready{pod=~"{{ include "gg-core.fullname" . }}-.*",namespace="{{ .Release.Namespace }}"} == 0
           for: 5m
           labels:
             severity: warning
@@ -129,9 +129,9 @@ spec:
       rules:
         - alert: GgCoreHighMemoryUsage
           expr: |
-            process_resident_memory_bytes{namespace="{{ .Release.Namespace }}",app="{{ include "GG-CORE.name" . }}"} 
+            process_resident_memory_bytes{namespace="{{ .Release.Namespace }}",app="{{ include "gg-core.name" . }}"} 
             / 
-            kube_pod_container_resource_limits{container="{{ include "GG-CORE.name" . }}",namespace="{{ .Release.Namespace }}",resource="memory"} 
+            kube_pod_container_resource_limits{container="{{ include "gg-core.name" . }}",namespace="{{ .Release.Namespace }}",resource="memory"} 
             > 0.85
           for: 10m
           labels:
@@ -143,9 +143,9 @@ spec:
 
         - alert: GgCoreMemoryNearOOM
           expr: |
-            process_resident_memory_bytes{namespace="{{ .Release.Namespace }}",app="{{ include "GG-CORE.name" . }}"} 
+            process_resident_memory_bytes{namespace="{{ .Release.Namespace }}",app="{{ include "gg-core.name" . }}"} 
             / 
-            kube_pod_container_resource_limits{container="{{ include "GG-CORE.name" . }}",namespace="{{ .Release.Namespace }}",resource="memory"} 
+            kube_pod_container_resource_limits{container="{{ include "gg-core.name" . }}",namespace="{{ .Release.Namespace }}",resource="memory"} 
             > 0.95
           for: 2m
           labels:
@@ -159,7 +159,7 @@ spec:
           expr: |
             gg_core_memory_kv_cache_bytes{namespace="{{ .Release.Namespace }}"} 
             / 
-            process_resident_memory_bytes{namespace="{{ .Release.Namespace }}",app="{{ include "GG-CORE.name" . }}"} 
+            process_resident_memory_bytes{namespace="{{ .Release.Namespace }}",app="{{ include "gg-core.name" . }}"} 
             > 0.7
           for: 15m
           labels:

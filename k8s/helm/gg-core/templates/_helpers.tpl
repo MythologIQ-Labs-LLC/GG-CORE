@@ -58,3 +58,42 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/* Bounded-capability root init: make the emptyDir owner UID match the daemon. */}}
+{{- define "gg-core.socketInitContainer" -}}
+- name: prepare-socket-dir
+  image: "{{ .root.Values.image.repository }}:{{ .tag }}"
+  imagePullPolicy: {{ .root.Values.image.pullPolicy }}
+  command:
+    - /app/gg-core
+  args:
+    - prepare-k8s-socket-dir
+    - --uid
+    - {{ required "securityContext.runAsUser must be a non-root UID" .root.Values.securityContext.runAsUser | quote }}
+  env:
+    - name: GG_CORE_SOCKET_PATH
+      value: {{ .root.Values.config.socketPath | quote }}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+      add: ["CHOWN"]
+  volumeMounts:
+    - name: socket
+      mountPath: /var/run/gg-core
+{{- end -}}
+
+{{/* Existing namespaced auth Secret. NEVER render a plaintext token value. */}}
+{{- define "gg-core.authTokenEnv" -}}
+{{- if .Values.auth.existingSecretName -}}
+- name: CORE_AUTH_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.auth.existingSecretName | quote }}
+      key: {{ required "auth.secretKey is required with auth.existingSecretName" .Values.auth.secretKey | quote }}
+      optional: false
+{{- end -}}
+{{- end -}}

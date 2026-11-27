@@ -14,9 +14,16 @@ spec:
       labels:
         {{- include "gg-core.selectorLabels" . | nindent 8 }}
     spec:
+      # No Kubernetes API credentials inside the isolated inference Pod.
+      # Required even when serviceAccount.create=false or an external SA is set.
+      automountServiceAccountToken: false
       serviceAccountName: {{ include "gg-core.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.socketVolumeInit.enabled }}
+      initContainers:
+        {{- include "gg-core.socketInitContainer" (dict "root" . "tag" (.Values.image.tag)) | nindent 8 }}
+      {{- end }}
       containers:
         - name: gg-core
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -24,6 +31,7 @@ spec:
           args:
             - serve
           env:
+            {{- include "gg-core.authTokenEnv" . | nindent 12 }}
             - name: GG_CORE_SOCKET_PATH
               value: {{ .Values.config.socketPath | quote }}
             - name: GG_CORE_MAX_CONTEXT

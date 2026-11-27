@@ -1,0 +1,23 @@
+name: Installed CLI identity conformance (model-free)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/installed-cli-identity.yml'
+      - 'scripts/qualification/conformance_inventory.json'
+      - 'scripts/qualification/conformance_receipts.py'
+      - 'scripts/qualification/installed_cli_identity.py'
+      - 'scripts/qualification/test_installed_cli_identity.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cli-identity-negatives:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run pinned binary identity and receipt regression suite
+        run: |
+          python3 -W error::ResourceWarning -m unittest discover -s scripts/qualification -p 'test_installed_cli_identity.py' -v
+          python3 -W error::ResourceWarning -m unittest discover -s scripts/qualification -p 'test_conformance_receipts.py' -v

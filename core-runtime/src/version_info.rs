@@ -5,8 +5,8 @@
 //! needs to bind a binary to a source revision and a capability set.
 
 /// Compile-time provenance recorded by `build.rs`.
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const COMMIT: &str = env!("VERGEN_GIT_SHA");
+pub const VERSION: &str = gg_core::build_identity::VERSION;
+pub const COMMIT: &str = gg_core::build_identity::COMMIT;
 pub const BUILD_DATE: &str = env!("VERGEN_BUILD_DATE");
 pub const RUSTC: &str = env!("VERGEN_RUSTC_SEMVER");
 

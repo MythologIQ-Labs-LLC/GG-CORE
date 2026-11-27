@@ -184,6 +184,16 @@ mod tests {
     }
 
     #[test]
+    fn allowlist_permits_effective_uid_lookup_required_after_sandbox_activation() {
+        // run_serve activates seccomp before binding the Unix listener.
+        // A missing SYS_geteuid would kill the daemon on its ownership check.
+        assert!(
+            defs::allowed_syscalls().contains(&libc::SYS_geteuid),
+            "socket parent ownership check must survive installed seccomp"
+        );
+    }
+
+    #[test]
     fn allowlist_denies_exec_fork_connect_ioctl() {
         use libc::*;
         let allowed = defs::allowed_syscalls();

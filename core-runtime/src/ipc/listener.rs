@@ -26,6 +26,91 @@ use super::server::{spawn_connection, ServerError};
 #[cfg(unix)]
 pub(crate) const SOCKET_MODE: u32 = 0o600;
 
+/// Identity of one bound filesystem socket, for conservative cleanup.
+#[cfg(unix)]
+type SocketIdentity = (u64, u64);
+
+/// Reject an untrusted socket-parent pathname before binding. The inode
+/// checks on cleanup cannot prevent another principal replacing our socket
+/// in a group/world-writable directory or swapping a symlinked parent.
+/// Relative sockets use the current directory as their parent.
+#[cfg(unix)]
+fn validate_socket_parent(path: &str) -> std::io::Result<()> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let parent = std::path::Path::new(path)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."));
+    let metadata = std::fs::symlink_metadata(parent)?;
+    // A root daemon can bind inside an attacker-owned 0700 directory.
+    // Permission bits alone therefore cannot establish ownership of the path.
+    // Only a directory owned by our effective uid can host our socket.
+    let effective_uid = unsafe { libc::geteuid() };
+    if !metadata.file_type().is_dir()
+        || !trusted_socket_parent(metadata.permissions().mode(), metadata.uid(), effective_uid)
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "IPC socket parent must be a real directory owned by the daemon and not writable by group/others",
+        ));
+    }
+    Ok(())
+}
+
+/// True only when the directory owner is the daemon and no other local
+/// principal has group/other write access. An untrusted owner can replace
+/// entries in a 0700 directory even though its permission bits look private.
+#[cfg(unix)]
+fn trusted_socket_parent(mode: u32, owner_uid: u32, effective_uid: u32) -> bool {
+    owner_uid == effective_uid && mode & 0o022 == 0
+}
+
+/// Bind without deleting an occupied path. The prior unconditional unlink
+/// could erase an ordinary file or disconnect another daemon's live listener.
+/// A crash-stale socket requires explicit operator inspection and removal.
+#[cfg(unix)]
+fn bind_owned_socket(path: &str) -> std::io::Result<(tokio::net::UnixListener, SocketIdentity)> {
+    use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
+
+    validate_socket_parent(path)?;
+    let listener = tokio::net::UnixListener::bind(path)?;
+    let metadata = std::fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_socket() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "IPC path was replaced during socket startup",
+        ));
+    }
+    let identity = (metadata.dev(), metadata.ino());
+    if let Err(error) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(SOCKET_MODE))
+    {
+        let _ = remove_owned_socket(path, identity);
+        return Err(error);
+    }
+    Ok((listener, identity))
+}
+
+/// Remove only the original socket, never a replacement file, symlink or a
+/// subsequent listener at the same path. Check before unlinking; the socket
+/// parent directory must remain under the operator's control. Startup
+/// refuses writable or symlinked immediate parent paths.
+#[cfg(unix)]
+fn remove_owned_socket(path: &str, identity: SocketIdentity) -> std::io::Result<()> {
+    use std::os::unix::fs::{FileTypeExt, MetadataExt};
+
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata)
+            if metadata.file_type().is_socket() && (metadata.dev(), metadata.ino()) == identity =>
+        {
+            std::fs::remove_file(path)
+        }
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 /// Run the IPC server on Unix (Unix domain socket).
 #[cfg(unix)]
 pub async fn run_server(
@@ -35,13 +120,7 @@ pub async fn run_server(
     mut shutdown_rx: watch::Receiver<bool>,
     ipc_config: IpcServerConfig,
 ) -> Result<(), ServerError> {
-    use std::os::unix::fs::PermissionsExt;
-    use tokio::net::UnixListener;
-
-    let _ = std::fs::remove_file(&socket_path);
-
-    let listener = UnixListener::bind(&socket_path)?;
-    std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(SOCKET_MODE))?;
+    let (listener, owned_socket) = bind_owned_socket(&socket_path)?;
     eprintln!(
         "IPC server listening on {} (mode {:o})",
         socket_path, SOCKET_MODE
@@ -64,7 +143,7 @@ pub async fn run_server(
         }
     }
 
-    let _ = std::fs::remove_file(&socket_path);
+    remove_owned_socket(&socket_path, owned_socket)?;
     Ok(())
 }
 
@@ -138,3 +217,7 @@ pub async fn run_server(
 
     Ok(())
 }
+
+#[cfg(all(test, unix))]
+#[path = "listener_tests.rs"]
+mod tests;

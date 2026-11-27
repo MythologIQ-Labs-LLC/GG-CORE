@@ -20,6 +20,10 @@ def typed_models_ready(payload):
         if model.get("state") != "ready":
             continue
         handle = model.get("handle_id")
+        if "capabilities" not in model:
+            # An unauthenticated listing omits capabilities by design; this is
+            # not evidence that the typed models are unready (#171).
+            raise ValueError("ready-model-capabilities-absent")
         caps = model.get("capabilities")
         if type(handle) is not int or handle < 1 or not isinstance(caps, list):
             raise ValueError("invalid-ready-model")
@@ -32,3 +36,34 @@ def typed_models_ready(payload):
         return False
     return (any("embedding" in caps for caps in ready.values())
             and any("text_classification" in caps for caps in ready.values()))
+
+
+def wait_typed_ready(invoke, binary, env, daemon, timeout, sleep=None, clock=None):
+    """Poll the authenticated listing until both typed models are ready.
+
+    Malformed or capability-free listings are retried, but a timeout reports
+    the last stable reason instead of a generic startup timeout. Returns
+    ``None`` when ready, otherwise a stable, non-sensitive error code.
+    """
+    import time
+    sleep = sleep or time.sleep
+    clock = clock or time.monotonic
+    deadline, last = clock() + timeout, None
+    while True:
+        if daemon.poll() is not None:
+            return "daemon-exited-before-ready"
+        if clock() >= deadline:
+            return "daemon-startup-timeout" if last is None else f"readiness-timeout-{last}"
+        probe = invoke(binary, env, ["models", "list", "--json"], timeout=5)
+        if probe.returncode != 0:
+            last = "models-list-refused"
+        else:
+            try:
+                if typed_models_ready(probe.stdout):
+                    return None
+                last = "typed-models-not-ready"
+            except UnicodeError:
+                last = "models-list-invalid"
+            except ValueError as exc:
+                last = str(exc)
+        sleep(1)

@@ -48,6 +48,11 @@ fn unknown_task_fails_closed() {
 fn ambiguous_or_missing_input_fails_closed() {
     for input in [
         r#"{"text":"a","texts":["b"]}"#,
+        r#"{"text":"a","texts":null}"#,
+        r#"{"text":null,"texts":["b"]}"#,
+        r#"{"text":null}"#,
+        r#"{"texts":null}"#,
+        r#"{"text":null,"texts":null}"#,
         "{}",
         r#"{"text":"a","extra":1}"#,
     ] {
