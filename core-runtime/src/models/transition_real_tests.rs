@@ -133,6 +133,7 @@ async fn cold(rig: &Rig, from: &str, to_path: &str, to: &str) -> SwitchOutcome {
         to_path: to_path.into(),
         to_id: to.into(),
         release_wait: Duration::from_secs(120),
+        policy: ReleasePolicy::default(),
     };
     join_switch(spawn_cold_switch(Arc::clone(&rig.lifecycle), prep, req).expect("authority")).await
 }
