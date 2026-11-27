@@ -132,7 +132,8 @@ jobs:
         working-directory: .
         run: python3 -m unittest discover -s scripts/qualification -p 'test_typed_onnx_packaged_acceptance.py' -v
       - name: Pinned packaged latency receipt controls (#50)
-        run: python3 -m unittest discover -s scripts -p test_pinned_latency_receipt.py -v
+        working-directory: .
+        run: python -m unittest discover -s scripts -p test_pinned_latency_receipt.py -v
       - name: Offline Windows qualification runner negative controls (#213)
         if: matrix.os == 'ubuntu-latest'
         working-directory: .
