@@ -71,7 +71,8 @@ async fn relay_stream(
     cancel: &CancellationToken,
     timeout: Duration,
 ) -> Result<(), HandlerError> {
-    let deadline = tokio::time::sleep(timeout);
+    let due = tokio::time::Instant::now() + timeout;
+    let deadline = tokio::time::sleep_until(due);
     tokio::pin!(deadline);
     loop {
         let frame = tokio::select! {
@@ -82,7 +83,11 @@ async fn relay_stream(
             }
             () = &mut deadline => {
                 cancel.cancel();
-                crate::telemetry::stop_trace::answered(request_id.0, None, false, true);
+                // #184: the backend observes the same deadline instant on its
+                // own clock; record how late this answer is relative to it.
+                let lag = tokio::time::Instant::now().saturating_duration_since(due);
+                let lag_ms = lag.as_secs_f64() * 1000.0;
+                crate::telemetry::stop_trace::deadline_answered(request_id.0, None, true, lag_ms);
                 Frame::Abort(StreamChunk::error(request_id, "stream deadline exceeded".into()))
             }
             item = stream.next() => frame_for(request_id, item),

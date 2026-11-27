@@ -2,6 +2,7 @@
 //! that holds its request until the request is stopped, through the
 //! cancellable path the engine really uses.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use tokio::io::DuplexStream;
@@ -64,10 +65,47 @@ pub(super) async fn send(client: &mut DuplexStream, message: &IpcMessage) {
     write_framed(client, &data).await.expect("send");
 }
 
-/// Next frame, with a generous deadline (real-model generation included).
+/// Frame deadline floor: the historical fixed bound.
+pub(super) const MIN_FRAME_DEADLINE: Duration = Duration::from_secs(120);
+/// Frame deadline ceiling: a hung daemon must still fail the test.
+pub(super) const MAX_FRAME_DEADLINE: Duration = Duration::from_secs(900);
+/// A long real-model stream costs about this many short probes on the same
+/// host under the same load; the margin keeps ordering assertions honest
+/// while a contended host (CPU burners, a busy VM host) only slows the
+/// probe and the stream alike.
+const PROBE_MULTIPLE: u32 = 40;
+
+static FRAME_DEADLINE_MS: AtomicU64 = AtomicU64::new(MIN_FRAME_DEADLINE.as_millis() as u64);
+
+/// The current frame deadline: the floor, or a calibrated value for this
+/// process (see [`calibrate_frame_deadline`]).
+pub(super) fn frame_deadline() -> Duration {
+    Duration::from_millis(FRAME_DEADLINE_MS.load(Ordering::Acquire))
+}
+
+/// Scale the frame deadline from the measured wall time of a short
+/// real-model request on this host right now: `PROBE_MULTIPLE` probes,
+/// clamped to `[MIN_FRAME_DEADLINE, MAX_FRAME_DEADLINE]`. The real-model
+/// tests assert ordering (who is answered first), never absolute speed, so
+/// a slow or contended host must not turn an ordering test into a timeout
+/// while a hung daemon still fails within the ceiling. Never lowers the
+/// deadline below the floor.
+pub(super) fn calibrate_frame_deadline(probe: Duration) -> Duration {
+    let scaled = probe.saturating_mul(PROBE_MULTIPLE);
+    let chosen = scaled.clamp(MIN_FRAME_DEADLINE, MAX_FRAME_DEADLINE);
+    FRAME_DEADLINE_MS.fetch_max(chosen.as_millis() as u64, Ordering::AcqRel);
+    let effective = frame_deadline();
+    eprintln!(
+        "real-model frame deadline: probe {probe:?} x{PROBE_MULTIPLE} -> {effective:?} \
+         (floor {MIN_FRAME_DEADLINE:?}, ceiling {MAX_FRAME_DEADLINE:?})"
+    );
+    effective
+}
+
+/// Next frame, within the (possibly calibrated) frame deadline.
 pub(super) async fn receive(client: &mut DuplexStream) -> IpcMessage {
     let frame = read_frame(client, 1 << 20);
-    let bytes = tokio::time::timeout(Duration::from_secs(120), frame)
+    let bytes = tokio::time::timeout(frame_deadline(), frame)
         .await
         .expect("frame deadline")
         .expect("frame");

@@ -50,6 +50,12 @@ Extend `scripts/qualification/n7_packaged_stop_tail.ps1`:
   - new, trace off (throughput and output-hash control);
   - new, trace on.
 
+### Revision 3 (2026-11-27): deadline anchor, per-rep interleave, contention record
+The combined P0 + shutdown candidate `1843a2fb` failed R1 ("stage order") and R5 twice on one `prefillDeadline` stop out of 72, with S3 about 7 ms **before** S2, and R6 ranged 0.67–1.58 under unmeasured host load (#219 / #184, 2026-11-25). Root cause of the ordering finding is a reporting assumption, not a runtime defect: for an explicit cancel the answering task raises the flag and then writes S2, so S2 causally precedes the backend's S3; for a daemon-side deadline there is no such edge. The handler's S2 follows its tokio timer wake-up plus scheduling, while the backend checkpoint compares `Instant::now()` with the same deadline on the blocking thread. Under load the answer can lag the deadline by milliseconds and S3 lands first.
+- **Runtime:** a deadline S2 now carries `deadline_lag_ms` (handler and stream relay): how late the answer is relative to the request's deadline instant. Cancel S2 events are unchanged.
+- **Report:** for `prefillDeadline` the join anchors at `t(S2) − deadline_lag_ms` when the field is present: S3 must follow the anchor (R1) and `observe_ms` is measured from it (R5). Traces from daemons without the field keep the legacy S2 anchor, so an old trace cannot be re-read as passing. Thresholds are unchanged.
+- **Harness:** repetitions interleave daemon-inner (rep k of trace-off and trace-on back to back, both daemons resident on their own pipes), and every throughput row records `guestOtherCpuPct`, `daemonCpuPct`, `logicalCpus` and the optional host sample (`-HostLoadFile`, last line). The report prints paired per-rep ratios and the maximum non-daemon guest CPU share beside R6; the 0.97–1.03 band is not widened and contention never excuses a failure.
+
 **Decision rule for a compute change:** if S2→S3 is dominated by `last_decode_ms` (an in-flight native chunk or token), the #195 schedule is already the minimal cooperative fix. Further reduction then needs a native abort callback, which `llama-cpp-2` 0.1.161 does not expose (`LlamaContext.context` and `LlamaContextParams.context_params` are `pub(crate)`). That would be a wrapper change for the owner, not part of this branch. Only if S3→S4 or other post-observation work is material is a code fix in scope here, and it gets its own plan revision.
 
 ## Tests

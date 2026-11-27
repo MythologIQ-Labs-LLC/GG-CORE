@@ -76,7 +76,32 @@ async fn deadline_emits_s2_kind_deadline_exceeded_and_no_s1() {
     let s2 = stage("stop answered to caller", 18_402);
     assert_eq!(s2.len(), 1, "{s2:?}");
     assert_eq!(s2[0]["kind"], "deadline_exceeded");
+    // #184 R1: a deadline S2 carries its lag after the deadline instant, so
+    // the report can anchor the backend's independent observation (S3).
+    let lag = s2[0]["deadline_lag_ms"]
+        .as_f64()
+        .expect("deadline S2 carries deadline_lag_ms");
+    assert!(lag >= 0.0 && lag.is_finite(), "{lag}");
     assert!(stage("cancel request received", 18_402).is_empty());
+    drop(client);
+    task.await.expect("connection task");
+}
+
+#[tokio::test]
+async fn cancel_s2_carries_no_deadline_lag() {
+    test_capture::install();
+    let (mut client, task, _queue) = start().await;
+    authenticate(&mut client).await;
+    send(&mut client, request(18_404, Some(60_000))).await;
+    let cancel = IpcMessage::CancelRequest {
+        request_id: RequestId(18_404),
+    };
+    send(&mut client, cancel).await;
+    drain(&mut client, 2).await;
+    let s2 = stage("stop answered to caller", 18_404);
+    assert_eq!(s2.len(), 1, "{s2:?}");
+    assert_eq!(s2[0]["kind"], "cancelled");
+    assert!(s2[0].get("deadline_lag_ms").is_none(), "{s2:?}");
     drop(client);
     task.await.expect("connection task");
 }
