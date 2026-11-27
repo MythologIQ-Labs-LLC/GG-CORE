@@ -8,6 +8,60 @@ use super::*;
 use crate::engine::Model;
 use crate::models::registry::LoadedModelState;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use crate::engine::{
+    FinishReason, GenerationResult, InferenceCapability, InferenceConfig, InferenceError,
+    InferenceInput, InferenceOutput,
+};
+
+struct PanickingWeights {
+    bytes: usize,
+    destructor_started: Arc<AtomicBool>,
+}
+
+impl Drop for PanickingWeights {
+    fn drop(&mut self) {
+        self.destructor_started.store(true, Ordering::SeqCst);
+        panic!("intentional model destructor panic");
+    }
+}
+
+#[async_trait::async_trait]
+impl Model for PanickingWeights {
+    fn model_id(&self) -> &str {
+        "panic"
+    }
+
+    fn capabilities(&self) -> &[InferenceCapability] {
+        &[InferenceCapability::TextGeneration]
+    }
+
+    fn memory_usage(&self) -> usize {
+        self.bytes
+    }
+
+    async fn infer(
+        &self,
+        _: &InferenceInput,
+        _: &InferenceConfig,
+    ) -> Result<InferenceOutput, InferenceError> {
+        Ok(InferenceOutput::Generation(GenerationResult {
+            text: String::new(),
+            tokens_generated: 0,
+            finish_reason: FinishReason::Stop,
+        }))
+    }
+
+    async fn unload(&mut self) -> Result<(), InferenceError> {
+        Ok(())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
 /// Load `id` and keep a clone of the model, standing in for an in-flight
 /// request that still holds it.
 async fn load_held(lc: &ModelLifecycle, id: &str, bytes: usize) -> Arc<dyn Model> {
@@ -92,8 +146,23 @@ async fn a_reloaded_id_and_its_old_instance_are_tracked_apart() {
     lc.unload("a").await.unwrap();
     assert_eq!(lc.wait_released("a", Duration::ZERO).await, (false, 2));
     drop(old);
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    assert_eq!(lc.wait_released("a", Duration::ZERO).await, (false, 1));
+    // The release supervisor polls independently of Tokio. A fixed 100-ms
+    // sleep is not a synchronization guarantee on a contended CI runner.
+    // Observe the actual transition, retaining the same strict contract:
+    // the old instance releases while the new one remains held.
+    let start = Instant::now();
+    loop {
+        let observed = lc.wait_released("a", Duration::ZERO).await;
+        if observed == (false, 1) {
+            break;
+        }
+        assert_eq!(observed, (false, 2), "new instance released early");
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "old instance was not released by the independent supervisor"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
     drop(new);
     assert_eq!(
         lc.wait_released("a", Duration::from_secs(5)).await,
@@ -116,17 +185,302 @@ async fn unlimited_lifecycles_track_release_too() {
     );
 }
 
+/// The supervisor does not depend on Tokio being active at the unload call.
+/// It keeps the budget charged while the native holder is live, then returns
+/// capacity after the actual final model reference is released.
 #[test]
-fn without_a_runtime_a_held_instance_never_reads_released() {
+fn without_a_runtime_release_reclaims_only_after_last_holder_drops() {
     let (lc, limits) = setup(1_000);
     let holder = futures::executor::block_on(load_held(&lc, "a", 600));
     futures::executor::block_on(lc.unload("a")).unwrap();
-    drop(holder);
-    assert_eq!(lc.releasing_models().len(), 1, "stays listed: fail closed");
+    assert_eq!(lc.releasing_models().len(), 1);
+    assert_eq!(limits.current_memory(), 600);
+    std::thread::sleep(Duration::from_millis(100));
     assert_eq!(
         limits.current_memory(),
         600,
-        "budget kept, never returned early"
+        "native holder still owns model"
+    );
+
+    drop(holder);
+    let start = Instant::now();
+    while !lc.releasing_models().is_empty() && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        lc.releasing_models().is_empty(),
+        "release supervisor did not drain"
+    );
+    assert_eq!(limits.current_memory(), 0, "model release returned budget");
+}
+
+/// Dropping a Tokio runtime aborts its async tasks but must not abort model
+/// resident ownership while a detached native inference thread still holds
+/// the model. The background supervisor is intentionally runtime-independent.
+#[test]
+fn runtime_shutdown_preserves_resident_budget_until_model_is_released() {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let (lc, limits) = setup(1_000);
+    let holder = rt.block_on(load_held(&lc, "a", 600));
+    rt.block_on(lc.unload("a")).unwrap();
+    assert_eq!(limits.current_memory(), 600);
+    drop(rt);
+
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "runtime shutdown freed live bytes"
+    );
+    let tracked = lc.releasing_models();
+    assert_eq!(tracked.len(), 1);
+    assert_eq!(tracked[0].state, LoadedModelState::Unloading);
+
+    drop(holder);
+    let start = Instant::now();
+    while !lc.releasing_models().is_empty() && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        lc.releasing_models().is_empty(),
+        "release failed after runtime drop"
+    );
+    assert_eq!(limits.current_memory(), 0);
+}
+
+/// Even dropping the lifecycle owner must not free a resident budget while
+/// detached native work retains the last external model reference.
+#[test]
+fn lifecycle_and_runtime_teardown_keep_live_model_memory_charged() {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let (lc, limits) = setup(1_000);
+    let holder = rt.block_on(load_held(&lc, "a", 600));
+    rt.block_on(lc.unload("a")).unwrap();
+    drop(lc);
+    drop(rt);
+
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "lifecycle teardown falsely credited resident memory"
+    );
+    drop(holder);
+    let start = Instant::now();
+    while limits.current_memory() != 0 && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(
+        limits.current_memory(),
+        0,
+        "last model holder was not reclaimed"
+    );
+}
+
+/// Runtime teardown may drop the lifecycle without an explicit unload.
+/// A native worker can still own a model Arc. Resident capacity must remain
+/// reserved until that final model holder exits, with no Tokio dependency.
+#[test]
+fn dropping_loaded_lifecycle_with_live_model_does_not_credit_memory_early() {
+    let (lc, limits) = setup(1_000);
+    let holder = futures::executor::block_on(load_held(&lc, "a", 600));
+    drop(lc);
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "lifecycle drop returned a live model's resident budget"
+    );
+    assert!(
+        limits.reserve_resident(500).is_err(),
+        "released budget while another model holder was alive"
+    );
+    drop(holder);
+    let start = Instant::now();
+    while limits.current_memory() != 0 && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(
+        limits.current_memory(),
+        0,
+        "lifecycle drop leaked release forever"
+    );
+}
+
+/// An abandoned PreparedModel is also a native backend owner. The
+/// private prepared reservation must survive its destructor's panic rather
+/// than allowing Rust's remaining-field cleanup to credit unsafe capacity.
+#[test]
+fn abandoned_prepared_model_destructor_panic_retains_resident_budget() {
+    let limits = crate::memory::ResourceLimits::new(crate::memory::ResourceLimitsConfig {
+        max_memory_per_call: 10,
+        max_total_memory: 1_000,
+        max_concurrent: 1,
+    });
+    let started = Arc::new(AtomicBool::new(false));
+    let model: Arc<dyn Model> = Arc::new(PanickingWeights {
+        bytes: 400,
+        destructor_started: Arc::clone(&started),
+    });
+    let guard = limits.reserve_resident(400).unwrap();
+    let prepared = crate::models::PreparedModel::for_test("pending", model, Some(guard));
+
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        drop(prepared);
+    }));
+    assert!(
+        panicked.is_err(),
+        "failed native destructor must be observable"
+    );
+    assert!(started.load(Ordering::SeqCst));
+    assert_eq!(
+        limits.current_memory(),
+        400,
+        "aborted prepared model erroneously credited failed native destruction"
+    );
+    assert!(limits.reserve_resident(700).is_err());
+}
+
+/// A *refused registration* must use the same panic-safe model and
+/// reservation drop boundary as a successful model unload. If a losing model's
+/// native destructor panics, returning its charged bytes would be unsafe.
+#[test]
+fn refused_registration_destructor_panic_retains_preflight_budget() {
+    let (lc, limits) = setup(1_000);
+    futures::executor::block_on(lc.load(
+        "duplicate".into(),
+        meta("duplicate", 300),
+        Arc::new(Weights(300)),
+    ))
+    .expect("winner registered");
+
+    let started = Arc::new(AtomicBool::new(false));
+    let model: Arc<dyn Model> = Arc::new(PanickingWeights {
+        bytes: 400,
+        destructor_started: Arc::clone(&started),
+    });
+    let guard = limits
+        .reserve_resident(400)
+        .expect("losing preflight reservation");
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        futures::executor::block_on(lc.load_reserved(
+            "duplicate".into(),
+            meta("duplicate", 400),
+            model,
+            Some(guard),
+        ))
+    }));
+
+    assert!(result.is_err(), "backend panic must remain observable");
+    assert!(started.load(Ordering::SeqCst));
+    assert_eq!(
+        limits.current_memory(),
+        700,
+        "refusal credited failed cleanup"
+    );
+    assert!(
+        limits.reserve_resident(400).is_err(),
+        "model with incomplete destruction must not permit new admission"
+    );
+    // Successful registered model can still unload; the failed native
+    // destructor's 400-byte charge intentionally remains fail-closed.
+    futures::executor::block_on(lc.unload("duplicate")).unwrap();
+    assert_eq!(limits.current_memory(), 400);
+}
+
+/// A backend destructor panic is not evidence that its memory was
+/// reclaimed. The reservation must remain charged even on the idle path.
+#[test]
+fn direct_model_destructor_panic_never_credits_resident_budget() {
+    let (lc, limits) = setup(1_000);
+    let started = Arc::new(AtomicBool::new(false));
+    let model: Arc<dyn Model> = Arc::new(PanickingWeights {
+        bytes: 600,
+        destructor_started: Arc::clone(&started),
+    });
+    futures::executor::block_on(lc.load("panic".into(), meta("panic", 600), Arc::clone(&model)))
+        .expect("model load");
+    drop(model);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        futures::executor::block_on(lc.unload("panic"))
+    }));
+    assert!(result.is_err(), "destructor panic should remain observable");
+    assert!(started.load(Ordering::SeqCst));
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "destructor panic credited capacity"
+    );
+    assert!(
+        limits.reserve_resident(500).is_err(),
+        "failed destruction admitted overlapping memory"
+    );
+    assert_eq!(
+        lc.releasing_models().len(),
+        1,
+        "failed release must be visible"
+    );
+}
+
+/// A panic in the background release monitor must not kill all future
+/// releases. It retains the failed model's charge and drains a later model.
+#[test]
+fn supervised_destructor_panic_preserves_budget_and_other_model_release() {
+    let (lc, limits) = setup(1_000);
+    let started = Arc::new(AtomicBool::new(false));
+    let model: Arc<dyn Model> = Arc::new(PanickingWeights {
+        bytes: 600,
+        destructor_started: Arc::clone(&started),
+    });
+    futures::executor::block_on(lc.load("panic".into(), meta("panic", 600), Arc::clone(&model)))
+        .expect("model load");
+    futures::executor::block_on(lc.unload("panic")).expect("pending model unload");
+    drop(model);
+    let begin = Instant::now();
+    while !started.load(Ordering::SeqCst) && begin.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        started.load(Ordering::SeqCst),
+        "model destructor never started"
+    );
+    // The panic callback runs immediately before unwind into the supervisor.
+    // It must never allow charge reuse even while unwind is completing.
+    std::thread::sleep(Duration::from_millis(30));
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "failed cleanup credited memory"
+    );
+    assert!(limits.reserve_resident(500).is_err());
+    assert_eq!(
+        lc.releasing_models().len(),
+        1,
+        "panic release was falsely signaled"
+    );
+
+    let healthy = futures::executor::block_on(load_held(&lc, "healthy", 200));
+    futures::executor::block_on(lc.unload("healthy")).expect("healthy unload");
+    drop(healthy);
+    let begin = Instant::now();
+    while lc.releasing_models().iter().any(|m| m.name == "healthy")
+        && begin.elapsed() < Duration::from_secs(5)
+    {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let remaining = lc.releasing_models();
+    assert_eq!(remaining.len(), 1, "supervisor stalled on unrelated panic");
+    assert_eq!(remaining[0].name, "panic");
+    assert_eq!(
+        limits.current_memory(),
+        600,
+        "healthy release not reclaimed"
     );
 }
 

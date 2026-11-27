@@ -13,6 +13,62 @@ mod tests {
         })
     }
 
+    /// A valid u64 is not necessarily representable as an absolute
+    /// monotonic-clock deadline. Such requests must be refused consistently
+    /// across the public and direct queue admission paths, never panic.
+    #[tokio::test]
+    async fn unrepresentable_deadline_is_refused_across_request_lanes() {
+        use crate::engine::{InferenceCapability, InferenceInput};
+        use crate::scheduler::queue::{QueueError, QueuedRequest};
+        use std::sync::atomic::AtomicBool;
+        use std::sync::Arc;
+
+        let q = small_queue();
+        let params = InferenceParams {
+            timeout_ms: Some(u64::MAX),
+            ..InferenceParams::default()
+        };
+        assert!(
+            params.validate().is_err(),
+            "IPC validation must reject unrepresentable absolute deadlines"
+        );
+        assert!(matches!(
+            q.enqueue("m".into(), "hello".into(), params.clone(), Priority::Normal)
+                .await,
+            Err(QueueError::InvalidTimeout)
+        ));
+        assert!(matches!(
+            q.enqueue_typed_controlled(
+                "m".into(),
+                InferenceInput::Text("hello".into()),
+                InferenceCapability::Embedding,
+                params.clone(),
+                Arc::new(AtomicBool::new(false)),
+            )
+            .await,
+            Err(QueueError::InvalidTimeout)
+        ));
+        let (tx, _rx) = TokenStream::new(4, crate::engine::StreamBound::default());
+        assert!(matches!(
+            q.enqueue_streaming(
+                "m".into(),
+                "hello".into(),
+                InferenceConfig {
+                    timeout_ms: u64::MAX,
+                    ..InferenceConfig::default()
+                },
+                tx,
+            )
+            .await,
+            Err(QueueError::InvalidTimeout)
+        ));
+        let direct = QueuedRequest::new(1, "m".into(), "hello".into(), params);
+        assert_eq!(direct.deadline, Some(direct.enqueued_at));
+        assert_eq!(q.len().await, 0);
+        assert_eq!(q.streaming_len().await, 0);
+        assert_eq!(q.typed_len().await, 0);
+    }
+
     #[tokio::test]
     async fn controlled_stream_carries_cancel_and_deadline() {
         let q = small_queue();

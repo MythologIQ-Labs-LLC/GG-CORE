@@ -49,7 +49,19 @@ impl IpcHandler {
             );
         }
         let timeout_ms = request.parameters.timeout_ms;
-        let deadline = timeout_ms.map(|ms| tokio::time::Instant::now() + Duration::from_millis(ms));
+        let deadline = match timeout_ms {
+            Some(ms) => match tokio::time::Instant::now().checked_add(Duration::from_millis(ms)) {
+                Some(deadline) => Some(deadline),
+                None => {
+                    return InferenceResponse::error_coded(
+                        id,
+                        "timeout_ms exceeds the supported clock range".into(),
+                        InferenceErrorCode::InputInvalid,
+                    );
+                }
+            },
+            None => None,
+        };
         let flag = Arc::new(AtomicBool::new(false));
         let _stop_on_drop = CancelOnDrop(Arc::clone(&flag));
 
@@ -70,8 +82,27 @@ impl IpcHandler {
         let stop = |error: InferenceError| {
             flag.store(true, Ordering::Release);
             // #184 stop trace S2; the worker's S4 carries the same `queue_id`.
-            let cancelled = matches!(error, InferenceError::Cancelled);
-            crate::telemetry::stop_trace::answered(id.0, Some(queue_id), cancelled, false);
+            // A deadline S2 records how late this answer runs after the
+            // deadline instant: the backend observes the same instant on its
+            // own clock, so S3 may precede S2 by exactly that lag (#184 R1).
+            match (&error, deadline) {
+                (InferenceError::Cancelled, _) => {
+                    crate::telemetry::stop_trace::answered(id.0, Some(queue_id), true, false);
+                }
+                (_, Some(due)) => {
+                    let lag = tokio::time::Instant::now().saturating_duration_since(due);
+                    let lag_ms = lag.as_secs_f64() * 1000.0;
+                    crate::telemetry::stop_trace::deadline_answered(
+                        id.0,
+                        Some(queue_id),
+                        false,
+                        lag_ms,
+                    );
+                }
+                (_, None) => {
+                    crate::telemetry::stop_trace::answered(id.0, Some(queue_id), false, false);
+                }
+            }
             stopped(id, error)
         };
         let expiry = async {

@@ -524,6 +524,80 @@ class Gate(unittest.TestCase):
         events[2]["t"] = float("inf")
         self.assertEqual(run(rows, events)[0], 2)
 
+    # Deadline anchoring (2026-11-27, combined-candidate N7 R1 "stage order"
+    # on prefillDeadline): the answering task and the backend observe the
+    # same deadline instant independently, so S3 may precede S2 by the
+    # answer's reported lag; it may never precede the deadline itself.
+    @staticmethod
+    def deadline_stages(events):
+        s2 = next(e for e in events if e["message"] == "stop answered to caller"
+                  and e["kind"] == "deadline_exceeded")
+        s3 = next(e for e in events if e["message"] == "backend stop observed"
+                  and e["queue_id"] == s2["queue_id"])
+        return s2, s3
+
+    def test_r1_deadline_s3_before_s2_within_reported_lag_is_complete(self):
+        rows, events = evidence()
+        s2, s3 = self.deadline_stages(events)
+        s2["deadline_lag_ms"] = 12.0
+        s3["t"] = s2["t"] - 0.007  # observed 7 ms before the late answer, 5 ms after the deadline
+        code, text = run(rows, events)
+        self.assertEqual(code, 0, text)
+        self.assertIn("VERDICT: PASS", text)
+
+    def test_r1_deadline_s3_before_the_deadline_instant_fails(self):
+        rows, events = evidence()
+        s2, s3 = self.deadline_stages(events)
+        s2["deadline_lag_ms"] = 12.0
+        s3["t"] = s2["t"] - 0.020  # 8 ms before the deadline: impossible chronology
+        self.assert_fails("R1", rows, events)
+
+    def test_r1_deadline_without_lag_keeps_the_legacy_answer_anchor(self):
+        rows, events = evidence()
+        s2, s3 = self.deadline_stages(events)
+        s3["t"] = s2["t"] - 0.007  # an old daemon cannot prove this was after the deadline
+        self.assert_fails("R1", rows, events)
+
+    def test_r1_cancel_s3_before_s2_fails_even_with_a_lag_field(self):
+        rows, events = evidence()
+        s2 = next(e for e in events if e["message"] == "stop answered to caller" and e["kind"] == "cancelled")
+        s3 = next(e for e in events if e["message"] == "backend stop observed" and e["queue_id"] == s2["queue_id"])
+        s2["deadline_lag_ms"] = 12.0  # meaningless on a cancel; the answer stays the anchor
+        s3["t"] = s2["t"] - 0.007
+        self.assert_fails("R1", rows, events)
+
+    def test_r5_deadline_observation_is_measured_from_the_deadline_instant(self):
+        rows, events = evidence()
+        s2, s3 = self.deadline_stages(events)
+        s2["deadline_lag_ms"] = 300.0
+        s3["last_decode_ms"] = 10.0
+        s3["t"] = s2["t"] - 0.280  # 20 ms after the deadline: beyond 10 + 5 ms from the anchor
+        self.assert_fails("R5", rows, events)
+
+    def test_negative_deadline_lag_is_malformed(self):
+        rows, events = evidence()
+        s2, _ = self.deadline_stages(events)
+        s2["deadline_lag_ms"] = -1.0
+        self.assertEqual(run(rows, events)[0], 2)
+
+    def test_r6_contention_samples_are_reported_not_judged(self):
+        rows, events = evidence()
+        for r in rows:
+            if r["kind"] == "throughput":
+                r["guestOtherCpuPct"] = 35.5
+                r["daemonCpuPct"] = 12.0
+                r["hostLoad"] = "2026-11-27T00:00:00Z cpu=80%"
+        code, text = run(rows, events)
+        self.assertEqual(code, 0, text)
+        self.assertIn("guestOtherCpu max 35.5%", text)
+        self.assertIn("pairs 1.000", text)
+        self.assertIn("cpu=80%", text)
+
+    def test_malformed_contention_sample_is_refused(self):
+        rows, events = evidence()
+        next(r for r in rows if r["kind"] == "throughput")["guestOtherCpuPct"] = "high"
+        self.assertEqual(run(rows, events)[0], 2)
+
     def test_nonfinite_native_decode_duration_is_malformed(self):
         rows, events = evidence()
         next(e for e in events if e["message"] == "backend stop observed")["last_decode_ms"] = float("nan")

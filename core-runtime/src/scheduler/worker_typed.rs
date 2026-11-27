@@ -10,7 +10,7 @@ use std::sync::Arc;
 use super::queue::TypedQueuedRequest;
 use crate::engine::inference::InferenceError;
 use crate::engine::{InferenceEngine, InferenceInput, InferenceOutput};
-use crate::memory::ResourceLimits;
+use crate::memory::{ResourceGuard, ResourceLimits};
 use crate::security::SecurityPipeline;
 use crate::telemetry;
 
@@ -33,7 +33,7 @@ pub(crate) async fn execute(
         request.reject_unexecuted();
         return;
     }
-    let _guard = match super::worker::acquire_guard(engine, resource_limits, &model_id).await {
+    let guard = match super::worker::acquire_guard(engine, resource_limits, &model_id).await {
         Ok(guard) => guard,
         Err(message) => {
             telemetry::record_admission_rejection(&model_id, &message);
@@ -43,7 +43,7 @@ pub(crate) async fn execute(
     };
     let start = std::time::Instant::now();
     let max_memory = resource_limits.map(ResourceLimits::max_memory_per_call);
-    let result = run_blocking(engine, &request, max_memory).await;
+    let result = run_blocking(engine, &request, max_memory, guard).await;
     let result = apply_egress(security, &model_id, result);
     match &result {
         Ok(_) => {
@@ -70,6 +70,7 @@ async fn run_blocking(
     engine: &Arc<InferenceEngine>,
     request: &TypedQueuedRequest,
     max_memory: Option<usize>,
+    guard: Option<ResourceGuard>,
 ) -> TypedResult {
     let engine = Arc::clone(engine);
     let model_id = request.model_id.clone();
@@ -77,9 +78,8 @@ async fn run_blocking(
     let capability = request.capability;
     let params = request.params.clone();
     let control = request.stop_control();
-    let handle = tokio::runtime::Handle::current();
-    tokio::task::spawn_blocking(move || {
-        handle.block_on(
+    super::worker::run_blocking_admitted(guard, move || {
+        super::worker::block_on_native(
             engine
                 .run_typed_controlled(&model_id, &input, capability, &params, &control, max_memory),
         )

@@ -37,8 +37,14 @@ impl StopControl {
 
     /// Control whose deadline starts now from a request's `timeout_ms`.
     pub fn from_timeout(cancelled: Option<Arc<AtomicBool>>, timeout_ms: Option<u64>) -> Self {
-        let deadline =
-            timeout_ms.and_then(|ms| Instant::now().checked_add(Duration::from_millis(ms)));
+        let now = Instant::now();
+        let deadline = timeout_ms.map(|ms| {
+            if ms > super::inference_types::InferenceParams::MAX_TIMEOUT_MS {
+                now
+            } else {
+                now.checked_add(Duration::from_millis(ms)).unwrap_or(now)
+            }
+        });
         Self::new(cancelled, deadline, timeout_ms.unwrap_or(0))
     }
 

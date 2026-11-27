@@ -51,14 +51,40 @@ pub(super) fn spawn(
             let (queue, ctx, shutdown) = (queue.clone(), ctx.clone(), shutdown.clone());
             set.spawn(async move { worker_loop(&queue, &ctx, shutdown).await });
         }
-        while set.join_next().await.is_some() {}
+        // A native worker can remain busy long after shutdown is signalled.
+        // Seal and drain the queue independently rather than waiting for
+        // its current model call to return. Existing native work still joins.
+        let mut closed = false;
+        while !set.is_empty() {
+            tokio::select! {
+                biased;
+                () = shutdown.cancelled(), if !closed => {
+                    closed = true;
+                    queue.close().await;
+                    let mut cursor = 0;
+                    drain_cancelled(&queue, &mut cursor).await;
+                }
+                _ = set.join_next() => {}
+            }
+        }
     })
 }
 
 async fn worker_loop(queue: &RequestQueue, ctx: &WorkerCtx, shutdown: CancellationToken) {
     let mut cursor = 0;
     loop {
+        // Check shutdown before taking queued work. Previously a continuously
+        // ready queue prevented the shutdown branch from ever running.
+        if shutdown.is_cancelled() {
+            drain_cancelled(queue, &mut cursor).await;
+            break;
+        }
         if let Some(work) = next_ready(queue, &mut cursor).await {
+            if shutdown.is_cancelled() {
+                reject_shutdown(work).await;
+                drain_cancelled(queue, &mut cursor).await;
+                break;
+            }
             run(ctx, work).await;
             continue;
         }
@@ -66,15 +92,54 @@ async fn worker_loop(queue: &RequestQueue, ctx: &WorkerCtx, shutdown: Cancellati
             biased;
             () = shutdown.cancelled() => {
                 tracing::info!("worker: shutdown signal received");
+                drain_cancelled(queue, &mut cursor).await;
                 break;
             }
             // `None` means streaming or typed work arrived: rotate again.
             req_opt = queue.wait_and_dequeue() => {
                 if let Some(request) = req_opt {
                     cursor = (MAIN + 1) % QUEUES;
+                    if shutdown.is_cancelled() {
+                        reject_shutdown(Work::Main(request)).await;
+                        drain_cancelled(queue, &mut cursor).await;
+                        break;
+                    }
                     run(ctx, Work::Main(request)).await;
                 }
             }
+        }
+    }
+}
+
+/// Do not abandon response channels at shutdown. This drains work already
+/// admitted to the bounded queue without starting any additional inference.
+/// In-flight native work remains owned until its blocking closure finishes.
+async fn drain_cancelled(queue: &RequestQueue, cursor: &mut usize) {
+    while let Some(work) = next_ready(queue, cursor).await {
+        reject_shutdown(work).await;
+    }
+}
+
+async fn reject_shutdown(work: Work) {
+    match work {
+        Work::Stream(request) => {
+            request.cancelled.cancel();
+            let _ = request
+                .token_sender
+                .end(crate::engine::StreamTerminal::Error(
+                    "stream cancelled: worker shutting down".into(),
+                ))
+                .await;
+        }
+        Work::Typed(request) => {
+            request
+                .cancelled
+                .store(true, std::sync::atomic::Ordering::Release);
+            request.reject_unexecuted();
+        }
+        Work::Main(request) => {
+            request.cancel();
+            request.reject_unexecuted();
         }
     }
 }
@@ -104,7 +169,10 @@ async fn run(ctx: &WorkerCtx, work: Work) {
     let limits = ctx.limits.as_ref();
     let security = ctx.security.as_deref();
     match work {
-        Work::Stream(s) => super::worker_streaming::execute(&ctx.engine, limits, security, s).await,
+        Work::Stream(s) => {
+            let sec = ctx.security.as_ref();
+            super::worker_streaming::execute(&ctx.engine, limits, sec, s).await
+        }
         Work::Typed(t) => super::worker_typed::execute(&ctx.engine, limits, security, t).await,
         Work::Main(r) => {
             let (lifecycle, registry) = (ctx.lifecycle.as_deref(), ctx.registry.as_deref());
@@ -117,3 +185,7 @@ async fn run(ctx: &WorkerCtx, work: Work) {
 #[cfg(test)]
 #[path = "worker_pool_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "worker_pool_shutdown_tests.rs"]
+mod shutdown_tests;

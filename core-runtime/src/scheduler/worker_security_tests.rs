@@ -60,8 +60,8 @@ fn test_apply_egress_passthrough_without_pipeline() {
 
 #[tokio::test]
 async fn test_streaming_execute_rejects_injection() {
-    let engine = InferenceEngine::new(4096); // no models registered
-    let pipeline = blocking_redacting_pipeline();
+    let engine = std::sync::Arc::new(InferenceEngine::new(4096)); // no models registered
+    let pipeline = std::sync::Arc::new(blocking_redacting_pipeline());
     let (tx, mut rx) = TokenStream::new(4, crate::engine::StreamBound::default());
     let request = StreamingQueuedRequest {
         id: 1,
@@ -125,8 +125,8 @@ fn shared_worker_ingress_rejects_flattened_untrusted_assistant_history() {
 
 #[tokio::test]
 async fn streaming_history_quote_emits_explicit_rejected_terminal() {
-    let engine = InferenceEngine::new(4096); // intentionally model-free
-    let pipeline = blocking_redacting_pipeline();
+    let engine = std::sync::Arc::new(InferenceEngine::new(4096)); // intentionally model-free
+    let pipeline = std::sync::Arc::new(blocking_redacting_pipeline());
     let (tx, mut rx) = TokenStream::new(4, crate::engine::StreamBound::default());
     let request = StreamingQueuedRequest {
         id: 186,

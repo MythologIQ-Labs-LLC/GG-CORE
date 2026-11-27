@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use tokio::io::{AsyncReadExt, DuplexStream};
 
+use super::release_stub::{calibrate_frame_deadline, frame_deadline};
 use super::{handle_connection, read_frame};
 use crate::engine::gguf::{GgufConfig, GgufGenerator};
 use crate::engine::InferenceParams;
@@ -109,7 +110,7 @@ async fn send(client: &mut DuplexStream, message: &IpcMessage) {
 }
 
 async fn receive(client: &mut DuplexStream) -> IpcMessage {
-    let bytes = tokio::time::timeout(Duration::from_secs(120), read_frame(client, 1 << 20))
+    let bytes = tokio::time::timeout(frame_deadline(), read_frame(client, 1 << 20))
         .await
         .expect("frame deadline")
         .expect("frame");
@@ -124,13 +125,34 @@ fn generate(id: u64, prompt: &str, max_tokens: usize, stream: bool) -> IpcMessag
         parameters: InferenceParams {
             max_tokens,
             stream,
-            timeout_ms: Some(120_000),
+            timeout_ms: Some(frame_deadline().as_millis() as u64),
             ..Default::default()
         },
     })
 }
 
+/// Measure one short request on this host now and scale the frame deadline
+/// and request deadlines from it (floor 120 s). The tests below assert
+/// ordering, not speed: under CPU contention (the native gate ran 16 CPU
+/// burners on 8 vCPU) the fixed 120 s bound expired before a 400-token
+/// stream ended, which is a host-speed statement, not a HOL verdict.
+async fn calibrate(d: &Daemon) {
+    let (mut probe, _task) = connect(d, 64 * 1024).await;
+    let start = Instant::now();
+    send(&mut probe, &generate(900, SHORT, 8, false)).await;
+    match receive(&mut probe).await {
+        IpcMessage::InferenceResponse(r) => assert!(r.error.is_none(), "{r:?}"),
+        other => panic!("expected inference_response, got {other:?}"),
+    }
+    calibrate_frame_deadline(start.elapsed());
+}
+
 const LONG: &str = "Write the numbers from 1 to 400, one per line.";
+const SHORT: &str = "What is 2 + 2? Answer briefly.";
+/// Enough tokens to stall a 1 KiB pipe many times over and to outlast the
+/// short request by a wide margin, without making the test's cost scale
+/// with a contended host's slowdown more than necessary.
+const LONG_TOKENS: usize = 160;
 
 /// Phase 1, one worker: a stream whose reader stops cannot hold the only
 /// worker; the next client is served and the stalled connection is closed.
@@ -138,17 +160,14 @@ const LONG: &str = "Write the numbers from 1 to 400, one per line.";
 async fn stalled_reader_does_not_starve_the_next_client() {
     let _l = super::release::TEST_LOCK.lock().await; // one real-model daemon at a time
     let Some(d) = daemon(1).await else { return };
+    calibrate(&d).await;
     let (mut stalled, stalled_task) = connect(&d, 1024).await;
-    send(&mut stalled, &generate(1, LONG, 400, true)).await;
+    send(&mut stalled, &generate(1, LONG, LONG_TOKENS, true)).await;
     tokio::time::sleep(Duration::from_secs(2)).await; // generating; never read
 
     let (mut other, _other_task) = connect(&d, 64 * 1024).await;
     let start = Instant::now();
-    send(
-        &mut other,
-        &generate(2, "What is 2 + 2? Answer briefly.", 8, false),
-    )
-    .await;
+    send(&mut other, &generate(2, SHORT, 8, false)).await;
     let reply = receive(&mut other).await;
     let waited = start.elapsed();
     eprintln!("next client answered after {waited:?} behind a stalled reader");
@@ -171,8 +190,9 @@ async fn stalled_reader_does_not_starve_the_next_client() {
 async fn short_request_is_not_serialized_behind_a_long_stream() {
     let _l = super::release::TEST_LOCK.lock().await; // one real-model daemon at a time
     let Some(d) = daemon(2).await else { return };
+    calibrate(&d).await;
     let (mut streaming, _s) = connect(&d, 64 * 1024).await;
-    send(&mut streaming, &generate(1, LONG, 400, true)).await;
+    send(&mut streaming, &generate(1, LONG, LONG_TOKENS, true)).await;
     // Wait for the first frame so the stream is executing.
     assert!(matches!(
         receive(&mut streaming).await,
@@ -180,11 +200,7 @@ async fn short_request_is_not_serialized_behind_a_long_stream() {
     ));
 
     let (mut other, _o) = connect(&d, 64 * 1024).await;
-    send(
-        &mut other,
-        &generate(2, "What is 2 + 2? Answer briefly.", 8, false),
-    )
-    .await;
+    send(&mut other, &generate(2, SHORT, 8, false)).await;
     let reply = tokio::spawn(async move { (receive(&mut other).await, Instant::now()) });
 
     let mut stream_end = None;

@@ -16,7 +16,7 @@ pub mod speculative_session;
 #[cfg(feature = "gguf")]
 mod stop_observe;
 #[cfg(all(test, feature = "gguf"))]
-mod test_fixture;
+pub(crate) mod test_fixture;
 pub mod threads;
 pub mod working_memory;
 

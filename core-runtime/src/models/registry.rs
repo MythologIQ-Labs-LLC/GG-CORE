@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, RwLockWriteGuard};
 
 use super::loader::ModelMetadata;
 
@@ -73,6 +73,47 @@ pub struct ModelRegistry {
     next_id: AtomicU64,
 }
 
+/// A registry write permit acquired before any cross-component
+/// registration side effects. Mutating it is synchronous (#219).
+pub(crate) struct RegistryRegistration<'a> {
+    models: RwLockWriteGuard<'a, HashMap<ModelHandle, LoadedModel>>,
+    next_id: &'a AtomicU64,
+}
+
+impl RegistryRegistration<'_> {
+    pub(crate) fn insert(&mut self, metadata: ModelMetadata, memory_bytes: usize) -> ModelHandle {
+        self.insert_with_format(metadata, memory_bytes, "unknown".to_string())
+    }
+
+    pub(crate) fn insert_with_format(
+        &mut self,
+        metadata: ModelMetadata,
+        memory_bytes: usize,
+        format: String,
+    ) -> ModelHandle {
+        let handle = ModelHandle(self.next_id.fetch_add(1, Ordering::SeqCst));
+        self.models.insert(
+            handle,
+            LoadedModel {
+                metadata,
+                memory_bytes,
+                format,
+                state: LoadedModelState::Ready,
+                request_count: AtomicU64::new(0),
+                total_latency_ms: AtomicU64::new(0),
+                loaded_at: SystemTime::now(),
+            },
+        );
+        handle
+    }
+
+    /// Remove a registry entry without suspension after all lifecycle
+    /// writer permits have been acquired.
+    pub(crate) fn remove(&mut self, handle: ModelHandle) -> Option<usize> {
+        self.models.remove(&handle).map(|model| model.memory_bytes)
+    }
+}
+
 impl ModelRegistry {
     pub fn new() -> Self {
         Self {
@@ -81,10 +122,19 @@ impl ModelRegistry {
         }
     }
 
+    /// Acquire a write permit without publishing model state.
+    pub(crate) async fn registration_writer(&self) -> RegistryRegistration<'_> {
+        RegistryRegistration {
+            models: self.models.write().await,
+            next_id: &self.next_id,
+        }
+    }
+
     /// Register a new model and return its handle.
     pub async fn register(&self, metadata: ModelMetadata, memory_bytes: usize) -> ModelHandle {
-        self.register_with_format(metadata, memory_bytes, "unknown".to_string())
+        self.registration_writer()
             .await
+            .insert(metadata, memory_bytes)
     }
 
     /// Register a new model with format info and return its handle.
@@ -94,21 +144,9 @@ impl ModelRegistry {
         memory_bytes: usize,
         format: String,
     ) -> ModelHandle {
-        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        let handle = ModelHandle(id);
-
-        let model = LoadedModel {
-            metadata,
-            memory_bytes,
-            format,
-            state: LoadedModelState::Ready,
-            request_count: AtomicU64::new(0),
-            total_latency_ms: AtomicU64::new(0),
-            loaded_at: SystemTime::now(),
-        };
-        self.models.write().await.insert(handle, model);
-
-        handle
+        self.registration_writer()
+            .await
+            .insert_with_format(metadata, memory_bytes, format)
     }
 
     /// Check if a model handle is valid.
