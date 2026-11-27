@@ -63,9 +63,9 @@ fn test_system_status_serialization() {
             failed_requests: 10,
             requests_per_second: 10.5,
             avg_latency_ms: 50.0,
-            p50_latency_ms: 45.0,
-            p95_latency_ms: 100.0,
-            p99_latency_ms: 150.0,
+            p50_latency_ms: Some(45.0),
+            p95_latency_ms: Some(100.0),
+            p99_latency_ms: Some(150.0),
             tokens_generated: 50000,
             tokens_per_second: 25.0,
         },
@@ -323,4 +323,47 @@ fn status_from_partial_ipc_is_degraded_not_healthy() {
     // An unhealthy daemon always takes precedence over missing diagnostics.
     let unhealthy_no_report = build_status(false, None, None, None);
     assert_eq!(unhealthy_no_report.health, HealthState::Unhealthy);
+}
+
+// Quantiles must not be synthesized from a min/max-only IPC histogram.
+#[test]
+fn test_missing_quantiles_display_as_unavailable() {
+    assert_eq!(display_quantile(None), "N/A");
+    assert_eq!(display_quantile(Some(0.0)), "0.0ms");
+    assert_eq!(display_quantile(Some(f64::NAN)), "N/A");
+    assert_eq!(display_quantile(Some(f64::INFINITY)), "N/A");
+    assert_eq!(display_quantile(Some(-1.0)), "N/A");
+}
+
+#[test]
+fn status_never_invents_quantiles_from_min_max_snapshot() {
+    use crate::telemetry::{HistogramSummary, MetricsSnapshot};
+    use std::collections::HashMap;
+
+    let mut histograms = HashMap::new();
+    histograms.insert(
+        "core_inference_latency_ms".to_string(),
+        HistogramSummary {
+            count: 10,
+            sum: 1_000.0,
+            min: 1.0,
+            max: 500.0,
+        },
+    );
+    let metrics = MetricsSnapshot {
+        counters: HashMap::new(),
+        gauges: HashMap::new(),
+        histograms,
+        bucketed_histograms: HashMap::new(),
+    };
+    let status = build_status(true, None, Some(metrics), None);
+    assert_eq!(status.requests.avg_latency_ms, 100.0);
+    assert_eq!(status.requests.p50_latency_ms, None);
+    assert_eq!(status.requests.p95_latency_ms, None);
+    assert_eq!(status.requests.p99_latency_ms, None);
+
+    let serialized = serde_json::to_value(&status).unwrap();
+    assert!(serialized["requests"]["p50_latency_ms"].is_null());
+    assert!(serialized["requests"]["p95_latency_ms"].is_null());
+    assert!(serialized["requests"]["p99_latency_ms"].is_null());
 }

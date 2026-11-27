@@ -68,12 +68,20 @@ fn print_request_stats(status: &SystemStatus) {
         status.requests.requests_per_second, status.requests.tokens_per_second
     );
     println!(
-        "  Latency:  Avg {:.1}ms  P50 {:.1}ms  P95 {:.1}ms  P99 {:.1}ms",
+        "  Latency:  Avg {:.1}ms  P50 {}  P95 {}  P99 {}",
         status.requests.avg_latency_ms,
-        status.requests.p50_latency_ms,
-        status.requests.p95_latency_ms,
-        status.requests.p99_latency_ms
+        display_quantile(status.requests.p50_latency_ms),
+        display_quantile(status.requests.p95_latency_ms),
+        display_quantile(status.requests.p99_latency_ms)
     );
+}
+
+/// Only display supported, finite, nonnegative measured percentiles.
+pub(super) fn display_quantile(value: Option<f64>) -> String {
+    match value {
+        Some(ms) if ms.is_finite() && ms >= 0.0 => format!("{ms:.1}ms"),
+        _ => "N/A".to_owned(),
+    }
 }
 
 fn print_resources(status: &SystemStatus) {

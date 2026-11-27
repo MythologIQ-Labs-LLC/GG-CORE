@@ -53,3 +53,27 @@ This is **source/wire test coverage**, not an installed compatibility claim. Bef
 - [#171](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/171) and [#137](https://github.com/MythologIQ-Labs-LLC/GG-CORE/issues/137): real typed ONNX IPC serving and secure A-to-B-to-A model lifecycle.
 
 Do not close #112 merely because this initial baseline merges. Close only after the supported public surface is approved, exact-head compile/wire/ABI tests satisfy that surface and independent review verifies compatibility. No v1.0.0 release or CoreForge pin change is authorized here.
+
+
+## Pre-v1 CLI status latency quantile truthfulness (#112)
+
+The status producer's authenticated IPC histogram contains only count, sum,
+minimum and maximum. It cannot determine the observed P50/P95/P99 distribution.
+Previously `p50_latency_ms` was the minimum and P95/P99 were computed as
+`max * 0.95` / `max * 0.99`; these are **not measured percentiles**.
+
+The proposed correction publishes **JSON `null`** and human-readable **N/A**
+until observed percentile data exists. The public Rust `RequestStats` fields
+change from `f64` to `Option<f64>`. This is a deliberately **breaking pre-v1
+Rust/source and strict JSON-reader change**, not a compatible addition:
+downstream consumers expecting non-null numbers must migrate. New optional
+readers still accept valid legacy numeric JSON. The external consumer test
+`pre_v1_status_quantiles_have_an_explicit_external_consumer_break` enforces
+this directionality. Current IPC inference frames and measurement collectors
+are not changed by this PR.
+
+This is an **unmerged compatibility proposal** pending the owner-supported
+v1 interface decision in #112. It does not grant release GO, claim percentile
+instrumentation, or justify a performance comparison. Actual experimental
+benchmarks remain in the secured packaged IPC bench and #156/#196, with
+precise sample-count/metric-definition limitations.
