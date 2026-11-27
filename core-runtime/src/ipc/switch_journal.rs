@@ -137,7 +137,11 @@ impl SwitchJournal {
             SwitchOutcome::ReleasePending { pending, .. } => (
                 ModelSwitchPhase::ReleasePending,
                 None,
-                Some(format!("{pending} old model instance(s) still hold memory")),
+                // A historical outcome, not live state: A was closed and B was
+                // not loaded, so no model serves until an explicit load (#153).
+                Some(format!(
+                    "release wait expired with {pending} old model instance(s) still held;                      no model is serving (source unloaded, target not loaded);                      recover with an explicit model load after release"
+                )),
             ),
             SwitchOutcome::RolledBack {
                 cause,

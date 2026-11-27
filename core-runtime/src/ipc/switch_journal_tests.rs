@@ -178,3 +178,25 @@ fn simultaneous_ttl_expiry_cannot_evade_saturation() {
     ));
     assert_eq!(journal.expired.lock().unwrap().len(), MAX_EXPIRED_IDS);
 }
+
+#[test]
+fn release_pending_status_states_the_outage_and_the_recovery() {
+    let journal = SwitchJournal::default();
+    let a = request('d', "b");
+    assert!(matches!(journal.reserve(a.clone()), Admission::New));
+    journal.complete(
+        &a.operation_id,
+        SwitchOutcome::ReleasePending {
+            from_handle: 1,
+            pending: 1,
+        },
+    );
+    let status = journal.status(&a.operation_id).expect("recorded");
+    assert_eq!(status.phase, ModelSwitchPhase::ReleasePending);
+    assert!(!status.ready);
+    assert_eq!(status.to_handle, None);
+    let detail = status.detail.expect("detail");
+    assert!(detail.contains("no model is serving"), "{detail}");
+    assert!(detail.contains("explicit model load"), "{detail}");
+    assert!(detail.chars().count() <= MAX_DETAIL_CHARS);
+}

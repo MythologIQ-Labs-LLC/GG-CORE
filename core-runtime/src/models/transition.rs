@@ -231,6 +231,10 @@ mod tests;
 #[path = "transition_recovery_tests.rs"]
 mod recovery_tests;
 
+#[cfg(test)]
+#[path = "transition_release_pending_tests.rs"]
+mod release_pending_tests;
+
 #[cfg(all(test, feature = "gguf"))]
 #[path = "transition_real_tests.rs"]
 mod real_tests;
