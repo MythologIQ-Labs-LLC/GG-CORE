@@ -2,6 +2,7 @@
 //!
 //! Handles model loading, registry tracking, manifest parsing, and hot-swap operations.
 
+pub mod artifact_preflight;
 pub mod backend_capabilities;
 pub mod backend_dispatch;
 pub mod backend_eligibility;
