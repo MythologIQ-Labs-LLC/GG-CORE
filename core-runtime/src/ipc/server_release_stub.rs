@@ -68,11 +68,13 @@ pub(super) async fn send(client: &mut DuplexStream, message: &IpcMessage) {
 /// Frame deadline floor: the historical fixed bound.
 pub(super) const MIN_FRAME_DEADLINE: Duration = Duration::from_secs(120);
 /// Frame deadline ceiling: a hung daemon must still fail the test.
+#[cfg_attr(not(feature = "gguf"), allow(dead_code))]
 pub(super) const MAX_FRAME_DEADLINE: Duration = Duration::from_secs(900);
 /// A long real-model stream costs about this many short probes on the same
 /// host under the same load; the margin keeps ordering assertions honest
 /// while a contended host (CPU burners, a busy VM host) only slows the
 /// probe and the stream alike.
+#[cfg_attr(not(feature = "gguf"), allow(dead_code))]
 const PROBE_MULTIPLE: u32 = 40;
 
 static FRAME_DEADLINE_MS: AtomicU64 = AtomicU64::new(MIN_FRAME_DEADLINE.as_millis() as u64);
@@ -89,7 +91,8 @@ pub(super) fn frame_deadline() -> Duration {
 /// tests assert ordering (who is answered first), never absolute speed, so
 /// a slow or contended host must not turn an ordering test into a timeout
 /// while a hung daemon still fails within the ceiling. Never lowers the
-/// deadline below the floor.
+/// deadline below the floor. Only the real-model (gguf) tests calibrate.
+#[cfg_attr(not(feature = "gguf"), allow(dead_code))]
 pub(super) fn calibrate_frame_deadline(probe: Duration) -> Duration {
     let scaled = probe.saturating_mul(PROBE_MULTIPLE);
     let chosen = scaled.clamp(MIN_FRAME_DEADLINE, MAX_FRAME_DEADLINE);
