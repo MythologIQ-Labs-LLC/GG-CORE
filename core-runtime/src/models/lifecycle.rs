@@ -206,6 +206,9 @@ pub use release::MAX_RELEASE_WAIT;
 mod operations;
 pub(crate) use operations::{ModelSource, OperationGuard};
 
+#[path = "lifecycle_fence.rs"]
+mod fence;
+
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]
 mod tests;

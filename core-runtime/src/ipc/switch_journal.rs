@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use super::protocol_switch_types::{
     ModelSwitchPhase, ModelSwitchRequest, ModelSwitchStatusResponse,
 };
-use crate::models::transition::SwitchOutcome;
+use crate::models::transition::{SwitchOutcome, SwitchRefusal};
 
 const MAX_RECORDS: usize = 64;
 const COMPLETED_TTL: Duration = Duration::from_secs(600);
@@ -129,11 +129,9 @@ impl SwitchJournal {
                 Some(to_handle),
                 Some("registered; task-specific inference readiness is not yet verified".into()),
             ),
-            SwitchOutcome::Refused(refusal) => (
-                ModelSwitchPhase::Refused,
-                None,
-                Some(safe_detail(&format!("{refusal:?}"))),
-            ),
+            SwitchOutcome::Refused(refusal) => {
+                (ModelSwitchPhase::Refused, None, Some(refusal_detail(&refusal)))
+            }
             SwitchOutcome::ReleasePending { pending, .. } => (
                 ModelSwitchPhase::ReleasePending,
                 None,
@@ -175,6 +173,19 @@ impl SwitchJournal {
 
 fn safe_detail(s: &str) -> String {
     s.chars().take(MAX_DETAIL_CHARS).collect()
+}
+
+/// A refusal leaves the source serving; the drain timeout says so explicitly
+/// because its wait expiring is otherwise easy to misread as the outage.
+fn refusal_detail(refusal: &SwitchRefusal) -> String {
+    match refusal {
+        SwitchRefusal::DrainTimedOut { pending } => safe_detail(&format!(
+            "release wait expired with {pending} in-flight request(s) still holding the source; \
+             the switch was refused and the source is still serving under its original handle \
+             (target not loaded); retry later or with a longer wait"
+        )),
+        other => safe_detail(&format!("{other:?}")),
+    }
 }
 
 #[cfg(test)]

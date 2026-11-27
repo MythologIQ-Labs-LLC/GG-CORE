@@ -14,7 +14,8 @@ use super::switch_journal::Admission;
 use crate::ipc::protocol::IpcMessage;
 use crate::models::registry::ModelHandle;
 use crate::models::transition::{
-    join_switch, spawn_cold_switch, CanonicalPreparer, ColdSwitchRequest, Preparer, SwitchOutcome,
+    join_switch, spawn_cold_switch, CanonicalPreparer, ColdSwitchRequest, Preparer, ReleasePolicy,
+    SwitchOutcome,
 };
 
 impl IpcHandler {
@@ -61,6 +62,9 @@ impl IpcHandler {
             to_path: request.to_path,
             to_id: request.to_id,
             release_wait: Duration::from_millis(request.release_wait_ms),
+            // The approved #153 baseline. Drain-before-unload (S9 option 2)
+            // is implemented but not selectable here until the owner decides.
+            policy: ReleasePolicy::default(),
         };
         match spawn_cold_switch(Arc::clone(&self.model_lifecycle), prep, switch) {
             Ok(task) => {

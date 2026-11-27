@@ -20,11 +20,18 @@ mod speculative_wire;
 #[path = "inference_run.rs"]
 mod controlled_run;
 
+// Admission fence for drain-before-unload switching (#153 option 2, S9).
+#[path = "inference_fence.rs"]
+mod fence;
+pub(crate) use fence::AdmissionFence;
+
 /// Executes model inference by delegating to registered models.
 pub struct InferenceEngine {
     max_context_length: usize,
     /// Models indexed by model_id for lookup.
     models: Arc<RwLock<HashMap<String, Arc<dyn Model>>>>,
+    /// Models closed to new admissions; read and written only under `models`.
+    fences: fence::Fences,
     /// Degraded-mode policy applied under resource pressure (B-07).
     degraded: DegradedModePolicy,
     // Adaptive speculative decoding (B-21c); off by default, target->draft pairs.
@@ -64,6 +71,7 @@ impl InferenceEngine {
         Self {
             max_context_length,
             models: Arc::new(RwLock::new(HashMap::new())),
+            fences: Arc::default(),
             degraded,
             #[cfg(feature = "advanced")]
             spec_config: crate::models::speculative_config::AdaptiveSpeculativeConfig::default(),
@@ -109,7 +117,7 @@ impl InferenceEngine {
     ) -> Result<InferenceResult, InferenceError> {
         params.validate()?;
         let control = StopControl::from_timeout(None, params.timeout_ms);
-        let model = self.get_model(model_id).await?;
+        let model = self.admit(model_id, Some(&control)).await?;
         let prompt = self.apply_degraded_context(prompt)?;
         // B-21c: config-gated speculative decode (off by default); miss -> single-model.
         #[cfg(all(feature = "gguf", feature = "advanced"))]
@@ -171,12 +179,15 @@ impl InferenceEngine {
         if let Some(stopped) = control.stop_error() {
             return Err(stopped);
         }
-        let model = self.get_model(model_id).await?;
+        let model = self.admit(model_id, Some(control)).await?;
         self.check_context(prompt)?;
         Self::infer_controlled(&model, prompt, params, max_memory_bytes, control).await
     }
 
-    /// Look up a model by ID, cloning the Arc (drops the read lock).
+    /// Look up a model by ID, cloning the Arc (drops the read lock), without
+    /// honouring an admission fence: for inspection and the optional
+    /// speculative draft. Requests take their lease through `admit`, which
+    /// waits while the model is fenced for a drain-before-unload switch.
     async fn get_model(&self, model_id: &str) -> Result<Arc<dyn Model>, InferenceError> {
         let models = self.models.read().await;
         models

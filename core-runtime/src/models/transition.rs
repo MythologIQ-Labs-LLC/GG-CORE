@@ -7,8 +7,9 @@
 //! `docs/integration/V1_COLD_SWITCH_COORDINATOR_PLAN.md`.
 //!
 //! Order: authority → preconditions → non-disruptive preflight → close A to
-//! new admissions → bounded wait for A's real release → load B → registration
-//! check → (on failure) recover to A from its recorded, re-hashed source.
+//! new admissions (under the request's [`ReleasePolicy`]) → bounded wait for
+//! A's real release → load B → registration check → (on failure) recover to
+//! A from its recorded, re-hashed source.
 
 // Conservative state transitions remain not release-qualified. Their
 // behavioral contract is tested with model-free and real-model fixtures.
@@ -17,13 +18,14 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use tokio::task::{spawn_blocking, JoinHandle};
+use tokio::task::JoinHandle;
 
 use super::lifecycle::{
     LifecycleError, ModelLifecycle, ModelSource, OperationGuard, MAX_RELEASE_WAIT,
 };
 use super::registry::ModelHandle;
 
+pub(crate) use close::ReleasePolicy;
 pub(crate) use preparer::{CanonicalPreparer, Preparer, TargetFacts, SOURCE_CHANGED};
 
 /// One operator request to switch the serving model from A to B.
@@ -36,6 +38,9 @@ pub(crate) struct ColdSwitchRequest {
     pub(crate) to_id: String,
     /// Bound on waiting for A's in-flight requests to release its memory.
     pub(crate) release_wait: Duration,
+    /// How A is closed while requests hold it. Not on the wire: the IPC path
+    /// uses the default (the approved baseline) until the owner decides #153.
+    pub(crate) policy: ReleasePolicy,
 }
 
 /// Why a switch was refused before anything changed (A still serving).
@@ -54,6 +59,12 @@ pub(crate) enum SwitchRefusal {
     OverBudget {
         needed: u64,
         available: u64,
+    },
+    /// Drain-before-unload only: `pending` in-flight leases on A did not end
+    /// within the wait. The fence is lifted; A is registered and serving
+    /// under its original handle, and B was never loaded.
+    DrainTimedOut {
+        pending: usize,
     },
 }
 
@@ -117,17 +128,8 @@ async fn run(
     if let Err(refusal) = preflight(&lifecycle, &prep, &req, &source).await {
         return SwitchOutcome::Refused(refusal);
     }
-    // Disruption starts here: A closes to new admissions; in-flight and
-    // streaming requests continue to completion.
-    match lifecycle
-        .unload_expected(&req.from_id, req.expected_handle)
-        .await
-    {
-        Ok(_) => {}
-        Err(LifecycleError::StaleHandle(_)) => {
-            return SwitchOutcome::Refused(SwitchRefusal::StaleHandle)
-        }
-        Err(_) => return SwitchOutcome::Refused(SwitchRefusal::NotLoaded),
+    if let Err(outcome) = close::close_a(&lifecycle, &req).await {
+        return outcome;
     }
     let released_at = Instant::now();
     let (released, pending) = lifecycle
@@ -152,61 +154,12 @@ async fn run(
     }
 }
 
-async fn preconditions(
-    lifecycle: &ModelLifecycle,
-    req: &ColdSwitchRequest,
-) -> Result<ModelSource, SwitchRefusal> {
-    if req.release_wait > MAX_RELEASE_WAIT {
-        return Err(SwitchRefusal::WaitTooLong);
-    }
-    if req.to_id == req.from_id {
-        return Err(SwitchRefusal::SameModel);
-    }
-    match lifecycle.get_handle(&req.from_id).await {
-        None => return Err(SwitchRefusal::NotLoaded),
-        Some(handle) if handle != req.expected_handle => return Err(SwitchRefusal::StaleHandle),
-        Some(_) => {}
-    }
-    if lifecycle.is_loaded(&req.to_id).await {
-        return Err(SwitchRefusal::TargetLoaded);
-    }
-    lifecycle
-        .source(req.expected_handle)
-        .ok_or(SwitchRefusal::UnknownSource)
-}
+#[path = "transition_checks.rs"]
+mod checks;
+use checks::{preconditions, preflight};
 
-/// Validate A's recorded path and B's target without reading model bytes,
-/// then estimate (re-checked at load) whether B fits once A's bytes return.
-async fn preflight(
-    lifecycle: &ModelLifecycle,
-    prep: &Arc<dyn Preparer>,
-    req: &ColdSwitchRequest,
-    source: &ModelSource,
-) -> Result<(), SwitchRefusal> {
-    let (p, to, from) = (
-        Arc::clone(prep),
-        req.to_path.clone(),
-        source.relative_path.clone(),
-    );
-    let facts = spawn_blocking(move || p.preflight(&from).and_then(|_| p.preflight(&to)))
-        .await
-        .map_err(|e| SwitchRefusal::Preflight(e.to_string()))?
-        .map_err(|e| SwitchRefusal::Preflight(e.to_string()))?;
-    if let Some(limits) = lifecycle.resource_limits() {
-        // Everything charged now (other residents, draining releases, request
-        // working memory) except A's resident bytes, which the switch returns.
-        let a = lifecycle.charged_bytes(&req.from_id).await;
-        let others = limits.current_memory().saturating_sub(a) as u64;
-        let available = (limits.max_total_memory() as u64).saturating_sub(others);
-        if facts.size_bytes > available {
-            return Err(SwitchRefusal::OverBudget {
-                needed: facts.size_bytes,
-                available,
-            });
-        }
-    }
-    Ok(())
-}
+#[path = "transition_close.rs"]
+mod close;
 
 #[path = "transition_preparer.rs"]
 mod preparer;
@@ -234,6 +187,10 @@ mod recovery_tests;
 #[cfg(test)]
 #[path = "transition_release_pending_tests.rs"]
 mod release_pending_tests;
+
+#[cfg(test)]
+#[path = "transition_fence_tests.rs"]
+mod fence_tests;
 
 #[cfg(all(test, feature = "gguf"))]
 #[path = "transition_real_tests.rs"]

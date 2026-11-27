@@ -192,6 +192,18 @@ It is **not exposed over IPC by default** (see "Exposure").
   - **R4:** the record-time hash of B is stated and measured. Three more tests: a bypass unload drops the source; `resident_bytes_excluding` with another resident; the IPC unload busy bound.
   - **R5:** a `JoinError` maps to an explicit unknown-state report.
 
+## Revision 3 (2026-11-27): drain-before-unload option, policy-neutral (S9, #153 option 2)
+
+The native cold-switch run on `28834eaf` passed 10/11 scenarios; S9 failed because an expired release wait left no model serving (`ReleasePending`, the outage flagged in Revision 2). #153 comment 7175997447 recommends draining before unloading behind a bounded per-model admission fence. **The owner has not yet authorized that policy change.** This revision therefore implements it without changing production behaviour:
+
+- `ReleasePolicy` (crate-internal, on `ColdSwitchRequest`, not on the wire) selects how A is closed. `UnloadThenWait` is the approved baseline and the **default**; the IPC handler always uses the default. `DrainBeforeUnload` is selectable only in-crate until the owner decides.
+- **Fence.** `InferenceEngine` keeps a per-model admission fence beside its model store. The switch raises it under the store's write lock and reads A's outstanding `Arc` count at the same instant, so no lease can appear between "fenced" and "counted". Requests take their lease through `admit` (async) or `admit_blocking` (native stream threads), which check the fence under the same read lock that clones the `Arc`. A fenced request waits **without a lock or a lease**, re-checking every 20 ms and honouring its own deadline and cancellation; a stream's wait is bounded by its stop check. The fence is RAII: dropping it (also when the switch task is aborted) reopens A and wakes the waiters.
+- **Leases.** `ModelLifecycle::leases(id)` is the engine's strong count minus the lifecycle's two own references (store entry, `Resident`). `wait_drained` polls it every 10 ms up to the request's wait (capped at `MAX_RELEASE_WAIT`), holding no lock between reads.
+- **Outcomes.** Drained in time: the fence stays raised through the existing `unload_expected` transaction, then lifts; waiters observe `ModelNotLoaded`; `wait_released` returns at once because A has no holder; `load_checked` loads B as before. Not drained: the fence lifts and the switch is refused with `SwitchRefusal::DrainTimedOut { pending }` (journal phase `refused`, detail states A still serves). A keeps its handle, source record and budget charge; B is never loaded, no weights are duplicated and A is never handed to the release supervisor.
+- **Not changed.** Authentication, operator authority, residency ceilings, verified source identity, readiness (`loaded_unverified`), rollback and journal reconciliation. Stale handles are refused before fencing and again under the index lock when fencing.
+- **Tests** (model-free, `transition_fence_tests.rs`, `inference_fence_tests.rs`, journal): timeout leaves A serving under its handle; successful drain unloads A and loads B on the canonical path; concurrent admissions wait without leasing and then run on A (refusal) or see `ModelNotLoaded` (switch); waiters keep their deadline and cancellation; an aborted switch lifts the fence; stale handles; ceiling during and after a refused drain; unheld A drains at once; the default policy is the baseline.
+- **Residual.** The `advanced`-feature speculative draft lookup does not wait on the fence; a draft lease is still counted, so a drain simply waits for it. The native S1–S11 rerun against an installed candidate is a separate VM gate.
+
 ## Independent review (2026-11-14): APPROVE WITH CONDITIONS, all addressed
 
 | Finding | Severity | Resolution |

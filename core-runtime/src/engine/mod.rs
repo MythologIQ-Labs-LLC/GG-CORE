@@ -74,6 +74,7 @@ pub use degraded_mode::{
 pub use error::InferenceError;
 pub use filter::{FilterConfig, OutputFilter};
 pub use flash_attn::{FlashAttn, FlashAttnConfig};
+pub(crate) use inference::AdmissionFence;
 pub use inference::{InferenceEngine, InferenceParams, InferenceResult};
 pub use input::{ChatMessage, ChatRole, InferenceInput};
 pub use input::{MAX_BATCH_SIZE, MAX_INPUT_TOKENS, MAX_TEXT_BYTES};

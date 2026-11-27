@@ -52,16 +52,11 @@ impl InferenceEngine {
         use crate::engine::gguf::GgufGenerator;
         use crate::security::stream_sanitizer::StreamSanitizer;
 
-        // Clone Arc and drop read lock before calling into model.
-        let model = {
-            // A native streaming worker may outlive its Tokio runtime.
-            // Never require a live reactor merely to clone its model Arc.
-            let models = self.models.blocking_read();
-            models
-                .get(model_id)
-                .cloned()
-                .ok_or_else(|| InferenceError::ModelNotLoaded(model_id.to_string()))?
-        };
+        // Take the lease (Arc clone) and drop the read lock before calling
+        // into the model. A native streaming worker may outlive its Tokio
+        // runtime, so no reactor is required; while the model is fenced for a
+        // drain-before-unload switch the wait is bounded by `should_stop`.
+        let model = self.admit_blocking(model_id, should_stop)?;
 
         let generator = model
             .as_any()

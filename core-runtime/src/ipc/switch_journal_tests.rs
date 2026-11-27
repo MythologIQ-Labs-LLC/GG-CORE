@@ -200,3 +200,30 @@ fn release_pending_status_states_the_outage_and_the_recovery() {
     assert!(detail.contains("explicit model load"), "{detail}");
     assert!(detail.chars().count() <= MAX_DETAIL_CHARS);
 }
+
+#[test]
+fn drain_timeout_is_a_refusal_that_states_the_source_still_serves() {
+    let journal = SwitchJournal::default();
+    let a = request('e', "b");
+    assert!(matches!(journal.reserve(a.clone()), Admission::New));
+    journal.complete(
+        &a.operation_id,
+        SwitchOutcome::Refused(SwitchRefusal::DrainTimedOut { pending: 2 }),
+    );
+    let status = journal.status(&a.operation_id).expect("recorded");
+    assert_eq!(
+        status.phase,
+        ModelSwitchPhase::Refused,
+        "not the outage phase"
+    );
+    assert!(!status.ready);
+    assert_eq!(status.to_handle, None);
+    let detail = status.detail.expect("detail");
+    assert!(detail.contains("2 in-flight request(s)"), "{detail}");
+    assert!(
+        detail.contains("still serving under its original handle"),
+        "{detail}"
+    );
+    assert!(detail.contains("target not loaded"), "{detail}");
+    assert!(detail.chars().count() <= MAX_DETAIL_CHARS);
+}

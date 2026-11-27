@@ -163,6 +163,14 @@ impl Preparer for Fake {
 
 /// A budgeted lifecycle with `total` bytes.
 pub(super) fn lifecycle(total: usize) -> (Arc<ModelLifecycle>, ResourceLimits) {
+    let (lc, limits, _engine) = lifecycle_with_engine(total);
+    (lc, limits)
+}
+
+/// [`lifecycle`] that also hands back the engine, for admission checks.
+pub(super) fn lifecycle_with_engine(
+    total: usize,
+) -> (Arc<ModelLifecycle>, ResourceLimits, Arc<InferenceEngine>) {
     let limits = ResourceLimits::new(ResourceLimitsConfig {
         max_memory_per_call: 10,
         max_total_memory: total,
@@ -170,8 +178,9 @@ pub(super) fn lifecycle(total: usize) -> (Arc<ModelLifecycle>, ResourceLimits) {
     });
     let registry = Arc::new(ModelRegistry::new());
     let engine = Arc::new(InferenceEngine::new(4096));
-    let lc = ModelLifecycle::new(registry, engine).with_resource_limits(limits.clone());
-    (Arc::new(lc), limits)
+    let lc =
+        ModelLifecycle::new(registry, Arc::clone(&engine)).with_resource_limits(limits.clone());
+    (Arc::new(lc), limits, engine)
 }
 
 /// Load `path` as `id` through the operator path (source recorded) and
@@ -213,6 +222,7 @@ pub(super) fn request(
         to_path: to_path.into(),
         to_id: to.into(),
         release_wait: Duration::from_secs(2),
+        policy: ReleasePolicy::default(),
     }
 }
 
